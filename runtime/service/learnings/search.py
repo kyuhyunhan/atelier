@@ -104,13 +104,13 @@ def search(*, query: str = "",
         try:
             placeholders = ",".join("?" * len(types))
             base = (
-                "SELECT p.slug, p.page_type, p.space, p.frontmatter_json "
+                "SELECT p.slug, p.page_type, p.space, p.frontmatter "
                 "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
             )
             params: List[Any] = list(types)
             if query:
                 base = (
-                    "SELECT p.slug, p.page_type, p.space, p.frontmatter_json "
+                    "SELECT p.slug, p.page_type, p.space, p.frontmatter "
                     "FROM chunks_fts f "
                     "JOIN chunks c ON c.rowid=f.rowid "
                     "JOIN pages p  ON p.id=c.page_id "
@@ -129,7 +129,7 @@ def search(*, query: str = "",
                     continue
                 seen_slugs.add(slug)
                 import json as _json
-                fm = _json.loads(row["frontmatter_json"] or "{}")
+                fm = _json.loads(row["frontmatter"] or "{}")
                 if project and fm.get("target_project") != project \
                         and fm.get("project_hint") != project:
                     continue

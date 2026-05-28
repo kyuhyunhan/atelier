@@ -439,6 +439,25 @@ async def _h_recall(query: str,
                        relevance_threshold=relevance_threshold)
 
 
+async def _h_learning_cluster(min_shared_terms: int = 3,
+                               min_size: int = 2,
+                               min_projects: int = 2,
+                               limit: int = 50) -> Dict[str, Any]:
+    """Dream cycle step ① — deterministic clustering of accepted learnings
+    by shared salient terms + cross-project spread. Read-only; the agent
+    generalizes each cluster into a principle (step ②)."""
+    from .learnings import cluster as _cl
+    return _cl.cluster(min_shared_terms=min_shared_terms, min_size=min_size,
+                        min_projects=min_projects, limit=limit)
+
+
+async def _h_dream_status() -> Dict[str, Any]:
+    """Cadence info for the dream nudge: last dream time + accepted
+    learnings accrued since."""
+    from .learnings import cluster as _cl
+    return _cl.dream_status()
+
+
 async def _h_session_bootstrap(working_dir: Optional[str] = None,
                                 max_chars: int = 6000
                                 ) -> Dict[str, Any]:
@@ -676,6 +695,19 @@ def _register_v01_tools() -> None:
         "Returns top-K learnings ranked by FTS5 relevance to the query, "
         "with a project-match boost.",
         _h_recall,
+    ))
+    register(ToolDef(
+        "atelier_learning_cluster",
+        "Dream cycle ① — deterministically group accepted learnings by "
+        "shared terms + cross-project spread (≥2 projects). The agent "
+        "then generalizes each cluster into a principle.",
+        _h_learning_cluster,
+    ))
+    register(ToolDef(
+        "atelier_dream_status",
+        "Dream cadence: last_dream_at + accepted learnings accrued since. "
+        "Drives the session-start nudge.",
+        _h_dream_status,
     ))
 
 

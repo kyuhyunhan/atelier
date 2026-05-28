@@ -66,7 +66,7 @@ def _fts_search(query: str, types: List[str], limit: int) -> List[Dict[str, Any]
     try:
         placeholders = ",".join("?" * len(types))
         sql = (
-            "SELECT p.slug, p.page_type, p.space, p.frontmatter_json, "
+            "SELECT p.slug, p.page_type, p.space, p.frontmatter, "
             "       f.rank AS score, "
             "       snippet(chunks_fts, 0, '', '', '...', 24) AS snip "
             "FROM chunks_fts f "
@@ -88,7 +88,7 @@ def _fts_search(query: str, types: List[str], limit: int) -> List[Dict[str, Any]
             if slug in seen:
                 continue
             seen.add(slug)
-            fm = json.loads(r["frontmatter_json"] or "{}")
+            fm = json.loads(r["frontmatter"] or "{}")
             out.append({
                 "slug": slug,
                 "page_type": r["page_type"],

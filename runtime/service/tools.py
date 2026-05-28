@@ -375,6 +375,25 @@ async def _h_principle_archive(slug: str, reason: str) -> Dict[str, Any]:
     return _pr.archive(slug=slug, reason=reason)
 
 
+async def _h_recall(query: str,
+                     project: Optional[str] = None,
+                     top_k: int = 5,
+                     max_chars: int = 1500,
+                     include_candidates: bool = False,
+                     relevance_threshold: Optional[float] = None,
+                     ) -> Dict[str, Any]:
+    """Per-turn signal-detector retrieval over the learnings domain."""
+    from .learnings import recall as _rc
+    sess = current_session()
+    if project is None and sess.working_dir:
+        from pathlib import Path as _P
+        project = _P(sess.working_dir).name or None
+    return _rc.recall(query=query, project=project, top_k=top_k,
+                       max_chars=max_chars,
+                       include_candidates=include_candidates,
+                       relevance_threshold=relevance_threshold)
+
+
 async def _h_session_bootstrap(working_dir: Optional[str] = None,
                                 max_chars: int = 6000
                                 ) -> Dict[str, Any]:
@@ -605,6 +624,13 @@ def _register_v01_tools() -> None:
         "always-inject principles + the working-dir project's learnings. "
         "Intended for a UserPromptSubmit hook with session_id-based dedup.",
         _h_session_bootstrap,
+    ))
+    register(ToolDef(
+        "atelier_recall",
+        "Per-turn signal-detector retrieval over the learnings domain. "
+        "Returns top-K learnings ranked by FTS5 relevance to the query, "
+        "with a project-match boost.",
+        _h_recall,
     ))
 
 

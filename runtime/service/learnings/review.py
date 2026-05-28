@@ -215,6 +215,13 @@ def accept(*, candidate_slug: str, target_topic: str,
     dest_dir = vault / "learnings" / "accepted" / "by-topic" / topic
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / src.name
+    # Collision avoidance — two captures with the same minute + slug from
+    # different sessions would otherwise overwrite one another.
+    n = 1
+    while dest.exists():
+        stem = Path(src.name).stem
+        dest = dest_dir / f"{stem}-{n}{Path(src.name).suffix}"
+        n += 1
 
     fm = dict(fm)
     fm["status"] = "accepted"
@@ -240,7 +247,7 @@ def accept(*, candidate_slug: str, target_topic: str,
     project_path: Optional[Path] = None
     if target_project:
         project_path = (vault / "learnings" / "accepted" / "by-project"
-                        / _slugify(target_project, fallback="misc") / src.name)
+                        / _slugify(target_project, fallback="misc") / dest.name)
         project_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(dest, project_path)
 

@@ -55,6 +55,12 @@ learnings:
   aggressive_capture: true         # Stop / SessionEnd hooks auto-capture
   per_project_dirs: true           # accepted/by-project/<project>/
   candidate_retention_days: 60     # candidates older than this auto-archive
+  # Per-turn signal-detector recall via UserPromptSubmit hook.
+  signal_detector:
+    enabled: false                 # opt-in; raises token cost per turn
+    relevance_threshold: null      # null = no threshold; or e.g. -1.0
+    max_chars_per_turn: 1500
+    cache_ttl_seconds: 30
 
 # ── Secrets references ───────────────────────────────────────────────────────
 auth:

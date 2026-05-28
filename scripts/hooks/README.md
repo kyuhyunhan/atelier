@@ -80,6 +80,51 @@ files in `~/.claude/` are modified by atelier — this is intentionally a
 *loose-coupled* integration: removing the hook entry instantly reverts
 Claude Code to its pre-atelier behavior.
 
+## Per-turn signal recall (PR-28, opt-in)
+
+A third hook, `signal-recall.sh`, fires on every `UserPromptSubmit`
+(not just the first) and pushes the top-K learnings *most relevant to
+the current prompt* into the next turn's context.
+
+Enable in `~/.atelier/config.yaml`:
+
+```yaml
+learnings:
+  signal_detector:
+    enabled: true
+    relevance_threshold: null      # optional FTS score cutoff
+    max_chars_per_turn: 1500       # advisory (engine-side cap)
+    cache_ttl_seconds: 30
+```
+
+```bash
+cp scripts/hooks/signal-recall.sh ~/.atelier/bin/signal-recall.sh
+chmod +x ~/.atelier/bin/signal-recall.sh
+```
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "matcher": "",
+        "hooks": [
+          { "type": "command",
+            "command": "~/.atelier/bin/session-bootstrap.sh" },
+          { "type": "command",
+            "command": "~/.atelier/bin/signal-recall.sh" }
+        ] }
+    ]
+  }
+}
+```
+
+The hook keeps a 30-second cache on `hash(prompt)` and a per-session
+"already-shown" set in `~/.atelier/cache/recall-seen/<session>.txt`, so
+the same learning is never pushed twice in one session.
+
+`signal-recall.sh` is independent of `session-bootstrap.sh` — you can
+enable either one alone.
+
 ## What the hook captures
 
 The hook adapter forwards the Claude Code stop/session-end payload (JSON)

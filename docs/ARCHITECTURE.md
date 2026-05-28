@@ -140,6 +140,154 @@ atelier new-product foo
 
 ---
 
+## Learnings domain & dream cycle
+
+The `learnings/` subtree (added v0.2.1) is the **developer-self memory**:
+lessons accumulated across *every* project the user touches through an
+agent, then distilled into universal principles. It is the bidirectional
+counterpart to the rest of the vault — where `raw/`+`wiki/` capture
+*knowledge* and `workshop/` captures *product work*, `learnings/`
+captures *how the developer works*.
+
+### Three tiers
+
+```
+learnings/
+├── candidates/<date>/<slug>.md     tier 1 — aggressive capture, append-only
+│      ↓  (review: accept / archive)
+├── accepted/
+│   ├── by-topic/<topic>/<slug>.md  tier 2 — curated, canonical
+│   └── by-project/<project>/<slug> tier 2 — same entries, project-indexed mirror
+│      ↓  (dream cycle: cluster → synthesize)
+└── principles/<slug>.md            tier 3 — cross-project ethos
+       priority: always-inject | on-relevant-prompt | manual-only
+```
+
+- **tier 1 (candidates)** — captured *aggressively* with no judgement:
+  Claude Code `Stop`/`SessionEnd` hooks, manual `atelier_learning_capture`,
+  and `atelier_absorb_claude_memory` (which imports Claude Code's own
+  per-project memory). Signal/noise separation is deferred to promotion.
+- **tier 2 (accepted)** — promoted by a curator through
+  `atelier_learning_accept`, gated by `criteria.yaml` (must/should/
+  forbidden). The canonical copy lives under `by-topic/`; a mirror under
+  `by-project/<n>/` makes project-scoped recall cheap.
+- **tier 3 (principles)** — generalizations that hold across projects.
+  `priority: always-inject` principles are surfaced at *every* session
+  start; this is the highest-authority, highest-blast-radius tier, so it
+  is gated hardest.
+
+### Bidirectional flow
+
+```
+        ┌──────────────── Claude Code session ────────────────┐
+        │  working_dir = ~/ws/<project>                         │
+        └───────┬───────────────────────────────┬──────────────┘
+   capture (←)  │                                │  inject (→)
+                ▼                                ▼
+   Stop/SessionEnd hook                 UserPromptSubmit hook
+   → atelier_learning_capture           → session_bootstrap (1st turn):
+   → candidates/                           always-inject principles +
+                                            by-project/<project> learnings
+   absorb (← offline)                   → signal_recall (every turn):
+   → atelier_absorb_claude_memory          FTS-ranked learnings for this
+   → accepted/ + candidates/               prompt, project-boosted
+```
+
+Capture and absorb feed the vault; bootstrap and recall feed the agent.
+The loop closes: today's session deposits learnings that boost tomorrow's
+session in any project.
+
+### Dream cycle — automated principle synthesis
+
+Manually authoring principles does not scale. The **dream cycle** automates
+*discovery* and *drafting* while keeping the high-blast-radius
+`always-inject` decision with a human. Work splits in three:
+
+```
+① cluster (mechanical)   engine — atelier_learning_cluster
+   "which learnings form one group?"  FTS-term overlap + cross-project
+                                       spread (≥2 projects)
+        ▼
+② synthesize (semantic)  agent — the live Claude session
+   "generalize this group into one rule"  → atelier_principle_synthesize
+                                              (status: proposed)
+        ▼
+③ promote (judgement)    human — atelier_principle_review_proposed
+   "worth injecting into every session?"  → approve (→ accepted) / reject
+```
+
+The engine is domain-ignorant, so it cannot do ② — it only tees up ①
+deterministically and guarantees safe writes. ② runs in whatever live
+Claude session the user is in (no separate daemon, no LLM inside the
+engine).
+
+### Why usage-coupled, not scheduled
+
+atelier runs on a laptop that sleeps when the lid closes. Wall-clock
+schedulers (cron, launchd `StartCalendarInterval`) are unreliable there:
+a 3am job never fires under a closed lid, and missed-run coalescing on
+wake is fragile. The dream cycle is therefore **event-driven, not
+time-driven**:
+
+```
+lid closed   → no new learnings accrue → no dream needed   (self-consistent)
+lid open     → learnings accrue AND a Claude session is live → dream is both
+               needed and runnable at the same moment
+```
+
+`session_bootstrap` checks a threshold (`accepted_since_last_dream ≥ N`
+**or** `days_since_last_dream ≥ D`) and, when crossed, appends a one-line
+nudge to the first-turn context. The user (or the agent) then runs the
+dream pass *in that live session*. The cadence auto-matches usage; the
+laptop's intermittent availability is a non-issue by construction.
+
+> **Note on sleep vs. termination.** Closing the lid *suspends* the
+> `atelier serve` process (frozen, memory + disk buffers preserved),
+> it does not terminate it. The server resumes on wake. It only truly
+> dies on logout/reboot, kill/crash, or (if not run under `nohup`) the
+> launching terminal closing.
+
+### Interruption resilience (lid closed mid-dream)
+
+A dream pass may be interrupted at any point — the lid closes while the
+agent is mid-synthesis. Two severities:
+
+- **sleep** (lid close): gentle. Process frozen; no file corruption
+  (not a power loss — OS buffers survive in RAM and flush on wake). Only
+  in-flight *network* (Anthropic API, local MCP socket) may time out on
+  wake → retryable.
+- **reboot / power loss**: harsh. `atelier serve` is gone; an in-flight
+  write could be truncated.
+
+Both reduce to **partial completion**, not corruption, handled by five
+rules:
+
+1. **Incremental durability** — clusters are processed one at a time;
+   each completed `cluster → proposed draft` is committed immediately.
+   An interruption loses only the in-flight cluster, never prior work.
+2. **Atomic writes** — each draft is written to `.<slug>.tmp` then
+   `os.rename`d (atomic on POSIX), so even power loss leaves no half-file.
+3. **Idempotent re-run** — a cluster is skipped if its member learnings
+   already overlap (≥K) the `evidence` of an existing principle in
+   **proposed *or* accepted *or* archived** state. Checking archived too
+   means a cluster the user already *rejected* is never re-proposed.
+4. **`last_dream_at` advances only on clean completion** — an interrupted
+   pass leaves it stale, so the nudge re-fires and the next pass resumes
+   (idempotently skipping done clusters). Self-healing; no resume logic.
+5. **Checkpoint = filesystem** — the `proposed/` drafts themselves are
+   the progress record. No separate state file to corrupt.
+
+| interruption point | sleep | reboot |
+|---|---|---|
+| cluster 3/8 in progress | 3 saved; in-flight retried on wake or next dream | 3 saved (atomic); next dream resumes at #4 |
+| mid `synthesize` write | buffer survives, completes on wake | only `.tmp` left → ignored, regenerated |
+| just before agent reports | draft already on disk; only chat report lost | same |
+| fully complete | last_dream_at set, nudge clears | same |
+
+Every cell resolves to *data-safe + resumes on the next opportunity*.
+
+---
+
 ## Component Map
 
 ```

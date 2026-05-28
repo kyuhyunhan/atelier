@@ -2,6 +2,35 @@
 
 All notable changes to atelier.
 
+## [0.2.2] — Dream cycle (automated principle synthesis) — IN PROGRESS
+
+Design is documented first (doc-first); implementation lands across
+PR-29..33. See *Learnings domain & dream cycle* in `docs/ARCHITECTURE.md`
+for the full rationale.
+
+### Design landed (PR-34, this entry)
+
+- **`docs/ARCHITECTURE.md` — "Learnings domain & dream cycle"** section:
+  three-tier model (candidates / accepted / principles), bidirectional
+  capture↔inject flow, the dream cycle's cluster→synthesize→promote
+  split, the **usage-coupled (not wall-clock) trigger** rationale for a
+  laptop that sleeps, and the **interruption-resilience** rules
+  (incremental durability, atomic writes, idempotent re-run vs.
+  proposed+accepted+archived, self-healing `last_dream_at`,
+  filesystem-as-checkpoint).
+
+### Planned (not yet implemented)
+
+- **PR-29** — `atelier_learning_cluster`: deterministic clustering by
+  FTS-term overlap + cross-project spread; meta tracks `last_dream_at`
+  and accepted-since count.
+- **PR-30** — principle `status: proposed` tier; atomic draft writes;
+  evidence-overlap idempotent dedup.
+- **PR-31** — `atelier_principle_review_proposed` + approve/reject.
+- **PR-32** — `session_bootstrap` threshold nudge (last_dream_at based,
+  detects an interrupted dream).
+- **PR-33** — `atelier dream` convenience CLI + orchestration docs.
+
 ## [0.2.1] — Bidirectional knowledge flow with Claude Code
 
 ### Engine

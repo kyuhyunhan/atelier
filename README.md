@@ -109,9 +109,14 @@ See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
   legacy two-space (`librarian-territory` + `builder-territory`) model
   is collapsed into one repo. Workshop content + per-product memory
   absorbed by one-shot migration scripts.
-- **Learnings domain** — `gorae/learnings/{candidates,accepted,archived}/`
-  with aggressive hook-driven capture and acceptance-criteria-gated
-  promotion. Default hook adapter at `scripts/hooks/capture-learning.sh`.
+- **Learnings domain** — `gorae/learnings/{candidates,accepted,principles}/`
+  with aggressive hook-driven capture, acceptance-criteria-gated
+  promotion, cross-project **principles**, session-start injection,
+  per-turn signal recall, Claude-Code-memory absorption, and a
+  **usage-coupled dream cycle** for automated principle synthesis. See
+  *Learnings domain & dream cycle* in
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design
+  rationale (trigger model, interruption resilience).
 - **Capability ports** — `atelier_{validate, fix_pending, index_regen,
   prepare_commit, clip_image, new_doc, youtube}` replace the proto-engine
   scripts inside gorae. See `scripts/gorae_cleanup/CHECKLIST.md` to

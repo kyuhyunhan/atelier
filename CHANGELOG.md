@@ -2,6 +2,72 @@
 
 All notable changes to atelier.
 
+## [0.2.1] — Bidirectional knowledge flow with Claude Code
+
+### Engine
+
+- **Claude Code memory absorption** (PR-24) — `atelier_absorb_claude_memory`
+  walks `~/.claude/projects/<encoded-cwd>/memory/*.md`, decodes the
+  cwd, and lands each memory into atelier's learnings tier. Mapping:
+  `type ∈ {feedback, reference}` → `accepted`,
+  `type ∈ {user, project}` → `candidate`. Origin is captured in
+  frontmatter (`source: claude-memory`, `source_path`,
+  `claude_memory_type`) — *not* in a sibling topic directory, so
+  topic classification stays orthogonal to origin. Deduplication by
+  sha256(normalized body) cached at
+  `<vault>/learnings/.absorbed-from-claude/<hash>.json`.
+
+- **Principles tier** (PR-24.5) — `learnings/principles/` is the
+  cross-project developer-ethos layer. New page_type
+  `learning_principle` with frontmatter fields `coverage`
+  (cross-project / single-project / single-topic) and `priority`
+  (always-inject / on-relevant-prompt / manual-only). Four MCP tools:
+  `atelier_principle_add`, `atelier_principle_synthesize` (draft from
+  N accepted learnings; rule/why may be scaffolded), `atelier_principle_list`,
+  `atelier_principle_archive`.
+
+- **Session-start context injection** (PR-25/c) — new MCP tool
+  `atelier_session_bootstrap(working_dir, max_chars=6000)` returns a
+  single markdown block carrying (a) every principle with
+  `priority: always-inject` and (b) the working-dir project's
+  by-project learnings. Truncated bottom-up so principles never get
+  clipped. Companion hook `scripts/hooks/session-bootstrap.sh` reads
+  Claude Code's UserPromptSubmit payload, dedupes on `session_id`
+  in `~/.atelier/cache/seen-sessions.txt`, and prints the block on
+  stdout only for the first turn of each session. Loose-coupled by
+  design — atelier never modifies `~/.claude/CLAUDE.md` or any
+  user-owned file.
+
+- **Auto-generated indexes** (PR-26) — `learnings/accepted/by-project/<n>/INDEX.md`
+  and `learnings/principles/INDEX.md` are regenerated on every
+  lifecycle event (accept / archive / retract / principle add/archive).
+  Idempotent; unchanged content is not rewritten; failures on one
+  entry don't block the rest. Generated files carry an
+  `atelier:generated` banner so curators know not to hand-edit.
+
+- **Per-turn signal-detector recall** (PR-28, opt-in) — new MCP tool
+  `atelier_recall(query, project, top_k, max_chars)` returns the
+  top-K learnings ranked by FTS5 relevance to the user's current
+  prompt, with `target_project` / `project_hint` boost. Token-aware
+  query sanitization survives punctuation in prompts. Filesystem
+  fallback for fresh installs that haven't indexed yet. Companion
+  hook `scripts/hooks/signal-recall.sh` is opt-in via
+  `learnings.signal_detector.enabled: true`, with 30-second cache on
+  hash(prompt) and per-session "already-shown" dedup.
+
+### Bugs fixed
+
+- `accept()` previously could silently overwrite a sibling accepted
+  learning when two captures shared the same minute + slug. Now
+  appends a numeric suffix on collision; the by-project mirror uses
+  the final destination name.
+
+### Tests
+
+133 → 153 passing.
+
+---
+
 ## [0.2.0] — Engine + single vault + learnings domain
 
 ### Transports — agents now attach to a running engine

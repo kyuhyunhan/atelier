@@ -247,6 +247,24 @@ async def _h_learning_retract(slug: str, reason: str = "retracted"
     return _rev.retract(slug=slug, reason=reason)
 
 
+async def _h_learning_search(query: str = "",
+                             status: str = "accepted",
+                             project: Optional[str] = None,
+                             topic: Optional[str] = None,
+                             limit: int = 20) -> Dict[str, Any]:
+    """Search the learnings domain (accepted by default)."""
+    from .learnings import search as _ls
+    return _ls.search(query=query, status=status, project=project,
+                      topic=topic, limit=limit)
+
+
+async def _h_learning_relink(slug: str, links: List[str],
+                             mode: str = "replace") -> Dict[str, Any]:
+    """Set or merge the wiki backlinks on an accepted learning."""
+    from .learnings import search as _ls
+    return _ls.relink(slug=slug, links=links, mode=mode)
+
+
 async def _h_new_product(name: str) -> Dict[str, Any]:
     """Scaffold a new product in the builder territory."""
     cfg = _config.load()
@@ -350,6 +368,19 @@ def _register_v01_tools() -> None:
         "atelier_learning_retract",
         "Retract a candidate or accepted learning into learnings/archived/.",
         _h_learning_retract,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_learning_search",
+        "Search the learnings domain (status=accepted by default; "
+        "filter by project / topic).",
+        _h_learning_search,
+    ))
+    register(ToolDef(
+        "atelier_learning_relink",
+        "Replace or merge wiki backlinks on an accepted learning.",
+        _h_learning_relink,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))

@@ -208,6 +208,45 @@ async def _h_learning_capture(observation: str,
     )
 
 
+async def _h_learning_review_pending(limit: int = 20,
+                                     project: Optional[str] = None,
+                                     since: Optional[str] = None
+                                     ) -> Dict[str, Any]:
+    """List learning candidates with self-checked AC results."""
+    from .learnings import review as _rev
+    return _rev.review_pending(limit=limit, project=project, since=since)
+
+
+async def _h_learning_accept(candidate_slug: str,
+                             target_topic: str,
+                             target_project: Optional[str] = None,
+                             links: Optional[List[str]] = None,
+                             override_unknown: bool = False
+                             ) -> Dict[str, Any]:
+    """Promote a candidate to learnings/accepted/. Refuses on must-fail."""
+    from .learnings import review as _rev
+    return _rev.accept(
+        candidate_slug=candidate_slug,
+        target_topic=target_topic,
+        target_project=target_project,
+        links=links,
+        override_unknown=override_unknown,
+    )
+
+
+async def _h_learning_archive(candidate_slug: str, reason: str) -> Dict[str, Any]:
+    """Move a candidate to learnings/archived/."""
+    from .learnings import review as _rev
+    return _rev.archive(candidate_slug=candidate_slug, reason=reason)
+
+
+async def _h_learning_retract(slug: str, reason: str = "retracted"
+                              ) -> Dict[str, Any]:
+    """Retract a candidate or an accepted learning into archived/."""
+    from .learnings import review as _rev
+    return _rev.retract(slug=slug, reason=reason)
+
+
 async def _h_new_product(name: str) -> Dict[str, Any]:
     """Scaffold a new product in the builder territory."""
     cfg = _config.load()
@@ -286,6 +325,33 @@ def _register_v01_tools() -> None:
         _h_learning_capture,
         claim=_claims.Claim.CAPTOR_WRITE,
         lock_role=_claims.WriterRole.CAPTOR,
+    ))
+    register(ToolDef(
+        "atelier_learning_review_pending",
+        "List candidate learnings with acceptance-criteria self-check results.",
+        _h_learning_review_pending,
+    ))
+    register(ToolDef(
+        "atelier_learning_accept",
+        "Promote a candidate to learnings/accepted/. Refuses unless every "
+        "must-criterion passes (override_unknown=True to bypass unknown).",
+        _h_learning_accept,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_learning_archive",
+        "Move a candidate to learnings/archived/ with an archive_reason.",
+        _h_learning_archive,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_learning_retract",
+        "Retract a candidate or accepted learning into learnings/archived/.",
+        _h_learning_retract,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
     ))
 
 

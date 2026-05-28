@@ -328,6 +328,53 @@ async def _h_learning_relink(slug: str, links: List[str],
     return _ls.relink(slug=slug, links=links, mode=mode)
 
 
+async def _h_principle_add(title: str, rule: str, why: str,
+                            evidence: Optional[List[str]] = None,
+                            coverage: str = "cross-project",
+                            priority: str = "on-relevant-prompt",
+                            target_topic: Optional[str] = None,
+                            notes: Optional[str] = None,
+                            slug: Optional[str] = None,
+                            ) -> Dict[str, Any]:
+    """Add a principle directly. Caller supplies rule and why."""
+    from .learnings import principles as _pr
+    return _pr.add(title=title, rule=rule, why=why, evidence=evidence,
+                    coverage=coverage, priority=priority,
+                    target_topic=target_topic, notes=notes, slug=slug)
+
+
+async def _h_principle_synthesize(source_slugs: List[str],
+                                    title: Optional[str] = None,
+                                    rule: Optional[str] = None,
+                                    why: Optional[str] = None,
+                                    coverage: str = "cross-project",
+                                    priority: str = "on-relevant-prompt",
+                                    notes: Optional[str] = None,
+                                    slug: Optional[str] = None,
+                                    ) -> Dict[str, Any]:
+    """Draft a principle from several accepted learnings. Body
+    sections are scaffolded; caller may pass rule/why to fill them."""
+    from .learnings import principles as _pr
+    return _pr.synthesize(source_slugs=source_slugs, title=title,
+                           rule=rule, why=why, coverage=coverage,
+                           priority=priority, notes=notes, slug=slug)
+
+
+async def _h_principle_list(priority: Optional[str] = None,
+                              coverage: Optional[str] = None
+                              ) -> Dict[str, Any]:
+    """List current principles, optionally filtered by priority / coverage."""
+    from .learnings import principles as _pr
+    items = _pr.list_all(priority=priority, coverage=coverage)
+    return {"count": len(items), "items": items}
+
+
+async def _h_principle_archive(slug: str, reason: str) -> Dict[str, Any]:
+    """Move a principle to learnings/archived/ with ac_status=retracted."""
+    from .learnings import principles as _pr
+    return _pr.archive(slug=slug, reason=reason)
+
+
 async def _h_absorb_claude_memory(dry_run: bool = False,
                                    source_root: Optional[str] = None,
                                    auto_accept_kinds: Optional[List[str]] = None
@@ -507,6 +554,35 @@ def _register_v01_tools() -> None:
         "learnings/{accepted,candidates}/. Dedupes by content hash; "
         "re-runs are safe.",
         _h_absorb_claude_memory,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_principle_add",
+        "Add a cross-project principle (developer ethos) with rule + why "
+        "+ optional evidence backlinks. priority=always-inject is auto-injected "
+        "on every session start.",
+        _h_principle_add,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_principle_synthesize",
+        "Draft a principle from several accepted learnings; rule/why may "
+        "be left empty for the caller to fill in.",
+        _h_principle_synthesize,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_principle_list",
+        "List current principles, optionally filtered by priority/coverage.",
+        _h_principle_list,
+    ))
+    register(ToolDef(
+        "atelier_principle_archive",
+        "Retire a principle into learnings/archived/.",
+        _h_principle_archive,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))

@@ -17,6 +17,8 @@ GORAE_RULES = [
     # learnings/ — the developer-self lesson-learned domain (PR-18+).
     ("learnings/log.md",              "learnings_log"),
     ("learnings/criteria.yaml",       "learnings_criteria"),
+    ("learnings/principles/INDEX.md", "learnings_index"),
+    ("learnings/principles/*.md",     "learning_principle"),
     ("learnings/candidates/**/*.md",  "learning_candidate"),
     ("learnings/accepted/**/*.md",    "learning_accepted"),
     ("learnings/archived/**/*.md",    "learning_archived"),

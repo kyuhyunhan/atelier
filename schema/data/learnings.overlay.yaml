@@ -50,6 +50,27 @@ page_types:
       target_topic:     { type: string }
       target_project:   { type: string, nullable: true }
 
+  learning_principle:
+    path_pattern: "learnings/principles/*.md"
+    writer: curator
+    required_fields:
+      [schema_version, entry_id, title, status, ac_status, coverage,
+       priority]
+    optional_fields:
+      [evidence, target_topic, accepted_at, links, ac_results,
+       observation_kind, source, source_path]
+    field_specs:
+      schema_version: { const: 4 }
+      status:    { const: accepted }
+      ac_status: { type: string, enum: [passed] }
+      coverage:
+        type: string
+        enum: [cross-project, single-project, single-topic]
+      priority:
+        type: string
+        enum: [always-inject, on-relevant-prompt, manual-only]
+      evidence: { type: array, items: { type: string } }
+
   learning_archived:
     path_pattern: "learnings/archived/**/*.md"
     writer: curator

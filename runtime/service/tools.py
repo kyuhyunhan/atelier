@@ -482,6 +482,31 @@ async def _h_dream_status() -> Dict[str, Any]:
     return _cl.dream_status()
 
 
+async def _h_dream_plan(min_shared_terms: int = 2,
+                         min_size: int = 2,
+                         min_projects: int = 2,
+                         overlap_threshold: float = 0.6,
+                         limit: int = 20) -> Dict[str, Any]:
+    """Dream cycle phase 1 — return clusters worth synthesizing, each with
+    member previews + a ready-to-fill synthesize call. Already-covered
+    clusters are filtered out. The agent generalizes each and calls
+    atelier_principle_synthesize; then atelier_dream_complete."""
+    from .learnings import dream as _dr
+    return _dr.plan(min_shared_terms=min_shared_terms, min_size=min_size,
+                    min_projects=min_projects,
+                    overlap_threshold=overlap_threshold, limit=limit)
+
+
+async def _h_dream_complete() -> Dict[str, Any]:
+    """Dream cycle phase 2 — advance last_dream_at after a clean pass
+    (clears the nudge). Call ONLY when the whole pass finished; an
+    interrupted pass must skip this so the nudge re-fires."""
+    from datetime import datetime, timezone
+    from .learnings import dream as _dr
+    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return _dr.complete(when=now)
+
+
 async def _h_session_bootstrap(working_dir: Optional[str] = None,
                                 max_chars: int = 6000
                                 ) -> Dict[str, Any]:
@@ -753,6 +778,20 @@ def _register_v01_tools() -> None:
         "Dream cadence: last_dream_at + accepted learnings accrued since. "
         "Drives the session-start nudge.",
         _h_dream_status,
+    ))
+    register(ToolDef(
+        "atelier_dream_plan",
+        "Dream phase 1 — clusters worth synthesizing (member previews + "
+        "ready-to-fill synthesize calls; already-covered clusters filtered).",
+        _h_dream_plan,
+    ))
+    register(ToolDef(
+        "atelier_dream_complete",
+        "Dream phase 2 — advance last_dream_at after a clean pass "
+        "(clears the nudge). Skip on an interrupted pass.",
+        _h_dream_complete,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
     ))
 
 

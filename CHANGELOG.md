@@ -2,34 +2,56 @@
 
 All notable changes to atelier.
 
-## [0.2.2] — Dream cycle (automated principle synthesis) — IN PROGRESS
+## [0.2.2] — Dream cycle (automated principle synthesis)
 
-Design is documented first (doc-first); implementation lands across
-PR-29..33. See *Learnings domain & dream cycle* in `docs/ARCHITECTURE.md`
-for the full rationale.
+Doc-first: the design landed in `docs/ARCHITECTURE.md`
+("Learnings domain & dream cycle") before the implementing PRs. The
+cycle automates *discovery* and *drafting* of cross-project principles
+while keeping the high-blast-radius `always-inject` decision with a
+human — and is **usage-coupled**, not scheduled, so a lid-sleeping
+laptop never misses a run.
 
-### Design landed (PR-34, this entry)
+### Design (PR-34)
 
-- **`docs/ARCHITECTURE.md` — "Learnings domain & dream cycle"** section:
-  three-tier model (candidates / accepted / principles), bidirectional
-  capture↔inject flow, the dream cycle's cluster→synthesize→promote
-  split, the **usage-coupled (not wall-clock) trigger** rationale for a
-  laptop that sleeps, and the **interruption-resilience** rules
-  (incremental durability, atomic writes, idempotent re-run vs.
-  proposed+accepted+archived, self-healing `last_dream_at`,
-  filesystem-as-checkpoint).
+- ARCHITECTURE.md "Learnings domain & dream cycle": three-tier model
+  (candidates / accepted / principles), bidirectional capture↔inject
+  flow, cluster→synthesize→promote split, usage-coupled trigger
+  rationale, and the interruption-resilience rules.
 
-### Planned (not yet implemented)
+### Implementation
 
-- **PR-29** — `atelier_learning_cluster`: deterministic clustering by
-  FTS-term overlap + cross-project spread; meta tracks `last_dream_at`
-  and accepted-since count.
-- **PR-30** — principle `status: proposed` tier; atomic draft writes;
-  evidence-overlap idempotent dedup.
-- **PR-31** — `atelier_principle_review_proposed` + approve/reject.
-- **PR-32** — `session_bootstrap` threshold nudge (last_dream_at based,
-  detects an interrupted dream).
-- **PR-33** — `atelier dream` convenience CLI + orchestration docs.
+- **PR-29** — `atelier_learning_cluster`: deterministic **term-anchored**
+  clustering (single-link agglomeration chained the whole corpus into one
+  blob at scale; replaced) by shared salient terms + cross-project spread.
+  `atelier_dream_status` + `mark_dream_complete` track cadence
+  (filesystem-counted; markdown is truth). Also fixed a latent
+  `frontmatter_json` column-name bug that silently disabled the FTS path
+  in recall/search.
+- **PR-30** — principle `status: proposed` tier; atomic draft writes
+  (`.tmp`→`os.replace`); evidence-overlap idempotent dedup that consults
+  proposed **and** accepted **and** archived (so rejected clusters are
+  never re-proposed). `session_bootstrap` injects accepted-only.
+- **PR-31** — `atelier_principle_{review_proposed, approve, reject}`: the
+  cheap human gate. approve → accepted (optional priority override),
+  reject → archived.
+- **PR-32** — `session_bootstrap` dream nudge: fires on accumulation
+  (≥ `nudge_after_accepted` or ≥ `nudge_after_days`) or pending proposed
+  drafts. Self-healing — an interrupted dream leaves `last_dream_at`
+  stale, so the nudge re-fires automatically.
+- **PR-33** — `atelier_dream_plan` / `atelier_dream_complete` two-phase
+  handshake (engine tees up clusters with member previews + ready-to-fill
+  synthesize calls; the live agent generalizes; complete advances the
+  cadence) and an `atelier dream [--complete] [--json]` CLI.
+
+### Config
+
+- `learnings.dream.{nudge_after_accepted, nudge_after_days}` (defaults
+  15 / 7).
+
+### Tests
+
+181 → 200+ passing (cluster, proposed/dedup, review, nudge,
+orchestration).
 
 ## [0.2.1] — Bidirectional knowledge flow with Claude Code
 

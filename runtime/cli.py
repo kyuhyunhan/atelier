@@ -176,6 +176,39 @@ def _cmd_new_product(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_dream(args: argparse.Namespace) -> int:
+    """Dream cycle convenience. `atelier dream` prints the plan (clusters
+    worth synthesizing); the actual generalization is done by an agent
+    calling atelier_principle_synthesize. `atelier dream --complete`
+    advances the cadence after a finished pass."""
+    from .service.learnings import dream as _dr
+    import json as _json
+    if args.complete:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        out = _dr.complete(when=now)
+        print(f"dream complete @ {out['last_dream_at']}  "
+              f"(proposed awaiting review: {out['proposed_awaiting_review']})")
+        return 0
+    plan = _dr.plan(min_projects=args.min_projects, limit=args.limit)
+    if args.json:
+        print(_json.dumps(plan, ensure_ascii=False, indent=2))
+        return 0
+    print(f"accepted scanned: {plan['accepted_scanned']}")
+    print(f"clusters to synthesize: {plan['candidate_count']}  "
+          f"(skipped already-covered: {plan['skipped_already_covered']})")
+    for c in plan["clusters"]:
+        print(f"\n● [{c['size']}n {len(c['projects'])}proj] "
+              f"{c['projects']}  terms={c['shared_terms'][:5]}")
+        for m in c["members"][:6]:
+            print(f"    - {m['title']}  ({m.get('project') or '-'})")
+        if len(c["members"]) > 6:
+            print(f"    … +{len(c['members']) - 6} more")
+    print("\nNext: an agent reads these and calls atelier_principle_synthesize "
+          "per cluster, then `atelier dream --complete`.")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     """Long-running asyncio supervisor. Each --<transport> flag opts in;
     with no flags the process idles (useful for smoke-testing the
@@ -247,6 +280,17 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("new-product")
     s.add_argument("name")
     s.set_defaults(func=_cmd_new_product)
+
+    s = sub.add_parser("dream",
+                       help="dream cycle: print clusters to synthesize, or "
+                            "--complete to advance the cadence")
+    s.add_argument("--complete", action="store_true",
+                   help="mark the dream pass complete (advance last_dream_at)")
+    s.add_argument("--min-projects", type=int, default=2)
+    s.add_argument("--limit", type=int, default=20)
+    s.add_argument("--json", action="store_true",
+                   help="emit the full machine-readable plan")
+    s.set_defaults(func=_cmd_dream)
 
     s = sub.add_parser("serve",
                        help="run the long-running engine (MCP stdio + HTTP)")

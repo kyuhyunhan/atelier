@@ -1,0 +1,96 @@
+# atelier schema v4 — Learnings overlay
+# Governs the `gorae/learnings/` subtree.
+#
+# Lifecycle: capture (Stop / SessionEnd hook) → candidate → reviewed →
+# accepted (by-topic, by-project) or archived. Aggressive capture is
+# safe because acceptance criteria gate promotion.
+
+inherits: base
+subtree: learnings
+agents: [captor, curator]   # captor appends candidates; curator promotes
+
+page_types:
+
+  learning_candidate:
+    path_pattern: "learnings/candidates/**/*.md"
+    writer: captor
+    append_only: true
+    required_fields:
+      [schema_version, entry_id, captured_at, agent_kind, hook, status,
+       ac_status, observation_kind]
+    optional_fields:
+      [session_id, working_dir, project_hint, links, ac_results]
+    field_specs:
+      schema_version:   { const: 4 }
+      captured_at:      { type: string, format: date-time }
+      agent_kind:       { type: string, enum: [claude-code, hermes, unknown, local] }
+      hook:             { type: string, enum: [Stop, SessionEnd, PostToolUse, manual] }
+      status:           { const: candidate }
+      ac_status:        { type: string, enum: [pending, passed, failed, retracted] }
+      observation_kind: { type: string, enum: [feedback, project, reference, user] }
+      session_id:       { type: string, nullable: true }
+      working_dir:      { type: string, nullable: true }
+      project_hint:     { type: string, nullable: true }
+      links:            { type: array, items: { type: string } }
+      ac_results:       { type: object }
+
+  learning_accepted:
+    path_pattern: "learnings/accepted/**/*.md"
+    writer: curator
+    required_fields:
+      [schema_version, entry_id, captured_at, agent_kind, status, ac_status,
+       observation_kind, accepted_at, target_topic]
+    optional_fields:
+      [session_id, working_dir, project_hint, target_project, links, ac_results,
+       hook]
+    field_specs:
+      status:           { const: accepted }
+      ac_status:        { type: string, enum: [passed] }
+      accepted_at:      { type: string, format: date-time }
+      target_topic:     { type: string }
+      target_project:   { type: string, nullable: true }
+
+  learning_archived:
+    path_pattern: "learnings/archived/**/*.md"
+    writer: curator
+    required_fields:
+      [schema_version, entry_id, captured_at, status, ac_status, archived_at,
+       archive_reason]
+    optional_fields:
+      [session_id, working_dir, project_hint, observation_kind, links,
+       ac_results, hook, target_topic, target_project]
+    field_specs:
+      status:         { const: archived }
+      ac_status:      { type: string, enum: [failed, retracted, passed] }
+      archived_at:    { type: string, format: date-time }
+      archive_reason: { type: string }
+
+# Default acceptance criteria — overridable by `learnings/criteria.yaml`
+# living in the vault. The criteria file is *content*, not schema, so the
+# user can iterate on it without bumping the schema version.
+acceptance_criteria_template: |
+  version: 1
+
+  must:
+    - id: has_why
+      desc: "Why this matters 섹션이 비어 있지 않다 (the rule has a reason)."
+    - id: is_specific
+      desc: "Not a generic best practice — tied to a particular case."
+    - id: is_actionable
+      desc: "Stated as an observable fact or a behavior rule."
+
+  should:
+    - id: tied_to_event
+      desc: "session_id or working_dir is present, anchoring it to a real moment."
+    - id: has_project_tag
+      desc: "project_hint is set so by-project/<n>/ symlinks resolve."
+    - id: novel
+      desc: "Does not duplicate an existing accepted learning."
+
+  forbidden:
+    - id: retracted
+      desc: "User retracted this in a later session."
+    - id: pii_leak
+      desc: "Contains identifying info about others, secrets, or tokens."
+    - id: pure_meta
+      desc: '"Claude did well" 류의 무내용 메타 코멘트 — drop.'

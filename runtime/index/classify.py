@@ -7,14 +7,26 @@ from typing import Any, Dict
 
 # Order matters: more specific patterns must come first.
 GORAE_RULES = [
-    ("wiki/index.md",       "wiki_index"),
-    ("wiki/log.md",         "wiki_log"),
-    ("wiki/digests/*.md",   "digest"),
-    ("wiki/sources/*.md",   "source"),
-    ("wiki/entities/*.md",  "entity"),
-    ("wiki/themes/*.md",    "theme"),
-    ("wiki/synthesis/*.md", "synthesis"),
-    ("raw/**/*.md",         "raw_source"),
+    ("wiki/index.md",                 "wiki_index"),
+    ("wiki/log.md",                   "wiki_log"),
+    ("wiki/digests/*.md",             "digest"),
+    ("wiki/sources/*.md",             "source"),
+    ("wiki/entities/*.md",            "entity"),
+    ("wiki/themes/*.md",              "theme"),
+    ("wiki/synthesis/*.md",           "synthesis"),
+    # learnings/ — the developer-self lesson-learned domain (PR-18+).
+    ("learnings/log.md",              "learnings_log"),
+    ("learnings/criteria.yaml",       "learnings_criteria"),
+    ("learnings/candidates/**/*.md",  "learning_candidate"),
+    ("learnings/accepted/**/*.md",    "learning_accepted"),
+    ("learnings/archived/**/*.md",    "learning_archived"),
+    # workshop/ subtree (post-absorption).
+    ("workshop/products/*/README.md", "product_readme"),
+    ("workshop/products/**/*.md",     "product_page"),
+    ("workshop/notes/**/*.md",        "note"),
+    ("workshop/log.md",               "build_log"),
+    # raw/ comes last so the above more specific patterns win.
+    ("raw/**/*.md",                   "raw_source"),
 ]
 
 WORKSHOP_RULES = [

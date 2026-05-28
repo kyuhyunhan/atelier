@@ -179,6 +179,13 @@ async def _h_promote_apply(proposal: str) -> Dict[str, Any]:
     return _api.promote_apply(proposal)
 
 
+async def _h_validate(paths: Optional[List[str]] = None,
+                      role: str = "librarian-territory",
+                      fail_fast: bool = False) -> Dict[str, Any]:
+    """Validate frontmatter against schema v4. Read-only."""
+    return _api.validate(paths=paths, role=role, fail_fast=fail_fast)
+
+
 async def _h_learning_capture(observation: str,
                               why: Optional[str] = None,
                               rule: Optional[str] = None,
@@ -314,6 +321,11 @@ def _register_v01_tools() -> None:
     register(ToolDef("atelier_promote_propose",
                      "Scan workshop for promote-worthy notes.",
                      _h_promote_propose))
+    register(ToolDef("atelier_validate",
+                     "Validate frontmatter against schema v4. "
+                     "Reports missing required fields, type mismatches, "
+                     "and duplicate entry_ids.",
+                     _h_validate))
 
     # Write tools — claim + role lock.
     register(ToolDef("atelier_reindex",

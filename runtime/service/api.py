@@ -111,3 +111,28 @@ def promote_apply(proposal: str, token: Optional[str] = None) -> Dict[str, Any]:
     claims.require(ctx, claims.Claim.PROMOTE_APPLY)
     from ..promote import apply as _apply
     return _apply.apply_proposal(Path(proposal))
+
+
+def validate(paths: Optional[List[str]] = None,
+             role: str = "librarian-territory",
+             fail_fast: bool = False,
+             token: Optional[str] = None) -> Dict[str, Any]:
+    """Validate frontmatter against schema v4 (optionally on a subset)."""
+    from ..lint import validate_v4
+    cfg = config.load()
+    if cfg.vault is not None:
+        vault_root = cfg.vault.local
+    else:
+        vault_root = cfg.space_by_role(role).local
+    if paths:
+        targets = [Path(p) for p in paths]
+    else:
+        targets = sorted(vault_root.rglob("*.md"))
+    findings = validate_v4.validate_paths(targets, vault_root=vault_root,
+                                          fail_fast=fail_fast)
+    return {
+        "vault": str(vault_root),
+        "scanned": len(targets),
+        "findings": [vars(f) for f in findings],
+        "failed": any(f.severity == "FAIL" for f in findings),
+    }

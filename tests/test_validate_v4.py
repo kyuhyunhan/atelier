@@ -1,0 +1,135 @@
+"""PR-8: schema v4 frontmatter validator."""
+from __future__ import annotations
+
+import asyncio
+import uuid as _uuid
+from pathlib import Path
+from typing import Any, Dict
+
+import pytest
+import yaml
+
+from runtime.lint import validate_v4
+from runtime.service import api as _api
+
+
+def _write(path: Path, fm: Dict, body: str = "body\n") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
+    path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
+
+
+def _uid() -> str:
+    return str(_uuid.uuid4())
+
+
+def test_valid_learning_candidate_passes(atelier_env: Dict) -> None:
+    vault = atelier_env["gorae"]
+    fm = {
+        "schema_version": 4,
+        "entry_id": _uid(),
+        "captured_at": "2026-05-28T13:00:00+09:00",
+        "agent_kind": "claude-code",
+        "hook": "Stop",
+        "status": "candidate",
+        "ac_status": "pending",
+        "observation_kind": "feedback",
+    }
+    p = vault / "learnings" / "candidates" / "2026-05-28" / "1300-x.md"
+    _write(p, fm)
+    findings = validate_v4.validate_paths([p], vault_root=vault)
+    assert findings == []
+
+
+def test_missing_required_field_fails(atelier_env: Dict) -> None:
+    vault = atelier_env["gorae"]
+    fm = {
+        "schema_version": 4,
+        "entry_id": _uid(),
+        "status": "candidate",
+        # missing captured_at, agent_kind, hook, ac_status, observation_kind
+    }
+    p = vault / "learnings" / "candidates" / "2026-05-28" / "1301-bad.md"
+    _write(p, fm)
+    findings = validate_v4.validate_paths([p], vault_root=vault)
+    msgs = " ".join(f.message for f in findings)
+    assert "missing required field: captured_at" in msgs
+    assert "missing required field: agent_kind" in msgs
+
+
+def test_wrong_schema_version_fails(atelier_env: Dict) -> None:
+    vault = atelier_env["gorae"]
+    fm = {"schema_version": 3, "entry_id": _uid()}
+    p = vault / "raw" / "old.md"
+    _write(p, fm)
+    findings = validate_v4.validate_paths([p], vault_root=vault)
+    assert any("schema_version" in f.message for f in findings)
+
+
+def test_const_mismatch_fails(atelier_env: Dict) -> None:
+    vault = atelier_env["gorae"]
+    fm = {
+        "schema_version": 4,
+        "entry_id": _uid(),
+        "captured_at": "2026-05-28T13:00:00+09:00",
+        "agent_kind": "claude-code",
+        "hook": "Stop",
+        "status": "WRONG",          # const: candidate
+        "ac_status": "pending",
+        "observation_kind": "feedback",
+    }
+    p = vault / "learnings" / "candidates" / "2026-05-28" / "1302-cs.md"
+    _write(p, fm)
+    findings = validate_v4.validate_paths([p], vault_root=vault)
+    assert any("status" in f.message and "must equal" in f.message
+               for f in findings)
+
+
+def test_duplicate_entry_id_corpus_check(atelier_env: Dict) -> None:
+    vault = atelier_env["gorae"]
+    eid = _uid()
+    common = {
+        "schema_version": 4,
+        "entry_id": eid,
+        "captured_at": "2026-05-28T13:00:00+09:00",
+        "agent_kind": "claude-code",
+        "hook": "Stop",
+        "status": "candidate",
+        "ac_status": "pending",
+        "observation_kind": "feedback",
+    }
+    p1 = vault / "learnings" / "candidates" / "2026-05-28" / "1303-a.md"
+    p2 = vault / "learnings" / "candidates" / "2026-05-28" / "1304-b.md"
+    _write(p1, common)
+    _write(p2, common)
+    findings = validate_v4.validate_paths([p1, p2], vault_root=vault)
+    assert any(f.rule_id == "V1" for f in findings)
+
+
+def test_api_validate_returns_summary(atelier_env: Dict) -> None:
+    vault = atelier_env["gorae"]
+    fm = {"schema_version": 3, "entry_id": _uid()}
+    _write(vault / "raw" / "stale.md", fm)
+    out = _api.validate(role="librarian-territory")
+    assert out["failed"] is True
+    assert out["scanned"] >= 1
+
+
+def test_mcp_dispatch_validate(atelier_env: Dict) -> None:
+    from runtime.service import tools as _tools
+    vault = atelier_env["gorae"]
+    fm = {
+        "schema_version": 4,
+        "entry_id": _uid(),
+        "captured_at": "2026-05-28T13:00:00+09:00",
+        "agent_kind": "claude-code",
+        "hook": "Stop",
+        "status": "candidate",
+        "ac_status": "pending",
+        "observation_kind": "feedback",
+    }
+    _write(vault / "learnings" / "candidates" / "2026-05-28" / "1305-x.md", fm)
+    async def go() -> Dict:
+        return await _tools.invoke("atelier_validate")
+    out = asyncio.run(go())
+    assert out["failed"] is False

@@ -328,6 +328,19 @@ async def _h_learning_relink(slug: str, links: List[str],
     return _ls.relink(slug=slug, links=links, mode=mode)
 
 
+async def _h_absorb_claude_memory(dry_run: bool = False,
+                                   source_root: Optional[str] = None,
+                                   auto_accept_kinds: Optional[List[str]] = None
+                                   ) -> Dict[str, Any]:
+    """Walk ~/.claude/projects/*/memory/*.md and import into
+    learnings/{accepted,candidates}/. Dedup by content hash."""
+    from pathlib import Path as _Path
+    from .learnings import absorb_claude as _ac
+    sr = _Path(source_root).expanduser() if source_root else None
+    return _ac.absorb(dry_run=dry_run, source_root=sr,
+                       auto_accept_kinds=auto_accept_kinds)
+
+
 async def _h_new_product(name: str) -> Dict[str, Any]:
     """Scaffold a new product in the builder territory."""
     cfg = _config.load()
@@ -485,6 +498,15 @@ def _register_v01_tools() -> None:
         "atelier_learning_relink",
         "Replace or merge wiki backlinks on an accepted learning.",
         _h_learning_relink,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_absorb_claude_memory",
+        "Import Claude Code's per-project auto-memory into "
+        "learnings/{accepted,candidates}/. Dedupes by content hash; "
+        "re-runs are safe.",
+        _h_absorb_claude_memory,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))

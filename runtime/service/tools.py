@@ -179,6 +179,35 @@ async def _h_promote_apply(proposal: str) -> Dict[str, Any]:
     return _api.promote_apply(proposal)
 
 
+async def _h_learning_capture(observation: str,
+                              why: Optional[str] = None,
+                              rule: Optional[str] = None,
+                              excerpt: Optional[str] = None,
+                              working_dir: Optional[str] = None,
+                              project_hint: Optional[str] = None,
+                              session_id: Optional[str] = None,
+                              agent_kind: str = "claude-code",
+                              hook: str = "manual",
+                              observation_kind: str = "feedback"
+                              ) -> Dict[str, Any]:
+    """Append a candidate learning to learnings/candidates/.
+
+    The capture is intentionally lenient: empty `why`, short
+    observations, and unknown agents are all allowed. Acceptance
+    criteria are evaluated later at promotion time."""
+    from .learnings import capture as _cap
+    sess = current_session()
+    return _cap.capture(
+        observation=observation, why=why, rule=rule, excerpt=excerpt,
+        working_dir=working_dir or sess.working_dir,
+        project_hint=project_hint,
+        session_id=session_id or sess.session_id,
+        agent_kind=agent_kind or sess.agent_kind,
+        hook=hook,
+        observation_kind=observation_kind,
+    )
+
+
 async def _h_new_product(name: str) -> Dict[str, Any]:
     """Scaffold a new product in the builder territory."""
     cfg = _config.load()
@@ -250,6 +279,14 @@ def _register_v01_tools() -> None:
                      _h_new_product,
                      claim=_claims.Claim.BUILDER_WRITE,
                      lock_role=_claims.WriterRole.BUILDER))
+    register(ToolDef(
+        "atelier_learning_capture",
+        "Append a candidate learning to learnings/candidates/. "
+        "Permissive — acceptance criteria are checked at promotion time.",
+        _h_learning_capture,
+        claim=_claims.Claim.CAPTOR_WRITE,
+        lock_role=_claims.WriterRole.CAPTOR,
+    ))
 
 
 _register_v01_tools()

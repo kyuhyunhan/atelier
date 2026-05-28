@@ -57,19 +57,24 @@ page_types:
       [schema_version, entry_id, title, status, ac_status, coverage,
        priority]
     optional_fields:
-      [evidence, target_topic, accepted_at, links, ac_results,
-       observation_kind, source, source_path]
+      [evidence, source_entry_ids, cluster_key, target_topic, accepted_at,
+       proposed_at, links, ac_results, observation_kind, source, source_path]
     field_specs:
       schema_version: { const: 4 }
-      status:    { const: accepted }
-      ac_status: { type: string, enum: [passed] }
+      # proposed = dream-cycle draft (NOT injected until promoted);
+      # accepted = curator-approved (eligible for always-inject);
+      # archived = retired/rejected.
+      status:    { type: string, enum: [proposed, accepted, archived] }
+      ac_status: { type: string, enum: [pending, passed, retracted] }
       coverage:
         type: string
         enum: [cross-project, single-project, single-topic]
       priority:
         type: string
         enum: [always-inject, on-relevant-prompt, manual-only]
-      evidence: { type: array, items: { type: string } }
+      evidence:         { type: array, items: { type: string } }
+      source_entry_ids: { type: array, items: { type: string } }
+      cluster_key:      { type: string }
 
   learning_archived:
     path_pattern: "learnings/archived/**/*.md"

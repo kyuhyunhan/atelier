@@ -125,7 +125,9 @@ def bootstrap(*, working_dir: Optional[str] = None,
               max_chars: int = 6000) -> Dict[str, Any]:
     vault = _vault_root()
     project = _project_slug(working_dir)
-    items = _principles.list_all(priority="always-inject")
+    # status="accepted" only — proposed dream-drafts must NOT be injected
+    # until a curator promotes them.
+    items = _principles.list_all(priority="always-inject", status="accepted")
 
     parts: List[str] = []
     principles_md = _render_principles(items)

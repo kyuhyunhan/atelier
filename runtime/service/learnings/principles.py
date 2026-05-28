@@ -71,6 +71,17 @@ def _serialize(fm: Dict[str, Any], body: str) -> str:
     return f"---\n{serialized}\n---\n{body}"
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Write `text` to `path` atomically: write a sibling .tmp then
+    os.rename (atomic on POSIX). A power loss mid-write leaves only the
+    .tmp — never a half-written target. (Dream-cycle resilience rule #2.)"""
+    import os
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def _evidence_to_links(evidence: Iterable[str]) -> List[str]:
     """Normalize evidence entries into wiki-style backlinks."""
     out: List[str] = []
@@ -119,11 +130,16 @@ def add(*, title: str, rule: str, why: str,
         target_topic: Optional[str] = None,
         notes: Optional[str] = None,
         slug: Optional[str] = None,
+        status: str = "accepted",
+        source_entry_ids: Optional[List[str]] = None,
+        cluster_key: Optional[str] = None,
         ) -> Dict[str, Any]:
     if coverage not in ("cross-project", "single-project", "single-topic"):
         raise ValueError(f"unknown coverage: {coverage!r}")
     if priority not in ("always-inject", "on-relevant-prompt", "manual-only"):
         raise ValueError(f"unknown priority: {priority!r}")
+    if status not in ("proposed", "accepted"):
+        raise ValueError(f"add() status must be proposed|accepted, got {status!r}")
 
     vault = _vault_root()
     chosen_slug = slug or _slugify(title, fallback="principle")
@@ -132,36 +148,41 @@ def add(*, title: str, rule: str, why: str,
         raise FileExistsError(str(target))
 
     links = _evidence_to_links(evidence or [])
+    now = _now_iso()
     fm: Dict[str, Any] = {
         "schema_version": 4,
         "entry_id": _entry_id(chosen_slug),
         "title": title,
-        "status": "accepted",
-        "ac_status": "passed",
+        "status": status,
+        "ac_status": "passed" if status == "accepted" else "pending",
         "coverage": coverage,
         "priority": priority,
-        "accepted_at": _now_iso(),
         "evidence": links,
         "observation_kind": "feedback",
-        "source": "manual",
+        "source": "dream" if status == "proposed" else "manual",
         "links": [],
-        "ac_results": {"origin": "principles.add"},
+        "ac_results": {"origin": f"principles.add:{status}"},
     }
+    if status == "accepted":
+        fm["accepted_at"] = now
+    else:
+        fm["proposed_at"] = now
+    if source_entry_ids:
+        fm["source_entry_ids"] = list(dict.fromkeys(source_entry_ids))
+    if cluster_key:
+        fm["cluster_key"] = cluster_key
     if target_topic:
         fm["target_topic"] = _slugify(target_topic)
 
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        _serialize(fm, _render_body(rule, why, links, notes)),
-        encoding="utf-8",
-    )
-    _append_log(vault, f"- {fm['accepted_at']}  principle-add  {chosen_slug}  "
+    _atomic_write(target, _serialize(fm, _render_body(rule, why, links, notes)))
+    _append_log(vault, f"- {now}  principle-{status}  {chosen_slug}  "
                        f"priority={priority}")
 
     from . import indexes as _indexes
     _indexes.safe_regen_principles()
 
-    return {"slug": chosen_slug, "path": str(target), "evidence": links}
+    return {"slug": chosen_slug, "path": str(target),
+            "status": status, "evidence": links}
 
 
 # ── synthesize from existing learnings ─────────────────────────────────────
@@ -191,17 +212,35 @@ def synthesize(*, source_slugs: List[str],
                priority: str = "on-relevant-prompt",
                notes: Optional[str] = None,
                slug: Optional[str] = None,
+               status: str = "proposed",
+               source_entry_ids: Optional[List[str]] = None,
+               cluster_key: Optional[str] = None,
+               skip_if_covered: bool = True,
+               overlap_threshold: float = 0.6,
                ) -> Dict[str, Any]:
     """Draft a principle from multiple accepted-learning sources.
 
-    Resolves each `source_slugs[i]` to its file under
-    `accepted/by-topic/` and assembles an Evidence list. Body fields
-    (rule, why) are filled if provided, otherwise left as scaffolds for
-    the caller to edit.
+    Default `status="proposed"` — this is the dream-cycle drafting path;
+    drafts are NOT injected until a curator promotes them. Resolves each
+    `source_slugs[i]` to its file under `accepted/by-topic/` and assembles
+    an Evidence list. `rule`/`why` are filled if provided, else scaffolded.
+
+    When `skip_if_covered` (default) and `source_entry_ids` are given, the
+    draft is skipped if an existing principle (proposed OR accepted OR
+    archived) already covers >= `overlap_threshold` of these entry_ids —
+    so re-runs are idempotent and a rejected cluster is never re-proposed.
     """
     vault = _vault_root()
     if not source_slugs:
         raise ValueError("synthesize requires at least one source slug")
+
+    # Idempotent dedup — check before doing any work.
+    if skip_if_covered and source_entry_ids:
+        covering = find_covering_principle(
+            source_entry_ids, overlap_threshold=overlap_threshold, vault=vault)
+        if covering is not None:
+            return {"skipped": True, "reason": "already-covered",
+                    "covered_by": covering}
 
     resolved: List[str] = []      # vault-relative paths
     missing: List[str] = []
@@ -230,11 +269,68 @@ def synthesize(*, source_slugs: List[str],
         priority=priority,
         notes=notes,
         slug=slug,
+        status=status,
+        source_entry_ids=source_entry_ids,
+        cluster_key=cluster_key,
     )
+    out["skipped"] = False
     out["evidence_resolved"] = resolved
     out["fields_to_fill"] = [k for k in ("rule", "why")
                               if not (rule if k == "rule" else why)]
     return out
+
+
+# ── idempotent dedup ────────────────────────────────────────────────────────
+
+
+def _principle_files(vault: Path) -> Iterable[Path]:
+    """All principle-origin files: live principles/ + archived/ ones that
+    carry a cluster_key or source_entry_ids (i.e. were principles)."""
+    pdir = _principles_dir(vault)
+    if pdir.exists():
+        for p in pdir.glob("*.md"):
+            if p.name != "INDEX.md":
+                yield p
+    adir = _archived_dir(vault)
+    if adir.exists():
+        for p in adir.glob("*.md"):
+            yield p
+
+
+def find_covering_principle(member_entry_ids: List[str], *,
+                            overlap_threshold: float = 0.6,
+                            vault: Optional[Path] = None
+                            ) -> Optional[Dict[str, Any]]:
+    """Return the first existing principle (proposed/accepted/archived)
+    whose `source_entry_ids` cover >= `overlap_threshold` of
+    `member_entry_ids`, else None.
+
+    Checking archived too means a cluster the user already *rejected* is
+    not re-proposed on the next dream pass (resilience rule #3).
+    """
+    vault = vault or _vault_root()
+    target = set(member_entry_ids)
+    if not target:
+        return None
+    for p in _principle_files(vault):
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        existing = set(fm.get("source_entry_ids") or [])
+        if not existing:
+            # Older principles without source tracking: fall back to
+            # exact cluster_key match if available.
+            continue
+        overlap = len(target & existing) / len(target)
+        if overlap >= overlap_threshold:
+            return {
+                "slug": p.stem,
+                "status": fm.get("status"),
+                "overlap": round(overlap, 3),
+                "path": str(p),
+            }
+    return None
 
 
 def _suggest_title(vault: Path, resolved_rel_paths: List[str]) -> str:
@@ -267,7 +363,11 @@ class PrincipleSummary:
 
 
 def list_all(*, priority: Optional[str] = None,
-             coverage: Optional[str] = None) -> List[Dict[str, Any]]:
+             coverage: Optional[str] = None,
+             status: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List principles in principles/. Filter by priority / coverage /
+    status. NOTE: session_bootstrap passes status='accepted' so that
+    `proposed` drafts are never injected before promotion."""
     vault = _vault_root()
     root = _principles_dir(vault)
     if not root.exists():
@@ -284,11 +384,14 @@ def list_all(*, priority: Optional[str] = None,
             continue
         if coverage and fm.get("coverage") != coverage:
             continue
+        if status and fm.get("status") != status:
+            continue
         out.append({
             "slug": p.stem,
             "title": fm.get("title") or p.stem,
             "coverage": fm.get("coverage"),
             "priority": fm.get("priority"),
+            "status": fm.get("status"),
             "evidence": list(fm.get("evidence") or []),
             "path": str(p),
         })
@@ -312,7 +415,7 @@ def archive(*, slug: str, reason: str) -> Dict[str, Any]:
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / target.name
 
-    dest.write_text(_serialize(fm, body), encoding="utf-8")
+    _atomic_write(dest, _serialize(fm, body))
     target.unlink()
 
     _append_log(vault, f"- {_now_iso()}  principle-archive  {target.stem}  "

@@ -420,6 +420,30 @@ async def _h_principle_archive(slug: str, reason: str) -> Dict[str, Any]:
     return _pr.archive(slug=slug, reason=reason)
 
 
+async def _h_principle_review_proposed(limit: int = 50) -> Dict[str, Any]:
+    """Dream cycle ③ — list proposed principles awaiting promotion, with
+    rule preview + evidence, for a fast batch review."""
+    from .learnings import principles as _pr
+    return _pr.review_proposed(limit=limit)
+
+
+async def _h_principle_approve(slug: str,
+                                priority: Optional[str] = None,
+                                coverage: Optional[str] = None
+                                ) -> Dict[str, Any]:
+    """Promote a proposed principle to accepted (optionally set priority,
+    e.g. always-inject)."""
+    from .learnings import principles as _pr
+    return _pr.approve(slug=slug, priority=priority, coverage=coverage)
+
+
+async def _h_principle_reject(slug: str, reason: str = "rejected"
+                               ) -> Dict[str, Any]:
+    """Reject a proposed principle → archived (never re-proposed)."""
+    from .learnings import principles as _pr
+    return _pr.reject(slug=slug, reason=reason)
+
+
 async def _h_recall(query: str,
                      project: Optional[str] = None,
                      top_k: int = 5,
@@ -679,6 +703,27 @@ def _register_v01_tools() -> None:
         "atelier_principle_archive",
         "Retire a principle into learnings/archived/.",
         _h_principle_archive,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_principle_review_proposed",
+        "Dream cycle ③ — list proposed principle drafts awaiting "
+        "promotion (rule preview + evidence).",
+        _h_principle_review_proposed,
+    ))
+    register(ToolDef(
+        "atelier_principle_approve",
+        "Promote a proposed principle to accepted; optionally set "
+        "priority (e.g. always-inject) / coverage.",
+        _h_principle_approve,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_principle_reject",
+        "Reject a proposed principle into archived/ (never re-proposed).",
+        _h_principle_reject,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))

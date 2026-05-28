@@ -427,6 +427,119 @@ def archive(*, slug: str, reason: str) -> Dict[str, Any]:
     return {"path": str(dest), "slug": target.stem}
 
 
+# ── proposed review / approve / reject (dream cycle ③) ──────────────────────
+
+
+def _rule_one_liner(body: str) -> str:
+    import re as _re
+    m = _re.search(r"^##+\s*Rule\b", body, _re.M | _re.I)
+    if not m:
+        return ""
+    for line in body[m.end():].lstrip().splitlines():
+        s = line.strip()
+        if s:
+            return s
+    return ""
+
+
+def review_proposed(*, limit: int = 50) -> Dict[str, Any]:
+    """List principles awaiting promotion (status == proposed) with their
+    evidence and a one-line Rule preview, for a fast batch review."""
+    vault = _vault_root()
+    root = _principles_dir(vault)
+    items: List[Dict[str, Any]] = []
+    if root.exists():
+        for p in sorted(root.glob("*.md")):
+            if p.name == "INDEX.md":
+                continue
+            try:
+                fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+            except Exception:            # pragma: no cover
+                continue
+            if fm.get("status") != "proposed":
+                continue
+            items.append({
+                "slug": p.stem,
+                "title": fm.get("title") or p.stem,
+                "coverage": fm.get("coverage"),
+                "priority": fm.get("priority"),
+                "rule": _rule_one_liner(body),
+                "evidence": list(fm.get("evidence") or []),
+                "source_entry_ids": list(fm.get("source_entry_ids") or []),
+                "cluster_key": fm.get("cluster_key"),
+                "proposed_at": fm.get("proposed_at"),
+                "path": str(p),
+            })
+            if len(items) >= limit:
+                break
+    return {"count": len(items), "items": items, "vault": str(vault)}
+
+
+def approve(*, slug: str,
+            priority: Optional[str] = None,
+            coverage: Optional[str] = None) -> Dict[str, Any]:
+    """Promote a proposed principle to accepted. Optionally override
+    priority / coverage at approval time (the most common edit is
+    setting priority=always-inject)."""
+    vault = _vault_root()
+    target = _principles_dir(vault) / f"{slug.removesuffix('.md')}.md"
+    if not target.exists():
+        raise FileNotFoundError(str(target))
+    fm, body = _parse.split_frontmatter(target.read_text(encoding="utf-8"))
+    if fm.get("status") != "proposed":
+        raise ValueError(
+            f"{slug}: only proposed principles can be approved "
+            f"(status={fm.get('status')!r})"
+        )
+    if priority is not None and priority not in (
+            "always-inject", "on-relevant-prompt", "manual-only"):
+        raise ValueError(f"unknown priority: {priority!r}")
+    if coverage is not None and coverage not in (
+            "cross-project", "single-project", "single-topic"):
+        raise ValueError(f"unknown coverage: {coverage!r}")
+
+    fm = dict(fm)
+    now = _now_iso()
+    fm["status"] = "accepted"
+    fm["ac_status"] = "passed"
+    fm["accepted_at"] = now
+    fm.pop("proposed_at", None)
+    if priority is not None:
+        fm["priority"] = priority
+    if coverage is not None:
+        fm["coverage"] = coverage
+
+    _atomic_write(target, _serialize(fm, body))
+    _append_log(vault, f"- {now}  principle-approve  {target.stem}  "
+                       f"priority={fm.get('priority')}")
+
+    from . import indexes as _indexes
+    _indexes.safe_regen_principles()
+
+    return {"slug": target.stem, "path": str(target),
+            "status": "accepted", "priority": fm.get("priority")}
+
+
+def reject(*, slug: str, reason: str = "rejected") -> Dict[str, Any]:
+    """Reject a proposed principle → archived. The dedup check in
+    synthesize() consults archived, so a rejected cluster is never
+    re-proposed by a later dream pass."""
+    vault = _vault_root()
+    target = _principles_dir(vault) / f"{slug.removesuffix('.md')}.md"
+    if not target.exists():
+        raise FileNotFoundError(str(target))
+    fm, _body = _parse.split_frontmatter(target.read_text(encoding="utf-8"))
+    if fm.get("status") != "proposed":
+        raise ValueError(
+            f"{slug}: only proposed principles can be rejected "
+            f"(status={fm.get('status')!r}); use archive() for accepted ones"
+        )
+    # archive() handles the move + frontmatter + dedup-preserving fields.
+    out = archive(slug=slug, reason=f"rejected: {reason}")
+    out["status"] = "archived"
+    return out
+
+
 # ── log ───────────────────────────────────────────────────────────────────
 
 

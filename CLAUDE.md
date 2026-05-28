@@ -10,8 +10,10 @@ tooling. Content (the actual user IP) lives in separate private repos.
    or user-specific cultural keywords. User-private voice and naming
    live in `~/.atelier/voices/*.md`, out of tree.
    - This applies to *commit metadata* too: do not use a personal author
-     identity. Commits from atelier maintenance go through a generic
-     identity (e.g. `atelier <atelier@users.noreply.github.com>`).
+     identity (no personal real name, no personal email). The maintainer
+     identity for atelier is **`gorae <gorae@users.noreply.github.com>`** —
+     the project/role name `gorae` is allowed, but the email must be a
+     no-PII no-reply address. Tools and CI may also use this identity.
    - This applies to *commit message bodies*: do not narrate adopter-specific
      paths, repo names, or product names in commit messages of the public
      engine.

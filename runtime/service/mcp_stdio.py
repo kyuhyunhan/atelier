@@ -37,37 +37,8 @@ def build_app() -> FastMCP:
             "writer claim and serialize per writer-role."
         ),
     )
-
-    for tdef in _tools.iter_tools():
-        # Wrap the handler so claim + lock guards run before the bare
-        # handler. We must preserve the signature for FastMCP's schema
-        # introspection — so we generate a small per-tool stub that
-        # mirrors the handler signature and delegates through invoke().
-        _register_one(app, tdef)
-
+    _tools.add_to_fastmcp(app)
     return app
-
-
-def _register_one(app: FastMCP, tdef: _tools.ToolDef) -> None:
-    """Add `tdef` to `app`. We register the handler directly because
-    invoke() performs the guards: we delegate via a wrapper that has the
-    same signature."""
-    import functools
-    import inspect
-
-    handler = tdef.handler
-    sig = inspect.signature(handler)
-
-    @functools.wraps(handler)
-    async def wrapper(*args: Any, **kwargs: Any) -> Dict[str, Any]:
-        bound = sig.bind(*args, **kwargs)
-        return await _tools.invoke(tdef.name, **bound.arguments)
-
-    # `wraps` copies `__wrapped__`, but FastMCP reads `__signature__` /
-    # the function signature; functools.wraps preserves that as long as
-    # we don't change defaults. Set the doc explicitly.
-    wrapper.__doc__ = tdef.description
-    app.add_tool(wrapper, name=tdef.name, description=tdef.description)
 
 
 async def run(sup: _server.Supervisor) -> None:

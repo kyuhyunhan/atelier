@@ -253,3 +253,33 @@ def _register_v01_tools() -> None:
 
 
 _register_v01_tools()
+
+
+# ── Shared helper for transport adapters ───────────────────────────────────
+
+
+def add_to_fastmcp(app: Any) -> None:
+    """Register every ToolDef as a FastMCP tool. Used by mcp_stdio /
+    mcp_http so both transports advertise the identical surface.
+
+    The wrapper preserves the handler signature (FastMCP introspects it
+    for the JSON schema) and routes through invoke() to run claim + lock
+    guards.
+    """
+    import functools
+    import inspect
+
+    for tdef in iter_tools():
+        sig = inspect.signature(tdef.handler)
+
+        def _make(td: ToolDef, s: inspect.Signature):
+            @functools.wraps(td.handler)
+            async def wrapper(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+                bound = s.bind(*args, **kwargs)
+                return await invoke(td.name, **bound.arguments)
+            wrapper.__doc__ = td.description
+            return wrapper
+
+        app.add_tool(_make(tdef, sig),
+                     name=tdef.name,
+                     description=tdef.description)

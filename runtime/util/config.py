@@ -134,6 +134,9 @@ def _looks_like_placeholder(value: Any) -> bool:
     return any(tok in value for tok in _PLACEHOLDER_TOKENS)
 
 
+_LOOPBACK_BINDS = ("127.0.0.1", "localhost", "::1")
+
+
 def _validate_strict(cfg: "Config", path: Path) -> None:
     problems: list[str] = []
     for name, sp in cfg.spaces.items():
@@ -145,6 +148,25 @@ def _validate_strict(cfg: "Config", path: Path) -> None:
         if sp.remote_url and _looks_like_placeholder(sp.remote_url):
             problems.append(f"space {name!r}.remote.url is still a placeholder: "
                             f"{sp.remote_url!r}")
+
+    svc = (cfg.raw.get("service") or {})
+    if svc.get("enabled"):
+        if _looks_like_placeholder(str(svc.get("allowed_user", ""))):
+            problems.append("service.allowed_user is still a placeholder")
+        http = svc.get("mcp_http") or {}
+        if http.get("enabled"):
+            bind = http.get("bind", "127.0.0.1")
+            if bind not in _LOOPBACK_BINDS:
+                problems.append(
+                    f"service.mcp_http.bind must be loopback "
+                    f"({list(_LOOPBACK_BINDS)}); got {bind!r}"
+                )
+            env_var = http.get("token_env", "ATELIER_MCP_HTTP_TOKEN")
+            if _looks_like_placeholder(env_var):
+                problems.append(
+                    f"service.mcp_http.token_env is still a placeholder: {env_var!r}"
+                )
+
     if problems:
         lines = "\n  - ".join([""] + problems)
         raise ValueError(

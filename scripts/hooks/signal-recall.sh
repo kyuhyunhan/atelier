@@ -122,7 +122,7 @@ try:
         with open(seen_path, 'a') as f:
             for s in fresh_slugs:
                 f.write(s + '\n')
-    # Rebuild a minimal markdown block from `fresh` only.
+    # Rebuild a minimal markdown block from the fresh items only.
     lines = ['## atelier — relevant memory', '']
     for it in fresh:
         kind = (it.get('page_type') or '').replace('learning_', '')

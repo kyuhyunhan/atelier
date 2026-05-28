@@ -59,41 +59,83 @@ def _log(message: str, *, log_path: Path) -> None:
         f.write(f"{ts}  {message}\n")
 
 
+def _parse_response(raw: bytes) -> Dict[str, Any]:
+    """Parse a Streamable-HTTP MCP response body. The server may emit
+    raw JSON or SSE-style `event: message\\ndata: <json>` frames."""
+    text = raw.decode("utf-8", "replace")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    for line in text.splitlines():
+        if line.startswith("data:"):
+            blob = line[len("data:"):].strip()
+            try:
+                return json.loads(blob)
+            except json.JSONDecodeError:
+                continue
+    raise RuntimeError(f"unparseable MCP response: {text[:200]!r}")
+
+
+def _post(url: str, body: Dict[str, Any], *,
+          headers: Dict[str, str], timeout: float = 15.0
+          ) -> tuple[Dict[str, Any], Dict[str, str]]:
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec - loopback
+        raw = resp.read()
+        # urllib lowercases header names; preserve for caller.
+        out_headers = {k.lower(): v for k, v in resp.headers.items()}
+    return _parse_response(raw), out_headers
+
+
 def _call(url: str, token: str, tool: str, params: Dict[str, Any],
           *, timeout: float = 15.0) -> Dict[str, Any]:
-    """Send a single JSON-RPC tools/call frame and return the parsed result."""
-    body = json.dumps({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {"name": tool, "arguments": params},
-    }).encode("utf-8")
-
-    headers = {
+    """Full MCP Streamable-HTTP handshake: initialize → notifications/initialized
+    → tools/call. The mcp-session-id returned by the initialize step is
+    threaded through subsequent calls per spec."""
+    headers: Dict[str, str] = {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream",
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec - localhost
-        raw = resp.read()
-    # MCP servers may use SSE for some calls; for one-shot tools/call,
-    # JSON is typical. Try JSON first; fall back to extracting the data:
-    # frames from SSE.
-    text = raw.decode("utf-8", "replace")
+    # 1) initialize — server creates a session and replies with a
+    #    `mcp-session-id` response header.
+    init_body = {
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "atelier-mcp-call", "version": "0.2.1"},
+        },
+    }
+    _resp, resp_headers = _post(url, init_body,
+                                 headers=headers, timeout=timeout)
+    session_id = resp_headers.get("mcp-session-id")
+    if not session_id:
+        raise RuntimeError("server did not return mcp-session-id on initialize")
+
+    sess_headers = dict(headers)
+    sess_headers["mcp-session-id"] = session_id
+
+    # 2) notifications/initialized — required by spec before tool calls.
+    init_done = {"jsonrpc": "2.0",
+                  "method": "notifications/initialized",
+                  "params": {}}
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        for line in text.splitlines():
-            if line.startswith("data:"):
-                blob = line[len("data:"):].strip()
-                try:
-                    return json.loads(blob)
-                except json.JSONDecodeError:
-                    continue
-        raise
+        _post(url, init_done, headers=sess_headers, timeout=timeout)
+    except Exception:                        # pragma: no cover
+        pass
+
+    # 3) tools/call — the real work.
+    call_body = {
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": {"name": tool, "arguments": params},
+    }
+    result, _ = _post(url, call_body, headers=sess_headers, timeout=timeout)
+    return result
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -146,6 +188,15 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if "error" in result:
         _log(f"{args.tool}: error {result['error']}", log_path=log_path)
+        return 0 if not args.strict else 1
+
+    # FastMCP returns 200 with `result.isError: true` when the handler
+    # raises — surface that as an error in the log.
+    inner = result.get("result") or {}
+    if isinstance(inner, dict) and inner.get("isError"):
+        content = inner.get("content") or []
+        first = (content[0].get("text") if content else "") or ""
+        _log(f"{args.tool}: tool-error {first[:200]}", log_path=log_path)
         return 0 if not args.strict else 1
 
     _log(f"{args.tool}: ok", log_path=log_path)

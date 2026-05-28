@@ -242,13 +242,14 @@ async def _h_validate(paths: Optional[List[str]] = None,
     return _api.validate(paths=paths, role=role, fail_fast=fail_fast)
 
 
-async def _h_learning_capture(observation: str,
+async def _h_learning_capture(observation: str = "",
                               why: Optional[str] = None,
                               rule: Optional[str] = None,
                               excerpt: Optional[str] = None,
                               working_dir: Optional[str] = None,
                               project_hint: Optional[str] = None,
                               session_id: Optional[str] = None,
+                              transcript_path: Optional[str] = None,
                               agent_kind: str = "claude-code",
                               hook: str = "manual",
                               observation_kind: str = "feedback"
@@ -260,8 +261,15 @@ async def _h_learning_capture(observation: str,
     criteria are evaluated later at promotion time."""
     from .learnings import capture as _cap
     sess = current_session()
+    # If the caller passed transcript_path but no observation, pull a
+    # rough tail of the transcript so the candidate has *some* anchor.
+    obs = observation or _extract_transcript_tail(transcript_path) or (
+        f"(hook={hook}) session_id={session_id or sess.session_id or '?'}"
+    )
     return _cap.capture(
-        observation=observation, why=why, rule=rule, excerpt=excerpt,
+        observation=obs,
+        why=why, rule=rule,
+        excerpt=excerpt or (transcript_path or None),
         working_dir=working_dir or sess.working_dir,
         project_hint=project_hint,
         session_id=session_id or sess.session_id,
@@ -269,6 +277,43 @@ async def _h_learning_capture(observation: str,
         hook=hook,
         observation_kind=observation_kind,
     )
+
+
+def _extract_transcript_tail(path: Optional[str], *, max_msgs: int = 3,
+                              max_chars: int = 600) -> Optional[str]:
+    """Best-effort summary of the last few user/assistant turns from a
+    Claude Code transcript JSONL file. Returns None on any error."""
+    if not path:
+        return None
+    try:
+        import json as _json
+        from pathlib import Path as _Path
+        p = _Path(path).expanduser()
+        if not p.exists():
+            return None
+        msgs: List[tuple[str, str]] = []
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                m = _json.loads(line)
+            except Exception:
+                continue
+            role = m.get("role") or m.get("type") or ""
+            content = m.get("content") or m.get("text") or ""
+            if isinstance(content, list):
+                content = " ".join(
+                    (c.get("text") or "") for c in content
+                    if isinstance(c, dict)
+                )
+            if role in ("user", "assistant") and isinstance(content, str) \
+                    and content.strip():
+                msgs.append((role, content.strip()))
+        if not msgs:
+            return None
+        chunks = [f"{role}: {body[:max_chars]}"
+                  for role, body in msgs[-max_msgs:]]
+        return "Session tail:\n" + "\n".join(f"- {c}" for c in chunks)
+    except Exception:                        # pragma: no cover
+        return None
 
 
 async def _h_learning_review_pending(limit: int = 20,

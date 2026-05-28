@@ -176,6 +176,15 @@ def _cmd_new_product(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    """Long-running asyncio supervisor. Transports are registered by
+    importing the per-transport modules (PR-3 adds mcp_stdio, PR-4 adds
+    mcp_http). For PR-1 the process idles until interrupted.
+    """
+    from .service import server
+    return server.run()
+
+
 def _cmd_promote(args: argparse.Namespace) -> int:
     if args.action == "propose":
         out = api.promote_propose()
@@ -235,6 +244,10 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("new-product")
     s.add_argument("name")
     s.set_defaults(func=_cmd_new_product)
+
+    s = sub.add_parser("serve",
+                       help="run the long-running engine (MCP stdio + HTTP)")
+    s.set_defaults(func=_cmd_serve)
 
     s = sub.add_parser("promote")
     s.add_argument("action", choices=["propose", "apply"])

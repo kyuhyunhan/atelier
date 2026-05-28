@@ -61,14 +61,37 @@ the engine is severed from the content by design, not by convention.
 ```bash
 git clone https://github.com/<your-username>/atelier ~/workspaces/atelier
 cd ~/workspaces/atelier
-python3 -m venv .venv && .venv/bin/pip install -e .
+python3 -m venv .venv && .venv/bin/pip install -e ".[serve]"
 ./scripts/setup
 # create ~/.atelier/{cache,voices,secrets} and copy config:
 cp config/example.config.yaml ~/.atelier/config.yaml
 # edit ~/.atelier/config.yaml — fill every <REQUIRED> field before continuing
 atelier setup
 atelier reindex --full
+
+# Start the long-running engine. Claude Code in any directory connects
+# to this process over MCP (HTTP, loopback + bearer):
+echo "ATELIER_MCP_HTTP_TOKEN=$(openssl rand -hex 24)" >> ~/.atelier/secrets/.env
+atelier serve --http
 ```
+
+Then register atelier as an MCP server in `~/.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "atelier": {
+      "transport": "http",
+      "url": "http://127.0.0.1:7322/mcp",
+      "headers": { "Authorization": "Bearer ${ATELIER_MCP_HTTP_TOKEN}" }
+    }
+  }
+}
+```
+
+Now `claude` in any project directory can call `atelier_search`,
+`atelier_youtube`, `atelier_learning_capture`, etc. against your one
+gorae vault.
 
 See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the system contract, and
@@ -76,16 +99,32 @@ See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
 
 ## Status
 
-`v0.1.0`. First public release.
+`v0.2.0`. Engine + single-vault model + learnings domain.
 
-Known v0.2 work, surfaced as a backlog by the engine-contract audit:
+### What v0.2 added
 
-- Role-based dispatch in `runtime/index/classify.py` and
-  `runtime/index/linker.py` (currently still hardcoded against literal space
-  names; helpers exist via `cfg.space_by_role()`).
-- Schema overlays declare `spaces: [...]` literals instead of `roles: [...]`.
-- L2 (hallucination) automated lint, vector search, real auth/claims
-  enforcement, mobile capture endpoint — see `CHANGELOG.md`.
+- **`atelier serve`** long-running engine; **MCP stdio + HTTP** transports
+  with bearer-auth + asyncio role locks.
+- **Single-vault model** — `vault:` + `subtrees:` config blocks; the
+  legacy two-space (`librarian-territory` + `builder-territory`) model
+  is collapsed into one repo. Workshop content + per-product memory
+  absorbed by one-shot migration scripts.
+- **Learnings domain** — `gorae/learnings/{candidates,accepted,archived}/`
+  with aggressive hook-driven capture and acceptance-criteria-gated
+  promotion. Default hook adapter at `scripts/hooks/capture-learning.sh`.
+- **Capability ports** — `atelier_{validate, fix_pending, index_regen,
+  prepare_commit, clip_image, new_doc, youtube}` replace the proto-engine
+  scripts inside gorae. See `scripts/gorae_cleanup/CHECKLIST.md` to
+  remove them.
+
+### Backlog deferred to v0.3+
+
+- LLM facets reclass on prepare_commit; OpenAI STT path on YouTube
+- Discord transport (out of scope by user decision)
+- OAuth for MCP HTTP (currently static bearer + loopback only)
+- launchd / autostart (foreground-only by user decision)
+- Full R2 sync adapter; automatic AC scoring on learnings; vector /
+  hybrid search; L2 hallucination lint
 
 ## License
 

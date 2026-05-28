@@ -2,6 +2,108 @@
 
 All notable changes to atelier.
 
+## [0.2.0] — Engine + single vault + learnings domain
+
+### Transports — agents now attach to a running engine
+
+- **`atelier serve` long-running asyncio supervisor** with shared SQLite
+  connection, graceful SIGINT/SIGTERM shutdown, opt-in transports
+  (`--stdio`, `--http`).
+- **MCP stdio transport** (`runtime/service/mcp_stdio.py`) — Claude Code
+  attaches via subprocess; all atelier tools exposed identically.
+- **MCP HTTP transport** (`runtime/service/mcp_http.py`) — Streamable
+  HTTP bound to loopback (127.0.0.1) with bearer-token middleware.
+  Claude Code in any directory connects over the network to the one
+  running atelier engine.
+- **SpaceLockRegistry** (`runtime/service/claims.py`) — asyncio.Lock per
+  WriterRole. Single-writer-per-subtree is now enforced when concurrent
+  MCP callers race.
+- **Session + bearer auth** (`runtime/service/auth.py`) — per-call
+  Session dataclass carries agent_kind / transport / session_id /
+  working_dir so future agent swaps (e.g. Hermes) need only a transport
+  adapter, not engine changes.
+- **Tool registry** (`runtime/service/tools.py`) — single source of MCP
+  tool definitions used by both stdio and HTTP transports.
+- **`atelier-mcp-call` CLI entry** (`runtime/service/mcp_call.py`) — used
+  by Claude Code hook scripts to call MCP tools from the shell.
+
+### Single vault — `gorae` is now the only memory
+
+- **`vault:` + `subtrees:` config blocks** with strict validation;
+  legacy `spaces:` accepted for one release with a deprecation path.
+- **Subtree writer roles** drive lock keys
+  (librarian-write / builder-write / captor-write / curator-write /
+  human-only).
+- **Schema v3 → v4 migrator** (`scripts/migrate_schema_v3_to_v4/`) —
+  one-shot, dry-run-by-default, idempotent.
+- **Workshop absorber** (`scripts/absorb_workshop/`) — copies
+  `atelier-workshop/{products,notes,logs}/` into
+  `<vault>/workshop/`; extracts `profile.local.yaml` files to
+  `~/.atelier/profiles/`.
+
+### Learnings domain — hook-driven developer self-memory
+
+- **`learnings/` overlay** (`schema/data/learnings.overlay.yaml`) with
+  three page types: `learning_candidate`, `learning_accepted`,
+  `learning_archived`. Candidates are append-only.
+- **Acceptance criteria** with `criteria.yaml` (in-vault, user-editable)
+  and a self-check covering has_why / is_specific / is_actionable /
+  tied_to_event / has_project_tag / novel / retracted / pii_leak /
+  pure_meta.
+- **Lifecycle tools** (MCP): `atelier_learning_capture` (captor),
+  `atelier_learning_review_pending` (read), `atelier_learning_accept`
+  (curator, must-checks pass to promote), `atelier_learning_archive`
+  (curator), `atelier_learning_retract` (curator, also from accepted),
+  `atelier_learning_search` (read), `atelier_learning_relink` (curator).
+- **Hook adapter** (`scripts/hooks/capture-learning.sh`) — installable
+  template for Claude Code Stop / SessionEnd hooks. Always exits 0 so a
+  failing capture never blocks the user's flow.
+- **`memory/` → `learnings/by-{topic,project}/` absorber**
+  (`scripts/absorb_workshop_memory_to_learnings/`).
+
+### Capability ports — atelier absorbs the proto-engine
+
+The proto-engine's standalone Python scripts in the content repo are
+now atelier MCP tools. The corresponding gorae files become deletable
+after operators run the migration + absorption scripts:
+
+| MCP tool                  | Replaces gorae script          |
+|---------------------------|--------------------------------|
+| `atelier_validate`        | `validate_metadata.py`         |
+| `atelier_fix_pending`     | `fix_pending_entries.py`       |
+| `atelier_index_regen`     | `update_wiki_index.py`         |
+| `atelier_prepare_commit`  | `prepare.py` + `pre_commit_update.py` (mechanical parts; LLM facets reclass deferred to v0.3) |
+| `atelier_clip_image`      | `clip_images.py` + `r2_upload.py` glue |
+| `atelier_new_doc`         | `create_document.py`           |
+| `atelier_youtube`         | `ingest_youtube.py` (yt-dlp + VTT; OpenAI STT fallback gated on credentials) |
+
+A consolidated operator checklist for removing the proto-engine lives
+at `scripts/gorae_cleanup/CHECKLIST.md`.
+
+### Tests
+
+114 → 120+ pytest tests covering serve lifecycle, claims locking, bearer
+auth, MCP tool registry, vault config dual-read, schema migration,
+workshop absorption, learnings lifecycle (capture/review/accept/archive/
+retract/search/relink), and every capability port.
+
+### Optional dependencies
+
+- `[serve]`: `mcp>=1.0`, `httpx>=0.28`
+- `[youtube]`: `yt-dlp>=2025.1`, `openai>=1.50`
+
+### Backlog deferred to v0.3+
+
+- LLM facets reclassification on prepare_commit
+- OpenAI STT path on YouTube ingest when subtitles are absent
+- Discord transport (out of scope by user decision)
+- OAuth for MCP HTTP (currently static bearer + loopback only)
+- launchd / autostart (foreground-only by user decision)
+- Full R2 sync adapter (still stub)
+- Automatic AC scoring on learnings (currently human-in-the-loop only)
+
+---
+
 ## [0.1.0] — Initial public release
 
 First release of the engine. Built to operate on private user content via

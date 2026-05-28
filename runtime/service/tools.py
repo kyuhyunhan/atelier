@@ -492,7 +492,7 @@ async def _h_session_bootstrap(working_dir: Optional[str] = None,
     return _bs.bootstrap(
         working_dir=working_dir or sess.working_dir,
         max_chars=max_chars,
-    )
+    )  # `now` defaults to wall-clock inside bootstrap()
 
 
 async def _h_absorb_claude_memory(dry_run: bool = False,

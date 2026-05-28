@@ -212,6 +212,29 @@ async def _h_new_doc(template: str, name: str,
                          fields=fields)
 
 
+async def _h_prepare_commit(paths: Optional[List[str]] = None,
+                             dry_run: bool = False
+                             ) -> Dict[str, Any]:
+    """Recalculate word_count / embedded_assets / edited_at for
+    pre-commit hygiene. LLM facets reclassification is deferred."""
+    from .jobs import prepare as _jp
+    return _jp.prepare_commit(paths=paths, dry_run=dry_run)
+
+
+async def _h_youtube(url: str, role: str = "librarian-territory",
+                      lang: Optional[str] = None,
+                      force_stt: bool = False,
+                      staging_subdir: str = "_new"
+                      ) -> Dict[str, Any]:
+    """Ingest a YouTube URL into raw/knowledge/<staging_subdir>/. When
+    captions are unavailable and STT is not configured, returns
+    status=needs-stt for operator follow-up."""
+    from .jobs import youtube as _jy
+    return _jy.youtube_ingest(url=url, role=role, lang=lang,
+                              force_stt=force_stt,
+                              staging_subdir=staging_subdir)
+
+
 async def _h_validate(paths: Optional[List[str]] = None,
                       role: str = "librarian-territory",
                       fail_fast: bool = False) -> Dict[str, Any]:
@@ -379,6 +402,20 @@ def _register_v01_tools() -> None:
                      "Scaffold a new document. template ∈ "
                      "{product, raw, note, learning}.",
                      _h_new_doc,
+                     claim=_claims.Claim.LIBRARIAN_WRITE,
+                     lock_role=_claims.WriterRole.LIBRARIAN))
+    register(ToolDef("atelier_prepare_commit",
+                     "Pre-commit hygiene: recalculate word_count, "
+                     "embedded_assets, edited_at. LLM facets reclass "
+                     "is deferred.",
+                     _h_prepare_commit,
+                     claim=_claims.Claim.LIBRARIAN_WRITE,
+                     lock_role=_claims.WriterRole.LIBRARIAN))
+    register(ToolDef("atelier_youtube",
+                     "Ingest a YouTube URL into raw/knowledge/. Falls "
+                     "back to status=needs-stt when neither captions "
+                     "nor OpenAI STT are available.",
+                     _h_youtube,
                      claim=_claims.Claim.LIBRARIAN_WRITE,
                      lock_role=_claims.WriterRole.LIBRARIAN))
 

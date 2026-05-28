@@ -177,11 +177,14 @@ def _cmd_new_product(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    """Long-running asyncio supervisor. Transports are registered by
-    importing the per-transport modules (PR-3 adds mcp_stdio, PR-4 adds
-    mcp_http). For PR-1 the process idles until interrupted.
-    """
+    """Long-running asyncio supervisor. Each --<transport> flag opts in;
+    with no flags the process idles (useful for smoke-testing the
+    supervisor itself)."""
     from .service import server
+    if args.stdio:
+        from .service import mcp_stdio  # noqa: F401  (registers on import)
+    if args.http:
+        from .service import mcp_http   # noqa: F401  (PR-4)
     return server.run()
 
 
@@ -247,6 +250,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("serve",
                        help="run the long-running engine (MCP stdio + HTTP)")
+    s.add_argument("--stdio", action="store_true",
+                   help="enable MCP stdio transport (for Claude Code subprocess)")
+    s.add_argument("--http", action="store_true",
+                   help="enable MCP HTTP transport (localhost, bearer-authenticated)")
     s.set_defaults(func=_cmd_serve)
 
     s = sub.add_parser("promote")

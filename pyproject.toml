@@ -18,9 +18,18 @@ dependencies = [
 dev = [
     "pytest>=7.0",
 ]
+serve = [
+    "mcp>=1.0",
+    "httpx>=0.28",
+]
+youtube = [
+    "yt-dlp>=2025.1",
+    "openai>=1.50",
+]
 
 [project.scripts]
 atelier = "runtime.cli:main"
+atelier-mcp-call = "runtime.service.mcp_call:main"
 
 [build-system]
 requires = ["setuptools>=68"]

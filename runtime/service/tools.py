@@ -179,6 +179,39 @@ async def _h_promote_apply(proposal: str) -> Dict[str, Any]:
     return _api.promote_apply(proposal)
 
 
+async def _h_fix_pending(dry_run: bool = False,
+                          role: str = "librarian-territory") -> Dict[str, Any]:
+    """Resolve every `entry_id: PENDING` to a stable UUID5."""
+    from .jobs import pending as _jp
+    return _jp.fix_pending(dry_run=dry_run, role=role)
+
+
+async def _h_index_regen(role: str = "librarian-territory",
+                          dry_run: bool = False) -> Dict[str, Any]:
+    """Regenerate wiki/index.md from current wiki/* contents."""
+    from .jobs import index_regen as _jir
+    return _jir.regen(role=role, dry_run=dry_run)
+
+
+async def _h_clip_image(url: str,
+                         role: str = "librarian-territory",
+                         subdir: str = "gorae-resources") -> Dict[str, Any]:
+    """Fetch a remote image into the vault and (when configured) return a CDN URL."""
+    from .jobs import clip as _jc
+    return _jc.clip_image(url=url, role=role, subdir=subdir)
+
+
+async def _h_new_doc(template: str, name: str,
+                      role: str = "librarian-territory",
+                      fields: Optional[Dict[str, Any]] = None
+                      ) -> Dict[str, Any]:
+    """Scaffold a new document under raw/, workshop/products, workshop/notes,
+    or learnings/candidates/."""
+    from .jobs import new_doc as _jnd
+    return _jnd.new_doc(template=template, name=name, role=role,
+                         fields=fields)
+
+
 async def _h_validate(paths: Optional[List[str]] = None,
                       role: str = "librarian-territory",
                       fail_fast: bool = False) -> Dict[str, Any]:
@@ -326,6 +359,28 @@ def _register_v01_tools() -> None:
                      "Reports missing required fields, type mismatches, "
                      "and duplicate entry_ids.",
                      _h_validate))
+    register(ToolDef("atelier_fix_pending",
+                     "Resolve every `entry_id: PENDING` to a stable UUID5.",
+                     _h_fix_pending,
+                     claim=_claims.Claim.LIBRARIAN_WRITE,
+                     lock_role=_claims.WriterRole.LIBRARIAN))
+    register(ToolDef("atelier_index_regen",
+                     "Regenerate wiki/index.md from current wiki contents.",
+                     _h_index_regen,
+                     claim=_claims.Claim.LIBRARIAN_WRITE,
+                     lock_role=_claims.WriterRole.LIBRARIAN))
+    register(ToolDef("atelier_clip_image",
+                     "Fetch a remote image into the vault and return its "
+                     "local + (when configured) CDN URL.",
+                     _h_clip_image,
+                     claim=_claims.Claim.LIBRARIAN_WRITE,
+                     lock_role=_claims.WriterRole.LIBRARIAN))
+    register(ToolDef("atelier_new_doc",
+                     "Scaffold a new document. template ∈ "
+                     "{product, raw, note, learning}.",
+                     _h_new_doc,
+                     claim=_claims.Claim.LIBRARIAN_WRITE,
+                     lock_role=_claims.WriterRole.LIBRARIAN))
 
     # Write tools — claim + role lock.
     register(ToolDef("atelier_reindex",

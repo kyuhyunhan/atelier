@@ -248,6 +248,10 @@ def accept(*, candidate_slug: str, target_topic: str,
                 f"- {fm['accepted_at']}  accept  {topic}/{src.stem}  "
                 f"project={target_project or '-'}")
 
+    from . import indexes as _indexes
+    if target_project:
+        _indexes.safe_regen_project(target_project)
+
     return {
         "path": str(dest),
         "by_project_path": str(project_path) if project_path else None,
@@ -313,4 +317,15 @@ def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
     _append_log(vault,
                 f"- {_now_iso()}  retract  {src.stem}  from={from_state} "
                 f"reason={reason!r}")
+
+    if from_state == "accepted":
+        # We lost the project mapping by the time we get here; safest is
+        # to regen every project that had a by-project mirror for this file.
+        from . import indexes as _indexes
+        proj_root = vault / "learnings" / "accepted" / "by-project"
+        if proj_root.exists():
+            for proj_dir in proj_root.iterdir():
+                if proj_dir.is_dir():
+                    _indexes.safe_regen_project(proj_dir.name)
+
     return {"path": str(dest), "slug": src.stem, "from": from_state}

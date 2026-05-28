@@ -157,6 +157,10 @@ def add(*, title: str, rule: str, why: str,
     )
     _append_log(vault, f"- {fm['accepted_at']}  principle-add  {chosen_slug}  "
                        f"priority={priority}")
+
+    from . import indexes as _indexes
+    _indexes.safe_regen_principles()
+
     return {"slug": chosen_slug, "path": str(target), "evidence": links}
 
 
@@ -313,6 +317,10 @@ def archive(*, slug: str, reason: str) -> Dict[str, Any]:
 
     _append_log(vault, f"- {_now_iso()}  principle-archive  {target.stem}  "
                        f"reason={reason!r}")
+
+    from . import indexes as _indexes
+    _indexes.safe_regen_principles()
+
     return {"path": str(dest), "slug": target.stem}
 
 

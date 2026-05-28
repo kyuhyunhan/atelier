@@ -6,14 +6,17 @@ tooling. Content (the actual user IP) lives in separate private repos.
 
 ## Hard rules
 
-1. **No PII in this repo.** No user names, emails, personal place names,
-   or user-specific cultural keywords. User-private voice and naming
-   live in `~/.atelier/voices/*.md`, out of tree.
-   - This applies to *commit metadata* too: do not use a personal author
-     identity (no personal real name, no personal email). The maintainer
-     identity for atelier is **`gorae <gorae@users.noreply.github.com>`** —
-     the project/role name `gorae` is allowed, but the email must be a
-     no-PII no-reply address. Tools and CI may also use this identity.
+1. **No PII in repo *content*.** No user names, personal place names, or
+   user-specific cultural keywords in schemas, code, docs, or commit
+   message bodies. User-private voice and naming live in
+   `~/.atelier/voices/*.md`, out of tree.
+   - **Commit author identity is an explicit exception.** The maintainer
+     identity for atelier is **`gorae <kyuhyunhaan@gmail.com>`** — the
+     maintainer has deliberately opted in to having this email on the
+     public commit history (it links the work to their GitHub
+     contribution graph). The `gorae` name is the project/role identity;
+     the email is the maintainer's personal address by choice. Do not
+     "fix" this to a noreply address.
    - This applies to *commit message bodies*: do not narrate adopter-specific
      paths, repo names, or product names in commit messages of the public
      engine.

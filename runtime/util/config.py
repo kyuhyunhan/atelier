@@ -30,9 +30,33 @@ class SpaceConfig:
 
 
 @dataclass
+class SubtreeConfig:
+    """Writer-role binding for a path inside the single vault.
+
+    Subtrees describe *who* may write to a given path under the vault
+    root. The engine uses this to pick the role lock for each write
+    operation. Read tools do not consult subtrees.
+    """
+    path: str             # relative to vault.local (e.g. "wiki", "learnings/candidates")
+    writer: str           # WriterRole value: "librarian-write" | "builder-write" | "captor-write" | "curator-write" | "human-only"
+    append_only: bool = False
+
+
+@dataclass
+class VaultConfig:
+    local: Path
+    remote_type: Optional[str] = None
+    remote_url: Optional[str] = None
+    remote_branch: Optional[str] = None
+    assets: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class Config:
     spaces: Dict[str, SpaceConfig]
     raw: Dict[str, Any]
+    vault: Optional[VaultConfig] = None
+    subtrees: Dict[str, SubtreeConfig] = field(default_factory=dict)
 
     def space(self, name: str) -> SpaceConfig:
         if name not in self.spaces:
@@ -99,21 +123,73 @@ def load(path: Optional[Path] = None) -> Config:
         )
     data = _expand(yaml.safe_load(path.read_text()))
 
-    spaces: Dict[str, SpaceConfig] = {}
-    for name, sd in (data.get("spaces") or {}).items():
-        remote = sd.get("remote") or {}
-        local = Path(sd.get("local", "")).expanduser()
-        spaces[name] = SpaceConfig(
-            name=name,
-            local=local,
+    vault: Optional[VaultConfig] = None
+    if data.get("vault"):
+        vd = data["vault"]
+        remote = vd.get("remote") or {}
+        vault = VaultConfig(
+            local=Path(vd.get("local", "")).expanduser(),
             remote_type=remote.get("type"),
             remote_url=remote.get("url"),
             remote_branch=remote.get("branch"),
-            assets=sd.get("assets") or {},
-            role=sd.get("role"),
+            assets=vd.get("assets") or {},
         )
 
-    cfg = Config(spaces=spaces, raw=data)
+    subtrees: Dict[str, SubtreeConfig] = {}
+    for path_key, sd in (data.get("subtrees") or {}).items():
+        subtrees[path_key] = SubtreeConfig(
+            path=path_key,
+            writer=sd.get("writer", "human-only"),
+            append_only=bool(sd.get("append_only", False)),
+        )
+
+    spaces: Dict[str, SpaceConfig] = {}
+    raw_spaces = data.get("spaces") or {}
+
+    if raw_spaces:
+        # Legacy path: explicit spaces dict.
+        for name, sd in raw_spaces.items():
+            remote = sd.get("remote") or {}
+            local = Path(sd.get("local", "")).expanduser()
+            spaces[name] = SpaceConfig(
+                name=name,
+                local=local,
+                remote_type=remote.get("type"),
+                remote_url=remote.get("url"),
+                remote_branch=remote.get("branch"),
+                assets=sd.get("assets") or {},
+                role=sd.get("role"),
+            )
+        if vault is not None:
+            # Both blocks present is ambiguous — refuse.
+            raise ValueError(
+                f"{path}: `spaces:` and `vault:` are both set. Use one or "
+                "the other (v0.2 prefers `vault:` + `subtrees:`)."
+            )
+    elif vault is not None:
+        # Single-vault path: synthesize two pseudo-spaces so existing
+        # callers (cfg.space_by_role) keep working. Both point at the
+        # vault root; writes target subtrees inside.
+        spaces["vault-librarian"] = SpaceConfig(
+            name="vault-librarian",
+            local=vault.local,
+            remote_type=vault.remote_type,
+            remote_url=vault.remote_url,
+            remote_branch=vault.remote_branch,
+            assets=vault.assets,
+            role="librarian-territory",
+        )
+        spaces["vault-builder"] = SpaceConfig(
+            name="vault-builder",
+            local=vault.local,
+            remote_type=vault.remote_type,
+            remote_url=vault.remote_url,
+            remote_branch=vault.remote_branch,
+            assets=vault.assets,
+            role="builder-territory",
+        )
+
+    cfg = Config(spaces=spaces, raw=data, vault=vault, subtrees=subtrees)
     _validate_strict(cfg, path)
     return cfg
 
@@ -137,8 +213,29 @@ def _looks_like_placeholder(value: Any) -> bool:
 _LOOPBACK_BINDS = ("127.0.0.1", "localhost", "::1")
 
 
+_VALID_WRITERS = {"human-only", "librarian-write", "builder-write",
+                  "captor-write", "curator-write"}
+
+
 def _validate_strict(cfg: "Config", path: Path) -> None:
     problems: list[str] = []
+
+    if cfg.vault is not None:
+        if _looks_like_placeholder(str(cfg.vault.local)):
+            problems.append(
+                f"vault.local is still a placeholder: {cfg.vault.local!r}"
+            )
+        if cfg.vault.remote_url and _looks_like_placeholder(cfg.vault.remote_url):
+            problems.append(
+                f"vault.remote.url is still a placeholder: {cfg.vault.remote_url!r}"
+            )
+        for st_path, st in cfg.subtrees.items():
+            if st.writer not in _VALID_WRITERS:
+                problems.append(
+                    f"subtree {st_path!r}: writer={st.writer!r} not in "
+                    f"{sorted(_VALID_WRITERS)}"
+                )
+
     for name, sp in cfg.spaces.items():
         if not sp.role:
             problems.append(f"space {name!r}: missing required `role:` "

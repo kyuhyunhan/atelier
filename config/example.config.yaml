@@ -4,37 +4,65 @@
 #
 # STRICT MODE: atelier refuses to start if any value below still contains a
 # `<...>` placeholder. Fill every required field before running `atelier setup`.
+#
+# v0.2 introduces a single-vault model. Use `vault:` + `subtrees:` going
+# forward. The legacy `spaces:` block (commented out at the bottom of this
+# file) is still accepted for one release with a deprecation warning, but
+# you cannot set both.
 
-spaces:
-  # The librarian-territory space — your personal knowledge base (raw + wiki).
-  # The space name (here `gorae`) is yours to choose; the engine resolves it
-  # by `role:` not by name.
-  gorae:
-    role: librarian-territory
-    local: <REQUIRED — absolute path to your librarian-territory directory>
-    remote:
-      type: github
-      url:  <REQUIRED — github.com/<your-username>/<your-librarian-repo>>
-      branch: main
-    assets:
-      type: r2
-      bucket: <OPTIONAL — your R2 bucket name>
-      cdn:    <OPTIONAL — https://your-cdn-url/>
+# ── Single vault ──────────────────────────────────────────────────────────────
+# All content (raw/, wiki/, workshop/, learnings/) lives in one repo.
+vault:
+  local: <REQUIRED — absolute path to your gorae vault directory>
+  remote:
+    type: github
+    url:  <REQUIRED — github.com/<your-username>/<your-gorae-repo>>
+    branch: main
+  assets:
+    type: r2
+    bucket: <OPTIONAL — your R2 bucket name>
+    cdn:    <OPTIONAL — https://your-cdn-url/>
 
-  # The builder-territory space — your products / workshop notes.
-  workshop:
-    role: builder-territory
-    local: <REQUIRED — absolute path to your builder-territory directory>
-    remote:
-      type: github
-      url:  <REQUIRED — github.com/<your-username>/<your-builder-repo>>
-      branch: main
+# ── Subtree writer roles ─────────────────────────────────────────────────────
+# Each subtree under the vault root binds to exactly one writer role. The
+# engine refuses writes from any other role.
+subtrees:
+  raw:                    { writer: human-only }
+  wiki:                   { writer: librarian-write }
+  workshop:               { writer: builder-write }
+  learnings/candidates:   { writer: captor-write, append_only: true }
+  learnings/accepted:     { writer: curator-write }
+  learnings/archived:     { writer: curator-write }
 
+# ── Service / transports ─────────────────────────────────────────────────────
+# `atelier serve` exposes the engine to agents (Claude Code) via MCP.
+service:
+  enabled: true
+  allowed_user: <REQUIRED — owner identity, e.g. your email>
+
+  mcp_stdio:
+    enabled: true                  # Claude Code subprocess attaches here
+
+  mcp_http:
+    enabled: true                  # Claude Code (any cwd) attaches over loopback
+    bind: 127.0.0.1                # MUST be loopback in v0.2
+    port: 7322
+    token_env: ATELIER_MCP_HTTP_TOKEN
+
+# ── Learnings domain ─────────────────────────────────────────────────────────
+learnings:
+  enabled: true
+  aggressive_capture: true         # Stop / SessionEnd hooks auto-capture
+  per_project_dirs: true           # accepted/by-project/<project>/
+  candidate_retention_days: 60     # candidates older than this auto-archive
+
+# ── Secrets references ───────────────────────────────────────────────────────
 auth:
   github_token: ${ATELIER_GITHUB_TOKEN}
   r2_access:    ${ATELIER_R2_ACCESS_KEY}
   r2_secret:    ${ATELIER_R2_SECRET_KEY}
 
+# ── Agent persona overlays ───────────────────────────────────────────────────
 agents:
   librarian:
     voice_overlay: ~/.atelier/voices/librarian.md
@@ -43,6 +71,7 @@ agents:
     voice_overlay: ~/.atelier/voices/builder.md
     primary_language: en
 
+# ── Sync / indexing knobs ────────────────────────────────────────────────────
 sync:
   auto_pull_on_session_start: false
   auto_push_on_session_end:   false
@@ -51,10 +80,21 @@ sync:
 index:
   auto_reindex_on_session_start: false
   incremental: true
-  vector: false   # Phase A baseline. Enabled in a later release.
+  vector: false                    # baseline FTS5 only
 
-# Reserved for future channels — not active in v0.1.
+# ── Reserved for future channels ─────────────────────────────────────────────
 channels:
   # mobile:
   #   capture_endpoint: http://localhost:7321/capture
   #   token_env: ATELIER_MOBILE_TOKEN
+
+# ── Legacy spaces (deprecated, accepted only when `vault:` absent) ────────────
+# spaces:
+#   gorae:
+#     role: librarian-territory
+#     local: <path>
+#     remote: { type: github, url: <...>, branch: main }
+#   workshop:
+#     role: builder-territory
+#     local: <path>
+#     remote: { type: github, url: <...>, branch: main }

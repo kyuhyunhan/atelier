@@ -375,6 +375,19 @@ async def _h_principle_archive(slug: str, reason: str) -> Dict[str, Any]:
     return _pr.archive(slug=slug, reason=reason)
 
 
+async def _h_session_bootstrap(working_dir: Optional[str] = None,
+                                max_chars: int = 6000
+                                ) -> Dict[str, Any]:
+    """Return a markdown block intended for the *first turn* of a
+    Claude Code session: always-inject principles + by-project learnings."""
+    from .learnings import bootstrap as _bs
+    sess = current_session()
+    return _bs.bootstrap(
+        working_dir=working_dir or sess.working_dir,
+        max_chars=max_chars,
+    )
+
+
 async def _h_absorb_claude_memory(dry_run: bool = False,
                                    source_root: Optional[str] = None,
                                    auto_accept_kinds: Optional[List[str]] = None
@@ -585,6 +598,13 @@ def _register_v01_tools() -> None:
         _h_principle_archive,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_session_bootstrap",
+        "Return a markdown block for first-turn context injection: "
+        "always-inject principles + the working-dir project's learnings. "
+        "Intended for a UserPromptSubmit hook with session_id-based dedup.",
+        _h_session_bootstrap,
     ))
 
 

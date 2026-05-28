@@ -47,6 +47,39 @@ which atelier-mcp-call
 #    your Claude session — failures are logged to ~/.atelier/logs/capture.log.
 ```
 
+## Session-start context injection (PR-25)
+
+A separate hook adapter, `session-bootstrap.sh`, runs on every
+`UserPromptSubmit` event but only emits output on the *first* prompt of
+each Claude session. It prints a markdown block on stdout — Claude Code
+includes it as `additional_context` — containing the universal
+principles (priority: always-inject) and the working-dir project's
+learnings.
+
+```bash
+cp scripts/hooks/session-bootstrap.sh ~/.atelier/bin/session-bootstrap.sh
+chmod +x ~/.atelier/bin/session-bootstrap.sh
+```
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "matcher": "",
+        "hooks": [
+          { "type": "command",
+            "command": "~/.atelier/bin/session-bootstrap.sh" }
+        ] }
+    ]
+  }
+}
+```
+
+Session-id dedup is kept in `~/.atelier/cache/seen-sessions.txt`. No
+files in `~/.claude/` are modified by atelier — this is intentionally a
+*loose-coupled* integration: removing the hook entry instantly reverts
+Claude Code to its pre-atelier behavior.
+
 ## What the hook captures
 
 The hook adapter forwards the Claude Code stop/session-end payload (JSON)

@@ -275,7 +275,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.warn("interrupted")
         return 130
     except Exception as e:
-        log.error(type(e).__name__, msg=str(e))
+        log.error(type(e).__name__, detail=str(e))
         if args.verbose:
             raise
         return 1

@@ -160,4 +160,14 @@ def _resolve(by_space: dict, to_space: str, to_slug: str) -> Optional[int]:
 
 
 def reindex_all(cfg: config.Config, full: bool = False) -> list[ReindexStats]:
-    return [reindex_space(cfg, name, full=full) for name in cfg.spaces]
+    # Under the single-vault model two pseudo-spaces (vault-librarian and
+    # vault-builder) share the same local path. Indexing each separately
+    # would collide on `pages.slug`, so dedupe by resolved local path
+    # and pick the lexicographically first name as the canonical one.
+    seen_paths: dict[str, str] = {}
+    for name, sp in cfg.spaces.items():
+        key = str(sp.local.resolve())
+        if key not in seen_paths or name < seen_paths[key]:
+            seen_paths[key] = name
+    canonical = sorted(seen_paths.values())
+    return [reindex_space(cfg, name, full=full) for name in canonical]

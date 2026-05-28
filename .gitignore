@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Derived index / cache (atelier never tracks these)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+cache/
+
+# Secrets and per-host
+.env
+.env.*
+secrets/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Build
+dist/
+build/
+*.whl
+*.tar.gz

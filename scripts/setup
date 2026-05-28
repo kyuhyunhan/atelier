@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# atelier setup — installs git hooks and verifies ~/.atelier/ presence.
+#
+# Idempotent. Safe to re-run.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ── Install pre-commit PII guard ──────────────────────────────────────────────
+if [ -d "$REPO_ROOT/.git" ]; then
+  install -m 0755 \
+    "$REPO_ROOT/scripts/git-hooks/pre-commit" \
+    "$REPO_ROOT/.git/hooks/pre-commit"
+  echo "✓ pre-commit hook installed at .git/hooks/pre-commit"
+else
+  echo "! $REPO_ROOT is not a git repo yet; run 'git init' first."
+fi
+
+# ── Verify ~/.atelier/ presence ───────────────────────────────────────────────
+AT="$HOME/.atelier"
+if [ ! -d "$AT" ]; then
+  echo "! ~/.atelier/ not found. Create the skeleton with:"
+  echo ""
+  echo "    mkdir -p $AT/{cache,voices,secrets}"
+  echo "    cp $REPO_ROOT/config/example.config.yaml $AT/config.yaml"
+  echo "    touch $AT/pii_patterns.txt"
+  echo "    touch $AT/voices/librarian.md $AT/voices/builder.md"
+  echo ""
+else
+  for sub in cache voices secrets; do
+    [ -d "$AT/$sub" ] || { echo "! missing: $AT/$sub"; }
+  done
+  [ -f "$AT/config.yaml" ]      || echo "! missing: $AT/config.yaml (see config/example.config.yaml)"
+  [ -f "$AT/pii_patterns.txt" ] || echo "! missing: $AT/pii_patterns.txt (one regex per line)"
+  echo "✓ ~/.atelier/ checked."
+fi
+
+echo "atelier setup complete."

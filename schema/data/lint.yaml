@@ -1,0 +1,147 @@
+# atelier schema v4 — Lint rules (L1–L7)
+# Each rule is data: id, severity, automation, check function name, fix function.
+# runtime/lint/ reads this file at startup.
+
+rules:
+
+  L1:
+    id: L1
+    name: broken-links
+    severity: FAIL
+    automation: auto
+    spaces: [gorae]
+    description: >
+      All [[raw/...]] links in wiki/** must resolve to an existing file.
+      A broken raw-link in a wiki page means the provenance chain is broken.
+    check: check_raw_links_exist
+    fix: null
+    db_query: >
+      SELECT p.slug, l.to_target
+      FROM links l
+      JOIN pages p ON p.id = l.from_page
+      WHERE l.to_page_id IS NULL
+        AND l.to_target LIKE 'raw/%'
+        AND p.space = 'gorae'
+
+  L2:
+    id: L2
+    name: hallucination
+    severity: FAIL
+    automation: manual
+    spaces: [gorae]
+    description: >
+      Wiki facts must be traceable to raw sources. No external knowledge injection.
+      Types: external knowledge, false reference, false date.
+    check: null
+    fix: null
+    notes: "LLM-dependent. Automated version deferred to v0.2."
+
+  L3:
+    id: L3
+    name: source-count
+    severity: WARN
+    automation: auto
+    spaces: [gorae]
+    description: >
+      entity.source_count must equal the actual number of inbound links
+      from digest/source/synthesis pages. Tolerance: ±1.
+    check: check_source_count
+    fix: fix_source_count_recount
+    tolerance: 1
+    db_query: >
+      SELECT e.canonical_slug,
+             CAST(json_extract(p.frontmatter, '$.source_count') AS INTEGER) AS declared,
+             COUNT(l.id) AS actual
+      FROM entities e
+      JOIN pages p ON p.slug = e.canonical_slug
+      LEFT JOIN links l ON l.to_page_id = p.id
+      WHERE p.space = 'gorae' AND p.page_type = 'entity'
+      GROUP BY e.canonical_slug
+      HAVING ABS(declared - actual) > 1
+
+  L4:
+    id: L4
+    name: first-mention
+    severity: WARN
+    automation: auto
+    spaces: [gorae]
+    description: >
+      entity.first_mention must match the earliest period in inbound digest links.
+    check: check_first_mention
+    fix: fix_first_mention_redate
+    db_query: >
+      SELECT p.slug,
+             json_extract(p.frontmatter, '$.first_mention') AS declared,
+             MIN(json_extract(src.frontmatter, '$.period'))  AS actual_earliest
+      FROM pages p
+      JOIN links l   ON l.to_page_id = p.id
+      JOIN pages src ON src.id = l.from_page AND src.page_type = 'digest'
+      WHERE p.space = 'gorae' AND p.page_type = 'entity'
+      GROUP BY p.slug
+      HAVING declared != actual_earliest
+
+  L5:
+    id: L5
+    name: orphan
+    severity: WARN
+    automation: auto
+    spaces: [gorae]
+    description: >
+      All wiki pages (except index.md and log.md) must have at least 1 inbound
+      [[...]] link from another wiki page.
+    check: check_orphan_pages
+    fix: null
+    excluded_slugs: [wiki/index.md, wiki/log.md]
+    db_query: >
+      SELECT p.slug
+      FROM pages p
+      LEFT JOIN (
+        SELECT to_page_id, COUNT(*) AS cnt
+        FROM links
+        GROUP BY to_page_id
+      ) bc ON bc.to_page_id = p.id
+      WHERE p.space = 'gorae'
+        AND p.slug LIKE 'wiki/%'
+        AND p.slug NOT IN ('wiki/index.md', 'wiki/log.md')
+        AND (bc.cnt IS NULL OR bc.cnt = 0)
+
+  L6:
+    id: L6
+    name: stale
+    severity: INFO
+    automation: auto
+    spaces: [gorae]
+    description: >
+      Every raw/ file that has been committed (mtime tracked) should have a
+      corresponding wiki/sources/ page. Files in raw/personal/diary/ are
+      covered by digest pages instead.
+    check: check_stale_sources
+    fix: null
+    exemptions:
+      - path_pattern: "raw/personal/diary/**"
+        covered_by: digest
+      - path_pattern: "raw/personal/inbox/**"
+        covered_by: inbox_status
+
+  L7:
+    id: L7
+    name: gap
+    severity: INFO
+    automation: manual
+    spaces: [gorae]
+    description: >
+      A name appearing in 3+ distinct digests without a dedicated entity page
+      is a gap candidate.
+    check: null
+    fix: null
+    threshold: 3
+    notes: "Automated detection deferred; requires NLP or heuristic name extraction."
+
+# ── Global settings ───────────────────────────────────────────────────────────
+defaults:
+  run_on_lint_command: [L1, L3, L4, L5, L6]
+  fixable_rules:       [L3, L4]
+  manual_rules:        [L2, L7]
+  fail_on_severity:    [FAIL]
+  warn_on_severity:    [WARN]
+  info_on_severity:    [INFO]

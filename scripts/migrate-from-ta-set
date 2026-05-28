@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""migrate-from-ta-set — relocate ta-set/private/forges/* into <builder-space>/products/*.
+
+This is an adopter-specific one-shot migration script kept in the engine
+repo as a reference. Paths must be supplied explicitly — no user-specific
+defaults are baked in. To run:
+
+    scripts/migrate-from-ta-set --ta-set PATH --builder-space PATH [--apply]
+
+Default mode: dry-run. Pass --apply to actually copy files.
+"""
+from __future__ import annotations
+
+import argparse
+import shutil
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def iter_forges(ta_set: Path):
+    forges_dir = ta_set / "private" / "forges"
+    if not forges_dir.exists():
+        return
+    for p in forges_dir.iterdir():
+        if p.is_dir():
+            yield p
+
+
+def make_product_readme(name: str, src_forge: Path) -> str:
+    now = datetime.now(timezone.utc).date().isoformat()
+    eid = uuid.uuid5(uuid.NAMESPACE_DNS, f"workshop:products/{name}")
+    return (
+        f"---\n"
+        f"schema_version: 4\n"
+        f"entry_id: {eid}\n"
+        f"title: {name}\n"
+        f"type: product\n"
+        f"status: active\n"
+        f"sensitivity: private\n"
+        f"created: {now}\n"
+        f"updated: {now}\n"
+        f"summary: \"Migrated from ta-set/private/forges/{name}/ on {now}.\"\n"
+        f"---\n\n"
+        f"# {name}\n\n"
+        f"Product workspace migrated from ta-set's forge model.\n\n"
+        f"## Layout\n\n"
+        f"- `contracts/` — interface and behavior contracts (C-NNN-*.yaml)\n"
+        f"- `memory/` — build notes, session logs, decision records\n"
+        f"- `holds.yaml` — currently-held blockers\n"
+        f"- `profile.local.yaml` — local product profile\n\n"
+        f"## Source\n\n"
+        f"- Originated in `ta-set/private/forges/{name}/`\n"
+    )
+
+
+def plan_migration(ta_set: Path, builder_space: Path):
+    """Yield (kind, src_path, dst_path) tuples."""
+    products_root = builder_space / "products"
+    for forge in iter_forges(ta_set):
+        name = forge.name
+        dst_product = products_root / name
+        for src in forge.rglob("*"):
+            if src.is_dir():
+                continue
+            rel = src.relative_to(forge)
+            yield ("copy", src, dst_product / rel)
+        yield ("write", None, dst_product / "README.md")
+
+
+def apply_migration(ta_set: Path, builder_space: Path, dry: bool):
+    actions = list(plan_migration(ta_set, builder_space))
+    copied = written = 0
+    for kind, src, dst in actions:
+        if kind == "copy":
+            print(f"  COPY   {src.relative_to(ta_set)}  →  {dst.relative_to(builder_space)}")
+            if not dry:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+            copied += 1
+        elif kind == "write":
+            name = dst.parent.name
+            print(f"  WRITE  README.md for product '{name}'  →  {dst.relative_to(builder_space)}")
+            if not dry:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if dst.exists():
+                    print(f"         (exists; skipping)")
+                else:
+                    forge_src = ta_set / "private" / "forges" / name
+                    dst.write_text(make_product_readme(name, forge_src), encoding="utf-8")
+                    written += 1
+    print()
+    print(f"Total: {copied} files to copy, {written} README files to write "
+          f"({'DRY RUN' if dry else 'APPLIED'})")
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ta-set", type=Path, required=True,
+                    help="path to the source ta-set directory")
+    ap.add_argument("--builder-space", type=Path, required=True,
+                    help="path to the destination builder-territory space")
+    ap.add_argument("--apply", action="store_true",
+                    help="actually copy files; default is dry-run")
+    args = ap.parse_args(argv)
+
+    if not args.ta_set.exists():
+        print(f"ta-set not found: {args.ta_set}", file=sys.stderr)
+        return 1
+    if not args.builder_space.exists() and args.apply:
+        args.builder_space.mkdir(parents=True)
+
+    apply_migration(args.ta_set, args.builder_space, dry=not args.apply)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

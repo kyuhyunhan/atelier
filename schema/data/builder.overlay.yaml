@@ -1,0 +1,65 @@
+# atelier schema v4 — Builder overlay
+# Governs all pages in the `workshop` space.
+# Writer: Builder agent owns all of workshop/**.
+
+inherits: base
+spaces: [workshop]
+agent: builder
+
+page_types:
+
+  # ── Products (one product = one subdirectory) ─────────────────────────────
+  product_readme:
+    path_pattern: "products/*/README.md"
+    writer: builder
+    required_fields: [title, type, status, created, updated]
+    optional_fields: [summary, tags, related_wiki, version]
+    field_specs:
+      type:   { const: product }
+      status:
+        type: string
+        enum: [active, paused, archived, shipped]
+      tags:        { type: array, items: { type: string } }
+      related_wiki: { type: array, items: { type: string }, description: "wikilinks into gorae space" }
+      version:     { type: string }
+      created:     { type: string, format: date }
+      updated:     { type: string, format: date }
+
+  product_page:
+    path_pattern: "products/**/*.md"
+    writer: builder
+    required_fields: [title, type, created, updated]
+    optional_fields: [summary, tags]
+    field_specs:
+      type:    { type: string, enum: [spec, log, retro, note, adr] }
+      created: { type: string, format: date }
+      updated: { type: string, format: date }
+
+  # ── Standalone notes (outside products) ──────────────────────────────────
+  note:
+    path_pattern: "notes/**/*.md"
+    writer: builder
+    required_fields: [title, type, created, updated]
+    optional_fields: [summary, tags]
+    field_specs:
+      type:    { const: note }
+      created: { type: string, format: date }
+      updated: { type: string, format: date }
+
+  # ── Daily / weekly build logs ─────────────────────────────────────────────
+  build_log:
+    path_pattern: "logs/**/*.md"
+    writer: builder
+    required_fields: [title, type, date, created, updated]
+    field_specs:
+      type:    { const: log }
+      date:    { type: string, format: date }
+      created: { type: string, format: date }
+      updated: { type: string, format: date }
+
+promotion:
+  description: "Builder→wiki pathway. Governed by runtime/promote/."
+  eligible_types: [product_readme, note]
+  target_space: gorae
+  target_types: [synthesis, theme, entity]
+  requires_librarian_review: true

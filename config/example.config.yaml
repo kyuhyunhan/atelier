@@ -1,0 +1,60 @@
+# atelier user config — copy this to ~/.atelier/config.yaml and edit.
+#
+# This file is per-machine and personal. It is never tracked by atelier.
+#
+# STRICT MODE: atelier refuses to start if any value below still contains a
+# `<...>` placeholder. Fill every required field before running `atelier setup`.
+
+spaces:
+  # The librarian-territory space — your personal knowledge base (raw + wiki).
+  # The space name (here `gorae`) is yours to choose; the engine resolves it
+  # by `role:` not by name.
+  gorae:
+    role: librarian-territory
+    local: <REQUIRED — absolute path to your librarian-territory directory>
+    remote:
+      type: github
+      url:  <REQUIRED — github.com/<your-username>/<your-librarian-repo>>
+      branch: main
+    assets:
+      type: r2
+      bucket: <OPTIONAL — your R2 bucket name>
+      cdn:    <OPTIONAL — https://your-cdn-url/>
+
+  # The builder-territory space — your products / workshop notes.
+  workshop:
+    role: builder-territory
+    local: <REQUIRED — absolute path to your builder-territory directory>
+    remote:
+      type: github
+      url:  <REQUIRED — github.com/<your-username>/<your-builder-repo>>
+      branch: main
+
+auth:
+  github_token: ${ATELIER_GITHUB_TOKEN}
+  r2_access:    ${ATELIER_R2_ACCESS_KEY}
+  r2_secret:    ${ATELIER_R2_SECRET_KEY}
+
+agents:
+  librarian:
+    voice_overlay: ~/.atelier/voices/librarian.md
+    primary_language: en
+  builder:
+    voice_overlay: ~/.atelier/voices/builder.md
+    primary_language: en
+
+sync:
+  auto_pull_on_session_start: false
+  auto_push_on_session_end:   false
+  conflict_strategy: surface-to-user
+
+index:
+  auto_reindex_on_session_start: false
+  incremental: true
+  vector: false   # Phase A baseline. Enabled in a later release.
+
+# Reserved for future channels — not active in v0.1.
+channels:
+  # mobile:
+  #   capture_endpoint: http://localhost:7321/capture
+  #   token_env: ATELIER_MOBILE_TOKEN

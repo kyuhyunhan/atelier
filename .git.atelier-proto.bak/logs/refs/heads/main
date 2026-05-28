@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000 20617171a1759794ed6d73d5083973c770083b71 gorae <kyuhyunhaan@gmail.com> 1779887086 +0200	commit (initial): Phase 0: foundation — repo skeleton, plan, pre-commit PII guard
+20617171a1759794ed6d73d5083973c770083b71 57541b234ea185e54f673bc24546c9ab116a80b6 gorae <kyuhyunhaan@gmail.com> 1779887637 +0200	commit: Phase 1: schema v4 — 5 YAML definitions, 0001_initial.sql, SCHEMA_V4 docs
+57541b234ea185e54f673bc24546c9ab116a80b6 53a90004893d96edd77549f617924bfbb81909b7 gorae <kyuhyunhaan@gmail.com> 1779887816 +0200	commit: Phase 2: agent contracts (librarian, builder) + ARCHITECTURE doc
+53a90004893d96edd77549f617924bfbb81909b7 98bb5c3cfdd1a02c94be2d251e02dba9e78c6d81 gorae <kyuhyunhaan@gmail.com> 1779888197 +0200	commit: Phase 3: runtime index pipeline + CLI reindex
+98bb5c3cfdd1a02c94be2d251e02dba9e78c6d81 40586106f661c634ae25fab28b69266fa89c0a08 gorae <kyuhyunhaan@gmail.com> 1779888375 +0200	commit: Phase 4: search (FTS5 + graph) + lint (L1, L3, L5, L6)
+40586106f661c634ae25fab28b69266fa89c0a08 ead8856e00ef7227f788f092b158e790e3e6ed40 gorae <kyuhyunhaan@gmail.com> 1779888546 +0200	commit: Phase 5: doctor (D1–D6) + sync adapters (github, r2 stub, local_fs)
+ead8856e00ef7227f788f092b158e790e3e6ed40 f91a15f283b01598fcfe857e2c2cba3f7670b881 gorae <kyuhyunhaan@gmail.com> 1779888701 +0200	commit: Phase 6: migrate-from-ta-set + workshop bootstrap + ta-set archival
+f91a15f283b01598fcfe857e2c2cba3f7670b881 41d0e445b754de227f23178c0cf39e2ffab69231 gorae <kyuhyunhaan@gmail.com> 1779888808 +0200	commit: Phase 7: service-shape refactor (api, auth, claims, capture)
+41d0e445b754de227f23178c0cf39e2ffab69231 2ebe8de4ec22931f7fead4025b9d21ea8c3ebe46 gorae <kyuhyunhaan@gmail.com> 1779888932 +0200	commit: Phase 8: promote pipeline (propose + apply) + PROMOTION_LOG
+2ebe8de4ec22931f7fead4025b9d21ea8c3ebe46 226f84e6b1b9141adb8fc4d0edeec57a8b369ce6 gorae <kyuhyunhaan@gmail.com> 1779889162 +0200	commit: Phase 9+10: OPS_NOTES skeleton, ADOPTING doc, pytest suite, schema YAML fixes
+226f84e6b1b9141adb8fc4d0edeec57a8b369ce6 329f182f452e5f4bcee631bad2912598077e29ed gorae <kyuhyunhaan@gmail.com> 1779892620 +0200	commit: Sanitize for public release: engine-contract enforcement

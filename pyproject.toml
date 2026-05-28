@@ -1,0 +1,31 @@
+[project]
+name = "atelier"
+version = "0.1.0"
+description = "Methodology layer for a sovereign memory system"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "The atelier authors" }]
+dependencies = [
+    "pyyaml>=6.0",
+    # python-frontmatter intentionally omitted — runtime/index/parse.py rolls
+    # its own to avoid the dep. Re-add later if we need its plugin model.
+    # sqlite3 — stdlib
+    # git — shell out via subprocess
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+atelier = "runtime.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["runtime*"]

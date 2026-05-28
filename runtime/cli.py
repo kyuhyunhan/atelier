@@ -1,0 +1,265 @@
+"""atelier CLI — thin argparse dispatcher.
+
+All commands route through runtime.service.api. The service layer is the
+single funnel for CLI, MCP (v0.2), and HTTPS (v0.2) surfaces.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from typing import List, Optional
+
+from .service import api
+from .util import logging as log
+
+
+def _cmd_setup(args: argparse.Namespace) -> int:
+    from .util import config, db
+    cfg = config.load()
+    conn = db.connect()
+    try:
+        schema_version = db.get_meta(conn, "schema_version")
+    finally:
+        conn.close()
+    log.info("setup.ok", db=str(config.DB_PATH), schema_version=schema_version)
+    for name, sp in cfg.spaces.items():
+        marker = "✓" if sp.local.exists() else "✗ (missing)"
+        print(f"  space: {name:10}  local={sp.local}  {marker}")
+    return 0
+
+
+def _cmd_reindex(args: argparse.Namespace) -> int:
+    statses = api.reindex(space=args.space, full=args.full)
+    for s in statses:
+        print(
+            f"[{s['space']}] pages_changed={s['pages_changed']} "
+            f"chunks={s['chunks_written']} links={s['links_written']} "
+            f"entities={s['entities_upserted']}"
+        )
+    return 0
+
+
+def _cmd_search(args: argparse.Namespace) -> int:
+    hits = api.search(args.query, space=args.space, limit=args.limit,
+                      fallback=args.fallback)
+    if not hits:
+        print("(no results)")
+        return 0
+    for h in hits:
+        title = h.get("title") or "(untitled)"
+        print(f"{h['space']:8} {h['page_type']:14} {h['slug']}")
+        print(f"   {title}")
+        if h.get("snippet"):
+            print(f"   {h['snippet']}")
+        if args.explain:
+            print(f"   rank={h['rank']:.3f}")
+        print()
+    return 0
+
+
+def _cmd_links(args: argparse.Namespace) -> int:
+    from .search import graph
+    from .util import db
+    conn = db.connect()
+    try:
+        if args.outbound:
+            for s in graph.outbound(conn, args.slug):
+                print(s)
+        elif args.inbound:
+            for s in graph.inbound(conn, args.slug):
+                print(s)
+        else:
+            print("== inbound ==")
+            for s in graph.inbound(conn, args.slug):
+                print(f"  {s}")
+            print("== outbound ==")
+            for s in graph.outbound(conn, args.slug):
+                print(f"  {s}")
+    finally:
+        conn.close()
+    return 0
+
+
+def _cmd_list(args: argparse.Namespace) -> int:
+    from .util import db
+    conn = db.connect()
+    try:
+        sql = "SELECT slug, page_type, space FROM pages WHERE 1=1"
+        params: list = []
+        if args.type:
+            sql += " AND page_type=?"; params.append(args.type)
+        if args.space:
+            sql += " AND space=?"; params.append(args.space)
+        sql += " ORDER BY space, slug"
+        for r in conn.execute(sql, params):
+            print(f"{r['space']:8} {r['page_type']:14} {r['slug']}")
+    finally:
+        conn.close()
+    return 0
+
+
+def _cmd_lint(args: argparse.Namespace) -> int:
+    rules = args.rule.split(",") if args.rule else None
+    out = api.lint(space=args.space, rule_ids=rules, apply_fixes=args.fix)
+    print(f"Rules run: {', '.join(out['rules_run']) or '(none)'}")
+    print(f"Findings: {len(out['findings'])}  ({out['by_severity']})")
+    if args.fix:
+        print(f"Fixes applied: {out['fixes_applied']}")
+    if args.show:
+        for f in out["findings"][:args.show]:
+            slug = f["page_slug"] or "-"
+            print(f"  [{f['severity']}] {f['rule_id']} {slug}: {f['message']}")
+    return 1 if out["failed"] else 0
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    out = api.doctor(remediate=args.remediate, max_usd=args.max_usd)
+    failed = False
+    for d in out["diagnoses"]:
+        marker = {"OK": "✓", "WARN": "!", "FAIL": "✗"}.get(d["severity"], "?")
+        print(f"  {marker} [{d['severity']:4}] {d['id']} {d['name']}: {d['message']}")
+        if d["severity"] == "FAIL":
+            failed = True
+    for r in out.get("remediations", []):
+        print(f"  → {r['diagnosis_id']} {r['action']}: "
+              f"{'ok' if r['success'] else 'failed'} (${r['cost_usd']:.4f})")
+    return 1 if failed else 0
+
+
+def _cmd_sync(args: argparse.Namespace) -> int:
+    out = api.sync(args.action, space=args.space)
+    if args.action == "status":
+        for st in out["status"]:
+            print(f"  {st['space']:10} clean={st['clean']} ahead={st['ahead']} "
+                  f"behind={st['behind']} unstaged={len(st['unstaged'])} "
+                  f"untracked={len(st['untracked'])}")
+    return 0
+
+
+def _cmd_capture(args: argparse.Namespace) -> int:
+    out = api.capture_text(args.text, source=args.source, title=args.title)
+    print(out["path"])
+    return 0
+
+
+def _cmd_new_product(args: argparse.Namespace) -> int:
+    from .service import api as _api  # capture endpoint reused
+    from .util import config
+    cfg = config.load()
+    builder_space = cfg.space_by_role("builder-territory").local
+    product_dir = builder_space / "products" / args.name
+    if product_dir.exists():
+        log.error("product already exists", path=str(product_dir))
+        return 1
+    product_dir.mkdir(parents=True)
+    from datetime import datetime, timezone
+    import uuid as _uuid
+    now = datetime.now(timezone.utc).date().isoformat()
+    eid = _uuid.uuid5(_uuid.NAMESPACE_DNS, f"workshop:products/{args.name}")
+    (product_dir / "README.md").write_text(
+        f"---\n"
+        f"schema_version: 4\n"
+        f"entry_id: {eid}\n"
+        f"title: {args.name}\n"
+        f"type: product\n"
+        f"status: active\n"
+        f"sensitivity: private\n"
+        f"created: {now}\n"
+        f"updated: {now}\n"
+        f"summary: \"\"\n"
+        f"---\n\n"
+        f"# {args.name}\n\n"
+        f"(product description)\n",
+        encoding="utf-8",
+    )
+    print(f"Created {product_dir}/README.md")
+    return 0
+
+
+def _cmd_promote(args: argparse.Namespace) -> int:
+    if args.action == "propose":
+        out = api.promote_propose()
+        print(f"Proposal written: {out.get('path', '(no proposal)')}")
+    elif args.action == "apply":
+        out = api.promote_apply(args.proposal)
+        print(f"Applied: {out.get('applied', False)}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="atelier")
+    p.add_argument("--verbose", "-v", action="store_true")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("setup");                  s.set_defaults(func=_cmd_setup)
+
+    s = sub.add_parser("reindex")
+    s.add_argument("--space"); s.add_argument("--full", action="store_true")
+    s.add_argument("--incremental", action="store_true", default=True)
+    s.set_defaults(func=_cmd_reindex)
+
+    s = sub.add_parser("search")
+    s.add_argument("query"); s.add_argument("--space"); s.add_argument("--limit", type=int, default=20)
+    s.add_argument("--explain", action="store_true"); s.add_argument("--fallback", action="store_true")
+    s.set_defaults(func=_cmd_search)
+
+    s = sub.add_parser("links")
+    s.add_argument("slug")
+    g = s.add_mutually_exclusive_group()
+    g.add_argument("--inbound", action="store_true"); g.add_argument("--outbound", action="store_true")
+    s.set_defaults(func=_cmd_links)
+
+    s = sub.add_parser("list")
+    s.add_argument("--type"); s.add_argument("--space")
+    s.set_defaults(func=_cmd_list)
+
+    s = sub.add_parser("lint")
+    s.add_argument("--space"); s.add_argument("--rule"); s.add_argument("--fix", action="store_true")
+    s.add_argument("--show", type=int, default=20)
+    s.set_defaults(func=_cmd_lint)
+
+    s = sub.add_parser("doctor")
+    s.add_argument("--remediate", action="store_true")
+    s.add_argument("--max-usd", type=float, default=0.0)
+    s.set_defaults(func=_cmd_doctor)
+
+    s = sub.add_parser("sync")
+    s.add_argument("action", choices=["status", "pull", "push"]); s.add_argument("--space")
+    s.set_defaults(func=_cmd_sync)
+
+    s = sub.add_parser("capture")
+    s.add_argument("--text", required=True); s.add_argument("--source", default="manual")
+    s.add_argument("--title")
+    s.set_defaults(func=_cmd_capture)
+
+    s = sub.add_parser("new-product")
+    s.add_argument("name")
+    s.set_defaults(func=_cmd_new_product)
+
+    s = sub.add_parser("promote")
+    s.add_argument("action", choices=["propose", "apply"])
+    s.add_argument("--proposal", help="path to a proposal file (for apply)")
+    s.set_defaults(func=_cmd_promote)
+
+    return p
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.verbose:
+        log.set_level("debug")
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        log.warn("interrupted")
+        return 130
+    except Exception as e:
+        log.error(type(e).__name__, msg=str(e))
+        if args.verbose:
+            raise
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

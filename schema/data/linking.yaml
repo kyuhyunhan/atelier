@@ -1,0 +1,52 @@
+# atelier schema v4 — URI / linking rules
+
+# ── Registered URI schemes ────────────────────────────────────────────────────
+schemes:
+  gorae:
+    prefix: "gorae:"
+    config_key: "spaces.gorae.local"   # resolved from ~/.atelier/config.yaml
+    examples:
+      - "[[gorae:wiki/entities/foo.md]]"
+      - "[[gorae:raw/personal/diary/2026/01/01.md]]"
+      - "[[gorae:wiki/themes/example.md|example theme]]"
+
+  workshop:
+    prefix: "workshop:"
+    config_key: "spaces.workshop.local"
+    examples:
+      - "[[workshop:products/bar/README.md]]"
+      - "[[workshop:notes/baz.md|Baz note]]"
+
+# ── Wikilink syntax ───────────────────────────────────────────────────────────
+syntax:
+  # Full qualified form (preferred for cross-space links)
+  qualified: "[[space:path/to/file.md]]"
+  # With display label
+  labeled:   "[[space:path/to/file.md|display text]]"
+  # Bare slug (resolved within same space — legacy v3 compat)
+  bare:      "[[path/to/file.md]]"
+
+# ── Backward compatibility (v3 → v4) ─────────────────────────────────────────
+backward_compat:
+  v3_implicit_space: gorae
+  description: >
+    v3 wikilinks written as [[raw/...]] or [[wiki/...]] are treated as
+    gorae-space links during indexing. The linker records the resolved
+    form in the links table; source files are NOT rewritten unless
+    atelier promote apply is run.
+  rewrite_on_promote: true
+
+# ── Link types stored in DB ───────────────────────────────────────────────────
+link_types:
+  wikilink:
+    description: "Bare [[...]] — resolved to space by context or backward_compat rule"
+  gorae:
+    description: "Explicit [[gorae:...]]"
+  workshop:
+    description: "Explicit [[workshop:...]]"
+
+# ── Broken link policy ────────────────────────────────────────────────────────
+broken_link_policy:
+  on_index:  record    # write to links with to_page_id = NULL
+  on_lint:   report    # L1 fires on any broken raw-link in wiki
+  on_write:  warn      # writeback warns, does not block

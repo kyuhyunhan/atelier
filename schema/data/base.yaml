@@ -1,0 +1,96 @@
+# atelier schema v4 — base fields
+# Applies to all pages across all spaces. Overlays extend or restrict.
+
+version: 4
+
+fields:
+  schema_version:
+    type: integer
+    required: true
+    const: 4
+    description: "Schema authority version. v3 files are auto-upgraded on first index."
+
+  entry_id:
+    type: string
+    format: uuid-v5
+    required: true
+    description: "UUID v5 derived from created_at.value. Stable across moves."
+
+  title:
+    type: string
+    required: true
+    nullable: true
+
+  summary:
+    type: string
+    nullable: true
+
+  sensitivity:
+    type: string
+    enum: [private, public]
+    default: private
+    description: "Controls blog/export visibility. Wiki pages always private."
+
+  created_at:
+    type: array
+    required: true
+    items:
+      type: object
+      properties:
+        value:     { type: string, format: date-time }
+        precision: { type: string, enum: [second, minute, day, month] }
+        timezone:  { type: string }
+      required: [value]
+    description: "Ordered list. First entry is canonical creation time."
+
+  collected_at:
+    type: array
+    nullable: true
+    items:
+      type: object
+      properties:
+        value:  { type: string, format: date-time }
+        source: { type: string }
+        note:   { type: string }
+    description: "Mobile-ready: when/how content was captured externally."
+
+  edited_at:
+    type: array
+    nullable: true
+    items:
+      type: object
+      properties:
+        value:     { type: string, format: date-time }
+        precision: { type: string }
+        timezone:  { type: string }
+
+  embedded_assets:
+    type: array
+    default: []
+    description: "Asset slugs (R2 keys). Populated by pre-commit hook."
+
+  word_count:
+    type: integer
+    default: 0
+    description: "Populated by pre-commit hook."
+
+  # Mobile-ready fields — active in Phase H (not validated Phase 0-8)
+  source:
+    type: string
+    nullable: true
+    description: "Capture channel: mobile | web-clipper | manual | gorae-new"
+
+  inbox_status:
+    type: string
+    enum: [pending, processed, archived]
+    nullable: true
+    description: "Mobile inbox lifecycle. null = not an inbox item."
+
+upgrades:
+  v3_to_v4:
+    description: "Non-breaking. schema_version bump only; all field meanings preserved."
+    auto_migrate: true
+    changes:
+      - field: schema_version
+        from: 3
+        to: 4

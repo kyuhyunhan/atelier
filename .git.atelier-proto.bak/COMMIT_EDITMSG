@@ -1,0 +1,12 @@
+Sanitize for public release: engine-contract enforcement
+
+- Move PLAN_v0.1 → docs/_archive/IMPLEMENTATION_LOG with historical framing
+- Replace user-specific defaults with role-based config lookups:
+  cfg.space_by_role('librarian-territory'|'builder-territory')
+- Strict config validation: refuse to start on placeholder values
+- Add CHANGELOG.md with v0.2 backlog (full Level 3 role refactor)
+- README declares engine contract: no user-specific bindings in repo
+- migrate-from-ta-set requires --ta-set + --builder-space (no defaults)
+- Test fixtures and doc examples scrubbed of culture-specific terms
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>

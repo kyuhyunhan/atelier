@@ -35,6 +35,20 @@ from runtime.util import db as _db
 META_KEY = "schema_migration_v3_to_v4"
 TARGET_VERSION = 4
 
+# Default exclusion globs — paths under these are never considered
+# vault content. Override with --include-only / --extra-exclude.
+_DEFAULT_EXCLUDES = (
+    "node_modules",        # npm install artifacts
+    "web",                 # Next.js apps (content-coupled)
+    "schemas",             # JSON-schema source files (different beast)
+    "gorae-resources",     # R2 asset mirror
+    "learnings",           # atelier-owned domain (already v4)
+    "BACKLOG.md",          # operator scratchpad at the root
+    "SCHEMA.md",           # legacy v3 schema doc
+    ".obsidian",
+    ".trash",
+)
+
 
 def _git_porcelain(path: Path) -> str:
     """Return `git status --porcelain` output; empty string when clean."""
@@ -50,9 +64,20 @@ def _git_porcelain(path: Path) -> str:
         return e.stderr or "(git status failed)"
 
 
-def _iter_markdown(root: Path) -> Iterable[Path]:
+def _iter_markdown(root: Path,
+                   *, extra_excludes: Iterable[str] = ()) -> Iterable[Path]:
+    excludes = set(_DEFAULT_EXCLUDES) | set(extra_excludes)
     for p in sorted(root.rglob("*.md")):
-        if any(part.startswith(".") for part in p.relative_to(root).parts):
+        rel = p.relative_to(root)
+        parts = rel.parts
+        if any(part.startswith(".") for part in parts):
+            continue
+        # Skip if the relative path is exactly an exclusion entry,
+        # or if any path component matches one.
+        rel_str = rel.as_posix()
+        if rel_str in excludes:
+            continue
+        if any(part in excludes for part in parts):
             continue
         yield p
 
@@ -89,7 +114,8 @@ def _write_fm(path: Path, new_fm: Dict[str, Any]) -> None:
     path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
 
 
-def migrate(role: str, *, apply: bool, force: bool) -> int:
+def migrate(role: str, *, apply: bool, force: bool,
+            extra_excludes: Iterable[str] = ()) -> int:
     cfg = _config.load()
     space = cfg.space_by_role(role)
     root = space.local
@@ -118,7 +144,7 @@ def migrate(role: str, *, apply: bool, force: bool) -> int:
     skipped_v4: List[Path] = []
     changes: List[Path] = []
 
-    for p in _iter_markdown(root):
+    for p in _iter_markdown(root, extra_excludes=extra_excludes):
         would, reason, new_fm = _bump_one(p, root)
         if not would and reason == "already-v4":
             skipped_v4.append(p)
@@ -167,8 +193,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                      help="actually write changes (still does not git-commit)")
     p.add_argument("--force", action="store_true",
                    help="re-run even if meta marker says already migrated")
+    p.add_argument("--extra-exclude", action="append", default=[],
+                   help="additional path/dirname to skip "
+                        "(repeatable; vault-relative)")
     args = p.parse_args(argv)
-    return migrate(role=args.role, apply=args.apply, force=args.force)
+    return migrate(role=args.role, apply=args.apply, force=args.force,
+                    extra_excludes=args.extra_exclude or [])
 
 
 if __name__ == "__main__":

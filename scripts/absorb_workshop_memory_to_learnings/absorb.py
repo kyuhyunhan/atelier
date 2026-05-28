@@ -155,7 +155,16 @@ def _apply(plan: Plan) -> None:
     plan.dest_by_topic.write_text(f"---\n{serialized}\n---\n{body}",
                                   encoding="utf-8")
     plan.dest_by_project.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(plan.dest_by_topic, plan.dest_by_project)
+    # Collision avoidance — two memory files in different topic subdirs
+    # can share a filename (e.g. README.md) and would otherwise overwrite
+    # in the by-project mirror.
+    target = plan.dest_by_project
+    n = 1
+    while target.exists():
+        stem = target.stem
+        target = target.with_name(f"{stem}-{n}{target.suffix}")
+        n += 1
+    shutil.copy2(plan.dest_by_topic, target)
     # Source file is left in place — operator decides when to delete the
     # original memory/ subtree (likely after committing this absorption).
 

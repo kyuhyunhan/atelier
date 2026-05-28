@@ -106,16 +106,27 @@ def _apply_plan(plan: Plan) -> None:
         raise RuntimeError(f"unknown plan kind: {plan.kind}")
 
 
-def absorb(*, apply: bool, profiles_dir: Optional[Path] = None) -> int:
+def absorb(*, apply: bool, profiles_dir: Optional[Path] = None,
+           builder_root_override: Optional[Path] = None) -> int:
     cfg = _config.load()
     librarian = cfg.space_by_role("librarian-territory")
-    builder = cfg.space_by_role("builder-territory")
     vault_root = librarian.local
-    builder_root = builder.local
 
-    if librarian.local == builder.local:
+    if builder_root_override is not None:
+        builder_root = builder_root_override
+    else:
+        try:
+            builder = cfg.space_by_role("builder-territory")
+            builder_root = builder.local
+        except KeyError:
+            print("no builder-territory in config; pass --builder-root "
+                  "to point at the legacy workshop.")
+            return 2
+
+    if vault_root == builder_root:
         print(f"librarian and builder already share a root ({vault_root}); "
               "nothing to absorb.")
+        print("If the legacy workshop lives elsewhere, pass --builder-root.")
         return 0
 
     if not builder_root.exists():
@@ -179,9 +190,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--profiles-dir",
                    help="override the destination for profile.local.yaml files "
                         "(default: ~/.atelier/profiles/)")
+    p.add_argument("--builder-root",
+                   help="path to the legacy builder repo when it differs "
+                        "from the configured builder-territory (use after "
+                        "switching to single-vault config)")
     args = p.parse_args(argv)
     profiles_dir = Path(args.profiles_dir).expanduser() if args.profiles_dir else None
-    return absorb(apply=args.apply, profiles_dir=profiles_dir)
+    builder_root_override = (Path(args.builder_root).expanduser()
+                              if args.builder_root else None)
+    return absorb(apply=args.apply, profiles_dir=profiles_dir,
+                   builder_root_override=builder_root_override)
 
 
 if __name__ == "__main__":

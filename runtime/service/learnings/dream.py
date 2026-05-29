@@ -148,6 +148,100 @@ def plan(*, min_shared_terms: int = 2,
     }
 
 
+def _days_between(iso_a: Optional[str], iso_b: str) -> Optional[float]:
+    """Whole-ish days between two ISO timestamps; None if `iso_a` absent
+    or unparseable."""
+    if not iso_a:
+        return None
+    from datetime import datetime
+    try:
+        a = datetime.fromisoformat(iso_a)
+        b = datetime.fromisoformat(iso_b)
+    except ValueError:
+        return None
+    return (b - a).total_seconds() / 86400.0
+
+
+def nudge_info(*, now: str) -> Dict[str, Any]:
+    """Single source of the dream-nudge decision, shared by the
+    session_bootstrap model-context injection, the SessionStart
+    systemMessage hook, and the statusline. Returns:
+
+        {due, accepted_since, days_since, pending, short, long}
+
+    Two independent triggers fire `due`:
+    - accumulation: accepted_since >= nudge_after_accepted OR
+      days_since >= nudge_after_days
+    - pending review: proposed drafts exist (interrupted/unreviewed dream)
+    """
+    from . import cluster as _cluster
+    from . import principles as _principles
+
+    cfg = _config.load()
+    dream_cfg = (cfg.raw.get("learnings") or {}).get("dream") or {}
+    after_accepted = int(dream_cfg.get("nudge_after_accepted", 15))
+    after_days = int(dream_cfg.get("nudge_after_days", 7))
+
+    try:
+        status = _cluster.dream_status()
+    except Exception:                       # pragma: no cover
+        status = {"accepted_since_last_dream": 0, "last_dream_at": None}
+    since = int(status.get("accepted_since_last_dream", 0))
+    last = status.get("last_dream_at")
+    days = _days_between(last, now)
+
+    try:
+        pending = _principles.review_proposed(limit=500).get("count", 0)
+    except Exception:                       # pragma: no cover
+        pending = 0
+
+    accumulation_due = (
+        since >= after_accepted
+        or (days is not None and days >= after_days)
+    )
+    due = accumulation_due or pending > 0
+
+    # ── long form (model context + systemMessage) ──
+    long = ""
+    if due:
+        bits: List[str] = []
+        if pending > 0:
+            bits.append(
+                f"{pending} proposed principle(s) await review "
+                f"(`atelier_principle_review_proposed`)"
+            )
+        if accumulation_due:
+            when = f"{since} new learnings" if since else "enough time"
+            if days is not None and days >= after_days and since < after_accepted:
+                when = f"{int(days)} days"
+            bits.append(
+                f"{when} since the last dream — ask me to run a dream pass "
+                f"(`atelier_learning_cluster` → synthesize proposals)"
+            )
+        long = "💡 **atelier dream** — " + "; ".join(bits) + "."
+
+    # ── short form (statusline) ──
+    short = ""
+    if due:
+        segs: List[str] = []
+        if accumulation_due and since:
+            segs.append(f"{since} to dream")
+        elif accumulation_due:
+            segs.append("dream due")
+        if pending > 0:
+            segs.append(f"{pending} to review")
+        short = "💡 atelier: " + " · ".join(segs)
+
+    return {
+        "due": due,
+        "accepted_since": since,
+        "days_since": days,
+        "pending": pending,
+        "short": short,
+        "long": long,
+    }
+
+
 def complete(*, when: str) -> Dict[str, Any]:
     """Phase 2 — advance the dream baseline after a clean pass. `when` is
     an ISO timestamp from the caller (engine keeps no clock for

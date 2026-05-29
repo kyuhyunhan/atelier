@@ -121,78 +121,12 @@ def _truncate(text: str, max_chars: int) -> str:
     return text[:cutoff].rstrip() + "\n\n_(truncated)_\n"
 
 
-def _days_between(iso_a: Optional[str], iso_b: str) -> Optional[float]:
-    """Whole-ish days between two ISO timestamps; None if `iso_a` absent
-    or unparseable."""
-    if not iso_a:
-        return None
-    from datetime import datetime
-    try:
-        a = datetime.fromisoformat(iso_a)
-        b = datetime.fromisoformat(iso_b)
-    except ValueError:
-        return None
-    return (b - a).total_seconds() / 86400.0
-
-
 def _dream_nudge(*, now: str) -> str:
-    """One-line session-start nudge when the dream cycle wants attention.
-
-    Two independent triggers (either fires):
-    - accumulation: accepted_since_last_dream >= nudge_after_accepted, OR
-      days_since_last_dream >= nudge_after_days
-    - pending review: proposed drafts exist (an interrupted or unreviewed
-      dream); since last_dream_at only advances on a clean pass, an
-      interrupted dream keeps the accumulation trigger armed too.
-    Returns "" when nothing is due.
-    """
-    from . import cluster as _cluster
-    from . import principles as _principles_mod
-
-    cfg = _config.load()
-    dream_cfg = (cfg.raw.get("learnings") or {}).get("dream") or {}
-    after_accepted = int(dream_cfg.get("nudge_after_accepted", 15))
-    after_days = int(dream_cfg.get("nudge_after_days", 7))
-
-    try:
-        status = _cluster.dream_status()
-    except Exception:                       # pragma: no cover - defensive
-        return ""
-    since = int(status.get("accepted_since_last_dream", 0))
-    last = status.get("last_dream_at")
-    days = _days_between(last, now)
-
-    pending = 0
-    try:
-        pending = _principles_mod.review_proposed(limit=200).get("count", 0)
-    except Exception:                       # pragma: no cover
-        pending = 0
-
-    accumulation_due = (
-        since >= after_accepted
-        or (days is not None and days >= after_days)
-        or (last is None and since >= after_accepted)
-    )
-
-    if not accumulation_due and pending == 0:
-        return ""
-
-    bits: List[str] = []
-    if pending > 0:
-        bits.append(
-            f"{pending} proposed principle(s) await review "
-            f"(`atelier_principle_review_proposed`)"
-        )
-    if accumulation_due:
-        when = (f"{since} new learnings"
-                if since else "enough time")
-        if days is not None and days >= after_days and since < after_accepted:
-            when = f"{int(days)} days"
-        bits.append(
-            f"{when} since the last dream — ask me to run a dream pass "
-            f"(`atelier_learning_cluster` → synthesize proposals)"
-        )
-    return "💡 **atelier dream** — " + "; ".join(bits) + "."
+    """The model-context nudge line. Single source of truth lives in
+    dream.nudge_info() so the SessionStart systemMessage hook and the
+    statusline share the exact same decision."""
+    from . import dream as _dream
+    return _dream.nudge_info(now=now)["long"]
 
 
 def bootstrap(*, working_dir: Optional[str] = None,

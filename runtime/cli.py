@@ -183,6 +183,16 @@ def _cmd_dream(args: argparse.Namespace) -> int:
     advances the cadence after a finished pass."""
     from .service.learnings import dream as _dr
     import json as _json
+    if args.status:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        info = _dr.nudge_info(now=now)
+        if args.json:
+            print(_json.dumps(info, ensure_ascii=False))
+        else:
+            # one compact line for the statusline (empty when nothing due)
+            print(info["short"])
+        return 0
     if args.complete:
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
@@ -286,6 +296,9 @@ def build_parser() -> argparse.ArgumentParser:
                             "--complete to advance the cadence")
     s.add_argument("--complete", action="store_true",
                    help="mark the dream pass complete (advance last_dream_at)")
+    s.add_argument("--status", action="store_true",
+                   help="print a compact one-line dream status (for statusline / "
+                        "SessionStart hook); empty when nothing is due")
     s.add_argument("--min-projects", type=int, default=2)
     s.add_argument("--limit", type=int, default=20)
     s.add_argument("--json", action="store_true",

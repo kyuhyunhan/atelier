@@ -42,6 +42,24 @@ def _all_overlays() -> List[Dict[str, Any]]:
     ]
 
 
+def page_type_rules() -> List[Tuple[str, str]]:
+    """All (path_pattern, page_type) pairs across overlays, declaration order.
+
+    Single source of truth for BOTH frontmatter validation (`_match_page_type`)
+    and page classification (`runtime/index/classify.py`). Hard-rule #3: page
+    types are schema *data* (schema/data/*.overlay.yaml), never hardcoded in
+    runtime code. Declaration order encodes specificity — more specific
+    patterns must be declared before broader globs.
+    """
+    rules: List[Tuple[str, str]] = []
+    for overlay in _all_overlays():
+        for ptype, spec in (overlay.get("page_types") or {}).items():
+            pattern = spec.get("path_pattern")
+            if pattern:
+                rules.append((pattern, ptype))
+    return rules
+
+
 def _is_uuid(value: Any) -> bool:
     if not isinstance(value, str):
         return False

@@ -2,6 +2,43 @@
 
 All notable changes to atelier.
 
+## [0.2.4] — Single-vault rename regression fix + cross-domain unification
+
+### Fixed — gorae→vault-* rename regression (v0.2 single-vault collapse)
+
+The single-vault migration renamed the write path's space to `vault-builder`
+but left read/classify/lint/promote/link paths comparing the old `gorae`
+literal. Symptoms: every page classified `page_type='unknown'`, the entities
+table empty, lint/promote silently no-op, doctor D2 reporting the whole vault
+as phantom drift, and cross-domain wikilinks unresolved.
+
+- **Schema-driven classification** — `runtime/index/classify.py` sources
+  (path_pattern → page_type) rules from `schema/data/*.overlay.yaml` via
+  `validate_v4.page_type_rules()` instead of a hardcoded table gated on
+  `space=="gorae"`. Classification is now space-independent (hard-rule #3).
+  Overlays gained the structural types `wiki_index`, `wiki_log`,
+  `learnings_log`, `learnings_index`.
+- **Space-agnostic lint + promote** — L1/L3/L5/L6 and `promote/propose`
+  filter by `page_type`/slug, never a space literal; `lint.yaml` per-rule
+  `spaces:` cleared.
+- **D2 phantom drift** — `reindex.canonical_spaces()` is the single dedup
+  source shared by `reindex_all`, doctor D2, and the D2 remediator, so the
+  write and read paths can no longer disagree.
+
+### Added — cross-domain unification (resolution-only)
+
+- `reindex._resolve` searches all spaces and, on a slug miss, consults a
+  canonical-entity alias/basename index — the same entity referenced from
+  wiki, workshop and learnings resolves to one node. No new schema.
+
+### Added — learnings mirror reconcile (D7)
+
+- `runtime/service/learnings/reconcile.py` detects/repairs drift between the
+  by-topic canonical accepted learnings and their by-project mirrors
+  (orphan / duplicate / missing / divergent). Surfaced as doctor check **D7**
+  and the `atelier_learning_reconcile` tool; repaired under
+  `doctor(remediate=True)`.
+
 ## [0.2.3] — Capture-model correction, user-visible surfaces, hardening
 
 ### Capture model

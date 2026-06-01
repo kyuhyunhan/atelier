@@ -24,7 +24,7 @@ def check_source_count(
         FROM   entities e
         JOIN   pages p ON p.slug = e.canonical_slug
         LEFT   JOIN links l ON l.to_page_id = p.id
-        WHERE  p.space = 'gorae' AND p.page_type = 'entity'
+        WHERE  p.page_type = 'entity'
         GROUP  BY e.canonical_slug
     """
     findings: List[Finding] = []

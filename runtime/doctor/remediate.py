@@ -48,12 +48,20 @@ def remediate(
 # ── Per-D remediation strategies ─────────────────────────────────────────────
 
 def _r_D2(cfg, d, budget_left) -> RemediationResult:
-    """D2 (FS drift) → run a full reindex."""
+    """D2 (FS drift) → run a full reindex of the canonical (deduped) spaces."""
     from ..index import reindex
-    for name in cfg.spaces:
+    for name in reindex.canonical_spaces(cfg):
         if cfg.space(name).local.exists():
             reindex.reindex_space(cfg, name, full=True)
     return RemediationResult(d.id, "reindex --full", True)
+
+
+def _r_D7(cfg, d, budget_left) -> RemediationResult:
+    """D7 (learnings mirror drift) → reconcile mirrors to by-topic canonical."""
+    from ..service.learnings import reconcile
+    counts = reconcile.repair()
+    return RemediationResult(d.id, "learnings mirror reconcile", True,
+                             notes=str(counts))
 
 
 def _r_D6(cfg, d, budget_left) -> RemediationResult:
@@ -70,4 +78,5 @@ def _r_D6(cfg, d, budget_left) -> RemediationResult:
 _ACTIONS = {
     "D2": _r_D2,
     "D6": _r_D6,
+    "D7": _r_D7,
 }

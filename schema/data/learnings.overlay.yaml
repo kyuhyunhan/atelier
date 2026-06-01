@@ -11,6 +11,18 @@ agents: [captor, curator]   # captor appends candidates; curator promotes
 
 page_types:
 
+  # ── Structural / generated pages (classification-only). Declared FIRST so
+  #    INDEX.md is matched here, not by the learning_principle glob below. ──
+  learnings_log:
+    path_pattern: "learnings/log.md"
+    writer: curator
+    notes: "Append-only learnings activity log. No required frontmatter."
+
+  learnings_index:
+    path_pattern: "learnings/principles/INDEX.md"
+    writer: curator
+    notes: "Auto-generated principle index. Must precede learning_principle."
+
   learning_candidate:
     path_pattern: "learnings/candidates/**/*.md"
     writer: captor

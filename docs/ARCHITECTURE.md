@@ -331,7 +331,7 @@ runtime/
 │   └── L6.py           stale
 │
 ├── doctor/         Drift detection + remediation
-│   ├── D1..D6.py       individual diagnostics
+│   ├── D1..D7.py       individual diagnostics   (D7 = learnings-mirror reconcile)
 │   └── remediate.py    bounded fixer (--max-usd N for LLM cost cap)
 │
 ├── sync/adapters/  Remote ↔ local
@@ -355,7 +355,8 @@ runtime/
 │   ├── capture.py      raw-inbox capture (mobile-reserved)
 │   ├── jobs/           youtube · clip · prepare · pending · index_regen · new_doc
 │   └── learnings/      capture · review · principles · dream · cluster ·
-│                       bootstrap · recall · absorb_claude · indexes · criteria
+│                       bootstrap · recall · absorb_claude · indexes ·
+│                       criteria · reconcile   (by-project mirror drift check/repair)
 │
 └── util/           Cross-cutting
     ├── config.py       ~/.atelier/config.yaml loader

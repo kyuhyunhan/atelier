@@ -99,9 +99,15 @@ See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
 
 ## Status
 
-`v0.2.0`. Engine + single-vault model + learnings domain.
+`v0.2.4`. Engine + single-vault model + learnings domain.
 
 ### What v0.2 added
+
+- **Single-vault rename regression fix + unification** (v0.2.4) —
+  classification is now schema-overlay-driven and space-identity-independent;
+  lint/promote are space-agnostic; doctor D2 no longer false-reports phantom
+  drift; cross-domain wikilinks resolve to one canonical entity; new **D7**
+  learnings-mirror reconcile (`atelier_learning_reconcile`).
 
 - **`atelier serve`** long-running engine; **MCP stdio + HTTP** transports
   with bearer-auth + asyncio role locks.

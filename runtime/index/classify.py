@@ -1,57 +1,61 @@
-"""Map a (space, slug, frontmatter) tuple to a page_type."""
+"""Map a (space, slug, frontmatter) tuple to a page_type.
+
+Schema-driven (hard-rule #3): the (path_pattern → page_type) rules are sourced
+from schema/data/*.overlay.yaml via `validate_v4.page_type_rules()`, not
+hardcoded here. Classification is **space-independent** — the single-vault
+model stores every page under one synthesized space (`vault-builder`), so the
+slug path alone determines the type. Legacy two-space callers still work
+because the rule set matches both the space-relative builder paths
+(`products/…`) and their single-vault equivalents (`workshop/products/…`).
+"""
 from __future__ import annotations
 
 import fnmatch
-from typing import Any, Dict
+from functools import lru_cache
+from typing import Any, Dict, List, Tuple
 
 
-# Order matters: more specific patterns must come first.
-GORAE_RULES = [
-    ("wiki/index.md",                 "wiki_index"),
-    ("wiki/log.md",                   "wiki_log"),
-    ("wiki/digests/*.md",             "digest"),
-    ("wiki/sources/*.md",             "source"),
-    ("wiki/entities/*.md",            "entity"),
-    ("wiki/themes/*.md",              "theme"),
-    ("wiki/synthesis/*.md",           "synthesis"),
-    # learnings/ — the developer-self lesson-learned domain (PR-18+).
-    ("learnings/log.md",              "learnings_log"),
-    ("learnings/criteria.yaml",       "learnings_criteria"),
-    ("learnings/principles/INDEX.md", "learnings_index"),
-    ("learnings/principles/*.md",     "learning_principle"),
-    ("learnings/candidates/**/*.md",  "learning_candidate"),
-    ("learnings/accepted/**/*.md",    "learning_accepted"),
-    ("learnings/archived/**/*.md",    "learning_archived"),
-    # workshop/ subtree (post-absorption).
-    ("workshop/products/*/README.md", "product_readme"),
-    ("workshop/products/**/*.md",     "product_page"),
-    ("workshop/notes/**/*.md",        "note"),
-    ("workshop/log.md",               "build_log"),
-    # raw/ comes last so the above more specific patterns win.
-    ("raw/**/*.md",                   "raw_source"),
-]
+def _normalize_pattern(pattern: str) -> str:
+    """The librarian overlay declares digests with the human-readable token
+    ``YYYY-MM``; treat it as a glob for classification. (The validator keeps
+    its own stricter ``filename_pattern`` regex, so precision is not lost.)"""
+    return pattern.replace("YYYY-MM", "*")
 
-WORKSHOP_RULES = [
-    ("products/*/README.md", "product_readme"),
-    ("products/**/*.md",     "product_page"),
-    ("notes/**/*.md",        "note"),
-    ("logs/**/*.md",         "build_log"),
-]
+
+@lru_cache(maxsize=1)
+def _rules() -> Tuple[Tuple[str, str], ...]:
+    """Compiled (path_pattern, page_type) rules, single-vault aware.
+
+    For every space-relative builder pattern (``products/…``, ``notes/…``,
+    ``logs/…``) we emit BOTH the original (legacy two-space) and a
+    ``workshop/``-prefixed variant (single vault), adjacent so specificity
+    ordering is preserved.
+    """
+    from ..lint.validate_v4 import page_type_rules
+
+    out: List[Tuple[str, str]] = []
+    for pattern, ptype in page_type_rules():
+        pat = _normalize_pattern(pattern)
+        out.append((pat, ptype))
+        if pat.split("/", 1)[0] in ("products", "notes", "logs"):
+            out.append(("workshop/" + pat, ptype))
+    return tuple(out)
 
 
 def classify(space: str, slug: str, fm: Dict[str, Any]) -> str:
-    rules = GORAE_RULES if space == "gorae" else WORKSHOP_RULES
-    for pattern, ptype in rules:
+    # `space` is accepted for signature stability (callers still pass it) but
+    # is intentionally unused — classification keys off the slug path alone.
+    for pattern, ptype in _rules():
         if fnmatch.fnmatchcase(slug, pattern) or _glob_match(pattern, slug):
             return ptype
     return "unknown"
 
 
 def _glob_match(pattern: str, slug: str) -> bool:
-    """Support ** explicitly (fnmatch alone doesn't handle ** across /)."""
+    """Support `**` explicitly (kept in parity with validate_v4._glob_match)."""
     if "**" not in pattern:
         return False
-    # Translate ** to a regex .*
     import re as _re
+
     rx = _re.escape(pattern).replace(r"\*\*", ".*").replace(r"\*", "[^/]*")
     return bool(_re.fullmatch(rx, slug))

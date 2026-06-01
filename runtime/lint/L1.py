@@ -19,7 +19,6 @@ def check_raw_links_exist(
         JOIN   pages p ON p.id = l.from_page
         WHERE  l.to_page_id IS NULL
           AND  l.to_target LIKE 'raw/%'
-          AND  p.space = 'gorae'
           AND  p.slug LIKE 'wiki/%'
     """
     findings: List[Finding] = []

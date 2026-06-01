@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# DEPRECATED (PR-37): blind hook captures have no 'why' and are now
+# rejected by the capture substance gate. Use capture-disposition.sh
+# (SessionStart) instead — it instructs the live agent to capture
+# durable lessons itself, with a real why. This file is kept only for
+# historical reference; do NOT register it on Stop/SessionEnd.
 # capture-learning.sh — Claude Code Stop / SessionEnd hook adapter.
 #
 # Installed to: ~/.atelier/bin/capture-learning.sh

@@ -13,6 +13,20 @@ _SHARED: Optional[sqlite3.Connection] = None
 _SHARED_PATH: Optional[Path] = None
 
 
+def _needs_migration(conn: sqlite3.Connection, fresh: bool) -> bool:
+    """Apply migrations when the file is new OR when an existing file is
+    missing the schema (e.g. an empty/partial DB left by a failed run).
+    Guards against the 'file exists but has no tables → migrations skipped
+    forever' trap. Migrations are CREATE TABLE IF NOT EXISTS, so re-running
+    on a healthy DB is a no-op."""
+    if fresh:
+        return True
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='meta'"
+    ).fetchone()
+    return row is None
+
+
 def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
     p = db_path or config.DB_PATH
     config.ensure_cache_dir()
@@ -20,7 +34,7 @@ def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
     conn = sqlite3.connect(p)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
-    if fresh:
+    if _needs_migration(conn, fresh):
         apply_migrations(conn)
     return conn
 
@@ -45,7 +59,7 @@ def connect_shared(db_path: Optional[Path] = None) -> sqlite3.Connection:
         _SHARED.row_factory = sqlite3.Row
         _SHARED.execute("PRAGMA foreign_keys = ON;")
         _SHARED.execute("PRAGMA journal_mode = WAL;")
-        if fresh:
+        if _needs_migration(_SHARED, fresh):
             apply_migrations(_SHARED)
         _SHARED_PATH = p
     return _SHARED

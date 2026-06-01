@@ -184,3 +184,35 @@ def test_override_must_cannot_bypass_forbidden(atelier_env: Dict) -> None:
         _rev.accept(candidate_slug=cap["entry_id"], target_topic="misc",
                     override_must=True)
     assert ei.value.args[0]["forbidden_triggered"]
+
+
+# ── empty-folder pruning (PR-40) ─────────────────────────────────────────────
+
+
+def test_accept_prunes_empty_candidate_date_folder(atelier_env: Dict) -> None:
+    good = _make_good_candidate()
+    date_dir = Path(good["path"]).parent
+    assert date_dir.exists()
+    _rev.accept(candidate_slug=good["entry_id"], target_topic="t",
+                target_project="lexio")
+    # the now-empty YYYY-MM-DD folder is gone; candidates/ root remains
+    assert not date_dir.exists()
+    assert (atelier_env["gorae"] / "learnings" / "candidates").exists()
+
+
+def test_archive_prunes_empty_candidate_date_folder(atelier_env: Dict) -> None:
+    thin = _make_thin_candidate()
+    date_dir = Path(thin["path"]).parent
+    _rev.archive(candidate_slug=thin["entry_id"], reason="noise")
+    assert not date_dir.exists()
+
+
+def test_prune_keeps_folder_with_remaining_candidates(atelier_env: Dict) -> None:
+    a = _make_good_candidate()
+    b = _make_good_candidate()           # same date folder
+    date_dir = Path(a["path"]).parent
+    _rev.accept(candidate_slug=a["entry_id"], target_topic="t",
+                target_project="lexio")
+    # b is still there → folder must survive
+    assert date_dir.exists()
+    assert Path(b["path"]).exists()

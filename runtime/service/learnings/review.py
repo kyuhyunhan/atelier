@@ -119,6 +119,29 @@ def _find_accepted(vault: Path, slug: str) -> Path:
     raise FileNotFoundError(f"no accepted learning matches {slug!r}")
 
 
+def _prune_empty_dirs(start: Path, *, stop: Path) -> None:
+    """After a candidate is moved out, remove the date folder it left
+    behind if now empty — walking up until (but never removing) `stop`
+    (the candidates/ root). git ignores empty dirs, but they clutter the
+    working tree and review_pending walks."""
+    try:
+        stop = stop.resolve()
+        d = start.resolve()
+    except OSError:                          # pragma: no cover
+        return
+    while d != stop and stop in d.parents:
+        try:
+            next(d.iterdir())
+            return                           # not empty → stop pruning
+        except StopIteration:
+            parent = d.parent
+            try:
+                d.rmdir()
+            except OSError:                  # pragma: no cover
+                return
+            d = parent
+
+
 def _append_log(vault: Path, line: str) -> None:
     log = vault / "learnings" / "log.md"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -258,6 +281,7 @@ def accept(*, candidate_slug: str, target_topic: str,
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     dest.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
     src.unlink()
+    _prune_empty_dirs(src.parent, stop=vault / "learnings" / "candidates")
 
     # by-project mirror — copy rather than symlink (portable across
     # filesystems and easier to backup).
@@ -301,7 +325,9 @@ def archive(*, candidate_slug: str, reason: str) -> Dict[str, Any]:
         "archived_at": _now_iso(),
         "archive_reason": reason,
     })
+    src_parent = src.parent
     shutil.move(str(src), str(dest))
+    _prune_empty_dirs(src_parent, stop=vault / "learnings" / "candidates")
 
     _append_log(vault,
                 f"- {_now_iso()}  archive  {src.stem}  reason={reason!r}")
@@ -330,7 +356,11 @@ def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
         "archived_at": _now_iso(),
         "archive_reason": reason,
     })
+    src_parent = src.parent
     shutil.move(str(src), str(dest))
+    # prune only if the source lived under candidates/ (retract can also
+    # come from accepted/, whose dirs we keep)
+    _prune_empty_dirs(src_parent, stop=vault / "learnings" / "candidates")
 
     # If retracting an accepted, also remove the by-project mirror.
     if from_state == "accepted":

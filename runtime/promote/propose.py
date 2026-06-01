@@ -1,10 +1,10 @@
-"""Propose promotion of workshop content into the gorae wiki.
+"""Propose promotion of workshop content into the wiki.
 
 A *proposal* is a markdown document at
 ~/.atelier/cache/promotions/{ts}-{slug}.md describing what would move where.
 The user reviews/edits it, then runs `atelier promote apply <path>`.
 
-v0.1 strategy: surface workshop pages that link into gorae heavily (high
+v0.1 strategy: surface workshop pages that link into the wiki heavily (high
 cross-citation), as candidates whose insights deserve a synthesis page.
 """
 from __future__ import annotations
@@ -59,7 +59,7 @@ def propose_all() -> Dict[str, Any]:
     lines: List[str] = []
     lines.append(f"# Promotion proposal — {ts}")
     lines.append("")
-    lines.append("Workshop pages with the strongest cross-citation into gorae,")
+    lines.append("Workshop pages with the strongest wiki cross-citation,")
     lines.append("which may warrant a `wiki/synthesis/*.md` page authored by")
     lines.append("the Librarian.")
     lines.append("")

@@ -38,7 +38,7 @@ def _parse_proposal(path: Path) -> List[Dict[str, str]]:
 
 def apply_proposal(path: Path) -> Dict[str, Any]:
     cfg = config.load()
-    gorae_root = cfg.space_by_role("librarian-territory").local
+    wiki_root = cfg.space_by_role("librarian-territory").local
     workshop_root = cfg.space_by_role("builder-territory").local
 
     blocks = _parse_proposal(path)
@@ -46,7 +46,7 @@ def apply_proposal(path: Path) -> Dict[str, Any]:
     written: List[str] = []
 
     for b in selected:
-        target = gorae_root / b["target_slug"]
+        target = wiki_root / b["target_slug"]
         if target.exists():
             continue
         source_path = workshop_root / b["source"]

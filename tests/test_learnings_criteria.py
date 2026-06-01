@@ -96,3 +96,10 @@ def test_duplicate_entry_id_rejected_as_not_novel(tmp_path: Path) -> None:
                       vault_root=tmp_path)
     # novel is a `should`, not a `must` — but its result must be False.
     assert res.should.get("novel") is False
+
+
+def test_pii_check_ignores_git_ssh_and_noreply() -> None:
+    from runtime.service.learnings.criteria import _check_pii_leak
+    assert _check_pii_leak("Repo: git@github.com:kyuhyunhan/tas.git") is False
+    assert _check_pii_leak("gorae@users.noreply.github.com") is False
+    assert _check_pii_leak("email me at admin@example.com") is True

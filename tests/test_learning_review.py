@@ -152,3 +152,35 @@ def test_mcp_dispatch_review_pending(atelier_env: Dict) -> None:
 
     out = asyncio.run(go())
     assert out["count"] == 1
+
+
+# ── override_must (PR-38) ────────────────────────────────────────────────────
+
+
+def test_override_must_accepts_despite_heuristic_miss(atelier_env: Dict) -> None:
+    """A reviewed candidate with free-form why (no '## Why this matters'
+    section) fails has_why heuristically; override_must promotes it."""
+    thin = _make_thin_candidate()
+    # without override → blocked
+    with pytest.raises(PermissionError):
+        _rev.accept(candidate_slug=thin["entry_id"], target_topic="misc")
+    # with override → accepted, and the override is recorded for audit
+    out = _rev.accept(candidate_slug=thin["entry_id"], target_topic="misc",
+                      target_project="lexio", override_must=True)
+    from runtime.index.parse import split_frontmatter
+    fm, _ = split_frontmatter(Path(out["path"]).read_text())
+    assert fm["status"] == "accepted"
+    assert "override_must" in fm["ac_results"]
+
+
+def test_override_must_cannot_bypass_forbidden(atelier_env: Dict) -> None:
+    """forbidden criteria (e.g. pii_leak) are NEVER overridable."""
+    cap = _cap.capture(
+        observation="config note",
+        why="contact admin@example.com with the AKIAIOSFODNN7EXAMPLE key",
+        working_dir="/Users/me/workspaces/lexio", hook="manual",
+    )
+    with pytest.raises(PermissionError) as ei:
+        _rev.accept(candidate_slug=cap["entry_id"], target_topic="misc",
+                    override_must=True)
+    assert ei.value.args[0]["forbidden_triggered"]

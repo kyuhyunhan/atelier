@@ -188,7 +188,8 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
 def accept(*, candidate_slug: str, target_topic: str,
            target_project: Optional[str] = None,
            links: Optional[List[str]] = None,
-           override_unknown: bool = False) -> Dict[str, Any]:
+           override_unknown: bool = False,
+           override_must: bool = False) -> Dict[str, Any]:
     vault = _vault_root()
     src = _find_candidate(vault, candidate_slug)
 
@@ -199,16 +200,30 @@ def accept(*, candidate_slug: str, target_topic: str,
 
     # `must` must pass — any explicit False blocks; unknown (None) blocks
     # unless override_unknown is set.
+    #
+    # override_must lets a *curator* (human, or a trusted review pass) accept
+    # despite must-failures: the rule-based check is a safety net against
+    # un-reviewed auto-accepts, and human review is exactly the judgement
+    # that may override it (e.g. free-form prose carrying a real "why" that
+    # the section-header heuristic misses). forbidden (pii/pure-meta) is
+    # NEVER overridable.
     failures = [k for k, v in check.must.items() if v is False]
     unknowns = [k for k, v in check.must.items() if v is None]
     forbidden = [k for k, v in check.forbidden.items() if v is True]
 
-    if failures or forbidden or (unknowns and not override_unknown):
+    blocked = bool(forbidden) or (
+        not override_must and (failures or (unknowns and not override_unknown))
+    )
+    if blocked:
         raise PermissionError({
             "reason": "acceptance criteria not satisfied",
             "must_failed": failures,
             "must_unknown": unknowns,
             "forbidden_triggered": forbidden,
+            "hint": ("forbidden criteria cannot be overridden"
+                     if forbidden else
+                     "pass override_must=true to accept a reviewed candidate "
+                     "despite a must heuristic miss"),
         })
 
     topic = _slugify(target_topic, fallback="general")
@@ -237,6 +252,8 @@ def accept(*, candidate_slug: str, target_topic: str,
         "should": check.should,
         "forbidden": check.forbidden,
     }
+    if override_must and failures:
+        fm["ac_results"]["override_must"] = failures   # audit: curator override
 
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     dest.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")

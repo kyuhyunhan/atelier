@@ -334,9 +334,12 @@ async def _h_learning_accept(candidate_slug: str,
                              target_topic: str,
                              target_project: Optional[str] = None,
                              links: Optional[List[str]] = None,
-                             override_unknown: bool = False
+                             override_unknown: bool = False,
+                             override_must: bool = False
                              ) -> Dict[str, Any]:
-    """Promote a candidate to learnings/accepted/. Refuses on must-fail."""
+    """Promote a candidate to learnings/accepted/. Refuses on must-fail
+    unless override_must (a reviewed curator decision); forbidden
+    criteria (pii/pure-meta) are never overridable."""
     from .learnings import review as _rev
     return _rev.accept(
         candidate_slug=candidate_slug,
@@ -344,6 +347,7 @@ async def _h_learning_accept(candidate_slug: str,
         target_project=target_project,
         links=links,
         override_unknown=override_unknown,
+        override_must=override_must,
     )
 
 

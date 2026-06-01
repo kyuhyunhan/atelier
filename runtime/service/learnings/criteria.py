@@ -84,6 +84,15 @@ _PII_PATTERNS = (
     re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),                              # SSN-like
 )
 
+# Email-shaped tokens that are NOT PII — SSH git remotes (`git@github.com`),
+# noreply addresses, and similar service identifiers. Stripped before the
+# email pattern runs so a repo URL doesn't trip the (non-overridable)
+# pii_leak gate.
+_PII_FALSE_POSITIVE_RX = re.compile(
+    r"\bgit@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"          # git@github.com, git@gitlab.com
+    r"|\b[A-Za-z0-9._%+-]+@users\.noreply\.github\.com\b",
+)
+
 _META_PHRASES = (
     "claude did well", "claude was helpful", "great job",
     "nice work", "looks good",
@@ -138,7 +147,10 @@ def _check_retracted(fm: Dict[str, Any]) -> bool:
 
 
 def _check_pii_leak(body: str) -> bool:
-    return any(rx.search(body) for rx in _PII_PATTERNS)
+    # Remove known non-PII email-shaped tokens (git SSH remotes, noreply
+    # addresses) before scanning, so they don't false-positive.
+    scrubbed = _PII_FALSE_POSITIVE_RX.sub(" ", body)
+    return any(rx.search(scrubbed) for rx in _PII_PATTERNS)
 
 
 def _check_pure_meta(body: str) -> bool:

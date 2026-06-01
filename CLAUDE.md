@@ -36,6 +36,23 @@ tooling. Content (the actual user IP) lives in separate private repos.
    `PROTECTED` (cost-bearing or invariant-breaking).
 6. **Mobile is reserved, not built.** Schema fields, capture function,
    claim enums for mobile exist but remain inactive in `v0.1`.
+7. **Never mutate source material — only the vault.** atelier writes
+   *only* to its own configured vault (`gorae`) and the artifacts it
+   produces there. Everything atelier ingests *from* is **read-only and
+   off-limits for modification or deletion**, including:
+   - **Claude Code's own memory** (`~/.claude/projects/*/memory/**`) —
+     the origin of `atelier_absorb_claude_memory`. Absorb is a *copy*,
+     never a move; the originals are never edited or removed by atelier,
+     its tools, scripts, agents, or maintainers acting as atelier.
+   - **Other projects' repos / working trees** that learnings reference
+     or were captured from.
+   - Any path the user manages directly outside the vault.
+   When content absorbed into the vault must be purged (e.g. PII), the
+   purge applies to the **vault copy only**. Deletion of the *source* is
+   the user's decision, performed by the user (or by Claude acting in
+   that other project's own context) — never by atelier reaching outside
+   its vault. Dedup records may be kept to prevent re-import without
+   touching the source.
 
 ## Source-of-truth pointers
 

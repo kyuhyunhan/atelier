@@ -24,7 +24,13 @@ for hashes already seen; a file whose body changes upstream becomes a
 new hash and lands as a fresh entry — the curator decides whether the
 old one is now stale.
 
-The script never modifies Claude Code's source files.
+INVARIANT (CLAUDE.md hard rule #7): this is a *copy*, never a move.
+Claude Code's memory under ~/.claude/projects/*/memory/** is the source
+material and is strictly READ-ONLY to atelier — never edited, moved, or
+deleted here. Even when a vault copy must later be purged (e.g. PII), the
+source is left untouched; removing it is the user's decision, made in
+that project's own context, not by atelier reaching outside its vault.
+The dedup ledger prevents re-import without touching the source.
 """
 from __future__ import annotations
 

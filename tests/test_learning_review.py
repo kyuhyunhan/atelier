@@ -27,8 +27,12 @@ def _make_good_candidate(working_dir: str = "/Users/me/workspaces/lexio") -> Dic
 
 
 def _make_thin_candidate() -> Dict:
-    """A candidate missing 'why', too thin for must_pass."""
-    return _cap.capture(observation="something", hook="manual")
+    """A candidate missing 'why', too thin for must_pass. require_why=False
+    bypasses the capture-time substance gate so the candidate still exists
+    to exercise the downstream review/archive machinery (it will still
+    fail must-criteria at promotion time)."""
+    return _cap.capture(observation="something", hook="manual",
+                        require_why=False)
 
 
 # ── review_pending ─────────────────────────────────────────────────────────

@@ -76,6 +76,20 @@ def _build_body(observation: str, why: Optional[str],
     return "\n".join(parts) + "\n"
 
 
+_STUB_RX = re.compile(r"^\(hook=\w+\)\s*session_id=", re.I)
+
+
+def _is_substanceless(observation: str, why: Optional[str]) -> bool:
+    """True when there is nothing worth capturing: no real observation
+    (empty or a bare hook stub like "(hook=Stop) session_id=...") AND no
+    why. This is the signature of a blind hook capture that no LLM
+    filled in."""
+    obs = (observation or "").strip()
+    if obs and not _STUB_RX.match(obs):
+        return False                # genuine observation present
+    return not (why or "").strip()  # stub/empty obs → substanceless unless why
+
+
 def capture(*, observation: str,
             why: Optional[str] = None,
             rule: Optional[str] = None,
@@ -85,13 +99,29 @@ def capture(*, observation: str,
             session_id: Optional[str] = None,
             agent_kind: str = "claude-code",
             hook: str = "manual",
-            observation_kind: str = "feedback") -> Dict[str, Any]:
-    """Write a single candidate. Returns metadata about the new file.
+            observation_kind: str = "feedback",
+            require_why: bool = True) -> Dict[str, Any]:
+    """Write a single candidate. Returns metadata about the new file, or
+    `{skipped: True, reason: ...}` when the capture is rejected.
 
-    This function performs no validation against the acceptance criteria
-    — that happens at promotion time. The point of the candidate stage
-    is to capture *everything* with minimal friction.
+    Substance gate (C): a capture with no real observation AND no why is
+    a blind hook stub — rejected outright (`no-substance`). With
+    `require_why=True` (default), a capture that has an observation but an
+    empty why is also rejected (`empty-why`): "why this matters" is an
+    LLM judgement a bash hook cannot supply, so the *agent* must fill it.
+    Pass `require_why=False` for sources that carry a free-form rationale
+    outside the template (e.g. absorbed Claude memory).
+
+    Promotion-time acceptance criteria still apply later; this gate only
+    stops content-free noise from ever becoming a candidate.
     """
+    if _is_substanceless(observation, why):
+        return {"skipped": True, "reason": "no-substance",
+                "detail": "empty/stub observation and no why"}
+    if require_why and not (why or "").strip():
+        return {"skipped": True, "reason": "empty-why",
+                "detail": "an agent must fill 'why this matters'"}
+
     cfg = _config.load()
     vault_root = _resolve_vault_root(cfg)
     if not vault_root.exists():

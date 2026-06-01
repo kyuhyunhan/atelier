@@ -252,20 +252,24 @@ async def _h_learning_capture(observation: str = "",
                               transcript_path: Optional[str] = None,
                               agent_kind: str = "claude-code",
                               hook: str = "manual",
-                              observation_kind: str = "feedback"
+                              observation_kind: str = "feedback",
+                              require_why: bool = True
                               ) -> Dict[str, Any]:
     """Append a candidate learning to learnings/candidates/.
 
-    The capture is intentionally lenient: empty `why`, short
-    observations, and unknown agents are all allowed. Acceptance
-    criteria are evaluated later at promotion time."""
+    A substance gate rejects content-free captures (empty/stub
+    observation + no why → `no-substance`; and, with require_why=True,
+    an empty why → `empty-why`). "Why this matters" is an LLM judgement a
+    bash hook cannot supply, so the agent must fill it. Promotion-time
+    acceptance criteria still apply later. Returns {skipped, reason} when
+    the gate rejects.
+    """
     from .learnings import capture as _cap
     sess = current_session()
-    # If the caller passed transcript_path but no observation, pull a
-    # rough tail of the transcript so the candidate has *some* anchor.
-    obs = observation or _extract_transcript_tail(transcript_path) or (
-        f"(hook={hook}) session_id={session_id or sess.session_id or '?'}"
-    )
+    # Use the real observation; otherwise try a transcript tail. Do NOT
+    # fabricate a "(hook=...) session_id=..." stub — the gate would (and
+    # should) reject that as no-substance anyway.
+    obs = observation or _extract_transcript_tail(transcript_path) or ""
     return _cap.capture(
         observation=obs,
         why=why, rule=rule,
@@ -276,6 +280,7 @@ async def _h_learning_capture(observation: str = "",
         agent_kind=agent_kind or sess.agent_kind,
         hook=hook,
         observation_kind=observation_kind,
+        require_why=require_why,
     )
 
 

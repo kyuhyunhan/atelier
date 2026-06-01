@@ -45,6 +45,7 @@ def test_capture_inside_vault_tags_atelier_self(atelier_env: Dict) -> None:
     cwd.mkdir(exist_ok=True)
     result = _cap.capture(
         observation="dogfooding atelier itself",
+        why="confirms the engine works on its own vault",
         working_dir=str(cwd),
         hook="manual",
     )
@@ -52,20 +53,51 @@ def test_capture_inside_vault_tags_atelier_self(atelier_env: Dict) -> None:
     assert fm["project_hint"] == "atelier-self"
 
 
-def test_capture_permissive_on_missing_fields(atelier_env: Dict) -> None:
-    """Empty why must still produce a candidate (aggressive capture)."""
+# ── substance gate (C) ──────────────────────────────────────────────────────
+
+
+def test_capture_rejects_empty_why(atelier_env: Dict) -> None:
+    """An observation with no why is rejected — 'why this matters' is an
+    LLM judgement a blind hook cannot supply."""
     result = _cap.capture(observation="something happened", hook="Stop")
-    path = Path(result["path"])
-    assert path.exists()
-    # The body keeps the empty Why section so the reviewer sees it.
-    text = path.read_text(encoding="utf-8")
-    assert "## Why this matters" in text
+    assert result["skipped"] is True
+    assert result["reason"] == "empty-why"
+    assert "path" not in result
+
+
+def test_capture_rejects_stub_observation(atelier_env: Dict) -> None:
+    """A bare hook stub (no real observation, no why) → no-substance."""
+    result = _cap.capture(
+        observation="(hook=Stop) session_id=abc-123",
+        hook="Stop",
+    )
+    assert result["skipped"] is True
+    assert result["reason"] == "no-substance"
+
+
+def test_capture_accepts_when_why_present(atelier_env: Dict) -> None:
+    result = _cap.capture(
+        observation="search returns nothing for tilde queries",
+        why="fts5 ignores tilde tokens; users see a silent empty result",
+        hook="manual",
+    )
+    assert Path(result["path"]).exists()
+
+
+def test_capture_require_why_false_bypasses_gate(atelier_env: Dict) -> None:
+    """Sources with free-form rationale (e.g. absorbed Claude memory) opt
+    out of the empty-why gate."""
+    result = _cap.capture(
+        observation="absorbed memory with prose rationale inline",
+        require_why=False, hook="manual",
+    )
+    assert Path(result["path"]).exists()
 
 
 def test_capture_collision_avoided(atelier_env: Dict) -> None:
     """Two captures within the same minute should not collide."""
-    a = _cap.capture(observation="alpha", hook="Stop")
-    b = _cap.capture(observation="alpha", hook="Stop")
+    a = _cap.capture(observation="alpha", why="because a", hook="Stop")
+    b = _cap.capture(observation="alpha", why="because a", hook="Stop")
     assert a["path"] != b["path"]
 
 
@@ -75,16 +107,30 @@ def test_mcp_tool_dispatch_invokes_capture(atelier_env: Dict) -> None:
         return await _tools.invoke(
             "atelier_learning_capture",
             observation="invoked via MCP",
+            why="verifies the tool wiring end to end",
             hook="manual",
         )
     out = asyncio.run(go())
     assert Path(out["path"]).exists()
 
 
+def test_mcp_tool_dispatch_rejects_empty_why(atelier_env: Dict) -> None:
+    """The hook path (no why) is rejected at the tool layer too."""
+    async def go() -> Dict:
+        return await _tools.invoke(
+            "atelier_learning_capture",
+            observation="hook fired but no judgement",
+            hook="Stop",
+        )
+    out = asyncio.run(go())
+    assert out["skipped"] is True
+
+
 def test_capture_refuses_when_vault_missing(atelier_env: Dict,
                                               monkeypatch: pytest.MonkeyPatch) -> None:
-    """Vault root must exist; otherwise we surface a real error."""
+    """Vault root must exist; otherwise we surface a real error. (Provide
+    a why so the substance gate passes and we reach the vault check.)"""
     import shutil as _sh
     _sh.rmtree(atelier_env["gorae"])
     with pytest.raises(FileNotFoundError):
-        _cap.capture(observation="foo", hook="Stop")
+        _cap.capture(observation="foo", why="bar", hook="Stop")

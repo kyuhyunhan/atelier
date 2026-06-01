@@ -44,7 +44,8 @@ def test_search_filters_by_project(atelier_env: Dict) -> None:
 
 
 def test_search_includes_candidates_when_requested(atelier_env: Dict) -> None:
-    _cap.capture(observation="raw candidate text here", hook="Stop")
+    _cap.capture(observation="raw candidate text here", hook="Stop",
+                 require_why=False)
     out_accepted = _ls.search(query="raw", status="accepted")
     out_candidates = _ls.search(query="raw", status="candidate")
     assert out_accepted["count"] == 0

@@ -65,6 +65,37 @@ def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, P
             "workshop": workspace / "workshop", "cache": cache}
 
 
+@pytest.fixture
+def vault_env(atelier_env: Dict[str, Path], monkeypatch: pytest.MonkeyPatch
+              ) -> Dict[str, Path]:
+    """Single-vault (`vault:` + `subtrees:`) config over one directory — the
+    production v0.2 shape. Reuses atelier_env's home/cache/monkeypatching and
+    overwrites config.yaml with a vault block."""
+    home = atelier_env["home"]
+    vault = atelier_env["gorae"].parent / "vault"
+    for sub in ("raw/personal", "wiki/entities", "wiki/themes", "wiki/digests",
+                "wiki/sources", "wiki/synthesis", "workshop/products",
+                "learnings/candidates", "learnings/accepted/by-topic",
+                "learnings/accepted/by-project", "learnings/archived",
+                "learnings/principles"):
+        (vault / sub).mkdir(parents=True, exist_ok=True)
+
+    (home / "config.yaml").write_text(yaml.safe_dump({
+        "vault": {"local": str(vault),
+                  "remote": {"type": "github",
+                             "url": "github.com/test/vault", "branch": "main"}},
+        "subtrees": {
+            "raw": {"writer": "human-only"},
+            "wiki": {"writer": "librarian-write"},
+            "workshop": {"writer": "builder-write"},
+            "learnings/candidates": {"writer": "captor-write", "append_only": True},
+            "learnings/accepted":   {"writer": "curator-write"},
+            "learnings/archived":   {"writer": "curator-write"},
+        },
+    }))
+    return {"home": home, "vault": vault, "cache": atelier_env["cache"]}
+
+
 def write_page(path: Path, frontmatter: Dict[str, Any], body: str = "") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fm = yaml.safe_dump(frontmatter, sort_keys=False, allow_unicode=True).rstrip()

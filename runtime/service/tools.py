@@ -382,6 +382,16 @@ async def _h_learning_relink(slug: str, links: List[str],
     return _ls.relink(slug=slug, links=links, mode=mode)
 
 
+async def _h_learning_reconcile(repair: bool = False) -> Dict[str, Any]:
+    """Detect (repair=false) or fix (repair=true) by-project mirror drift
+    against the by-topic canonical accepted learnings."""
+    from .learnings import reconcile as _rc
+    if repair:
+        return {"repaired": _rc.repair()}
+    drifts = _rc.check()
+    return {"drift_count": len(drifts), "drifts": [vars(d) for d in drifts]}
+
+
 async def _h_principle_add(title: str, rule: str, why: str,
                             evidence: Optional[List[str]] = None,
                             coverage: str = "cross-project",
@@ -699,6 +709,14 @@ def _register_v01_tools() -> None:
         "atelier_learning_relink",
         "Replace or merge wiki backlinks on an accepted learning.",
         _h_learning_relink,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_learning_reconcile",
+        "Detect (repair=false) or repair (repair=true) drift between the "
+        "by-topic canonical accepted learnings and their by-project mirrors.",
+        _h_learning_reconcile,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))

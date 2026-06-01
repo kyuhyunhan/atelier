@@ -17,8 +17,7 @@ def check_orphan_pages(
         SELECT p.slug
         FROM   pages p
         LEFT   JOIN backlinks_count bc ON bc.page_id = p.id
-        WHERE  p.space = 'gorae'
-          AND  p.slug LIKE 'wiki/%'
+        WHERE  p.slug LIKE 'wiki/%'
           AND  (bc.inbound_count IS NULL OR bc.inbound_count = 0)
     """
     findings: List[Finding] = []

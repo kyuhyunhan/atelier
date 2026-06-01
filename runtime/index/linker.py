@@ -11,12 +11,12 @@ WIKILINK_RE = re.compile(r"\[\[([^\[\]\|]+)(?:\|([^\[\]]+))?\]\]")
 @dataclass
 class Link:
     to_target: str      # exact text as written
-    to_space: str       # 'gorae' | 'workshop' (or default-resolved)
+    to_space: str       # caller's space for bare links; scheme for scoped links
     to_slug: str        # space-relative path (no scheme prefix)
     link_type: str      # 'wikilink' | 'gorae' | 'workshop'
 
 
-def extract_links(body: str, default_space: str = "gorae") -> List[Link]:
+def extract_links(body: str, default_space: str = "") -> List[Link]:
     out: List[Link] = []
     for m in WIKILINK_RE.finditer(body):
         target = m.group(1).strip()

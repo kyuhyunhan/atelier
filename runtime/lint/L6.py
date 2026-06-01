@@ -34,13 +34,13 @@ def check_stale_sources(
     source_basenames = {
         r["slug"].split("/")[-1].rsplit(".", 1)[0]
         for r in conn.execute(
-            "SELECT slug FROM pages WHERE space='gorae' AND page_type='source'"
+            "SELECT slug FROM pages WHERE page_type='source'"
         )
     }
 
     findings: List[Finding] = []
     for r in conn.execute(
-        "SELECT slug FROM pages WHERE space='gorae' AND page_type='raw_source' "
+        "SELECT slug FROM pages WHERE page_type='raw_source' "
         "ORDER BY slug"
     ):
         slug = r["slug"]

@@ -9,7 +9,7 @@ rules:
     name: broken-links
     severity: FAIL
     automation: auto
-    spaces: [gorae]
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
     description: >
       All [[raw/...]] links in wiki/** must resolve to an existing file.
       A broken raw-link in a wiki page means the provenance chain is broken.
@@ -21,14 +21,14 @@ rules:
       JOIN pages p ON p.id = l.from_page
       WHERE l.to_page_id IS NULL
         AND l.to_target LIKE 'raw/%'
-        AND p.space = 'gorae'
+        AND p.slug LIKE 'wiki/%'
 
   L2:
     id: L2
     name: hallucination
     severity: FAIL
     automation: manual
-    spaces: [gorae]
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
     description: >
       Wiki facts must be traceable to raw sources. No external knowledge injection.
       Types: external knowledge, false reference, false date.
@@ -41,7 +41,7 @@ rules:
     name: source-count
     severity: WARN
     automation: auto
-    spaces: [gorae]
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
     description: >
       entity.source_count must equal the actual number of inbound links
       from digest/source/synthesis pages. Tolerance: ±1.
@@ -55,7 +55,7 @@ rules:
       FROM entities e
       JOIN pages p ON p.slug = e.canonical_slug
       LEFT JOIN links l ON l.to_page_id = p.id
-      WHERE p.space = 'gorae' AND p.page_type = 'entity'
+      WHERE p.page_type = 'entity'
       GROUP BY e.canonical_slug
       HAVING ABS(declared - actual) > 1
 
@@ -64,7 +64,7 @@ rules:
     name: first-mention
     severity: WARN
     automation: auto
-    spaces: [gorae]
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
     description: >
       entity.first_mention must match the earliest period in inbound digest links.
     check: check_first_mention
@@ -76,7 +76,7 @@ rules:
       FROM pages p
       JOIN links l   ON l.to_page_id = p.id
       JOIN pages src ON src.id = l.from_page AND src.page_type = 'digest'
-      WHERE p.space = 'gorae' AND p.page_type = 'entity'
+      WHERE p.page_type = 'entity'
       GROUP BY p.slug
       HAVING declared != actual_earliest
 
@@ -85,7 +85,7 @@ rules:
     name: orphan
     severity: WARN
     automation: auto
-    spaces: [gorae]
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
     description: >
       All wiki pages (except index.md and log.md) must have at least 1 inbound
       [[...]] link from another wiki page.
@@ -100,8 +100,7 @@ rules:
         FROM links
         GROUP BY to_page_id
       ) bc ON bc.to_page_id = p.id
-      WHERE p.space = 'gorae'
-        AND p.slug LIKE 'wiki/%'
+      WHERE p.slug LIKE 'wiki/%'
         AND p.slug NOT IN ('wiki/index.md', 'wiki/log.md')
         AND (bc.cnt IS NULL OR bc.cnt = 0)
 
@@ -110,7 +109,7 @@ rules:
     name: stale
     severity: INFO
     automation: auto
-    spaces: [gorae]
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
     description: >
       Every raw/ file that has been committed (mtime tracked) should have a
       corresponding wiki/sources/ page. Files in raw/personal/diary/ are
@@ -128,7 +127,7 @@ rules:
     name: gap
     severity: INFO
     automation: manual
-    spaces: [gorae]
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
     description: >
       A name appearing in 3+ distinct digests without a dedicated entity page
       is a gap candidate.

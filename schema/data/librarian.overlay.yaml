@@ -19,6 +19,17 @@ page_types:
        source, inbox_status]
     notes: "entry_id PENDING allowed pre-commit; hook resolves to UUID v5."
 
+  # ── Structural / generated pages (classification-only, no frontmatter contract) ──
+  wiki_index:
+    path_pattern: "wiki/index.md"
+    writer: librarian
+    notes: "Auto-regenerated wiki index. No required frontmatter."
+
+  wiki_log:
+    path_pattern: "wiki/log.md"
+    writer: librarian
+    notes: "Append-only activity log. No required frontmatter."
+
   # ── Wiki pages (Librarian-owned) ──────────────────────────────────────────
   digest:
     path_pattern: "wiki/digests/YYYY-MM.md"

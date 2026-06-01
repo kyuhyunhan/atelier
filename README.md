@@ -110,7 +110,8 @@ See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
   is collapsed into one repo. Workshop content + per-product memory
   absorbed by one-shot migration scripts.
 - **Learnings domain** — `gorae/learnings/{candidates,accepted,principles}/`
-  with aggressive hook-driven capture, acceptance-criteria-gated
+  with agent-driven capture (a SessionStart disposition + a substance
+  gate keep captures substantive), acceptance-criteria-gated
   promotion, cross-project **principles**, session-start injection,
   per-turn signal recall, Claude-Code-memory absorption, and a
   **usage-coupled dream cycle** for automated principle synthesis. See

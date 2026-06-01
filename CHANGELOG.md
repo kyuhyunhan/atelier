@@ -2,6 +2,56 @@
 
 All notable changes to atelier.
 
+## [0.2.3] — Capture-model correction, user-visible surfaces, hardening
+
+### Capture model
+
+- **Substance gate** — `atelier_learning_capture` rejects content-free
+  captures (`no-substance` when observation is empty/a stub and there is
+  no why; `empty-why` when an observation has no why). `require_why=True`
+  by default; `absorb_claude_memory` opts out (it carries free-form
+  rationale). (PR-36)
+- **Capture disposition** — `scripts/hooks/capture-disposition.sh`
+  (SessionStart) plants a model-context instruction so the *live agent*
+  records durable lessons itself, with a real why. The old blind
+  `capture-learning.sh` Stop/SessionEnd hook is deprecated. Hooks
+  trigger; the agent fills the why. (PR-37)
+
+### User-visible dream surfaces
+
+- `atelier dream --status [--json]` — a fast, filesystem-backed one-line
+  dream status (no server required). `dream.nudge_info()` is the shared
+  decision source for the model nudge, the systemMessage hook, and the
+  statusline. (PR-35)
+- SessionStart `systemMessage` nudge (`scripts/hooks/session-nudge.sh`)
+  and a statusline wrapper (`scripts/hooks/statusline-atelier.sh`,
+  wrapping the user's base statusline) surface the dream nudge to the
+  *user* — the session_bootstrap nudge was model-only. (PR-35)
+
+### Review / hardening
+
+- `atelier_learning_accept(override_must=…)` — a reviewed curator may
+  override a `must` heuristic miss (e.g. free-form prose with no `## Why`
+  header); the override is recorded in `ac_results`. `forbidden`
+  (pii / pure-meta) is never overridable. (PR-38)
+- `pii_leak` no longer false-positives on `git@…` SSH remotes or
+  `*@users.noreply.github.com` addresses. (PR-38)
+- DB migrations now apply when an existing file lacks the schema — an
+  empty/partial DB is no longer treated as "not fresh" and skipped
+  forever. (PR-39)
+- accept / archive / retract prune the emptied `candidates/<date>/`
+  folder they leave behind. (PR-40)
+- `atelier serve` single-instance pidfile guard — a second start fails
+  fast (exit 3) with a one-line message naming the running pid, instead
+  of an uvicorn "address already in use" traceback. (PR-41)
+
+### Docs
+
+- `CLAUDE.md` hard rule #7 — atelier never mutates source material
+  (`~/.claude/projects/*/memory/**`, other projects' repos); it writes
+  only to its own vault. `atelier_absorb_claude_memory` is a copy, never
+  a move.
+
 ## [0.2.2] — Dream cycle (automated principle synthesis)
 
 Doc-first: the design landed in `docs/ARCHITECTURE.md`

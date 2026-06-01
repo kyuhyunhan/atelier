@@ -163,10 +163,16 @@ learnings/
        priority: always-inject | on-relevant-prompt | manual-only
 ```
 
-- **tier 1 (candidates)** — captured *aggressively* with no judgement:
-  Claude Code `Stop`/`SessionEnd` hooks, manual `atelier_learning_capture`,
-  and `atelier_absorb_claude_memory` (which imports Claude Code's own
-  per-project memory). Signal/noise separation is deferred to promotion.
+- **tier 1 (candidates)** — captured by an *agent*, not a blind hook. A
+  bash hook cannot judge what was learned or *why it matters*, so the
+  capture path is gated: `capture(require_why=True)` rejects content-free
+  stubs (`no-substance` / `empty-why`). Instead of firing empty captures,
+  a `SessionStart` hook (`scripts/hooks/capture-disposition.sh`) plants a
+  *capture disposition* into the model context so the live agent records
+  durable lessons itself — with a real `why` — via `atelier_learning_capture`.
+  `atelier_absorb_claude_memory` imports Claude Code's own per-project
+  memory (`require_why=False`, since it carries free-form rationale).
+  Signal/noise separation is still deferred to promotion.
 - **tier 2 (accepted)** — promoted by a curator through
   `atelier_learning_accept`, gated by `criteria.yaml` (must/should/
   forbidden). The canonical copy lives under `by-topic/`; a mirror under
@@ -197,6 +203,13 @@ Capture and absorb feed the vault; bootstrap and recall feed the agent.
 The loop closes: today's session deposits learnings that boost tomorrow's
 session in any project.
 
+Two visibility channels carry the injection: `additionalContext`
+(session_bootstrap, signal_recall) is *model-only* — the agent sees it,
+the user does not — while a `SessionStart` `systemMessage` hook
+(`scripts/hooks/session-nudge.sh`) and the statusline wrapper
+(`scripts/hooks/statusline-atelier.sh`, backed by `atelier dream --status`)
+surface the dream nudge to the *user*.
+
 ### Dream cycle — automated principle synthesis
 
 Manually authoring principles does not scale. The **dream cycle** automates
@@ -220,6 +233,12 @@ The engine is domain-ignorant, so it cannot do ② — it only tees up ①
 deterministically and guarantees safe writes. ② runs in whatever live
 Claude session the user is in (no separate daemon, no LLM inside the
 engine).
+
+At ③ (and at ordinary candidate promotion), the rule-based `must`
+criteria are a safety net against un-reviewed auto-accepts. A reviewed
+curator may pass `override_must` to accept content whose free-form prose
+trips a heuristic (e.g. a real rationale with no `## Why` header); the
+`forbidden` gate (pii / pure-meta) is never overridable.
 
 ### Why usage-coupled, not scheduled
 
@@ -324,11 +343,19 @@ runtime/
 │   ├── propose.py      generate proposal document
 │   └── apply.py        Librarian writes wiki page; backlink to source
 │
-├── service/        Server-shaped API surface
-│   ├── api.py          all CLI commands call into here
-│   ├── auth.py         token validation (placeholder until v0.2)
-│   ├── claims.py       capability claims (mobile-claim etc.)
-│   └── capture.py      mobile/external capture endpoint
+├── service/        long-running engine + MCP surface
+│   ├── server.py       `atelier serve` asyncio supervisor + pidfile guard
+│   ├── tools.py        the single MCP tool registry (claim + role lock)
+│   ├── mcp_stdio.py    MCP stdio transport (Claude Code subprocess)
+│   ├── mcp_http.py     MCP HTTP transport (loopback + bearer)
+│   ├── mcp_call.py     `atelier-mcp-call` — hooks call MCP from the shell
+│   ├── api.py          shared funnel that CLI + MCP both call into
+│   ├── auth.py         Session + bearer-token validation
+│   ├── claims.py       capability claims + per-role asyncio write locks
+│   ├── capture.py      raw-inbox capture (mobile-reserved)
+│   ├── jobs/           youtube · clip · prepare · pending · index_regen · new_doc
+│   └── learnings/      capture · review · principles · dream · cluster ·
+│                       bootstrap · recall · absorb_claude · indexes · criteria
 │
 └── util/           Cross-cutting
     ├── config.py       ~/.atelier/config.yaml loader
@@ -388,12 +415,21 @@ so `atelier sync` can detect drift between local cache and remote.
 
 ---
 
-## Trust Boundary (v0.1: placeholder)
+## Trust Boundary
 
-The service-shape layer (`runtime/service/`) has stubs for `auth.py` and
-`claims.py` but performs no real enforcement in v0.1 (single user, single
-client). The shape exists so v0.2 can add MCP/HTTPS exposure without
-restructuring callers.
+The service layer (`runtime/service/`) enforces, as of v0.2:
+
+- **Bearer auth on the MCP HTTP transport** (`auth.authenticate_bearer`):
+  a static token from `~/.atelier/secrets/.env`, with the bind forced to
+  loopback (`mcp_http._resolve_settings` refuses non-loopback).
+- **Single-writer-per-role locks** (`claims.SpaceLockRegistry`): write
+  tools acquire an `asyncio.Lock` keyed by writer role, and each tool
+  declares the claim it requires (`tools.ToolDef.claim`).
+- **Single-instance guard** (`server._acquire_pidfile`): a second
+  `atelier serve` fails fast instead of colliding on the port.
+
+Deferred to v0.3: OAuth for the HTTP transport (loopback + static bearer
+is sufficient for the single-user, single-machine case today).
 
 ---
 
@@ -415,17 +451,25 @@ schema or DB migration is required at that time.
 
 ---
 
-## Out of scope for v0.1
+## Delivered since v0.1
+
+| | Landed | Note |
+|---|---|---|
+| MCP stdio + HTTP exposure | v0.2.0 | `atelier serve`, bearer + loopback |
+| Real trust-boundary enforcement | v0.2.0 | bearer auth + per-role asyncio locks |
+| Dream cycle (automated principle synthesis) | v0.2.2 | usage-coupled, *not* cron-driven (laptop sleeps) |
+
+## Still out of scope
 
 | | Future | Why deferred |
 |---|---|---|
-| MCP stdio/HTTPS exposure | v0.2 | service-shape needs to stabilize first |
-| Active mobile capture | v0.3 | scaffolding only in v0.1 |
-| Hybrid search (vector + BM25 + RRF) | v0.3 | FTS5 baseline first |
-| sqlite-vec / embeddings | v0.3 | same |
-| Dream cycle (cron-driven curation) | v0.2 | operational stability first |
-| L2 automated hallucination lint | v0.2 | LLM-dependent |
-| Korean trigram tokenizer | v0.2 | unicode61 baseline first |
-| Public atelier | v0.3+ | review private operation first |
-| Multi-user federation | v1.x | not in v0.1 mandate |
-| Real trust-boundary enforcement | v0.2 | single-client in v0.1 |
+| OAuth for the HTTP transport | v0.3 | loopback + static bearer suffices for single user |
+| Active mobile capture | v0.3 | scaffolding only (see Mobile Reservation) |
+| Hybrid search (vector + BM25 + RRF), sqlite-vec / embeddings | v0.3 | FTS5 baseline first |
+| LLM facets reclass on `prepare_commit`; OpenAI STT on YouTube ingest | v0.3 | needs a runtime LLM gateway / credentials |
+| L2 automated hallucination lint | v0.3 | LLM-dependent |
+| Korean trigram tokenizer | v0.3 | unicode61 baseline first |
+| launchd / autostart for `atelier serve` | v0.3 | foreground-only by choice |
+| Automatic acceptance-criteria scoring (LLM) | v0.3 | human-in-the-loop review only today |
+| Discord transport | — | out of scope by decision |
+| Multi-user federation | v1.x | not in mandate |

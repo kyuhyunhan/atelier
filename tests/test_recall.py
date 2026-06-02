@@ -118,3 +118,49 @@ def test_recall_falls_back_to_working_dir_for_project(atelier_env: Dict) -> None
     finally:
         _tools._current.reset(tok)
     assert out["project"] == "lexio"
+
+
+# ── recall quality: dedup + generated-file exclusion ───────────────────────
+
+
+def test_is_noise_excludes_generated_projections() -> None:
+    assert _rc._is_noise("learnings/accepted/by-project/frontend/INDEX.md")
+    assert _rc._is_noise("learnings/accepted/by-topic/general/TAXONOMY.md")
+    assert _rc._is_noise("INDEX")          # fs-scan bare-stem slug
+    assert _rc._is_noise("TAXONOMY")
+    assert not _rc._is_noise("learnings/accepted/by-topic/x/claude-foo.md")
+    assert not _rc._is_noise("claude-foo")
+
+
+def test_dedup_by_entry_id_keeps_best_ranked_and_passes_eidless() -> None:
+    hits = [
+        {"slug": "by-topic/a.md",   "fm": {"entry_id": "E1"}, "score": -2.0},
+        {"slug": "by-project/a.md", "fm": {"entry_id": "E1"}, "score": -1.0},
+        {"slug": "by-topic/b.md",   "fm": {"entry_id": "E2"}, "score": -1.5},
+        {"slug": "no-eid.md",       "fm": {},                 "score": -0.5},
+    ]
+    out = _rc._dedup_by_entry_id(hits)
+    assert [h["slug"] for h in out] == ["by-topic/a.md", "by-topic/b.md", "no-eid.md"]
+
+
+def test_recall_collapses_canonical_and_mirror_copies(atelier_env: Dict) -> None:
+    """End-to-end through FTS: one accepted learning is stored as a by-topic
+    canonical AND a by-project mirror (same entry_id). After indexing both,
+    recall must return it exactly once."""
+    from runtime.service import api
+    _accept("zqxwv flicker phenomenon on mount", "why it matters",
+             "stabilize keys", project="bht", topic="rendering")
+    api.reindex(space="gorae", full=True)          # index both on-disk copies
+    out = _rc.recall(query="zqxwv flicker", top_k=5)
+    assert out["count"] == 1                       # was 2 before dedup
+
+
+def test_recall_excludes_generated_files_from_fts(atelier_env: Dict) -> None:
+    from runtime.service import api
+    _accept("zqxwv flicker phenomenon on mount", "why it matters",
+             "stabilize keys", project="bht", topic="rendering")
+    api.reindex(space="gorae", full=True)          # also indexes by-project INDEX.md
+    out = _rc.recall(query="zqxwv flicker", top_k=10)
+    blob = " ".join(it["slug"] for it in out["items"])
+    assert "INDEX" not in blob
+    assert "TAXONOMY" not in blob

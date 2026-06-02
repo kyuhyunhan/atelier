@@ -205,6 +205,36 @@ def _render(hits: List[Dict[str, Any]], project: Optional[str],
     return out
 
 
+# Generated projections (per-project / per-topic INDEX, taxonomy listings)
+# are indexed as learning_* pages but are not content — they must never be
+# surfaced as "relevant memory". Matched on the slug's bare stem so it works
+# for both FTS slugs (`…/INDEX.md`) and fs-scan slugs (bare `INDEX`).
+_GENERATED_STEMS = frozenset({"INDEX", "TAXONOMY"})
+
+
+def _is_noise(slug: str) -> bool:
+    name = slug.rsplit("/", 1)[-1]
+    stem = name[:-3] if name.endswith(".md") else name
+    return stem in _GENERATED_STEMS
+
+
+def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """An accepted learning lives on disk twice by design — the by-topic
+    canonical and its by-project mirror share one entry_id. Keep the first
+    occurrence per entry_id (hits are pre-sorted, so that is the best-ranked
+    copy); hits without an entry_id pass through unchanged."""
+    seen: set[str] = set()
+    out: List[Dict[str, Any]] = []
+    for h in hits:
+        eid = (h.get("fm") or {}).get("entry_id")
+        if eid is not None:
+            if str(eid) in seen:
+                continue
+            seen.add(str(eid))
+        out.append(h)
+    return out
+
+
 def recall(*, query: str,
            project: Optional[str] = None,
            top_k: int = 5,
@@ -228,6 +258,10 @@ def recall(*, query: str,
     if not hits:
         hits = _fs_scan(query, vault, types, limit=top_k * 4)
 
+    # Drop generated projections (INDEX/TAXONOMY) regardless of source path —
+    # the FTS path does not exclude them the way _fs_scan does.
+    hits = [h for h in hits if not _is_noise(h["slug"])]
+
     for h in hits:
         _boost(h, project)
 
@@ -235,6 +269,9 @@ def recall(*, query: str,
         hits = [h for h in hits if h["score"] <= relevance_threshold]
 
     hits.sort(key=lambda h: h["score"])
+    # Collapse the by-topic / by-project duplicate pair before truncating, so
+    # a dropped duplicate never crowds a distinct learning out of the top-K.
+    hits = _dedup_by_entry_id(hits)
     hits = hits[:top_k]
     summaries = [_summarize_hit(vault, h) for h in hits]
     markdown = _render(summaries, project, max_chars)

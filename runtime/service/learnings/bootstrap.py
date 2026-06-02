@@ -25,20 +25,29 @@ from typing import Any, Dict, Iterable, List, Optional
 from ...index import parse as _parse
 from ...util import config as _config
 from . import principles as _principles
+from . import project as _project
 
 
-def _vault_root() -> Path:
-    cfg = _config.load()
+def _vault_root(cfg: Optional[_config.Config] = None) -> Path:
+    cfg = cfg or _config.load()
     if cfg.vault is not None:
         return cfg.vault.local
     return cfg.space_by_role("librarian-territory").local
 
 
-def _project_slug(working_dir: Optional[str]) -> Optional[str]:
-    if not working_dir:
-        return None
-    base = Path(working_dir).expanduser().name
-    return base or None
+def _unknown_project_banner(res: "_project.ProjectResolution") -> str:
+    """Loud, in-context notice when the resolved project has no by-project
+    learnings dir. Either it's a genuinely new project (fine), or the slug
+    is wrong (a renamed/typo'd cwd resolving to an unexpected key) — in
+    which case captures scatter under a key nothing recalls. Surfacing it
+    turns the silent empty-§B failure (learning `1446`) into a visible
+    signal the reader can act on."""
+    return (
+        f"ℹ️ **atelier** — project resolved to `{res.slug}` via {res.source}, "
+        f"which has no learnings yet. If that isn't the project you expect, "
+        f"set `learnings.project_map` in ~/.atelier/config.yaml or add a "
+        f"`.atelier-project` marker so captures land under the right key."
+    )
 
 
 def _render_principles(items: List[Dict[str, Any]]) -> str:
@@ -132,8 +141,10 @@ def _dream_nudge(*, now: str) -> str:
 def bootstrap(*, working_dir: Optional[str] = None,
               max_chars: int = 6000,
               now: Optional[str] = None) -> Dict[str, Any]:
-    vault = _vault_root()
-    project = _project_slug(working_dir)
+    cfg = _config.load()
+    vault = _vault_root(cfg)
+    resolution = _project.resolve_project(working_dir, cfg=cfg)
+    project = resolution.slug
     # status="accepted" only — proposed dream-drafts must NOT be injected
     # until a curator promotes them.
     items = _principles.list_all(priority="always-inject", status="accepted")
@@ -143,27 +154,39 @@ def bootstrap(*, working_dir: Optional[str] = None,
         now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     nudge = _dream_nudge(now=now)
 
-    parts: List[str] = []
+    # Content and the unknown-project banner are assembled separately: the
+    # banner must not make an otherwise-empty vault look non-empty (else the
+    # friendly placeholder never shows). The banner is then laid on top so
+    # it leads the block and survives end-truncation.
+    content_parts: List[str] = []
     if nudge:
-        parts.append(nudge)
+        content_parts.append(nudge)
     principles_md = _render_principles(items)
     if principles_md:
-        parts.append(principles_md)
+        content_parts.append(principles_md)
     project_md = _render_project_section(vault, project) if project else ""
     if project_md:
-        parts.append(project_md)
+        content_parts.append(project_md)
 
-    block = "\n\n".join(parts).strip()
-    if not block:
-        block = (
+    content = "\n\n".join(content_parts).strip()
+    if not content:
+        content = (
             "## atelier\n\n_(no principles or per-project learnings yet — "
             "use `atelier_learning_capture` and `atelier_principle_add` to "
             "start accumulating)_"
         )
+
+    # Loud-on-unknown: a resolved-but-unbacked project leads the block; a
+    # None project (no working_dir) gets no banner.
+    banner = (_unknown_project_banner(resolution)
+              if (project and not resolution.known) else "")
+    block = "\n\n".join(p for p in (banner, content) if p).strip()
     block = _truncate(block, max_chars)
 
     return {
         "project": project,
+        "project_source": resolution.source,
+        "project_known": resolution.known,
         "principles_count": len(items),
         "nudge": bool(nudge),
         "char_count": len(block),

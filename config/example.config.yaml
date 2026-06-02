@@ -55,6 +55,16 @@ learnings:
   aggressive_capture: true         # Stop / SessionEnd hooks auto-capture
   per_project_dirs: true           # accepted/by-project/<project>/
   candidate_retention_days: 60     # candidates older than this auto-archive
+  # Map a working directory (or any parent prefix) to a project slug. This
+  # is the most explicit layer of project resolution — preferred over the
+  # directory-basename fallback when a repo's folder name differs from its
+  # project slug, or a monorepo holds several projects. Resolution is fully
+  # local (no git remote is ever consulted). Order: explicit hint >
+  # project_map > .atelier-project marker file > vault-self > directory
+  # basename.
+  # project_map:
+  #   ~/workspaces/lexio: lexio
+  #   ~/code/acme-monorepo/services/billing: acme-billing
   # Per-turn signal-detector recall via UserPromptSubmit hook.
   signal_detector:
     enabled: false                 # opt-in; raises token cost per turn

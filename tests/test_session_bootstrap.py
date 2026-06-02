@@ -120,3 +120,35 @@ def test_bootstrap_project_inferred_from_session_when_arg_missing(
     finally:
         _tools._current.reset(tok)
     assert out["project"] == "lexio"
+
+
+# ── project resolution provenance + loud-on-unknown banner ─────────────────
+
+
+def test_bootstrap_surfaces_project_provenance(atelier_env: Dict) -> None:
+    out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio")
+    assert out["project_source"] == "basename"
+    assert out["project_known"] is False
+
+
+def test_bootstrap_warns_loudly_on_unknown_project(atelier_env: Dict) -> None:
+    out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio")
+    # No by-project/lexio dir → the banner must lead the block.
+    assert "project_map" in out["markdown"]
+    assert out["markdown"].lstrip().startswith("ℹ️")
+
+
+def test_bootstrap_no_banner_when_project_known(atelier_env: Dict) -> None:
+    _accept("lexio", topic="db-tests")      # creates by-project/lexio
+    out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio")
+    assert out["project_known"] is True
+    assert "project_map" not in out["markdown"]
+
+
+def test_unknown_banner_coexists_with_empty_vault_placeholder(
+        atelier_env: Dict) -> None:
+    """The banner must not suppress the friendly empty-vault placeholder:
+    both should appear for a brand-new project in an empty vault."""
+    out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio")
+    assert "project_map" in out["markdown"]                 # banner
+    assert "no principles or per-project learnings yet" in out["markdown"]

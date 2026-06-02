@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+
+export PATH="$HOME/.atelier/bin:$PATH"
+
+# Defensive: ensure ATELIER_MCP_HTTP_TOKEN is in env even if Claude Code was
+# launched from a context that did not source ~/.zshrc (e.g. the GUI app).
+[ -r "$HOME/.atelier/secrets/.env" ] && \
+  { set -a; . "$HOME/.atelier/secrets/.env"; set +a; }
+
 # session-bootstrap.sh — Claude Code UserPromptSubmit hook adapter.
 #
 # Installed to: ~/.atelier/bin/session-bootstrap.sh
@@ -97,6 +105,16 @@ except Exception:
 if [ -n "$MARKDOWN" ]; then
     printf '%s\n' "$MARKDOWN"
     printf '%s\n' "$SESSION_ID" >>"$SEEN_FILE"
+    # Persist the exact injected block so it can be inspected later — the
+    # log records only the fact of injection, this records the content
+    # (observability: what did this session actually receive?). Fail-safe.
+    INJECTED_DIR="$HOME/.atelier/logs/injected"
+    mkdir -p "$INJECTED_DIR" 2>/dev/null || true
+    {
+        printf '\n<!-- bootstrap %s | session=%s | project=%s -->\n' \
+            "$(date -u +%FT%TZ)" "$SESSION_ID" "$(basename "$WORKING_DIR")"
+        printf '%s\n' "$MARKDOWN"
+    } >>"$INJECTED_DIR/$SESSION_ID.md" 2>/dev/null || true
     log "injected session=$SESSION_ID project=$(basename "$WORKING_DIR")"
 fi
 

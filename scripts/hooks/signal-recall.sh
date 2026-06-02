@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+
+export PATH="$HOME/.atelier/bin:$PATH"
+
+# Defensive: ensure ATELIER_MCP_HTTP_TOKEN is in env even if Claude Code was
+# launched from a context that did not source ~/.zshrc (e.g. the GUI app).
+[ -r "$HOME/.atelier/secrets/.env" ] && \
+  { set -a; . "$HOME/.atelier/secrets/.env"; set +a; }
+
 # signal-recall.sh — Claude Code UserPromptSubmit hook (opt-in, every turn).
 #
 # Installed to: ~/.atelier/bin/signal-recall.sh
@@ -138,6 +146,15 @@ except Exception:
 
 if [ -n "$OUTPUT" ]; then
     printf '%s\n' "$OUTPUT"
+    # Persist the exact recall block for later inspection (observability:
+    # what relevant-memory did this turn actually receive?). Fail-safe.
+    INJECTED_DIR="$HOME/.atelier/logs/injected"
+    mkdir -p "$INJECTED_DIR" 2>/dev/null || true
+    {
+        printf '\n<!-- recall %s | session=%s | project=%s -->\n' \
+            "$(date -u +%FT%TZ)" "$SESSION_ID" "$(basename "$WORKING_DIR")"
+        printf '%s\n' "$OUTPUT"
+    } >>"$INJECTED_DIR/$SESSION_ID.md" 2>/dev/null || true
     log "recall session=$SESSION_ID project=$(basename "$WORKING_DIR") items=fresh"
 fi
 

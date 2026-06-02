@@ -219,6 +219,34 @@ def _cmd_dream(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_inject_preview(args: argparse.Namespace) -> int:
+    """Print exactly what atelier would inject for a session whose working
+    directory is `--cwd`: the session-start bootstrap block, and (with
+    --query) the per-turn recall block. Read-only — resolves the project
+    and renders the same markdown the hooks emit, without a session or any
+    side effects. Use it to see what a given client actually receives."""
+    import os
+    from .service.learnings import bootstrap as _bs
+    from .service.learnings import recall as _rc
+    from .service.learnings import project as _proj
+
+    cwd = args.cwd or os.getcwd()
+    res = _proj.resolve_project(cwd)
+    print(f"# project={res.slug!r}  source={res.source}  known={res.known}")
+    print(f"# cwd={cwd}")
+
+    boot = _bs.bootstrap(working_dir=cwd, max_chars=args.max_chars)
+    print("\n===== session-start bootstrap =====\n")
+    print(boot["markdown"])
+
+    if args.query:
+        rc = _rc.recall(query=args.query, project=res.slug,
+                        max_chars=args.max_chars)
+        print(f"\n===== per-turn recall (query: {args.query!r}) =====\n")
+        print(rc["markdown"] or "_(no recall hits)_")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     """Long-running asyncio supervisor. Each --<transport> flag opts in;
     with no flags the process idles (useful for smoke-testing the
@@ -304,6 +332,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", action="store_true",
                    help="emit the full machine-readable plan")
     s.set_defaults(func=_cmd_dream)
+
+    s = sub.add_parser("inject-preview",
+                       help="preview the context atelier would inject for a "
+                            "working dir (bootstrap + optional recall)")
+    s.add_argument("--cwd", help="working directory to resolve a project for "
+                                 "(default: current directory)")
+    s.add_argument("--query", help="also preview per-turn recall for this prompt")
+    s.add_argument("--max-chars", type=int, default=6000)
+    s.set_defaults(func=_cmd_inject_preview)
 
     s = sub.add_parser("serve",
                        help="run the long-running engine (MCP stdio + HTTP)")

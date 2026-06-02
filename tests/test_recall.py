@@ -164,3 +164,22 @@ def test_recall_excludes_generated_files_from_fts(atelier_env: Dict) -> None:
     blob = " ".join(it["slug"] for it in out["items"])
     assert "INDEX" not in blob
     assert "TAXONOMY" not in blob
+
+
+# ── inject-preview CLI ─────────────────────────────────────────────────────
+
+
+def test_inject_preview_cli_renders_bootstrap_and_recall(
+        atelier_env: Dict, capsys: pytest.CaptureFixture) -> None:
+    from runtime import cli
+    _accept("foo render flicker", "render bug", "use memo",
+             project="lexio", topic="rendering")
+    rc = cli.main(["inject-preview", "--cwd", "/Users/me/workspaces/lexio",
+                   "--query", "render flicker"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "project='lexio'" in out
+    assert "source=basename" in out
+    assert "session-start bootstrap" in out
+    assert "per-turn recall" in out
+    assert "relevant memory" in out

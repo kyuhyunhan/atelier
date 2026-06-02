@@ -45,22 +45,13 @@ def _slug_from_observation(observation: str, *, fallback: str) -> str:
 
 def _resolve_project_hint(working_dir: Optional[str],
                           explicit: Optional[str],
-                          vault_root: Path) -> Optional[str]:
-    """Prefer the explicit hint; otherwise derive from working_dir's
-    basename. Working directory inside the vault is tagged
-    `atelier-self` so dogfooding doesn't pollute project tags."""
-    if explicit:
-        return explicit
-    if not working_dir:
-        return None
-    wd = Path(working_dir).expanduser().resolve()
-    try:
-        wd.relative_to(vault_root.resolve())
-        return "atelier-self"
-    except (ValueError, RuntimeError):
-        pass
-    name = wd.name
-    return name or None
+                          cfg: _config.Config) -> Optional[str]:
+    """Resolve the project tag through the shared accessor so capture,
+    bootstrap, and recall cannot diverge (learning `1446`). The layered
+    chain still honors an explicit hint first and the vault-self
+    dogfooding guard; see `project.resolve_project`."""
+    from . import project as _project
+    return _project.resolve_project(working_dir, explicit=explicit, cfg=cfg).slug
 
 
 def _build_body(observation: str, why: Optional[str],
@@ -163,7 +154,7 @@ def capture(*, observation: str,
         fm["session_id"] = session_id
     if working_dir:
         fm["working_dir"] = working_dir
-    project = _resolve_project_hint(working_dir, project_hint, vault_root)
+    project = _resolve_project_hint(working_dir, project_hint, cfg)
     if project:
         fm["project_hint"] = project
 

@@ -474,8 +474,10 @@ async def _h_recall(query: str,
     from .learnings import recall as _rc
     sess = current_session()
     if project is None and sess.working_dir:
-        from pathlib import Path as _P
-        project = _P(sess.working_dir).name or None
+        # Route through the shared accessor so recall's project key matches
+        # the one capture wrote and bootstrap injects (learning `1446`).
+        from .learnings import project as _proj
+        project = _proj.resolve_project(sess.working_dir).slug
     return _rc.recall(query=query, project=project, top_k=top_k,
                        max_chars=max_chars,
                        include_candidates=include_candidates,

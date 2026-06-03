@@ -77,6 +77,7 @@ def doctor(remediate: bool = False, max_usd: float = 0.0,
 
 
 def sync(action: str, space: Optional[str] = None,
+         message: Optional[str] = None,
          token: Optional[str] = None) -> Dict[str, Any]:
     from ..sync import orchestrator
     cfg = config.load()
@@ -88,6 +89,10 @@ def sync(action: str, space: Optional[str] = None,
     if action == "push":
         orchestrator.push(cfg, space=space)
         return {"pushed": True}
+    if action in ("commit", "commit-push"):
+        msg = message or "chore(vault): sync [auto]"
+        return orchestrator.commit_push(
+            cfg, message=msg, space=space, push=(action == "commit-push"))
     raise ValueError(f"unknown sync action: {action}")
 
 

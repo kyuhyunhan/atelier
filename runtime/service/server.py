@@ -91,11 +91,22 @@ class Supervisor:
 
 
 _TRANSPORTS: List[TransportTask] = []
+_BACKGROUNDS: List[TransportTask] = []
 
 
 def register_transport(task: TransportTask) -> None:
     """Append a transport task. Called by mcp_stdio / mcp_http on import."""
     _TRANSPORTS.append(task)
+
+
+def register_background(task: TransportTask) -> None:
+    """Append a background subsystem task (e.g. the vault auto-sync poller).
+
+    Unlike transports, background tasks accept no external connections — they
+    run internal work on the supervisor's loop. Idempotent so repeated imports
+    don't double-register."""
+    if task not in _BACKGROUNDS:
+        _BACKGROUNDS.append(task)
 
 
 async def _idle(sup: Supervisor) -> None:
@@ -147,9 +158,9 @@ def run(transports: Optional[List[TransportTask]] = None) -> int:
 
     Returns 0 on clean shutdown, 3 if another instance already holds the
     port (friendly message instead of an uvicorn stack trace)."""
+    base = list(transports) if transports is not None else list(_TRANSPORTS)
     try:
-        return asyncio.run(_run(list(transports) if transports is not None
-                                else list(_TRANSPORTS)))
+        return asyncio.run(_run(base + list(_BACKGROUNDS)))
     except AlreadyRunning as e:
         log.error("serve.already-running", detail=str(e))
         return 3

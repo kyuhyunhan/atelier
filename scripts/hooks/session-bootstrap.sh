@@ -26,12 +26,15 @@ export PATH="$HOME/.atelier/bin:$PATH"
 
 set -u
 
-LOG="$HOME/.atelier/logs/bootstrap.log"
 CACHE_DIR="$HOME/.atelier/cache"
 SEEN_FILE="$CACHE_DIR/seen-sessions.txt"
-mkdir -p "$(dirname "$LOG")" "$CACHE_DIR" 2>/dev/null || true
+mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
-log() { printf '%s  %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG" 2>/dev/null || true; }
+# Unified logging via the shared helper → ~/.atelier/logs/atelier.log
+# (falls back to a no-op if the helper isn't installed).
+if [ -r "$HOME/.atelier/bin/_log.sh" ]; then . "$HOME/.atelier/bin/_log.sh"
+else atelier_log() { :; }; fi
+log() { atelier_log info bootstrap "$*"; }
 
 # Claude Code pipes the hook payload (JSON) on stdin.
 PAYLOAD="$(cat 2>/dev/null || true)"

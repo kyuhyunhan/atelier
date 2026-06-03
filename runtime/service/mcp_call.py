@@ -28,9 +28,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..util import logging as log
+
 
 _DEFAULT_CONFIG = Path.home() / ".atelier" / "config.yaml"
-_DEFAULT_LOG = Path.home() / ".atelier" / "logs" / "capture.log"
 
 
 def _read_config(path: Path) -> Dict[str, Any]:
@@ -49,14 +50,6 @@ def _endpoint(cfg: Dict[str, Any]) -> tuple[str, str]:
     token_env = svc.get("token_env", "ATELIER_MCP_HTTP_TOKEN")
     token = os.environ.get(token_env, "")
     return f"http://{host}:{port}{path}", token
-
-
-def _log(message: str, *, log_path: Path) -> None:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    from datetime import datetime, timezone
-    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    with log_path.open("a", encoding="utf-8") as f:
-        f.write(f"{ts}  {message}\n")
 
 
 def _parse_response(raw: bytes) -> Dict[str, Any]:
@@ -147,7 +140,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--config", default=str(_DEFAULT_CONFIG))
     p.add_argument("--strict", action="store_true",
                    help="exit non-zero on RPC error (default: exit 0)")
-    p.add_argument("--log", default=str(_DEFAULT_LOG))
+    p.add_argument("--log", default=None,
+                   help="deprecated/ignored — logs go to the unified atelier.log")
     # Free-form key=value pairs for common params; lighter than --json
     # for shell hooks.
     p.add_argument("--working_dir")
@@ -172,22 +166,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         if v is not None:
             params[fld] = v
 
-    log_path = Path(args.log).expanduser()
+    log.configure()                       # short-lived CLI: ensure the file sink
     cfg = _read_config(Path(args.config).expanduser())
     url, token = _endpoint(cfg)
 
     if not token:
-        _log(f"no bearer token in env; skipping {args.tool}", log_path=log_path)
+        log.warn("mcp-call.skip", tool=args.tool, reason="no-token")
         return 0 if not args.strict else 2
 
     try:
         result = _call(url, token, args.tool, params)
     except (urllib.error.URLError, OSError) as e:
-        _log(f"{args.tool}: rpc-error {type(e).__name__}: {e}", log_path=log_path)
+        log.error("mcp-call.rpc-error", tool=args.tool,
+                  err=type(e).__name__, msg=str(e))
         return 0 if not args.strict else 1
 
     if "error" in result:
-        _log(f"{args.tool}: error {result['error']}", log_path=log_path)
+        log.error("mcp-call.error", tool=args.tool, detail=result["error"])
         return 0 if not args.strict else 1
 
     # FastMCP returns 200 with `result.isError: true` when the handler
@@ -196,10 +191,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if isinstance(inner, dict) and inner.get("isError"):
         content = inner.get("content") or []
         first = (content[0].get("text") if content else "") or ""
-        _log(f"{args.tool}: tool-error {first[:200]}", log_path=log_path)
+        log.error("mcp-call.tool-error", tool=args.tool, detail=first[:200])
         return 0 if not args.strict else 1
 
-    _log(f"{args.tool}: ok", log_path=log_path)
+    log.info("mcp-call.ok", tool=args.tool)
     if args.strict:
         json.dump(result.get("result", {}), sys.stdout)
         sys.stdout.write("\n")

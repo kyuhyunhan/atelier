@@ -117,6 +117,7 @@ async def _idle(sup: Supervisor) -> None:
 
 async def _run(transports: List[TransportTask]) -> int:
     cfg = _config.load()
+    log.configure()                   # defensive: ensure the file sink exists
     _db.connect_shared()  # warm and migrate
 
     pidfile = _acquire_pidfile()      # raises AlreadyRunning if a live serve exists

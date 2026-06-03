@@ -266,6 +266,10 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     with no flags the process idles (useful for smoke-testing the
     supervisor itself)."""
     from .service import server
+    # Configure the file sink BEFORE importing transports: in stdio mode no
+    # handler may touch stdout (JSON-RPC frames), and uvicorn/mcp library logs
+    # are bridged into the same atelier.log.
+    log.configure(stdio=args.stdio, bridge_libraries=True)
     if args.stdio:
         from .service import mcp_stdio  # noqa: F401  (registers on import)
     if args.http:
@@ -380,8 +384,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.verbose:
-        log.set_level("debug")
+    log.configure(level="debug" if args.verbose else None)
     try:
         return args.func(args)
     except KeyboardInterrupt:

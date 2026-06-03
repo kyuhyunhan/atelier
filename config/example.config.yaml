@@ -125,6 +125,14 @@ index:
   incremental: true
   vector: false                    # baseline FTS5 only
 
+# ── Logging ──────────────────────────────────────────────────────────────────
+# One consolidated, append-only log. Every line: ISO-8601 time + [LEVEL] +
+# [category] + event + key=value. Env overrides: ATELIER_LOG_FILE, ATELIER_LOG_LEVEL.
+logging:
+  file: ~/.atelier/logs/atelier.log   # default if omitted; the app appends here
+  level: info                          # debug | info | warn | error
+  console: true                        # also echo to stderr when interactive (TTY)
+
 # ── Reserved for future channels ─────────────────────────────────────────────
 channels:
   # mobile:

@@ -75,6 +75,12 @@ echo "ATELIER_MCP_HTTP_TOKEN=$(openssl rand -hex 24)" >> ~/.atelier/secrets/.env
 atelier serve --http
 ```
 
+All engine and hook output lands in one append-only log,
+`~/.atelier/logs/atelier.log` (override `ATELIER_LOG_FILE`; tune via the
+`logging:` config block or `ATELIER_LOG_LEVEL`). Each line is
+`ISO-8601 [LEVEL] [category] event key=value` and survives restarts — no shell
+redirection needed. `tail -f ~/.atelier/logs/atelier.log` to watch.
+
 Then register atelier as an MCP server in `~/.claude/mcp.json`:
 
 ```json

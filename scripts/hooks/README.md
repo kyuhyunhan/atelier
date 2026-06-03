@@ -59,6 +59,10 @@ learnings.
 ```bash
 cp scripts/hooks/session-bootstrap.sh ~/.atelier/bin/session-bootstrap.sh
 chmod +x ~/.atelier/bin/session-bootstrap.sh
+# Shared logging helper — hooks source this to append to the unified
+# ~/.atelier/logs/atelier.log in the same format as the engine. Without it the
+# hooks degrade to a silent no-op for logging.
+cp scripts/hooks/_log.sh ~/.atelier/bin/_log.sh
 ```
 
 ```json

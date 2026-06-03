@@ -482,6 +482,40 @@ user action.
 
 ---
 
+## Logging
+
+All logging funnels into **one append-only file**: `~/.atelier/logs/atelier.log`
+(override with `ATELIER_LOG_FILE`; configurable via the `logging:` block). Built
+on stdlib `logging` (`runtime/util/logging.py`). Every line is structured and
+always carries **time and category**:
+
+```
+2026-06-03T16:04:25+09:00 [INFO] [vault-autosync] ready vault=/…/gorae interval=30
+```
+
+- **Category = logger name.** The façade keeps `log.info("sync.commit", k=v)`;
+  the first dotted segment (`sync`) becomes the logger `atelier.sync` →
+  `[sync]`. No-dot messages fall under `[cli]`.
+- **Append across restarts.** `configure()` opens a `FileHandler(mode="a")` and
+  is idempotent — relaunching `atelier serve` appends, never truncates, and never
+  duplicates handlers.
+- **stdout is sacred.** No handler ever writes stdout (the stdio MCP transport
+  owns it for JSON-RPC). The optional console handler is stderr-only and only
+  attaches on an interactive TTY.
+- **Library logs consolidated.** uvicorn and the `mcp`/FastMCP loggers are bridged
+  to the same file (`[uvicorn]`, `[mcp]`).
+- **Hooks share the format.** `mcp_call.py` and the bash hooks (via
+  `scripts/hooks/_log.sh`) emit the byte-identical line shape to the same file.
+- Resolution precedence — path: `ATELIER_LOG_FILE` > `logging.file` >
+  `CACHE_DIR/../logs/atelier.log`; level: arg (`--verbose`) >
+  `ATELIER_LOG_LEVEL` > `logging.level` > `info`. `logging` never raises from a
+  log call (config is read lazily/defensively).
+
+The `~/.atelier/logs/injected/<session>.md` files are **not logs** — they are
+audit snapshots of context injected into each Claude session, left untouched.
+
+---
+
 ## Mobile Reservation
 
 The mobile channel is **out of scope for v0.1** but the architecture preserves

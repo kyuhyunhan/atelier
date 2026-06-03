@@ -4,6 +4,29 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — unified logging on stdlib `logging`
+
+Logging was fragmented (3 formats; Python logs depended on shell redirection;
+hooks wrote separate files) and lost startup lines to stdout block-buffering.
+
+- **`runtime/util/logging.py`** rewritten on stdlib `logging`. One consolidated,
+  **append-only** sink `~/.atelier/logs/atelier.log` (override: `ATELIER_LOG_FILE`).
+  Every line carries time and category:
+  `2026-06-03T16:04:25+09:00 [INFO] [vault-autosync] ready vault=… interval=30`.
+  Category is the first dotted segment of the message → logger name
+  `atelier.<category>`, so the **33 existing call sites are unchanged**.
+- `configure()` is idempotent (append survives restarts; no duplicate handlers).
+  No handler targets **stdout** (stdio MCP frames stay clean); the optional
+  console handler is stderr-only and TTY-gated.
+- **uvicorn / mcp** library logs are bridged into the same file (`[uvicorn]`,
+  `[mcp]` categories).
+- `mcp_call.py` and the shell hooks (`session-bootstrap.sh`, `signal-recall.sh`
+  via the new shared `scripts/hooks/_log.sh`) now write the **same format** to the
+  same file. `--log` on `atelier-mcp-call` is deprecated/ignored.
+- New `logging:` config block (`file`/`level`/`console`) + `LoggingConfig`.
+- Old per-component logs (serve/capture/recall/bootstrap, `nohup.out`) are retired
+  (not deleted).
+
 ### Added — vault auto-sync (background commit + push)
 
 A background subsystem persists the vault to its git remote automatically

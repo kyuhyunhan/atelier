@@ -43,6 +43,18 @@ class SubtreeConfig:
 
 
 @dataclass
+class LoggingConfig:
+    """Logging sink policy (`logging:` block). Consumed by util.logging.
+
+    `file` defaults (when None) to `~/.atelier/logs/atelier.log`, resolved in
+    util.logging from CACHE_DIR. Env `ATELIER_LOG_FILE` / `ATELIER_LOG_LEVEL`
+    override at runtime."""
+    file: Optional[str] = None
+    level: str = "info"               # debug | info | warn | error
+    console: bool = True              # stderr echo when interactive (TTY)
+
+
+@dataclass
 class AutoSyncConfig:
     """Background auto-commit/push policy for the vault (`vault.auto_commit`).
 
@@ -73,6 +85,7 @@ class Config:
     vault: Optional[VaultConfig] = None
     subtrees: Dict[str, SubtreeConfig] = field(default_factory=dict)
     auto_sync: AutoSyncConfig = field(default_factory=AutoSyncConfig)
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
 
     def space(self, name: str) -> SpaceConfig:
         if name not in self.spaces:
@@ -218,8 +231,22 @@ def load(path: Optional[Path] = None) -> Config:
         message_prefix=ac.get("message_prefix", defaults.message_prefix),
     )
 
+    lg = data.get("logging") or {}
+    ldefaults = LoggingConfig()
+    level = lg.get("level", ldefaults.level)
+    _valid_levels = {"debug", "info", "warn", "error"}
+    if level not in _valid_levels:
+        raise ValueError(
+            f"{path}: logging.level must be one of {sorted(_valid_levels)}; "
+            f"got {level!r}.")
+    logging_cfg = LoggingConfig(
+        file=lg.get("file", ldefaults.file),
+        level=level,
+        console=bool(lg.get("console", ldefaults.console)),
+    )
+
     cfg = Config(spaces=spaces, raw=data, vault=vault, subtrees=subtrees,
-                 auto_sync=auto_sync)
+                 auto_sync=auto_sync, logging=logging_cfg)
     _validate_strict(cfg, path)
     return cfg
 

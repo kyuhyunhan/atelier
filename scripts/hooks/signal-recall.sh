@@ -28,13 +28,16 @@ export PATH="$HOME/.atelier/bin:$PATH"
 
 set -u
 
-LOG="$HOME/.atelier/logs/recall.log"
 CACHE_ROOT="$HOME/.atelier/cache/recall"
 SEEN_ROOT="$HOME/.atelier/cache/recall-seen"
 CONFIG="$HOME/.atelier/config.yaml"
-mkdir -p "$(dirname "$LOG")" "$CACHE_ROOT" "$SEEN_ROOT" 2>/dev/null || true
+mkdir -p "$CACHE_ROOT" "$SEEN_ROOT" 2>/dev/null || true
 
-log() { printf '%s  %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG" 2>/dev/null || true; }
+# Unified logging via the shared helper → ~/.atelier/logs/atelier.log
+# (falls back to a no-op if the helper isn't installed).
+if [ -r "$HOME/.atelier/bin/_log.sh" ]; then . "$HOME/.atelier/bin/_log.sh"
+else atelier_log() { :; }; fi
+log() { atelier_log info recall "$*"; }
 
 PAYLOAD="$(cat 2>/dev/null || true)"
 

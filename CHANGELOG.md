@@ -2,6 +2,36 @@
 
 All notable changes to atelier.
 
+## [Unreleased]
+
+### Added — vault auto-sync (background commit + push)
+
+A background subsystem persists the vault to its git remote automatically
+whenever data lands — from atelier's own write tools *or* direct edits.
+
+- **`service/vault_autosync.py`** — supervisor background task
+  (`server.register_background`) that polls the vault working tree on a fixed
+  interval (`vault.auto_commit.interval_seconds`, default 30 s). Observer-side
+  by design: it watches tree *state*, so it is source-agnostic. Commits only
+  when the tree is dirty **and quiescent** (porcelain unchanged across two
+  polls) — coalescing a burst into one commit without a filesystem watcher.
+  The per-tick decision is the pure, unit-tested `_decide()`.
+- **`sync/adapters/github.py`** — adds `commit()` (stages `-A -- .`, commits
+  only if something is staged), the safety predicates `is_repo_root`,
+  `in_merge_or_rebase`, `lock_present`, `dirty_porcelain`, and a **timeout**
+  on all git subprocess calls (no more unbounded hangs).
+- **`sync/orchestrator.commit_push()`** — vault-aware (targets `vault.local`
+  once, not the two synthesized pseudo-spaces); enforces the safety gates;
+  **surfaces** non-fast-forward instead of auto-merging; never raises on a
+  failed push. Exposed via `atelier_sync` actions `commit` / `commit-push`.
+- **`config.AutoSyncConfig`** (`vault.auto_commit` block) — `enabled` (opt-in,
+  default off), `interval_seconds`, `push`, `on_conflict`, `require_stable`,
+  `message_prefix`. Revives the previously dead `sync:` knobs.
+- Commit messages are Conventional and **carry no AI co-author line**
+  (`chore(vault): sync N change(s) [auto]` + changed-paths body).
+- Caveats documented (engine-only PII guard ⇒ private remote; multi-device
+  divergence is surfaced, reconciled manually). See `docs/ARCHITECTURE.md`.
+
 ## [0.2.4] — Single-vault rename regression fix + cross-domain unification
 
 ### Fixed — gorae→vault-* rename regression (v0.2 single-vault collapse)

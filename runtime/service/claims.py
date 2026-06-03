@@ -87,6 +87,11 @@ class SpaceLockRegistry:
         async with lock:
             yield
 
+    def any_held(self) -> bool:
+        """True if any writer-role lock is currently held. The vault
+        auto-sync poller checks this to avoid committing mid-write."""
+        return any(lock.locked() for lock in self._locks.values())
+
 
 _REGISTRY: Optional[SpaceLockRegistry] = None
 

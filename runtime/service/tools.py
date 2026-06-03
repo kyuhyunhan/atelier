@@ -150,9 +150,13 @@ async def _h_doctor(remediate: bool = False, max_usd: float = 0.0) -> Dict[str, 
     return _api.doctor(remediate=remediate, max_usd=max_usd)
 
 
-async def _h_sync(action: str, space: Optional[str] = None) -> Dict[str, Any]:
-    """Git status / pull / push for one or all spaces."""
-    return _api.sync(action, space=space)
+async def _h_sync(action: str, space: Optional[str] = None,
+                  message: Optional[str] = None) -> Dict[str, Any]:
+    """Git sync for the vault. action: status | pull | push | commit | commit-push.
+    `commit`/`commit-push` stage+commit (and push) only if the tree is dirty and
+    safe (repo toplevel, not mid-merge/locked); a failed push is surfaced, never
+    raised. `message` overrides the commit subject."""
+    return _api.sync(action, space=space, message=message)
 
 
 # ── Write-side handlers ────────────────────────────────────────────────────
@@ -598,7 +602,7 @@ def _register_v01_tools() -> None:
                      "Drift diagnostics; optionally remediate.",
                      _h_doctor))
     register(ToolDef("atelier_sync",
-                     "Git status / pull / push.",
+                     "Git status / pull / push / commit / commit-push for the vault.",
                      _h_sync))
     register(ToolDef("atelier_promote_propose",
                      "Scan workshop for promote-worthy notes.",

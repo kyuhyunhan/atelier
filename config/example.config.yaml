@@ -23,6 +23,24 @@ vault:
     bucket: <OPTIONAL — your R2 bucket name>
     cdn:    <OPTIONAL — https://your-cdn-url/>
 
+  # Auto-sync policy for THIS vault (PR: vault auto-sync).
+  # When enabled, `atelier serve` runs a background poller that commits and
+  # pushes *this vault* (the `local` + `remote` above) whenever its working
+  # tree is dirty AND quiescent (unchanged across two polls). Source-agnostic:
+  # it catches both atelier-mediated writes and direct edits to the vault.
+  # It never auto-merges — a diverged remote is surfaced, not reconciled.
+  # ⚠️ The vault is pushed with NO PII pre-commit guard (that hook is installed
+  #    only in the engine repo). Use only with a PRIVATE vault remote, and
+  #    beware multi-device divergence (two machines pushing this same vault).
+  #    See docs/ARCHITECTURE.md → "Vault auto-sync".
+  auto_commit:
+    enabled: false              # opt-in, per-machine
+    interval_seconds: 30        # poll cadence
+    push: true                  # false → commit this vault locally only
+    on_conflict: surface        # surface | commit-only  (never pull/merge/force)
+    require_stable: true        # commit only after the dirty set settles
+    message_prefix: "chore(vault):"
+
 # ── Subtree writer roles ─────────────────────────────────────────────────────
 # Each subtree under the vault root binds to exactly one writer role. The
 # engine refuses writes from any other role.
@@ -99,6 +117,8 @@ sync:
   auto_pull_on_session_start: false
   auto_push_on_session_end:   false
   conflict_strategy: surface-to-user
+  # NOTE: background vault auto-commit/push is configured under `vault.auto_commit`
+  # (above), next to the vault it acts on — not here.
 
 index:
   auto_reindex_on_session_start: false

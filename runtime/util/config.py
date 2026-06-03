@@ -43,6 +43,21 @@ class SubtreeConfig:
 
 
 @dataclass
+class AutoSyncConfig:
+    """Background auto-commit/push policy for the vault (`vault.auto_commit`).
+
+    Lives in the `vault:` block because it commits/pushes exactly that vault.
+    Disabled by default — the user opts in per-machine. The poller and the
+    git primitives read these values; nothing is hard-coded in code."""
+    enabled: bool = False
+    interval_seconds: int = 30
+    push: bool = True
+    on_conflict: str = "surface"          # surface | commit-only
+    require_stable: bool = True           # commit only if status is unchanged for 2 ticks
+    message_prefix: str = "chore(vault):"
+
+
+@dataclass
 class VaultConfig:
     local: Path
     remote_type: Optional[str] = None
@@ -57,6 +72,7 @@ class Config:
     raw: Dict[str, Any]
     vault: Optional[VaultConfig] = None
     subtrees: Dict[str, SubtreeConfig] = field(default_factory=dict)
+    auto_sync: AutoSyncConfig = field(default_factory=AutoSyncConfig)
 
     def space(self, name: str) -> SpaceConfig:
         if name not in self.spaces:
@@ -189,7 +205,21 @@ def load(path: Optional[Path] = None) -> Config:
             role="builder-territory",
         )
 
-    cfg = Config(spaces=spaces, raw=data, vault=vault, subtrees=subtrees)
+    # Auto-sync is a property of the vault it commits, so it lives in the
+    # `vault:` block (`vault.auto_commit`).
+    ac = (data.get("vault") or {}).get("auto_commit") or {}
+    defaults = AutoSyncConfig()
+    auto_sync = AutoSyncConfig(
+        enabled=bool(ac.get("enabled", defaults.enabled)),
+        interval_seconds=int(ac.get("interval_seconds", defaults.interval_seconds)),
+        push=bool(ac.get("push", defaults.push)),
+        on_conflict=ac.get("on_conflict", defaults.on_conflict),
+        require_stable=bool(ac.get("require_stable", defaults.require_stable)),
+        message_prefix=ac.get("message_prefix", defaults.message_prefix),
+    )
+
+    cfg = Config(spaces=spaces, raw=data, vault=vault, subtrees=subtrees,
+                 auto_sync=auto_sync)
     _validate_strict(cfg, path)
     return cfg
 

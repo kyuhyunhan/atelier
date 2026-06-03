@@ -335,7 +335,7 @@ runtime/
 │   └── remediate.py    bounded fixer (--max-usd N for LLM cost cap)
 │
 ├── sync/adapters/  Remote ↔ local
-│   ├── github.py       git push/pull/status
+│   ├── github.py       git push/pull/status + commit/safety-predicates
 │   ├── r2.py           Cloudflare R2 asset sync
 │   └── local_fs.py     fallback / dry-run
 │
@@ -345,6 +345,7 @@ runtime/
 │
 ├── service/        long-running engine + MCP surface
 │   ├── server.py       `atelier serve` asyncio supervisor + pidfile guard
+│   ├── vault_autosync.py  background poller: commit+push vault when dirty+quiescent
 │   ├── tools.py        the single MCP tool registry (claim + role lock)
 │   ├── mcp_stdio.py    MCP stdio transport (Claude Code subprocess)
 │   ├── mcp_http.py     MCP HTTP transport (loopback + bearer)
@@ -431,6 +432,53 @@ The service layer (`runtime/service/`) enforces, as of v0.2:
 
 Deferred to v0.3: OAuth for the HTTP transport (loopback + static bearer
 is sufficient for the single-user, single-machine case today).
+
+---
+
+## Vault auto-sync
+
+`service/vault_autosync.py` is a **background subsystem** (registered with
+the supervisor via `server.register_background`, not a transport). When
+`vault.auto_commit.enabled` is set, it persists the vault to its git remote
+with zero manual effort — completing the other half of the sync loop the
+engine already had (`pull → reindex`).
+
+**Why observer-side, not producer-side.** The trigger watches the vault's
+git *working-tree state* on a fixed poll (default 30 s), not the writer.
+This is the only design that catches **both** ingest paths — atelier's own
+MCP write tools *and* direct edits (an editor, a script, another agent) —
+because it never asks "who wrote this," only "is the tree dirty."
+
+**Quiescence, not a watcher.** A burst of writes is coalesced into one
+commit by committing only when `git status --porcelain` is *unchanged
+across two consecutive polls* (`require_stable`). This needs no filesystem
+watcher, no thread/loop bridge, and no debounce timer — the poll interval
+*is* the settle window. The per-tick decision is the pure function
+`_decide()`; blocking git runs in `asyncio.to_thread` so the poller never
+stalls the transports sharing its loop.
+
+**Safety gates** (all must pass before a commit, in `orchestrator.commit_push`
++ the poller): repo is the vault toplevel (guards a repo-wide `add -A` when
+the vault is nested), not mid merge/rebase/cherry-pick and no `index.lock`
+(never clobber a human's in-progress git op), and no writer-role lock held
+(don't commit mid tool-write). `git add -A -- .` then commit only if
+something is actually staged.
+
+**Conflict = surface, never reconcile.** On a non-fast-forward push the
+poller logs and stops — it does **not** auto pull/merge/force. Auto-pull
+would mutate markdown out from under the DB projection (reindex is
+deliberately *not* wired into sync), so reconciliation stays an explicit
+user action.
+
+> ⚠️ **Two operational caveats** (also flagged in `config/example.config.yaml`):
+> - **No PII guard on the vault remote.** The pre-commit PII guard is
+>   installed only into the *engine* repo (`scripts/setup`). Auto-push ships
+>   vault content to its remote within one poll interval with no scan — use
+>   only with a **private** vault remote.
+> - **Multi-device divergence.** Two machines auto-pushing the same vault
+>   will diverge (the second push is rejected non-fast-forward). No data is
+>   lost — local commits are kept and the divergence is surfaced — but
+>   reconciliation is manual.
 
 ---
 

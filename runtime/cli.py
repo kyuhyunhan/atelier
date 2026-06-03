@@ -127,12 +127,26 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_sync(args: argparse.Namespace) -> int:
-    out = api.sync(args.action, space=args.space)
+    out = api.sync(args.action, space=args.space,
+                   message=getattr(args, "message", None))
     if args.action == "status":
         for st in out["status"]:
             print(f"  {st['space']:10} clean={st['clean']} ahead={st['ahead']} "
                   f"behind={st['behind']} unstaged={len(st['unstaged'])} "
                   f"untracked={len(st['untracked'])}")
+    elif args.action in ("commit", "commit-push"):
+        if out.get("skipped"):
+            print(f"  skipped: {out['skipped']}")
+        elif out.get("committed"):
+            if out.get("pushed"):
+                tail = " pushed"
+            elif out.get("push_error"):
+                tail = " push-failed (surfaced; local commit kept)"
+            else:
+                tail = ""
+            print(f"  committed {out.get('sha', '')[:9]}{tail}")
+        else:
+            print("  nothing to commit")
     return 0
 
 
@@ -256,6 +270,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         from .service import mcp_stdio  # noqa: F401  (registers on import)
     if args.http:
         from .service import mcp_http   # noqa: F401  (PR-4)
+    # Background subsystem: self-gates on config vault.auto_commit.enabled.
+    from .service import vault_autosync  # noqa: F401  (registers on import)
     return server.run()
 
 
@@ -307,7 +323,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=_cmd_doctor)
 
     s = sub.add_parser("sync")
-    s.add_argument("action", choices=["status", "pull", "push"]); s.add_argument("--space")
+    s.add_argument("action",
+                   choices=["status", "pull", "push", "commit", "commit-push"])
+    s.add_argument("--space")
+    s.add_argument("--message", help="commit subject (commit/commit-push only)")
     s.set_defaults(func=_cmd_sync)
 
     s = sub.add_parser("capture")

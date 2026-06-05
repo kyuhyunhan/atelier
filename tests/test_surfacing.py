@@ -108,3 +108,22 @@ def test_diff_separates_deletions_from_regressions(vault_env: Dict) -> None:
     assert d["removed_count"] == 1
     assert d["regressions"] == 0          # deletion is curation, not omission
     assert d["newly_dark"] == []
+
+
+def test_audit_excludes_navigational_views(vault_env: Dict) -> None:
+    """INDEX/TAXONOMY are generated/navigational views that recall's noise
+    filter can never return — probing them makes them dark BY CONSTRUCTION
+    (observed on the live vault: TAXONOMY was permanently dark). The audit
+    must share recall's noise predicate and skip them entirely."""
+    vault = vault_env["vault"]
+    _accepted(vault, "general", "real",
+              "## Observation\n\nreal learning body words\n")
+    # an absorbed memory-model view: has an entry_id, but is a view, not a learning
+    write_page(vault / "learnings" / "accepted" / "by-topic" / "general" / "TAXONOMY.md",
+               {**_BASE, "entry_id": "tax", "target_topic": "general"},
+               "vocabulary tables\n")
+    api.reindex(full=True)
+
+    snap = _sf.snapshot()
+    assert "tax" not in snap, "views must not be probed (dark by construction)"
+    assert "real" in snap

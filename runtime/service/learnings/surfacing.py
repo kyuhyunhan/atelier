@@ -60,7 +60,9 @@ def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
     if not root.exists():
         return out
     for p in sorted(root.glob("**/*.md")):
-        if p.name == "INDEX.md":
+        # Shared noise predicate with recall: a page recall can never return
+        # must not be probed — it would be dark by construction.
+        if _recall.is_noise(p.name):
             continue
         try:
             fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))

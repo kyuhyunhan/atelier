@@ -241,7 +241,11 @@ def _render(hits: List[Dict[str, Any]], project: Optional[str],
 _GENERATED_STEMS = frozenset({"INDEX", "TAXONOMY"})
 
 
-def _is_noise(slug: str) -> bool:
+def is_noise(slug: str) -> bool:
+    """True for generated/navigational projections (INDEX, TAXONOMY) that must
+    never surface as memory. Public: the single noise predicate shared by the
+    ranking pipeline and the surfacing audit — if recall can never return a
+    page, the audit must not probe it (it would be dark by construction)."""
     name = slug.rsplit("/", 1)[-1]
     stem = name[:-3] if name.endswith(".md") else name
     return stem in _GENERATED_STEMS
@@ -280,7 +284,7 @@ def rank_hits(query: str, project: Optional[str], types: List[str], *,
 
     # Drop generated projections (INDEX/TAXONOMY) regardless of source path —
     # the FTS path does not exclude them the way _fs_scan does.
-    hits = [h for h in hits if not _is_noise(h["slug"])]
+    hits = [h for h in hits if not is_noise(h["slug"])]
 
     query_tokens = frozenset(
         t for t in re.findall(r"\w+", (query or "").lower(), re.UNICODE) if t

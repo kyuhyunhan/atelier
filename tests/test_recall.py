@@ -124,12 +124,12 @@ def test_recall_falls_back_to_working_dir_for_project(atelier_env: Dict) -> None
 
 
 def test_is_noise_excludes_generated_projections() -> None:
-    assert _rc._is_noise("learnings/accepted/by-project/frontend/INDEX.md")
-    assert _rc._is_noise("learnings/accepted/by-topic/general/TAXONOMY.md")
-    assert _rc._is_noise("INDEX")          # fs-scan bare-stem slug
-    assert _rc._is_noise("TAXONOMY")
-    assert not _rc._is_noise("learnings/accepted/by-topic/x/claude-foo.md")
-    assert not _rc._is_noise("claude-foo")
+    assert _rc.is_noise("learnings/accepted/by-project/frontend/INDEX.md")
+    assert _rc.is_noise("learnings/accepted/by-topic/general/TAXONOMY.md")
+    assert _rc.is_noise("INDEX")          # fs-scan bare-stem slug
+    assert _rc.is_noise("TAXONOMY")
+    assert not _rc.is_noise("learnings/accepted/by-topic/x/claude-foo.md")
+    assert not _rc.is_noise("claude-foo")
 
 
 def test_dedup_by_entry_id_keeps_best_ranked_and_passes_eidless() -> None:

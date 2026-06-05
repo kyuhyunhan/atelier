@@ -27,7 +27,11 @@ inspecting a remote.
   2. config-map  — `learnings.project_map` in ~/.atelier/config.yaml
   3. marker      — a `.atelier-project` file, walking up to the git root
   4. vault-self  — working_dir inside the vault → ``atelier-self``
-  5. basename    — ``Path(working_dir).name`` (the local default)
+  5. git-root    — a *linked* git worktree resolves to its MAIN repo's
+                   identity, so every worktree of a repo shares one slug
+                   (still local-only: reads the worktree's `.git` pointer,
+                   never a remote). Primary repos fall through to basename.
+  6. basename    — ``Path(working_dir).name`` (the local default)
 
 `known` reports whether ``learnings/accepted/by-project/<slug>/`` exists,
 so callers can warn loudly when a session's captures won't be recalled
@@ -135,6 +139,49 @@ def _read_marker(wd: Path) -> Optional[str]:
         d = d.parent
 
 
+# ── layer 5: durable git-root identity (linked worktrees) ────────────────────
+
+
+def _git_root_main(wd: Path) -> Optional[Path]:
+    """If `wd` is inside a *linked* git worktree, return the MAIN repo root
+    (the toplevel of the primary worktree). Returns None for a primary repo
+    (where `.git` is a directory — basename already gives a stable slug) or a
+    non-repo dir.
+
+    A linked worktree's `.git` is a *file* pointing at the main repo:
+    ``gitdir: /…/<main>/.git/worktrees/<name>``. The main root is the parent
+    of that ``.git`` component. This is local-only — no remote is consulted."""
+    d = wd
+    while True:
+        dot = d / ".git"
+        if dot.is_file():
+            try:
+                txt = dot.read_text(encoding="utf-8").strip()
+            except OSError:                      # pragma: no cover
+                return None
+            if not txt.startswith("gitdir:"):    # pragma: no cover
+                return None
+            gitdir = Path(txt[len("gitdir:"):].strip())
+            if not gitdir.is_absolute():         # defensive: relative pointer
+                gitdir = (d / gitdir)
+            try:
+                gitdir = gitdir.resolve()
+            except (OSError, RuntimeError):      # pragma: no cover
+                pass
+            parts = gitdir.parts
+            if ".git" not in parts:              # pragma: no cover
+                return None
+            # the ".git" component in gitdir (e.g. /…/main/.git/worktrees/name);
+            # the main root is everything before it.
+            idx = len(parts) - 1 - parts[::-1].index(".git")
+            return Path(*parts[:idx]) if idx > 0 else None
+        if dot.is_dir():                         # primary repo → basename layer
+            return None
+        if d.parent == d:                        # filesystem root
+            return None
+        d = d.parent
+
+
 # ── the accessor ─────────────────────────────────────────────────────────────
 
 
@@ -185,7 +232,15 @@ def resolve_project(working_dir: Optional[str], *,
         except (ValueError, RuntimeError):
             pass
 
-    # 5. basename fallback (the local default).
+    # 5. durable git-root identity — a linked worktree shares the main repo's
+    #    slug (honouring the main root's own marker, then its basename).
+    main_root = _git_root_main(wd)
+    if main_root is not None:
+        slug = _read_marker(main_root) or (main_root.name or None)
+        if slug:
+            return finalize(slug, "git-root")
+
+    # 6. basename fallback (the local default).
     name = wd.name
     if name:
         return finalize(name, "basename")

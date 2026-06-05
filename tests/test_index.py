@@ -72,3 +72,47 @@ def test_classify_page_types():
     assert classify("gorae", "raw/personal/diary/2026/05/15.md", {}) == "raw_source"
     assert classify("workshop", "products/foo/README.md", {}) == "product_readme"
     assert classify("workshop", "products/foo/adr/0001-bar.md", {}) == "product_page"
+
+
+def test_learning_concept_edges_connect_cross_project(vault_env):
+    """Phase 1: a learning becomes a node in the *concept* graph. Two accepted
+    learnings in different projects that share a concept (`touches`) must both
+    emit a `link_type='concept'` edge to that concept, so the corpus connects
+    by idea, not by folder. Deterministic — no LLM, derived from frontmatter."""
+    from runtime.service import api
+    from runtime.util import db
+    from tests.conftest import write_page
+
+    vault = vault_env["vault"]
+    base = {
+        "schema_version": 4, "agent_kind": "claude-code", "status": "accepted",
+        "ac_status": "passed", "observation_kind": "feedback",
+        "captured_at": "2026-01-01T00:00:00Z", "accepted_at": "2026-01-02T00:00:00Z",
+    }
+    write_page(
+        vault / "learnings" / "accepted" / "by-topic" / "architecture" / "a.md",
+        {**base, "entry_id": "aaaa", "target_topic": "architecture",
+         "target_project": "lexio", "touches": ["dependency-direction"]},
+        "## Observation\n\ndepend on protocols, not implementations\n",
+    )
+    write_page(
+        vault / "learnings" / "accepted" / "by-topic" / "layering" / "b.md",
+        {**base, "entry_id": "bbbb", "target_topic": "layering",
+         "target_project": "app", "touches": ["dependency-direction"]},
+        "## Observation\n\ndependencies point inward\n",
+    )
+
+    api.reindex(full=True)
+
+    conn = db.connect()
+    try:
+        rows = conn.execute(
+            "SELECT p.slug FROM links l JOIN pages p ON p.id = l.from_page "
+            "WHERE l.link_type = 'concept' AND l.to_target = ?",
+            ("dependency-direction",),
+        ).fetchall()
+        slugs = {r["slug"] for r in rows}
+        assert any(s.endswith("a.md") for s in slugs), slugs
+        assert any(s.endswith("b.md") for s in slugs), slugs
+    finally:
+        conn.close()

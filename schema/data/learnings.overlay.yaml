@@ -30,6 +30,8 @@ page_types:
     required_fields:
       [schema_version, entry_id, captured_at, agent_kind, hook, status,
        ac_status, observation_kind]
+    # `touches` is intentionally absent here: concept-tagging is a curation
+    # step applied at accept time, not at (cheap, permissive) capture time.
     optional_fields:
       [session_id, working_dir, project_hint, links, ac_results]
     field_specs:
@@ -54,13 +56,17 @@ page_types:
        observation_kind, accepted_at, target_topic]
     optional_fields:
       [session_id, working_dir, project_hint, target_project, links, ac_results,
-       hook]
+       hook, touches]
     field_specs:
       status:           { const: accepted }
       ac_status:        { type: string, enum: [passed] }
       accepted_at:      { type: string, format: date-time }
       target_topic:     { type: string }
       target_project:   { type: string, nullable: true }
+      # touches: concepts this learning is *about*. Indexed as `concept`
+      # graph edges so cross-project learnings sharing an idea connect.
+      # Optional + curator-set; reindex also derives an edge from target_topic.
+      touches:          { type: array, items: { type: string } }
 
   learning_principle:
     path_pattern: "learnings/principles/*.md"
@@ -70,7 +76,8 @@ page_types:
        priority]
     optional_fields:
       [evidence, source_entry_ids, cluster_key, target_topic, accepted_at,
-       proposed_at, links, ac_results, observation_kind, source, source_path]
+       proposed_at, links, ac_results, observation_kind, source, source_path,
+       touches]
     field_specs:
       schema_version: { const: 4 }
       # proposed = dream-cycle draft (NOT injected until promoted);

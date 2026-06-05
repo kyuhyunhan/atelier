@@ -7,10 +7,11 @@ turn. Two sections:
 § A — Principles (priority == always-inject)
    Universal developer ethos. Same in every session, irrespective of cwd.
 
-§ B — Project-specific learnings
-   Walks `learnings/accepted/by-project/<basename(cwd)>/` and emits
-   either the auto-generated INDEX.md (preferred) or a one-line list
-   reconstructed on the fly.
+§ B — Relevant learnings, retrieved by facet (not folder)
+   Scans the canonical accepted pool and selects by the `target_project`
+   frontmatter facet, plus a `related by concept` group for cross-project
+   learnings that explicitly `touches` a shared concept. The by-project
+   tree is never read — project is a signal, not a storage location.
 
 The whole block is truncated to `max_chars` (default 6000). Sections
 shrink in reverse priority — principles never get clipped before
@@ -84,40 +85,79 @@ def _first_rule_line(path: Path) -> Optional[str]:
     return None
 
 
-def _project_index_path(vault: Path, project: str) -> Path:
-    return vault / "learnings" / "accepted" / "by-project" / project / "INDEX.md"
+def _explicit_concepts(fm: Dict[str, Any]) -> set:
+    """The concepts a curator *explicitly* tagged (`touches`). Session-start
+    cross-pollination fires only on these — high-signal, intentional — never on
+    the coarse `target_topic` bucket (which still builds the index graph in
+    reindex, but would over-connect here)."""
+    raw = fm.get("touches")
+    if not isinstance(raw, list):
+        return set()
+    return {c.strip().lower() for c in raw if isinstance(c, str) and c.strip()}
 
 
-def _project_files(vault: Path, project: str) -> List[Path]:
-    root = vault / "learnings" / "accepted" / "by-project" / project
+def _scan_accepted(vault: Path) -> List[Dict[str, Any]]:
+    """Read the canonical accepted pool (by-topic), folder-free w.r.t. project.
+    The by-project tree is never read — project is a frontmatter facet, not a
+    storage location (nervous-system: index by idea, not folder)."""
+    root = vault / "learnings" / "accepted" / "by-topic"
+    items: List[Dict[str, Any]] = []
     if not root.exists():
-        return []
-    return [p for p in sorted(root.glob("*.md")) if p.name != "INDEX.md"]
+        return items
+    for p in sorted(root.glob("**/*.md")):
+        if p.name == "INDEX.md":
+            continue
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:               # pragma: no cover
+            continue
+        items.append({"path": p, "fm": fm})
+    return items
+
+
+def _bullet(vault: Path, it: Dict[str, Any]) -> str:
+    fm = it["fm"]
+    title = fm.get("title") or it["path"].stem
+    topic = fm.get("target_topic") or "general"
+    return (f"- ({topic}) **{title}** — "
+            f"[[{it['path'].relative_to(vault).as_posix()}]]")
 
 
 def _render_project_section(vault: Path, project: str) -> str:
+    """§B — this session's relevant learnings, retrieved by *facet*, not folder.
+    Own = learnings whose `target_project` is this project; a `related by
+    concept` group adds cross-project learnings that explicitly `touches` a
+    concept this project's learnings also touch."""
     if not project:
         return ""
-    index = _project_index_path(vault, project)
-    if index.exists():
-        body = index.read_text(encoding="utf-8")
-        # Strip frontmatter if present.
-        _, body = _parse.split_frontmatter(body)
-        if body.strip():
-            return f"## atelier — learnings for project `{project}`\n\n{body.strip()}"
-    # Fallback: build a list inline.
-    files = _project_files(vault, project)
-    if not files:
+    items = _scan_accepted(vault)
+    if not items:
         return ""
+    own = [it for it in items if it["fm"].get("target_project") == project]
+    own_paths = {it["path"] for it in own}
+    own_concepts: set = set()
+    for it in own:
+        own_concepts |= _explicit_concepts(it["fm"])
+    neighbors = [
+        it for it in items
+        if it["path"] not in own_paths and (own_concepts & _explicit_concepts(it["fm"]))
+    ] if own_concepts else []
+
+    if not own and not neighbors:
+        return ""
+    own_cap, nb_cap = 12, 6
     lines = [f"## atelier — learnings for project `{project}`", ""]
-    for p in files:
-        try:
-            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
-        except Exception:           # pragma: no cover
-            continue
-        title = fm.get("title") or p.stem
-        topic = fm.get("target_topic") or "general"
-        lines.append(f"- ({topic}) **{title}** — [[{p.relative_to(vault).as_posix()}]]")
+    for it in own[:own_cap]:
+        lines.append(_bullet(vault, it))
+    if len(own) > own_cap:                       # no silent truncation
+        lines.append(f"- _({len(own) - own_cap} more not shown)_")
+    if neighbors:
+        lines.append("")
+        lines.append("### related by concept")
+        for it in neighbors[:nb_cap]:
+            lines.append(_bullet(vault, it))
+        if len(neighbors) > nb_cap:
+            lines.append(f"- _({len(neighbors) - nb_cap} more not shown)_")
     return "\n".join(lines)
 
 

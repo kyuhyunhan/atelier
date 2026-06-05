@@ -119,7 +119,7 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
 
     n = 0
     pages = list(conn.execute(
-        "SELECT id, slug FROM pages WHERE space=?", (space,)
+        "SELECT id, slug, page_type, frontmatter FROM pages WHERE space=?", (space,)
     ))
     for p in pages:
         conn.execute("DELETE FROM links WHERE from_page=?", (p["id"],))
@@ -136,7 +136,45 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
                 (p["id"], link.to_target, target_id, link.link_type),
             )
             n += 1
+        # Concept edges — a learning becomes a node in the *concept* graph so
+        # cross-project learnings that share an idea connect (index by idea, not
+        # folder). Deterministic: derived from frontmatter, never an LLM.
+        if (p["page_type"] or "").startswith("learning_"):
+            try:
+                fm = json.loads(p["frontmatter"] or "{}")
+            except (TypeError, ValueError):      # pragma: no cover
+                fm = {}
+            for concept in _concept_targets(fm):
+                target_id = _resolve(by_space, space, concept, alias_index)
+                conn.execute(
+                    "INSERT INTO links(from_page, to_target, to_page_id, link_type) "
+                    "VALUES (?, ?, ?, ?)",
+                    (p["id"], concept, target_id, "concept"),
+                )
+                n += 1
     return n
+
+
+def _concept_targets(fm: dict) -> list[str]:
+    """The concept edges a learning contributes: its explicit `touches` plus
+    its `target_topic`. Deduplicated, order-stable, no LLM, no body re-parse
+    (body `[[...]]` are already extracted as `wikilink` edges)."""
+    items: list[str] = []
+    raw = fm.get("touches")
+    if isinstance(raw, list):
+        items.extend(raw)
+    topic = fm.get("target_topic")
+    if isinstance(topic, str):
+        items.append(topic)
+    out: list[str] = []
+    seen: set[str] = set()
+    for c in items:
+        if isinstance(c, str) and c.strip():
+            key = c.strip()
+            if key.lower() not in seen:
+                seen.add(key.lower())
+                out.append(key)
+    return out
 
 
 def _norm(s: str) -> str:

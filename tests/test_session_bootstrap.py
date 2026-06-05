@@ -152,3 +152,39 @@ def test_unknown_banner_coexists_with_empty_vault_placeholder(
     out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio")
     assert "project_map" in out["markdown"]                 # banner
     assert "no principles or per-project learnings yet" in out["markdown"]
+
+
+# ── Phase 2: cross-cutting via explicit `touches` (folder-free §B) ──────────
+
+
+def test_bootstrap_cross_cuts_on_explicit_touches(atelier_env: Dict) -> None:
+    """A learning captured in project `lexio` that explicitly `touches` a
+    concept should surface in project `app`'s bootstrap when `app` also has a
+    learning touching that concept — connection by idea, not folder."""
+    import yaml as _yaml
+    from runtime.index.parse import split_frontmatter
+
+    a = _accept("app", topic="layering")
+    lx = _accept("lexio", topic="architecture")
+    # `touches` isn't set by accept; tag both canonicals with a shared concept.
+    vault = atelier_env["gorae"]            # librarian-territory == vault root
+    for stem, topic in ((a, "layering"), (lx, "architecture")):
+        p = vault / "learnings" / "accepted" / "by-topic" / topic / f"{stem}.md"
+        fm, body = split_frontmatter(p.read_text())
+        fm["touches"] = ["dependency-direction"]
+        p.write_text("---\n" + _yaml.safe_dump(fm, sort_keys=False) + "---\n" + body)
+
+    out = _bs.bootstrap(working_dir="/Users/me/workspaces/app")
+    md = out["markdown"]
+    assert "related by concept" in md
+    assert "lexio" in md or "architecture" in md   # the cross-project learning shows
+
+
+def test_bootstrap_no_cross_cut_without_touches(atelier_env: Dict) -> None:
+    """Sharing only a coarse `target_topic` must NOT cross-pollinate at session
+    start (that would re-create folder-bucket noise). Isolation holds."""
+    _accept("app", topic="db-tests")
+    _accept("lexio", topic="db-tests")          # same topic, no `touches`
+    out = _bs.bootstrap(working_dir="/Users/me/workspaces/app")
+    assert "related by concept" not in out["markdown"]
+    assert "lexio" not in out["markdown"].lower()

@@ -1,4 +1,4 @@
-# Librarian — Agent Contract
+# Librarian — Role Contract
 
 The Librarian is the steward of the **librarian-territory** space: a personal
 knowledge base of raw sources (diary, writings, domain knowledge) and a derived
@@ -9,9 +9,17 @@ wiki of digests, sources, entities, themes, and syntheses.
 > the user gives to their librarian-territory space in `~/.atelier/config.yaml`
 > — atelier itself is agnostic to that name and resolves it via `role:`.
 
-This document is the **culture-neutral contract**. The user-private voice
-overlay lives at `~/.atelier/voices/librarian.md` and is loaded at session
-start (per `~/.atelier/config.yaml`).
+This document is the **culture-neutral contract**. It is *not* a runtime
+agent — the engine never loads or executes it. The only runtime teeth behind
+"Librarian" are the single-writer locks in `runtime/service/claims.py` (the
+`librarian-write` role): they enforce who may write the librarian-territory
+regardless of this file. Everything below is a **role contract** for whoever
+fills the role — a human, a Claude session, or a user-authored skill.
+
+The user-private voice overlay at `~/.atelier/voices/librarian.md` is a
+**reserved convention**: its presence is checked by `atelier doctor` (D3),
+but the engine does not auto-load it. Adopting the voice is the caller's
+choice, not an automatic behavior.
 
 ---
 

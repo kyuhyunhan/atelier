@@ -85,6 +85,17 @@ can be deleted at any time and rebuilt from Layer 2 via `atelier reindex`.
 Single-writer per space is the integrity invariant. Promotion from workshop
 → wiki always passes through Librarian via the promote pipeline.
 
+> **Stewards are role labels, not runtime agents.** "Librarian" and "Builder"
+> are *not* autonomous processes the engine spawns or loads — the engine never
+> reads `agents/*.md`. Their only runtime teeth are the single-writer locks in
+> `runtime/service/claims.py` (the `librarian-write` / `builder-write` roles).
+> The contracts in `agents/` describe the *responsibilities and voice* of
+> whoever fills a role — a human, a Claude session, or a user-authored skill —
+> while `claims.py` enforces the one invariant that must hold no matter who
+> writes: one writer per space. Procedural knowledge ("how to ingest", "how to
+> log an ADR") is intended to live as user-authored **skills**, not baked into
+> an engine agent.
+
 ---
 
 ## Data Flow
@@ -175,8 +186,12 @@ learnings/
   Signal/noise separation is still deferred to promotion.
 - **tier 2 (accepted)** — promoted by a curator through
   `atelier_learning_accept`, gated by `criteria.yaml` (must/should/
-  forbidden). The canonical copy lives under `by-topic/`; a mirror under
-  `by-project/<n>/` makes project-scoped recall cheap.
+  forbidden). The canonical copy lives under `by-topic/`; `by-project/<n>/`
+  is a **generated view**, not a source — retrieval (recall, bootstrap §B)
+  selects on the `target_project` *facet*, never the folder, and the whole
+  `by-project/` tree is regenerable from canonical via the reconcile routine
+  (delete it and `repair()` reproduces it). Project is a derived facet, not a
+  placement decision.
 - **tier 3 (principles)** — generalizations that hold across projects.
   `priority: always-inject` principles are surfaced at *every* session
   start; this is the highest-authority, highest-blast-radius tier, so it
@@ -209,6 +224,30 @@ the user does not — while a `SessionStart` `systemMessage` hook
 (`scripts/hooks/session-nudge.sh`) and the statusline wrapper
 (`scripts/hooks/statusline-atelier.sh`, backed by `atelier dream --status`)
 surface the dream nudge to the *user*.
+
+### Surfacing audit — retrieval observability (the omission instrument)
+
+A nervous-system memory reorganizes itself, and the dangerous failure of that
+is **silent omission**: a learning that quietly stops surfacing where it used
+to matter. A git diff shows what *moved* on disk; it cannot show what stopped
+being *recalled*. `runtime/service/learnings/surfacing.py` is the missing
+instrument (tool: `atelier_learning_surfacing_audit`).
+
+The probe is **self-referential and deterministic** (no LLM, no query history):
+for each accepted learning, query recall with *its own concept* (`touches` +
+`target_topic`) and check whether it still appears in its own top-K. A learning
+that cannot be found by its own concept has gone **dark**. `snapshot()` captures
+this; `diff()` compares two snapshots so any reorganization can be audited in
+*behavior*, not just content — `newly_dark` is the signal that matters.
+
+This is the safety mechanism that must exist *before* a self-reorganizing
+mutator (lateral re-clustering / merge / retire) is built: you cannot safely
+reorganize what you cannot observe. It is also useful standalone — it finds
+accumulated learnings that have *already* gone unreachable (dead memory). The
+mutator itself is deliberately deferred until it can be governed against this
+audit (low-risk moves self-gated on own-concept visibility; high-blast-radius
+merges human-gated, mirroring the dream cycle's `cluster → synthesize → human
+promote` split).
 
 ### Dream cycle — automated principle synthesis
 

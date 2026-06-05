@@ -183,3 +183,15 @@ def test_inject_preview_cli_renders_bootstrap_and_recall(
     assert "session-start bootstrap" in out
     assert "per-turn recall" in out
     assert "relevant memory" in out
+
+
+def test_recall_concept_overlap_boosts(atelier_env):
+    """A learning whose `touches` concept appears in the query gets boosted even
+    when its body barely matches lexically — the concept-index retrieval payoff."""
+    from runtime.service.learnings import recall as _rc
+    fm = {"touches": ["dependency-direction"], "target_topic": "architecture"}
+    base = _rc._boost({"score": 0.0, "fm": {}, "page_type": "learning_accepted"},
+                      None, frozenset({"dependency"}))
+    boosted = _rc._boost({"score": 0.0, "fm": fm, "page_type": "learning_accepted"},
+                         None, frozenset({"dependency"}))
+    assert boosted < base   # lower score = ranked higher

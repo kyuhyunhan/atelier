@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS links (
   from_page  INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
   to_target  TEXT    NOT NULL,           -- raw wikilink string as written in markdown
   to_page_id INTEGER REFERENCES pages(id) ON DELETE SET NULL,  -- NULL = broken link
-  link_type  TEXT    NOT NULL            -- 'wikilink' | 'gorae' | 'workshop'
+  link_type  TEXT    NOT NULL            -- 'wikilink' | 'gorae' | 'workshop' | 'concept'
 );
 
 CREATE TABLE IF NOT EXISTS entities (

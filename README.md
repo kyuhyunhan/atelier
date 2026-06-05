@@ -21,7 +21,7 @@ Three layers, two stewards.
 
 **Layers**
 
-- **Layer 1 — `atelier`** (this repo): the engine. Schemas, agent contracts,
+- **Layer 1 — `atelier`** (this repo): the engine. Schemas, role contracts,
   runtime, sync adapters, lint rules. Culture-neutral, distributable, content-agnostic.
 - **Layer 2 — content** (private per-user): markdown corpora in your own private
   GitHub repos (or any git host) + asset stores. Owned by you; never enters

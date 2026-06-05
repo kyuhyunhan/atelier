@@ -96,6 +96,10 @@ def plan_tags(*, suggest: int = DEFAULT_SUGGESTIONS) -> Dict[str, Any]:
     for l in learnings:
         if not l.touches:
             skip = _topic_tokens(l.topic, l.project)
+            # `suggestions` may legitimately be EMPTY (every salient term was a
+            # topic/project token): the engine cannot help there — the live
+            # agent must read the body and derive tags itself. The entry still
+            # appears in `untagged` because it still needs tags (review Q2).
             ranked = sorted(
                 (t for t in l.terms if t not in skip),
                 key=lambda t: (df[t], t),          # rarest first, then stable
@@ -132,18 +136,22 @@ def _insert_touches(path: Path, tags: List[str]) -> bool:
     """Textually insert a `touches:` block before the closing frontmatter
     fence. Minimal-diff by design (no YAML round-trip — the vault's files are
     user content; re-serializing would churn them cosmetically). Idempotent:
-    refuses when a touches block already exists."""
+    refuses when a touches block already exists anywhere in the frontmatter
+    (the guard scans up to the closing fence, never a fixed line window — a
+    capped scan double-inserted on long frontmatter; review M1)."""
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     if not lines or not lines[0].startswith("---"):
         return False
-    if any(l.startswith("touches:") for l in lines[:80]):
+    fence = next((i for i in range(1, len(lines))
+                  if lines[i].rstrip() == "---"), None)
+    if fence is None:
+        return False                # pragma: no cover - malformed frontmatter
+    if any(l.startswith("touches:") for l in lines[1:fence]):
         return False
-    for i in range(1, len(lines)):
-        if lines[i].rstrip() == "---":
-            lines.insert(i, "touches:\n" + "".join(f"- {t}\n" for t in tags))
-            path.write_text("".join(lines), encoding="utf-8")
-            return True
-    return False                    # pragma: no cover - malformed frontmatter
+    block = ["touches:\n"] + [f"- {t}\n" for t in tags]
+    lines[fence:fence] = block
+    path.write_text("".join(lines), encoding="utf-8")
+    return True
 
 
 def apply_tags(mapping: Dict[str, List[str]],
@@ -157,11 +165,20 @@ def apply_tags(mapping: Dict[str, List[str]],
     3. reindex (markdown → DB; concept edges rebuilt)
     4. surfacing snapshot (after) → diff — `newly_dark` is the omission guard
        and is part of the return contract; a caller MUST look at it.
+
+    Result counters: `applied` (canonical written), `skipped` (already had
+    touches), `fully_rejected` (every tag failed the echo gate — nothing
+    written), `unknown` (entry_id not in the corpus), `rejected` (per-entry
+    tags dropped by the gate, regardless of counter).
     """
     from .. import api as _api
     kw = {"probe_k": probe_k} if probe_k is not None else {}
 
     vault = _vault_root()
+    # Concurrency note: the MCP tool layer serializes callers via the CURATOR
+    # writer lock, so no accept/apply can interleave between this snapshot and
+    # load_accepted below. Direct in-process callers (scripts, tests) must not
+    # run concurrent curator writes — same rule as every curator entry point.
     before = _surfacing.snapshot(**kw)
 
     learnings = {l.entry_id: l for l in _cluster.load_accepted(vault)}
@@ -179,7 +196,7 @@ def apply_tags(mapping: Dict[str, List[str]],
                 continue
             mirrors.setdefault(str(fm.get("entry_id")), []).append(p)
 
-    applied = skipped = 0
+    applied = skipped = fully_rejected = 0
     rejected: Dict[str, List[str]] = {}
     unknown: List[str] = []
     for eid, tags in mapping.items():
@@ -193,6 +210,9 @@ def apply_tags(mapping: Dict[str, List[str]],
         if bad:
             rejected[eid] = bad
         if not good:
+            # every tag failed the echo gate — make that loudly countable
+            # rather than folding it into applied/skipped silence (review S1).
+            fully_rejected += 1
             continue
         if _insert_touches(l.path, good):
             applied += 1
@@ -209,6 +229,7 @@ def apply_tags(mapping: Dict[str, List[str]],
     return {
         "applied": applied,
         "skipped": skipped,
+        "fully_rejected": fully_rejected,
         "rejected": rejected,
         "unknown": unknown,
         "diff": diff,
@@ -236,6 +257,10 @@ def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> Dict[str, Any]:
             x = parent[x]
         return x
 
+    # O(n²) pairwise comparison — acceptable to roughly ~2K learnings (today's
+    # corpus is in the hundreds; the mutator runs in infrequent batches). Past
+    # that, pre-filter pairs with an inverted term→learnings index so only
+    # pairs sharing ≥1 salient term are compared (review S2).
     pair_overlap: Dict[frozenset, float] = {}
     for i, a in enumerate(learnings):
         for b in learnings[i + 1:]:

@@ -500,7 +500,8 @@ async def _h_lateral_plan(suggest: int = 4,
                           overlap: float = 0.7) -> Dict[str, Any]:
     """Lateral mutator tee-up (read-only, deterministic): untagged learnings
     with body-derived tag suggestions, inert existing tags, and flag-only
-    near-duplicate groups. The live agent refines; apply enforces the gates."""
+    near-duplicate groups. The live agent refines; apply enforces the gates.
+    Returns {"tags": plan_tags() result, "merges": plan_merges() result}."""
     from .learnings import lateral as _lat
     return {"tags": _lat.plan_tags(suggest=suggest),
             "merges": _lat.plan_merges(overlap=overlap)}

@@ -155,3 +155,61 @@ def test_lateral_mcp_dispatch(vault_env: Dict) -> None:
         "atelier_lateral_apply", mapping={"untagged": ["keychain"]}))
     assert out["applied"] == 1
     assert out["diff"]["newly_dark"] == []
+
+
+# ── review round 1: M1 + S3 + S4 ────────────────────────────────────────────
+
+
+def test_insert_touches_idempotent_on_long_frontmatter(vault_env: Dict) -> None:
+    """M1: the idempotency guard must scan the WHOLE frontmatter, not a fixed
+    line window — touches sitting past line 80 must still block a re-insert
+    (the bug double-inserted a second touches block)."""
+    vault = vault_env["vault"]
+    p = vault / "learnings" / "accepted" / "by-topic" / "client" / "long.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fm = (["---"] + [f"field_{i}: {i}" for i in range(85)]
+          + ["entry_id: long", "target_topic: client",
+             "touches:", "- keychain", "---"])
+    p.write_text("\n".join(fm) + "\nkeychain body\n")
+
+    assert _lat._insert_touches(p, ["keychain"]) is False
+    assert p.read_text().count("touches:") == 1
+
+
+def test_apply_reports_unknown_and_fully_rejected(vault_env: Dict) -> None:
+    """S1+S3: an unknown entry_id and a fully-rejected mapping must each be
+    visible in the result — not folded into applied/skipped silence."""
+    vault = vault_env["vault"]
+    _accepted(vault, "client", "real",
+              "## Observation\n\npasteboard capture body\n")
+    api.reindex(full=True)
+
+    out = _lat.apply_tags({"ghost-id": ["pasteboard"],
+                           "real": ["quantum-flux"]})       # zero body echo
+    assert out["unknown"] == ["ghost-id"]
+    assert out["applied"] == 0 and out["skipped"] == 0
+    assert out["fully_rejected"] == 1
+    assert out["rejected"]["real"] == ["quantum-flux"]
+
+
+def test_apply_tags_mirrors_receive_tags(vault_env: Dict) -> None:
+    """S4: the by-project mirror must receive the same touches as the
+    canonical — a tag applied to one but not the other causes a surfacing
+    discrepancy between the retrieval paths."""
+    import yaml as _yaml
+    vault = vault_env["vault"]
+    _accepted(vault, "client", "mm",
+              "## Observation\n\nkeychain sensitive token body\n",
+              project="lexio")
+    mirror = (vault / "learnings" / "accepted" / "by-project" / "lexio" /
+              "mm.md")
+    canonical = (vault / "learnings" / "accepted" / "by-topic" / "client" /
+                 "mm.md")
+    mirror.parent.mkdir(parents=True, exist_ok=True)
+    mirror.write_text(canonical.read_text())
+    api.reindex(full=True)
+
+    out = _lat.apply_tags({"mm": ["keychain"]})
+    assert out["applied"] == 1
+    assert "- keychain" in canonical.read_text()
+    assert "- keychain" in mirror.read_text()

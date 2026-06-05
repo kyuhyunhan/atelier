@@ -68,12 +68,16 @@ def _vault_root() -> Path:
 
 
 @dataclass
-class _Learning:
+class Learning:
+    """One accepted learning as loaded from the canonical by-topic markdown.
+    Public: shared by the dream cycle (cluster) and the lateral mutator."""
     slug: str
     project: str
     topic: str
     entry_id: str
     terms: Set[str]
+    touches: List[str]
+    path: Path
 
 
 @dataclass
@@ -104,7 +108,7 @@ def _strip_markdown_headers(text: str) -> str:
     )
 
 
-def _salient_terms(text: str) -> Set[str]:
+def salient_terms(text: str) -> Set[str]:
     out: Set[str] = set()
     for m in _WORD_RX.finditer(_strip_markdown_headers(text).lower()):
         w = m.group(0)
@@ -114,33 +118,41 @@ def _salient_terms(text: str) -> Set[str]:
     return out
 
 
-def _load_accepted(vault: Path) -> List[_Learning]:
+def load_accepted(vault: Path) -> List[Learning]:
     """Read accepted learnings from the canonical by-topic markdown.
 
     Markdown is the source of truth; the dream cycle runs infrequently
     (batch), so we read the filesystem directly rather than the DB
     projection — this avoids missing learnings that were accepted since
-    the last `reindex`.
+    the last `reindex`. Public: shared by cluster() and the lateral mutator.
+    Navigational views (INDEX/TAXONOMY) are excluded via recall's shared
+    noise predicate — they are projections, not learnings.
     """
     from ...index import parse as _parse
-    learnings: List[_Learning] = []
+    from . import recall as _recall
+    learnings: List[Learning] = []
     root = vault / "learnings" / "accepted" / "by-topic"
     if not root.exists():
         return []
     for p in sorted(root.rglob("*.md")):
-        if p.name == "INDEX.md":
+        if _recall.is_noise(p.name):
             continue
         try:
             fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
         except Exception:
             continue
-        terms = _salient_terms((fm.get("title") or "") + " " + body)
-        learnings.append(_Learning(
+        terms = salient_terms((fm.get("title") or "") + " " + body)
+        raw_touches = fm.get("touches")
+        touches = [t for t in raw_touches if isinstance(t, str)] \
+            if isinstance(raw_touches, list) else []
+        learnings.append(Learning(
             slug=p.stem,
             project=str(fm.get("target_project") or fm.get("project_hint") or ""),
             topic=str(fm.get("target_topic") or ""),
             entry_id=str(fm.get("entry_id") or p.stem),
             terms=terms,
+            touches=touches,
+            path=p,
         ))
     return learnings
 
@@ -151,7 +163,7 @@ def _cluster_key(entry_ids: List[str]) -> str:
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
 
-def _jaccard(a: Set[str], b: Set[str]) -> float:
+def jaccard(a: Set[str], b: Set[str]) -> float:
     if not a and not b:
         return 1.0
     inter = len(a & b)
@@ -180,7 +192,7 @@ def cluster(*, min_shared_terms: int = 2,
     clusters (sorted members, content-hash keys, stable seed ordering).
     """
     vault = _vault_root()
-    items = _load_accepted(vault)
+    items = load_accepted(vault)
     n = len(items)
 
     # term → indices of learnings containing it
@@ -219,7 +231,7 @@ def cluster(*, min_shared_terms: int = 2,
         member_id_set = set(entry_ids)
 
         # Skip if highly overlapping with an already-emitted cluster.
-        if any(_jaccard(member_id_set, prev) >= dedup_jaccard
+        if any(jaccard(member_id_set, prev) >= dedup_jaccard
                for prev in emitted_member_sets):
             continue
 

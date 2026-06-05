@@ -171,7 +171,9 @@ def _git_root_main(wd: Path) -> Optional[Path]:
             parts = gitdir.parts
             if ".git" not in parts:              # pragma: no cover
                 return None
-            idx = len(parts) - 1 - parts[::-1].index(".git")  # last ".git"
+            # the ".git" component in gitdir (e.g. /…/main/.git/worktrees/name);
+            # the main root is everything before it.
+            idx = len(parts) - 1 - parts[::-1].index(".git")
             return Path(*parts[:idx]) if idx > 0 else None
         if dot.is_dir():                         # primary repo → basename layer
             return None

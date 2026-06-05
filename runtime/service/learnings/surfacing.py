@@ -22,6 +22,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ...util import config as _config
 from ...index import parse as _parse
 from . import recall as _recall
 
@@ -32,23 +33,23 @@ DEFAULT_PROBE_K = 10
 _TYPES = ["learning_principle", "learning_accepted"]
 
 
+def _vault_root() -> Path:
+    """Mirror the per-module `_vault_root` convention rather than reach into
+    recall's private helper (keeps the audit decoupled from recall internals)."""
+    cfg = _config.load()
+    if cfg.vault is not None:
+        return cfg.vault.local
+    return cfg.space_by_role("librarian-territory").local
+
+
 def _concept_probe(fm: Dict[str, Any]) -> str:
     """The query that asks 'can this learning be found by what it is about?' —
-    its `touches` concepts plus `target_topic`, split into words. Falls back to
-    the title when a learning carries no concept tags."""
-    parts: List[str] = []
-    raw = fm.get("touches")
-    if isinstance(raw, list):
-        parts.extend(c for c in raw if isinstance(c, str))
-    topic = fm.get("target_topic")
-    if isinstance(topic, str):
-        parts.append(topic)
-    if not parts and isinstance(fm.get("title"), str):
-        parts.append(fm["title"])
-    words: List[str] = []
-    for p in parts:
-        words.extend(w for w in re.split(r"[\s\-_/]+", p) if w)
-    return " ".join(words)
+    its `touches` concepts plus `target_topic`. Reuses recall's shared tokenizer
+    so the split can't drift; falls back to the title when there are no tags."""
+    toks = _recall.concept_tokens(fm)
+    if not toks and isinstance(fm.get("title"), str):
+        toks = [w for w in _recall._CONCEPT_SPLIT.split(fm["title"].lower()) if w]
+    return " ".join(toks)
 
 
 def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
@@ -81,14 +82,19 @@ def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
 def snapshot(*, probe_k: int = DEFAULT_PROBE_K) -> Dict[str, Dict[str, Any]]:
     """Map entry_id → {visible, rank, probe, project, topic, title}. `rank` is
     the 0-based position a learning occupies when searched by its own concept,
-    or None when it does not appear within `probe_k` (i.e. it is dark)."""
-    vault = _recall._vault_root()
+    or None when it does not appear within `probe_k` (i.e. it is dark).
+
+    The probe runs *without* a project boost (project=None): the audit measures
+    pure concept-findability, independent of which project context happens to be
+    active, so a learning cannot look reachable merely because its own project
+    is being boosted. A stricter, context-free omission signal."""
+    vault = _vault_root()
     snap: Dict[str, Dict[str, Any]] = {}
     for it in _enumerate_accepted(vault):
         eid, probe = it["entry_id"], it["probe"]
         rank: Optional[int] = None
         if probe.strip():
-            hits = _recall._rank_hits(probe, it["project"], _TYPES, top_k=probe_k)
+            hits = _recall.rank_hits(probe, None, _TYPES, top_k=probe_k, vault=vault)
             for i, h in enumerate(hits):
                 if str((h.get("fm") or {}).get("entry_id")) == eid:
                     rank = i
@@ -150,11 +156,15 @@ def diff(before: Dict[str, Dict[str, Any]],
             rank_drops.append({"entry_id": eid, "title": a["title"],
                                "from": b["rank"], "to": a["rank"]})
 
-    dropped = [eid for eid in before if eid not in after]
+    removed = [eid for eid in before if eid not in after]
     return {
         "newly_dark": newly_dark,
         "newly_visible": newly_visible,
         "rank_drops": rank_drops,
-        "removed": dropped,
-        "regressions": len(newly_dark) + len(dropped),
+        "removed": removed,
+        "removed_count": len(removed),
+        # Retrieval regressions only. Deletions (`removed`) are intentional
+        # curation, not omission — the caller decides whether to treat them as
+        # a concern, so they are reported separately rather than rolled in.
+        "regressions": len(newly_dark),
     }

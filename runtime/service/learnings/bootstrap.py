@@ -145,14 +145,19 @@ def _render_project_section(vault: Path, project: str) -> str:
 
     if not own and not neighbors:
         return ""
+    own_cap, nb_cap = 12, 6
     lines = [f"## atelier — learnings for project `{project}`", ""]
-    for it in own[:12]:
+    for it in own[:own_cap]:
         lines.append(_bullet(vault, it))
+    if len(own) > own_cap:                       # no silent truncation
+        lines.append(f"- _({len(own) - own_cap} more not shown)_")
     if neighbors:
         lines.append("")
         lines.append("### related by concept")
-        for it in neighbors[:6]:
+        for it in neighbors[:nb_cap]:
             lines.append(_bullet(vault, it))
+        if len(neighbors) > nb_cap:
+            lines.append(f"- _({len(neighbors) - nb_cap} more not shown)_")
     return "\n".join(lines)
 
 

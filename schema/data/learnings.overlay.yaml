@@ -30,6 +30,8 @@ page_types:
     required_fields:
       [schema_version, entry_id, captured_at, agent_kind, hook, status,
        ac_status, observation_kind]
+    # `touches` is intentionally absent here: concept-tagging is a curation
+    # step applied at accept time, not at (cheap, permissive) capture time.
     optional_fields:
       [session_id, working_dir, project_hint, links, ac_results]
     field_specs:

@@ -91,3 +91,20 @@ def test_surfacing_audit_mcp_dispatch(vault_env: Dict) -> None:
     out = asyncio.run(_tools.invoke("atelier_learning_surfacing_audit"))
     assert "dark" in out and "total" in out
     assert out["total"] == 1
+
+
+def test_diff_separates_deletions_from_regressions(vault_env: Dict) -> None:
+    """A curated deletion (in `before`, gone from `after`) is reported under
+    `removed`, NOT counted as a retrieval regression — else every retire pass
+    would raise a false alarm (review SHOULD-3)."""
+    before = {"keep": {"visible": True, "rank": 0, "title": "K", "project": "p",
+                       "probe": "k"},
+              "gone": {"visible": True, "rank": 1, "title": "G", "project": "p",
+                       "probe": "g"}}
+    after = {"keep": {"visible": True, "rank": 0, "title": "K", "project": "p",
+                      "probe": "k"}}
+    d = _sf.diff(before, after)
+    assert d["removed"] == ["gone"]
+    assert d["removed_count"] == 1
+    assert d["regressions"] == 0          # deletion is curation, not omission
+    assert d["newly_dark"] == []

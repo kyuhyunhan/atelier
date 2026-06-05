@@ -151,10 +151,16 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     return out
 
 
-def _concept_tokens(fm: Dict[str, Any]) -> set:
-    """Tokens of the concepts a learning is *about* (`touches` + `target_topic`),
-    split on slug separators so `dependency-direction` matches a query word
-    `dependency`. Deterministic — mirrors reindex's concept edges."""
+# Slug separators — the one place concept strings are tokenized, shared by
+# ranking (_boost) and the surfacing audit so the split can never drift.
+_CONCEPT_SPLIT = re.compile(r"[\s\-_/]+")
+
+
+def concept_tokens(fm: Dict[str, Any]) -> List[str]:
+    """Ordered tokens of the concepts a learning is *about* (`touches` +
+    `target_topic`), split on slug separators so `dependency-direction` matches
+    a query word `dependency`. Deterministic — mirrors reindex's concept edges.
+    Public: the surfacing audit shares this tokenizer."""
     concepts: List[str] = []
     raw = fm.get("touches")
     if isinstance(raw, list):
@@ -162,9 +168,9 @@ def _concept_tokens(fm: Dict[str, Any]) -> set:
     topic = fm.get("target_topic")
     if isinstance(topic, str):
         concepts.append(topic)
-    toks: set = set()
+    toks: List[str] = []
     for c in concepts:
-        toks.update(t for t in re.split(r"[\s\-_/]+", c.lower()) if t)
+        toks.extend(t for t in _CONCEPT_SPLIT.split(c.lower()) if t)
     return toks
 
 
@@ -182,7 +188,7 @@ def _boost(hit: Dict[str, Any], project: Optional[str],
     # Concept-overlap: the learning is *about* something the query names, even
     # if the body doesn't lexically match. This is the retrieval payoff of the
     # concept index — surfacing by idea, not just by word. No LLM.
-    if query_tokens and (_concept_tokens(fm) & query_tokens):
+    if query_tokens and (set(concept_tokens(fm)) & query_tokens):
         score -= 0.75
     if hit["page_type"] == "learning_principle":
         score -= 0.5
@@ -258,14 +264,16 @@ def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def _rank_hits(query: str, project: Optional[str], types: List[str], *,
-               top_k: int,
-               relevance_threshold: Optional[float] = None) -> List[Dict[str, Any]]:
+def rank_hits(query: str, project: Optional[str], types: List[str], *,
+              top_k: int,
+              relevance_threshold: Optional[float] = None,
+              vault: Optional[Path] = None) -> List[Dict[str, Any]]:
     """The shared ranking pipeline: FTS (→ fs fallback) → noise filter → boost
     → sort → dedup → top-K. Returns hits *with* their `fm` (so callers that need
     entry_id — e.g. the surfacing audit — can match), not rendered summaries.
-    Single source of retrieval order, shared by recall() and surfacing."""
-    vault = _vault_root()
+    Single source of retrieval order, shared by recall() and surfacing. Pass
+    `vault` to avoid a redundant config read when the caller already has it."""
+    vault = vault if vault is not None else _vault_root()
     hits = _fts_search(query, types, limit=top_k * 4)
     if not hits:
         hits = _fs_scan(query, vault, types, limit=top_k * 4)
@@ -309,8 +317,8 @@ def recall(*, query: str,
         return {"query": query, "project": project, "count": 0,
                 "items": [], "markdown": ""}
 
-    hits = _rank_hits(query, project, types, top_k=top_k,
-                      relevance_threshold=relevance_threshold)
+    hits = rank_hits(query, project, types, top_k=top_k,
+                     relevance_threshold=relevance_threshold, vault=vault)
     summaries = [_summarize_hit(vault, h) for h in hits]
     markdown = _render(summaries, project, max_chars)
 

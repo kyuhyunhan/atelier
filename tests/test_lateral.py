@@ -238,7 +238,6 @@ def test_apply_counts_pretagged_diverging_mirror(vault_env: Dict) -> None:
     # mirror diverges: it is already tagged while the canonical is not
     mirror.write_text(canonical.read_text().replace(
         "target_topic: client", "target_topic: client\ntouches:\n- keychain"))
-    api.reindex(full=True)
 
     out = _lat.apply_tags({"dv": ["keychain"]})
     assert out["applied"] == 1

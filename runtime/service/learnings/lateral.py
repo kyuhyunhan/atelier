@@ -170,8 +170,10 @@ def apply_tags(mapping: Dict[str, List[str]],
 
     Result counters: `applied` (canonical written), `skipped` (already had
     touches), `fully_rejected` (every tag failed the echo gate — nothing
-    written), `unknown` (entry_id not in the corpus), `rejected` (per-entry
-    tags dropped by the gate, regardless of counter).
+    written), `mirror_skipped` (a pre-tagged mirror diverging from its
+    canonical — reconcile is the repair path), `unknown` (entry_id not in the
+    corpus), `rejected` (per-entry tags dropped by the gate, regardless of
+    counter).
     """
     from .. import api as _api
     kw = {"probe_k": probe_k} if probe_k is not None else {}

@@ -488,6 +488,14 @@ async def _h_recall(query: str,
                        relevance_threshold=relevance_threshold)
 
 
+async def _h_surfacing_audit(probe_k: int = 10) -> Dict[str, Any]:
+    """Read-only retrieval observability: which accepted learnings can no longer
+    be found by their *own* concept (gone dark). The instrument that makes
+    silent omission visible — a content diff cannot show what stopped surfacing."""
+    from .learnings import surfacing as _sf
+    return _sf.audit(probe_k=probe_k)
+
+
 async def _h_learning_cluster(min_shared_terms: int = 3,
                                min_size: int = 2,
                                min_projects: int = 2,
@@ -798,6 +806,13 @@ def _register_v01_tools() -> None:
         "Returns top-K learnings ranked by FTS5 relevance to the query, "
         "with a project-match boost.",
         _h_recall,
+    ))
+    register(ToolDef(
+        "atelier_learning_surfacing_audit",
+        "Retrieval observability — list accepted learnings that can no longer "
+        "be found by their own concept (gone 'dark'). Read-only; makes silent "
+        "omission visible before a self-reorganization pass.",
+        _h_surfacing_audit,
     ))
     register(ToolDef(
         "atelier_learning_cluster",

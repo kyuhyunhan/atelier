@@ -258,25 +258,14 @@ def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def recall(*, query: str,
-           project: Optional[str] = None,
-           top_k: int = 5,
-           max_chars: int = 1500,
-           include_candidates: bool = False,
-           relevance_threshold: Optional[float] = None,
-           ) -> Dict[str, Any]:
-    """Return top-K learnings relevant to `query` (one prompt's worth)."""
+def _rank_hits(query: str, project: Optional[str], types: List[str], *,
+               top_k: int,
+               relevance_threshold: Optional[float] = None) -> List[Dict[str, Any]]:
+    """The shared ranking pipeline: FTS (→ fs fallback) → noise filter → boost
+    → sort → dedup → top-K. Returns hits *with* their `fm` (so callers that need
+    entry_id — e.g. the surfacing audit — can match), not rendered summaries.
+    Single source of retrieval order, shared by recall() and surfacing."""
     vault = _vault_root()
-    types = ["learning_principle", "learning_accepted"]
-    if include_candidates:
-        types.append("learning_candidate")
-
-    # Empty query → no recall (the caller's prompt was empty; nothing to
-    # match on, so the fallback scan would otherwise dump everything).
-    if not (query or "").strip():
-        return {"query": query, "project": project, "count": 0,
-                "items": [], "markdown": ""}
-
     hits = _fts_search(query, types, limit=top_k * 4)
     if not hits:
         hits = _fs_scan(query, vault, types, limit=top_k * 4)
@@ -298,7 +287,30 @@ def recall(*, query: str,
     # Collapse the by-topic / by-project duplicate pair before truncating, so
     # a dropped duplicate never crowds a distinct learning out of the top-K.
     hits = _dedup_by_entry_id(hits)
-    hits = hits[:top_k]
+    return hits[:top_k]
+
+
+def recall(*, query: str,
+           project: Optional[str] = None,
+           top_k: int = 5,
+           max_chars: int = 1500,
+           include_candidates: bool = False,
+           relevance_threshold: Optional[float] = None,
+           ) -> Dict[str, Any]:
+    """Return top-K learnings relevant to `query` (one prompt's worth)."""
+    vault = _vault_root()
+    types = ["learning_principle", "learning_accepted"]
+    if include_candidates:
+        types.append("learning_candidate")
+
+    # Empty query → no recall (the caller's prompt was empty; nothing to
+    # match on, so the fallback scan would otherwise dump everything).
+    if not (query or "").strip():
+        return {"query": query, "project": project, "count": 0,
+                "items": [], "markdown": ""}
+
+    hits = _rank_hits(query, project, types, top_k=top_k,
+                      relevance_threshold=relevance_threshold)
     summaries = [_summarize_hit(vault, h) for h in hits]
     markdown = _render(summaries, project, max_chars)
 

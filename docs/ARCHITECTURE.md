@@ -225,6 +225,30 @@ the user does not — while a `SessionStart` `systemMessage` hook
 (`scripts/hooks/statusline-atelier.sh`, backed by `atelier dream --status`)
 surface the dream nudge to the *user*.
 
+### Surfacing audit — retrieval observability (the omission instrument)
+
+A nervous-system memory reorganizes itself, and the dangerous failure of that
+is **silent omission**: a learning that quietly stops surfacing where it used
+to matter. A git diff shows what *moved* on disk; it cannot show what stopped
+being *recalled*. `runtime/service/learnings/surfacing.py` is the missing
+instrument (tool: `atelier_learning_surfacing_audit`).
+
+The probe is **self-referential and deterministic** (no LLM, no query history):
+for each accepted learning, query recall with *its own concept* (`touches` +
+`target_topic`) and check whether it still appears in its own top-K. A learning
+that cannot be found by its own concept has gone **dark**. `snapshot()` captures
+this; `diff()` compares two snapshots so any reorganization can be audited in
+*behavior*, not just content — `newly_dark` is the signal that matters.
+
+This is the safety mechanism that must exist *before* a self-reorganizing
+mutator (lateral re-clustering / merge / retire) is built: you cannot safely
+reorganize what you cannot observe. It is also useful standalone — it finds
+accumulated learnings that have *already* gone unreachable (dead memory). The
+mutator itself is deliberately deferred until it can be governed against this
+audit (low-risk moves self-gated on own-concept visibility; high-blast-radius
+merges human-gated, mirroring the dream cycle's `cluster → synthesize → human
+promote` split).
+
 ### Dream cycle — automated principle synthesis
 
 Manually authoring principles does not scale. The **dream cycle** automates

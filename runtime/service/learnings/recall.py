@@ -151,7 +151,25 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     return out
 
 
-def _boost(hit: Dict[str, Any], project: Optional[str]) -> float:
+def _concept_tokens(fm: Dict[str, Any]) -> set:
+    """Tokens of the concepts a learning is *about* (`touches` + `target_topic`),
+    split on slug separators so `dependency-direction` matches a query word
+    `dependency`. Deterministic — mirrors reindex's concept edges."""
+    concepts: List[str] = []
+    raw = fm.get("touches")
+    if isinstance(raw, list):
+        concepts.extend(c for c in raw if isinstance(c, str))
+    topic = fm.get("target_topic")
+    if isinstance(topic, str):
+        concepts.append(topic)
+    toks: set = set()
+    for c in concepts:
+        toks.update(t for t in re.split(r"[\s\-_/]+", c.lower()) if t)
+    return toks
+
+
+def _boost(hit: Dict[str, Any], project: Optional[str],
+           query_tokens: frozenset = frozenset()) -> float:
     score = hit["score"] or 0.0
     fm = hit.get("fm") or {}
     if project and (
@@ -161,6 +179,11 @@ def _boost(hit: Dict[str, Any], project: Optional[str]) -> float:
         # FTS rank is negative — multiplying by >1 amplifies the magnitude;
         # we instead subtract a constant to push it up the order.
         score -= 1.0
+    # Concept-overlap: the learning is *about* something the query names, even
+    # if the body doesn't lexically match. This is the retrieval payoff of the
+    # concept index — surfacing by idea, not just by word. No LLM.
+    if query_tokens and (_concept_tokens(fm) & query_tokens):
+        score -= 0.75
     if hit["page_type"] == "learning_principle":
         score -= 0.5
     hit["score"] = score
@@ -262,8 +285,11 @@ def recall(*, query: str,
     # the FTS path does not exclude them the way _fs_scan does.
     hits = [h for h in hits if not _is_noise(h["slug"])]
 
+    query_tokens = frozenset(
+        t for t in re.findall(r"\w+", (query or "").lower(), re.UNICODE) if t
+    )
     for h in hits:
-        _boost(h, project)
+        _boost(h, project, query_tokens)
 
     if relevance_threshold is not None:
         hits = [h for h in hits if h["score"] <= relevance_threshold]

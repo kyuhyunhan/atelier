@@ -141,6 +141,81 @@ def test_git_remote_is_ignored_basename_wins(atelier_env: Dict,
     assert res.source == "basename"
 
 
+# ── durable identity: linked worktrees share the main repo's slug ───────────
+
+
+def _git(repo: Path, *args: str) -> None:
+    import subprocess
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t",
+         *args],
+        check=True, capture_output=True,
+    )
+
+
+def test_git_worktree_resolves_to_main_repo_identity(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """A linked git worktree (basename != main repo) must resolve to the MAIN
+    repo's identity, so captures from `lexio-worktrees/phase2-server` land
+    under `lexio` instead of scattering under `phase2-server`. The fix is
+    local-only: it reads the worktree's `.git` pointer, never a remote."""
+    import shutil
+    if shutil.which("git") is None:
+        pytest.skip("git not installed")
+    main = tmp_path / "lexio"
+    main.mkdir()
+    _git(main, "init", "-q")
+    (main / "README.md").write_text("x")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "init")
+
+    wt = tmp_path / "lexio-worktrees" / "phase2-server"
+    wt.parent.mkdir(parents=True)
+    _git(main, "worktree", "add", "-q", str(wt))
+
+    res = _proj.resolve_project(str(wt))
+    assert res.slug == "lexio"            # not "phase2-server"
+    assert res.source == "git-root"
+
+
+def test_primary_repo_still_uses_basename(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """The durable layer must NOT change a primary repo (where `.git` is a
+    directory): basename still wins, keeping resolution local and stable."""
+    import shutil
+    if shutil.which("git") is None:
+        pytest.skip("git not installed")
+    repo = tmp_path / "solo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    res = _proj.resolve_project(str(repo))
+    assert res.slug == "solo"
+    assert res.source == "basename"
+
+
+def test_committed_marker_overrides_worktree_basename(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """Recommended path: a committed `.atelier-project` is checked out in every
+    worktree, so the marker layer (which runs before git-root) wins there too."""
+    import shutil
+    if shutil.which("git") is None:
+        pytest.skip("git not installed")
+    main = tmp_path / "repo-folder"
+    main.mkdir()
+    _git(main, "init", "-q")
+    (main / ".atelier-project").write_text("canonical\n")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "init")
+
+    wt = tmp_path / "wt" / "feature-x"
+    wt.parent.mkdir(parents=True)
+    _git(main, "worktree", "add", "-q", str(wt))
+
+    res = _proj.resolve_project(str(wt))
+    assert res.slug == "canonical"
+    assert res.source == "marker"
+
+
 # ── keystone: convergence across the three call paths ───────────────────────
 
 

@@ -61,7 +61,13 @@ def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
         return out
     for p in sorted(root.glob("**/*.md")):
         # Shared noise predicate with recall: a page recall can never return
-        # must not be probed — it would be dark by construction.
+        # must not be probed — it would be dark by construction. This check is
+        # a necessary PRECONDITION to the entry_id gate below: absorbed
+        # navigational views (e.g. an imported TAXONOMY.md) DO carry an
+        # entry_id, unlike engine-generated INDEX files — name-based exclusion
+        # is deliberate here, the opposite of reconcile's entry_id-based
+        # discrimination (which must keep mirroring real learnings named
+        # README.md). Do not remove this in favor of the entry_id check.
         if _recall.is_noise(p.name):
             continue
         try:

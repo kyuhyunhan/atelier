@@ -139,6 +139,8 @@ def _insert_touches(path: Path, tags: List[str]) -> bool:
     refuses when a touches block already exists anywhere in the frontmatter
     (the guard scans up to the closing fence, never a fixed line window — a
     capped scan double-inserted on long frontmatter; review M1)."""
+    if not tags:                    # never write a bare `touches:` header
+        return False
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     if not lines or not lines[0].startswith("---"):
         return False
@@ -196,7 +198,7 @@ def apply_tags(mapping: Dict[str, List[str]],
                 continue
             mirrors.setdefault(str(fm.get("entry_id")), []).append(p)
 
-    applied = skipped = fully_rejected = 0
+    applied = skipped = fully_rejected = mirror_skipped = 0
     rejected: Dict[str, List[str]] = {}
     unknown: List[str] = []
     for eid, tags in mapping.items():
@@ -217,7 +219,11 @@ def apply_tags(mapping: Dict[str, List[str]],
         if _insert_touches(l.path, good):
             applied += 1
             for m in mirrors.get(eid, []):
-                _insert_touches(m, good)
+                if not _insert_touches(m, good):
+                    # a pre-tagged mirror diverging from its canonical must be
+                    # visible, not silently ignored (review NEW-2): reconcile
+                    # is the repair path for mirror drift.
+                    mirror_skipped += 1
         else:
             skipped += 1
 
@@ -230,6 +236,7 @@ def apply_tags(mapping: Dict[str, List[str]],
         "applied": applied,
         "skipped": skipped,
         "fully_rejected": fully_rejected,
+        "mirror_skipped": mirror_skipped,
         "rejected": rejected,
         "unknown": unknown,
         "diff": diff,

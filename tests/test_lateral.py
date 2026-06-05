@@ -213,3 +213,33 @@ def test_apply_tags_mirrors_receive_tags(vault_env: Dict) -> None:
     assert out["applied"] == 1
     assert "- keychain" in canonical.read_text()
     assert "- keychain" in mirror.read_text()
+
+
+def test_insert_touches_refuses_empty_tags(vault_env: Dict) -> None:
+    """NEW-1: never write a bare `touches:` header."""
+    vault = vault_env["vault"]
+    _accepted(vault, "client", "zz", "## Observation\n\nbody words here\n")
+    p = vault / "learnings" / "accepted" / "by-topic" / "client" / "zz.md"
+    assert _lat._insert_touches(p, []) is False
+    assert "touches:" not in p.read_text()
+
+
+def test_apply_counts_pretagged_diverging_mirror(vault_env: Dict) -> None:
+    """NEW-2: a mirror that already carries touches (diverging from its
+    untagged canonical) is counted in mirror_skipped, not silently ignored."""
+    vault = vault_env["vault"]
+    _accepted(vault, "client", "dv",
+              "## Observation\n\nkeychain sensitive body\n", project="lexio")
+    canonical = (vault / "learnings" / "accepted" / "by-topic" / "client" /
+                 "dv.md")
+    mirror = (vault / "learnings" / "accepted" / "by-project" / "lexio" /
+              "dv.md")
+    mirror.parent.mkdir(parents=True, exist_ok=True)
+    # mirror diverges: it is already tagged while the canonical is not
+    mirror.write_text(canonical.read_text().replace(
+        "target_topic: client", "target_topic: client\ntouches:\n- keychain"))
+    api.reindex(full=True)
+
+    out = _lat.apply_tags({"dv": ["keychain"]})
+    assert out["applied"] == 1
+    assert out["mirror_skipped"] == 1

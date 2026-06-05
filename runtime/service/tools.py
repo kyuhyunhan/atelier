@@ -496,6 +496,24 @@ async def _h_surfacing_audit(probe_k: int = 10) -> Dict[str, Any]:
     return _sf.audit(probe_k=probe_k)
 
 
+async def _h_lateral_plan(suggest: int = 4,
+                          overlap: float = 0.7) -> Dict[str, Any]:
+    """Lateral mutator tee-up (read-only, deterministic): untagged learnings
+    with body-derived tag suggestions, inert existing tags, and flag-only
+    near-duplicate groups. The live agent refines; apply enforces the gates."""
+    from .learnings import lateral as _lat
+    return {"tags": _lat.plan_tags(suggest=suggest),
+            "merges": _lat.plan_merges(overlap=overlap)}
+
+
+async def _h_lateral_apply(mapping: Dict[str, List[str]]) -> Dict[str, Any]:
+    """Lateral mutator apply — snapshot-wrapped concept tagging of canonicals
+    + mirrors with the body-echo gate (non-echoing tags rejected). Returns the
+    surfacing diff; the caller MUST check `diff.newly_dark`."""
+    from .learnings import lateral as _lat
+    return _lat.apply_tags(mapping)
+
+
 async def _h_learning_cluster(min_shared_terms: int = 3,
                                min_size: int = 2,
                                min_projects: int = 2,
@@ -813,6 +831,22 @@ def _register_v01_tools() -> None:
         "be found by their own concept (gone 'dark'). Read-only; makes silent "
         "omission visible before a self-reorganization pass.",
         _h_surfacing_audit,
+    ))
+    register(ToolDef(
+        "atelier_lateral_plan",
+        "Lateral mutator ① (read-only) — tee up concept-tagging work: "
+        "untagged learnings with body-derived suggestions, inert tags, and "
+        "flag-only near-duplicate groups. The agent refines; apply gates.",
+        _h_lateral_plan,
+    ))
+    register(ToolDef(
+        "atelier_lateral_apply",
+        "Lateral mutator ② — apply entry_id→tags to canonicals + mirrors, "
+        "snapshot-wrapped with the body-echo gate; returns the surfacing "
+        "diff (check newly_dark). Merges stay human-gated (no tool).",
+        _h_lateral_apply,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
     ))
     register(ToolDef(
         "atelier_learning_cluster",

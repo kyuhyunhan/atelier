@@ -241,13 +241,34 @@ this; `diff()` compares two snapshots so any reorganization can be audited in
 *behavior*, not just content — `newly_dark` is the signal that matters.
 
 This is the safety mechanism that must exist *before* a self-reorganizing
-mutator (lateral re-clustering / merge / retire) is built: you cannot safely
-reorganize what you cannot observe. It is also useful standalone — it finds
-accumulated learnings that have *already* gone unreachable (dead memory). The
-mutator itself is deliberately deferred until it can be governed against this
-audit (low-risk moves self-gated on own-concept visibility; high-blast-radius
-merges human-gated, mirroring the dream cycle's `cluster → synthesize → human
-promote` split).
+mutator is built: you cannot safely reorganize what you cannot observe. It is
+also useful standalone — it finds accumulated learnings that have *already*
+gone unreachable (dead memory).
+
+### Lateral mutator — the dream cycle goes sideways
+
+`runtime/service/learnings/lateral.py` (tools: `atelier_lateral_plan`,
+`atelier_lateral_apply`) reorganizes the accepted corpus *in place*, governed
+by the surfacing audit. v1 ships two jobs, with the governance the manual
+passes proved out:
+
+- **Concept tagging** — `plan_tags` tees up untagged learnings with
+  *body-derived* suggestions (rarest salient terms first; topic/project tokens
+  excluded — they are the coarse-bucket collision being broken) and flags
+  *inert* tags (zero body echo). `apply_tags` is **snapshot-wrapped** (returns
+  the surfacing diff; `newly_dark` is the omission guard) and enforces the
+  **body-echo gate**: FTS indexes bodies, so a tag whose tokens never appear
+  in the body is inert and is rejected, not written.
+- **Merge flagging** — `plan_merges` groups near-duplicates by salient-term
+  overlap, **flag-only**: merging/retiring changes what the vault remembers,
+  so it stays human-gated, mirroring the dream cycle's `cluster → synthesize →
+  human promote` split.
+
+Division of labor is the dream-cycle pattern: the engine tees up
+deterministically (no LLM anywhere in the mutator), the live agent supplies
+semantic judgment over the suggestions, the human gates destructive moves.
+Deferred past v1: automated merge/retire writes (need trust earned through
+flag-only operation), and stale/contradiction detection (semantic).
 
 ### Dream cycle — automated principle synthesis
 

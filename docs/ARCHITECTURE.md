@@ -85,6 +85,17 @@ can be deleted at any time and rebuilt from Layer 2 via `atelier reindex`.
 Single-writer per space is the integrity invariant. Promotion from workshop
 → wiki always passes through Librarian via the promote pipeline.
 
+> **Stewards are role labels, not runtime agents.** "Librarian" and "Builder"
+> are *not* autonomous processes the engine spawns or loads — the engine never
+> reads `agents/*.md`. Their only runtime teeth are the single-writer locks in
+> `runtime/service/claims.py` (the `librarian-write` / `builder-write` roles).
+> The contracts in `agents/` describe the *responsibilities and voice* of
+> whoever fills a role — a human, a Claude session, or a user-authored skill —
+> while `claims.py` enforces the one invariant that must hold no matter who
+> writes: one writer per space. Procedural knowledge ("how to ingest", "how to
+> log an ADR") is intended to live as user-authored **skills**, not baked into
+> an engine agent.
+
 ---
 
 ## Data Flow

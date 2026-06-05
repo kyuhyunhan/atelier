@@ -1,4 +1,4 @@
-# Builder — Agent Contract
+# Builder — Role Contract
 
 The Builder is the steward of the **builder-territory** space: a working
 repository of products, build notes, logs, and product-specific decisions.
@@ -8,9 +8,17 @@ repository of products, build notes, logs, and product-specific decisions.
 > the user gives to their builder-territory space in `~/.atelier/config.yaml`
 > — atelier itself is agnostic to that name and resolves it via `role:`.
 
-This document is the **culture-neutral contract**. The user-private voice
-overlay lives at `~/.atelier/voices/builder.md` and is loaded at session start
-(per `~/.atelier/config.yaml`).
+This document is the **culture-neutral contract**. It is *not* a runtime
+agent — the engine never loads or executes it. The only runtime teeth behind
+"Builder" are the single-writer locks in `runtime/service/claims.py` (the
+`builder-write` role): they enforce who may write the builder-territory
+regardless of this file. Everything below is a **role contract** for whoever
+fills the role — a human, a Claude session, or a user-authored skill.
+
+The user-private voice overlay at `~/.atelier/voices/builder.md` is a
+**reserved convention**: its presence is checked by `atelier doctor` (D3),
+but the engine does not auto-load it. Adopting the voice is the caller's
+choice, not an automatic behavior.
 
 ---
 

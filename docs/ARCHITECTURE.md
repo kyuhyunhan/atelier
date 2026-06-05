@@ -186,8 +186,12 @@ learnings/
   Signal/noise separation is still deferred to promotion.
 - **tier 2 (accepted)** — promoted by a curator through
   `atelier_learning_accept`, gated by `criteria.yaml` (must/should/
-  forbidden). The canonical copy lives under `by-topic/`; a mirror under
-  `by-project/<n>/` makes project-scoped recall cheap.
+  forbidden). The canonical copy lives under `by-topic/`; `by-project/<n>/`
+  is a **generated view**, not a source — retrieval (recall, bootstrap §B)
+  selects on the `target_project` *facet*, never the folder, and the whole
+  `by-project/` tree is regenerable from canonical via the reconcile routine
+  (delete it and `repair()` reproduces it). Project is a derived facet, not a
+  placement decision.
 - **tier 3 (principles)** — generalizations that hold across projects.
   `priority: always-inject` principles are surfaced at *every* session
   start; this is the highest-authority, highest-blast-radius tier, so it

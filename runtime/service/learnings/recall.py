@@ -124,7 +124,7 @@ def _fs_scan(query: str, vault: Path, types: List[str],
         if not root.exists():
             continue
         for p in sorted(root.rglob("*.md")):
-            if p.name == "INDEX.md":
+            if is_noise(p.name):        # shared predicate (INDEX + TAXONOMY)
                 continue
             if "by-project" in p.parts:
                 continue
@@ -238,10 +238,17 @@ def _render(hits: List[Dict[str, Any]], project: Optional[str],
 # are indexed as learning_* pages but are not content — they must never be
 # surfaced as "relevant memory". Matched on the slug's bare stem so it works
 # for both FTS slugs (`…/INDEX.md`) and fs-scan slugs (bare `INDEX`).
+# The public entry point over this set is `is_noise` — extend the set there,
+# never with ad-hoc filename checks at call sites.
 _GENERATED_STEMS = frozenset({"INDEX", "TAXONOMY"})
 
 
-def _is_noise(slug: str) -> bool:
+def is_noise(slug: str) -> bool:
+    """True for generated/navigational projections (INDEX, TAXONOMY) that must
+    never surface as memory. Public: the single noise predicate shared by the
+    ranking pipeline and the surfacing audit — if recall can never return a
+    page, the audit must not probe it (it would be dark by construction).
+    Accepts a full slug, a bare filename, or a bare stem (normalized below)."""
     name = slug.rsplit("/", 1)[-1]
     stem = name[:-3] if name.endswith(".md") else name
     return stem in _GENERATED_STEMS
@@ -280,7 +287,7 @@ def rank_hits(query: str, project: Optional[str], types: List[str], *,
 
     # Drop generated projections (INDEX/TAXONOMY) regardless of source path —
     # the FTS path does not exclude them the way _fs_scan does.
-    hits = [h for h in hits if not _is_noise(h["slug"])]
+    hits = [h for h in hits if not is_noise(h["slug"])]
 
     query_tokens = frozenset(
         t for t in re.findall(r"\w+", (query or "").lower(), re.UNICODE) if t

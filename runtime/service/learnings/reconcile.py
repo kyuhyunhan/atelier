@@ -33,6 +33,12 @@ from .review import _slugify, _vault_root
 # Only INDEX.md is engine-generated. A learning may legitimately be NAMED
 # README.md (e.g. an absorbed project README), so the real discriminator is
 # the presence of an `entry_id` — generated files have none.
+# KNOWN GAP: an absorbed navigational view (e.g. TAXONOMY.md) carries an
+# entry_id, so reconcile treats it as a learning and will mirror it into
+# by-project. recall/surfacing exclude such views by name (`recall.is_noise`);
+# reconcile deliberately does not (it must keep mirroring real learnings named
+# README.md). If view-mirroring becomes a problem, the fix is a frontmatter
+# view marker at absorb time, not a name list here.
 _GENERATED = {"INDEX.md"}
 
 

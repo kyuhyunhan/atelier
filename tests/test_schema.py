@@ -8,11 +8,12 @@ import yaml
 SCHEMA = Path(__file__).resolve().parents[1] / "schema" / "data"
 
 
-def test_base_yaml_loads_and_versions_4():
+def test_base_yaml_loads_and_versions_5():
     data = yaml.safe_load((SCHEMA / "base.yaml").read_text())
-    assert data["version"] == 4
+    assert data["version"] == 5
     assert "schema_version" in data["fields"]
-    assert data["fields"]["schema_version"]["const"] == 4
+    # v5 is current; v4 accepted during the flat-facet migration (RFC 0001).
+    assert data["fields"]["schema_version"]["enum"] == [4, 5]
 
 
 def test_librarian_overlay_has_5_wiki_page_types():

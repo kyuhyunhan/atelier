@@ -1,9 +1,15 @@
-# atelier schema v4 — Learnings overlay
+# atelier schema v5 — Learnings overlay
 # Governs the `gorae/learnings/` subtree.
 #
 # Lifecycle: capture (Stop / SessionEnd hook) → candidate → reviewed →
-# accepted (by-topic, by-project) or archived. Aggressive capture is
+# accepted (flat notes/<YYYY-MM>/) or archived. Aggressive capture is
 # safe because acceptance criteria gate promotion.
+#
+# RFC 0001: classification lives in FACETS resolved at query time, not in the
+# directory path. `target_project` (single, project-local) + `aspect[]`
+# (many-valued, project-local, free-form) are kept distinct from `target_topic`
+# (single, global, optional — the cross-project clustering axis). `links` carry
+# a rationale (`{to, why}`), adopted from the lexio note dialect.
 
 inherits: base
 subtree: learnings
@@ -30,12 +36,13 @@ page_types:
     required_fields:
       [schema_version, entry_id, captured_at, agent_kind, hook, status,
        ac_status, observation_kind]
-    # `touches` is intentionally absent here: concept-tagging is a curation
-    # step applied at accept time, not at (cheap, permissive) capture time.
+    # `touches`/`aspect` are intentionally absent here: concept/aspect tagging
+    # is a curation step applied at accept time, not at (cheap, permissive)
+    # capture time. `aspect` is accepted if a captor already knows it.
     optional_fields:
-      [session_id, working_dir, project_hint, links, ac_results]
+      [session_id, working_dir, project_hint, links, ac_results, aspect]
     field_specs:
-      schema_version:   { const: 4 }
+      schema_version:   { enum: [4, 5] }
       captured_at:      { type: string, format: date-time }
       agent_kind:       { type: string, enum: [claude-code, hermes, unknown, local] }
       hook:             { type: string, enum: [Stop, SessionEnd, PostToolUse, manual] }
@@ -45,28 +52,42 @@ page_types:
       session_id:       { type: string, nullable: true }
       working_dir:      { type: string, nullable: true }
       project_hint:     { type: string, nullable: true }
-      links:            { type: array, items: { type: string } }
+      # links: bare-string OR typed {to, why} entries (RFC 0001). The validator
+      # checks the top-level array; mixed item shapes are tolerated for migration.
+      links:            { type: array }
       ac_results:       { type: object }
+      # aspect: project-local categories (free-form, many-valued). Distinct from
+      # the global `target_topic`. Primary first; secondaries follow.
+      aspect:           { type: array, items: { type: string } }
 
   learning_accepted:
+    # P4 (RFC 0001) flips this to the flat store `learnings/notes/**/*.md` when
+    # the on-disk move runs. Until then accepted learnings live under by-topic.
     path_pattern: "learnings/accepted/**/*.md"
     writer: curator
     required_fields:
       [schema_version, entry_id, captured_at, agent_kind, status, ac_status,
-       observation_kind, accepted_at, target_topic]
+       observation_kind, accepted_at]
+    # target_topic demoted required→optional (RFC 0001): a flat, facet-classified
+    # store means many learnings legitimately carry no global topic.
     optional_fields:
-      [session_id, working_dir, project_hint, target_project, links, ac_results,
-       hook, touches]
+      [session_id, working_dir, project_hint, target_project, target_topic,
+       aspect, links, ac_results, hook, touches]
     field_specs:
+      schema_version:   { enum: [4, 5] }
       status:           { const: accepted }
       ac_status:        { type: string, enum: [passed] }
       accepted_at:      { type: string, format: date-time }
-      target_topic:     { type: string }
+      target_topic:     { type: string, nullable: true }
       target_project:   { type: string, nullable: true }
+      # aspect: project-local categories (free-form, many-valued) — the part(s)
+      # of the project this lesson touches. Distinct axis from `target_topic`.
+      aspect:           { type: array, items: { type: string } }
       # touches: concepts this learning is *about*. Indexed as `concept`
       # graph edges so cross-project learnings sharing an idea connect.
       # Optional + curator-set; reindex also derives an edge from target_topic.
       touches:          { type: array, items: { type: string } }
+      links:            { type: array }
 
   learning_principle:
     path_pattern: "learnings/principles/*.md"
@@ -79,7 +100,7 @@ page_types:
        proposed_at, links, ac_results, observation_kind, source, source_path,
        touches]
     field_specs:
-      schema_version: { const: 4 }
+      schema_version: { enum: [4, 5] }
       # proposed = dream-cycle draft (NOT injected until promoted);
       # accepted = curator-approved (eligible for always-inject);
       # archived = retired/rejected.

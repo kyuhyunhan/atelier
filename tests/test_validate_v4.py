@@ -41,6 +41,51 @@ def test_valid_learning_candidate_passes(atelier_env: Dict) -> None:
     assert findings == []
 
 
+def test_v5_accepted_with_facets_and_no_topic_passes(atelier_env: Dict) -> None:
+    """RFC 0001 / P1: an accepted learning may be schema_version 5, carry
+    `aspect[]` + typed `links`, and omit `target_topic` (now optional)."""
+    vault = atelier_env["gorae"]
+    fm = {
+        "schema_version": 5,
+        "entry_id": _uid(),
+        "captured_at": "2026-05-28T13:00:00+09:00",
+        "accepted_at": "2026-05-29T13:00:00+09:00",
+        "agent_kind": "claude-code",
+        "status": "accepted",
+        "ac_status": "passed",
+        "observation_kind": "project",
+        "target_project": "lexio",
+        "aspect": ["client", "cross-cutting"],          # many-valued, free-form
+        "links": [{"to": "20260513T1700", "why": "extends the policy"}],
+        # NOTE: no target_topic — legal under v5.
+    }
+    p = vault / "learnings" / "accepted" / "by-topic" / "x" / "n.md"
+    _write(p, fm)
+    findings = validate_v4.validate_paths([p], vault_root=vault)
+    assert findings == [], [f.message for f in findings]
+
+
+def test_legacy_v4_accepted_still_valid(atelier_env: Dict) -> None:
+    """Backward-compat: existing v4 accepted records (with target_topic) remain
+    valid through the migration window."""
+    vault = atelier_env["gorae"]
+    fm = {
+        "schema_version": 4,
+        "entry_id": _uid(),
+        "captured_at": "2026-05-28T13:00:00+09:00",
+        "accepted_at": "2026-05-29T13:00:00+09:00",
+        "agent_kind": "claude-code",
+        "status": "accepted",
+        "ac_status": "passed",
+        "observation_kind": "project",
+        "target_topic": "rendering",
+    }
+    p = vault / "learnings" / "accepted" / "by-topic" / "rendering" / "n.md"
+    _write(p, fm)
+    findings = validate_v4.validate_paths([p], vault_root=vault)
+    assert findings == [], [f.message for f in findings]
+
+
 def test_missing_required_field_fails(atelier_env: Dict) -> None:
     vault = atelier_env["gorae"]
     fm = {

@@ -149,8 +149,9 @@ def _validate_one(path: Path, rel_path: str,
     fm, _body = _parse.split_frontmatter(text)
     errors: List[str] = []
 
-    if fm.get("schema_version") != 4:
-        errors.append(f"schema_version: must be 4, got {fm.get('schema_version')!r}")
+    if fm.get("schema_version") not in (4, 5):
+        errors.append(
+            f"schema_version: must be 4 or 5, got {fm.get('schema_version')!r}")
     if not _is_uuid(fm.get("entry_id")) and fm.get("entry_id") != "PENDING":
         errors.append(f"entry_id: must be a valid UUID, got {fm.get('entry_id')!r}")
 

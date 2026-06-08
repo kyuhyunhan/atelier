@@ -135,8 +135,8 @@ async def _h_lint(space: Optional[str] = None,
     librarian-write claim and lock."""
     if apply_fixes:
         sess = current_session()
-        _claims.require(sess.to_call_context(), _claims.Claim.LIBRARIAN_WRITE)
-        async with _claims.registry().acquire(_claims.WriterRole.LIBRARIAN):
+        _claims.require(sess.to_call_context(), _claims.Claim.WIKI_WRITE)
+        async with _claims.registry().acquire(_claims.WriterRole.WIKI):
             return _api.lint(space=space, rule_ids=rule_ids, apply_fixes=True)
     return _api.lint(space=space, rule_ids=rule_ids, apply_fixes=False)
 
@@ -632,61 +632,61 @@ def _register_v01_tools() -> None:
     register(ToolDef("atelier_fix_pending",
                      "Resolve every `entry_id: PENDING` to a stable UUID5.",
                      _h_fix_pending,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_index_regen",
                      "Regenerate wiki/index.md from current wiki contents.",
                      _h_index_regen,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_clip_image",
                      "Fetch a remote image into the vault and return its "
                      "local + (when configured) CDN URL.",
                      _h_clip_image,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_new_doc",
                      "Scaffold a new document. template ∈ "
                      "{product, raw, note, learning}.",
                      _h_new_doc,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_prepare_commit",
                      "Pre-commit hygiene: recalculate word_count, "
                      "embedded_assets, edited_at. LLM facets reclass "
                      "is deferred.",
                      _h_prepare_commit,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_youtube",
                      "Ingest a YouTube URL into raw/knowledge/. Falls "
                      "back to status=needs-stt when neither captions "
                      "nor OpenAI STT are available.",
                      _h_youtube,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
 
     # Write tools — claim + role lock.
     register(ToolDef("atelier_reindex",
                      "Rebuild SQLite projection from markdown.",
                      _h_reindex,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_capture",
                      "Append a short note to the librarian inbox.",
                      _h_capture,
                      claim=_claims.Claim.MOBILE_CLAIM,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_promote_apply",
                      "Apply a promotion proposal — writes wiki/.",
                      _h_promote_apply,
                      claim=_claims.Claim.PROMOTE_APPLY,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_new_product",
                      "Scaffold a new product in workshop/products/.",
                      _h_new_product,
-                     claim=_claims.Claim.BUILDER_WRITE,
-                     lock_role=_claims.WriterRole.BUILDER))
+                     claim=_claims.Claim.LEARNINGS_WRITE,
+                     lock_role=_claims.WriterRole.LEARNINGS))
     register(ToolDef(
         "atelier_learning_capture",
         "Append a candidate learning to learnings/candidates/. "

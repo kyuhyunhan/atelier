@@ -1,10 +1,12 @@
 """Capability claims + single-writer locks.
 
 A *claim* is what the caller asserts they're authorized to do (e.g.
-`librarian-write`). Read-side calls require no claim. Write-side calls
+`wiki-write`). Read-side calls require no claim. Write-side calls
 require both (a) the claim and (b) holding the *role lock* — an
 asyncio.Lock keyed by writer role so only one writer mutates a subtree
-at a time.
+at a time. Locks are keyed by SUBTREE (wiki / learnings / candidate-append /
+curation), not by an agent persona — RFC 0001 retired the librarian/builder
+agent labels; only the per-subtree write serialization remains.
 
 v0.1 had a single trusted client (local CLI) and only stubbed enforcement.
 PR-2 adds real claim checks (callers without local-cli must carry the
@@ -21,8 +23,8 @@ from typing import AsyncIterator, Dict, Optional
 
 
 class Claim(str, Enum):
-    LIBRARIAN_WRITE  = "librarian-write"
-    BUILDER_WRITE    = "builder-write"
+    WIKI_WRITE       = "wiki-write"            # was librarian-write
+    LEARNINGS_WRITE  = "learnings-write"       # was builder-write (workshop folds here)
     CAPTOR_WRITE     = "captor-write"          # learnings/candidates/ append
     CURATOR_WRITE    = "curator-write"         # learnings promote/archive
     PROMOTE_APPLY    = "promote-apply"
@@ -32,10 +34,10 @@ class Claim(str, Enum):
 
 # Writer-role identifiers used as lock keys. Aligned with Claim values
 # but kept separate so the lock layer doesn't conflate "claim required"
-# with "what subtree this writes to".
+# with "what subtree this writes to". Keyed by subtree, not agent persona.
 class WriterRole(str, Enum):
-    LIBRARIAN = "librarian-write"
-    BUILDER   = "builder-write"
+    WIKI      = "wiki-write"
+    LEARNINGS = "learnings-write"
     CAPTOR    = "captor-write"
     CURATOR   = "curator-write"
 

@@ -1,7 +1,7 @@
 """Schema v4 frontmatter validator.
 
 Driven entirely by `schema/data/base.yaml` + the matching overlay
-(librarian.overlay.yaml, builder.overlay.yaml, learnings.overlay.yaml).
+(gorae.overlay.yaml, workshop.overlay.yaml, learnings.overlay.yaml).
 Returns a list of Findings shaped like the rest of the lint pipeline,
 but is invoked separately so non-frontmatter rules (L1/L3/L5/L6) can
 stay independent.
@@ -35,9 +35,10 @@ def _load_overlay(name: str) -> Dict[str, Any]:
 
 
 def _all_overlays() -> List[Dict[str, Any]]:
+    # Space-named overlays (RFC 0001 retired the librarian/builder agent names).
     return [
-        _load_overlay("librarian"),
-        _load_overlay("builder"),
+        _load_overlay("gorae"),
+        _load_overlay("workshop"),
         _load_overlay("learnings"),
     ]
 

@@ -1,10 +1,10 @@
-# atelier schema v4 — Builder overlay
-# Governs all pages in the `workshop` space.
-# Writer: Builder agent owns all of workshop/**.
+# atelier schema v5 — workshop-space overlay
+# Governs all pages in the `workshop` space (being retired into learnings —
+# RFC 0001). Writer: learnings-write. (The "Builder" agent persona is gone;
+# this is a space contract, not an agent.)
 
 inherits: base
 spaces: [workshop]
-agent: builder
 
 page_types:
 

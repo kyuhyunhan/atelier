@@ -50,7 +50,7 @@ def test_invoke_read_tool_dispatches(atelier_env: Dict) -> None:
 
 
 def test_invoke_write_tool_blocks_unprivileged_caller(atelier_env: Dict) -> None:
-    """A session without LIBRARIAN_WRITE must be rejected by atelier_reindex."""
+    """A session without WIKI_WRITE must be rejected by atelier_reindex."""
     poor = auth.Session(transport="mcp-http", caller="poor", claims=frozenset())
     tok = tools.set_session(poor)
     try:
@@ -79,8 +79,8 @@ def test_invoke_write_tool_serializes_on_role_lock(atelier_env: Dict) -> None:
         name="_test_demo",
         description="test only",
         handler=_h_demo,
-        claim=claims.Claim.LIBRARIAN_WRITE,
-        lock_role=claims.WriterRole.LIBRARIAN,
+        claim=claims.Claim.WIKI_WRITE,
+        lock_role=claims.WriterRole.WIKI,
     ))
 
     async def go() -> None:

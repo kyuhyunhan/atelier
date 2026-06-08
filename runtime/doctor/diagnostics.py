@@ -69,10 +69,13 @@ def D2_filesystem_drift(cfg: config.Config) -> Diagnosis:
 
 
 def D3_voice_overlay(cfg: config.Config) -> Diagnosis:
-    """D3: each agent's voice overlay file exists (warns if missing)."""
+    """D3: every configured voice-overlay file exists (warns if missing).
+
+    RFC 0001 retired the fixed librarian/builder agent names — this iterates
+    whatever voices the config declares, so it is persona-neutral."""
     missing: list[str] = []
-    for agent in ("librarian", "builder"):
-        overlay = (cfg.raw.get("agents") or {}).get(agent, {}).get("voice_overlay")
+    for _name, spec in (cfg.raw.get("agents") or {}).items():
+        overlay = (spec or {}).get("voice_overlay")
         if not overlay:
             continue
         p = Path(overlay).expanduser()

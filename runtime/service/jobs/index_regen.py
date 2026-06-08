@@ -1,7 +1,7 @@
 """PR-10: regenerate wiki/index.md from wiki/* page frontmatter.
 
 Distinct from the DB reindex pipeline — this produces a human-readable
-catalog under wiki/index.md. The categories follow the librarian overlay
+catalog under wiki/index.md. The categories follow the gorae overlay
 (digests, sources, entities, themes, synthesis).
 """
 from __future__ import annotations

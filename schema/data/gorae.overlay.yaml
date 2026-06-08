@@ -1,14 +1,14 @@
-# atelier schema v4 — Librarian overlay
+# atelier schema v5 — gorae-space overlay
 # Governs all pages in the `gorae` space.
-# Writer: Librarian agent owns wiki/**; human owns raw/**.
+# Writer: wiki/** is wiki-write; raw/** is human-owned (read-only to the engine).
+# (RFC 0001 retired the "Librarian" agent persona — this is a space contract.)
 
 inherits: base
 spaces: [gorae]
-agent: librarian
 
 page_types:
 
-  # ── Raw sources (human-owned, Librarian READ-ONLY) ────────────────────────
+  # ── Raw sources (human-owned, engine READ-ONLY) ───────────────────────────
   raw_source:
     path_pattern: "raw/**/*.md"
     writer: human

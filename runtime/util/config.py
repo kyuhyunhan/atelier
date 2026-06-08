@@ -95,8 +95,12 @@ class Config:
     def space_by_role(self, role: str) -> SpaceConfig:
         """Resolve a space by its declared role (e.g. 'librarian-territory').
 
-        The engine references roles, not space names — adopters choose
-        their own space names in config.yaml.
+        The engine references roles, not space names — adopters choose their own
+        space names in config.yaml. NOTE (RFC 0001): the role *strings*
+        (`librarian-territory` / `builder-territory`) are legacy space-binding
+        keys, NOT agent personas — the librarian/builder agents were retired.
+        They survive only as adopter-config role identifiers; in the single-vault
+        model both bind to the one vault root.
         """
         matches = [s for s in self.spaces.values() if s.role == role]
         if not matches:
@@ -270,8 +274,12 @@ def _looks_like_placeholder(value: Any) -> bool:
 _LOOPBACK_BINDS = ("127.0.0.1", "localhost", "::1")
 
 
-_VALID_WRITERS = {"human-only", "librarian-write", "builder-write",
-                  "captor-write", "curator-write"}
+# Writer identifiers, keyed by subtree (RFC 0001 retired the librarian/builder
+# agent personas; the legacy names are still accepted so existing per-machine
+# configs keep validating).
+_VALID_WRITERS = {"human-only", "wiki-write", "learnings-write",
+                  "captor-write", "curator-write",
+                  "librarian-write", "builder-write"}   # legacy aliases
 
 
 def _validate_strict(cfg: "Config", path: Path) -> None:

@@ -39,6 +39,27 @@ def _vault_root() -> Path:
     return cfg.space_by_role("librarian-territory").local
 
 
+def _facet_clause(project: Optional[str], topic: Optional[str],
+                  aspect: Optional[str]) -> tuple[str, List[Any]]:
+    """SQL + params for facet filtering via the indexed `learning_facets` table
+    (RFC 0001). Classification lives in facets, resolved here — not in the path
+    and not in a Python frontmatter scan. The 'project' facet was populated from
+    `target_project or project_hint`, preserving the old OR semantics."""
+    pairs: List[tuple[str, str]] = []
+    if project:
+        pairs.append(("project", project))
+    if topic:
+        pairs.append(("topic", topic))
+    if aspect:
+        pairs.append(("aspect", aspect))
+    sql = "".join(
+        " AND EXISTS (SELECT 1 FROM learning_facets lf "
+        "WHERE lf.page_id=p.id AND lf.kind=? AND lf.value=?)"
+        for _ in pairs)
+    params: List[Any] = [x for pair in pairs for x in pair]
+    return sql, params
+
+
 def _ensure_iter(value: Any) -> List[Any]:
     if value is None:
         return []
@@ -51,8 +72,10 @@ def _grep_walk(root: Path, query: str,
                *, types: Iterable[str],
                project: Optional[str],
                topic: Optional[str],
+               aspect: Optional[str],
                limit: int) -> List[Dict[str, Any]]:
-    """Filesystem-side fallback when FTS hasn't indexed learnings yet."""
+    """Filesystem-side fallback when FTS hasn't indexed learnings yet. No DB, so
+    facets are read straight from frontmatter here (the index is unavailable)."""
     learnings_root = root / "learnings"
     if not learnings_root.exists():
         return []
@@ -71,6 +94,8 @@ def _grep_walk(root: Path, query: str,
                 and fm.get("target_project") != project:
             continue
         if topic and fm.get("target_topic") != topic:
+            continue
+        if aspect and aspect not in _ensure_iter(fm.get("aspect")):
             continue
         if rx is not None and not rx.search(body) and not rx.search(str(fm)):
             continue
@@ -93,21 +118,19 @@ def search(*, query: str = "",
            status: str = "accepted",
            project: Optional[str] = None,
            topic: Optional[str] = None,
+           aspect: Optional[str] = None,
            limit: int = 20) -> Dict[str, Any]:
     vault = _vault_root()
     types = _STATUS_TO_TYPES.get(status, _STATUS_TO_TYPES["accepted"])
+    facet_sql, facet_params = _facet_clause(project, topic, aspect)
 
-    # FTS path
+    # FTS path. Classification (project/topic/aspect) is filtered in SQL via the
+    # indexed learning_facets table — not by scanning frontmatter in Python.
     hits: List[Dict[str, Any]] = []
     try:
         conn = _db.connect()
         try:
             placeholders = ",".join("?" * len(types))
-            base = (
-                "SELECT p.slug, p.page_type, p.space, p.frontmatter "
-                "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
-            )
-            params: List[Any] = list(types)
             if query:
                 base = (
                     "SELECT p.slug, p.page_type, p.space, p.frontmatter "
@@ -116,12 +139,16 @@ def search(*, query: str = "",
                     "JOIN pages p  ON p.id=c.page_id "
                     "WHERE chunks_fts MATCH ? "
                     "AND p.page_type IN (" + placeholders + ") "
-                    "LIMIT ?"
+                    + facet_sql + " LIMIT ?"
                 )
-                params = [query, *types, limit * 3]
+                params: List[Any] = [query, *types, *facet_params, limit * 3]
             else:
-                base += "LIMIT ?"
-                params = [*types, limit * 3]
+                base = (
+                    "SELECT p.slug, p.page_type, p.space, p.frontmatter "
+                    "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
+                    + facet_sql + " LIMIT ?"
+                )
+                params = [*types, *facet_params, limit * 3]
             seen_slugs: set[str] = set()
             for row in conn.execute(base, params):
                 slug = row["slug"]
@@ -130,11 +157,6 @@ def search(*, query: str = "",
                 seen_slugs.add(slug)
                 import json as _json
                 fm = _json.loads(row["frontmatter"] or "{}")
-                if project and fm.get("target_project") != project \
-                        and fm.get("project_hint") != project:
-                    continue
-                if topic and fm.get("target_topic") != topic:
-                    continue
                 hits.append({
                     "slug": slug,
                     "page_type": row["page_type"],
@@ -155,7 +177,7 @@ def search(*, query: str = "",
     if not hits:
         hits = _grep_walk(vault, query,
                           types=types, project=project, topic=topic,
-                          limit=limit)
+                          aspect=aspect, limit=limit)
     return {"count": len(hits), "items": hits, "vault": str(vault)}
 
 

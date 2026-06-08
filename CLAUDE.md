@@ -64,7 +64,8 @@ tooling. Content (the actual user IP) lives in separate private repos.
 | Implementation history (archival) | `docs/_archive/IMPLEMENTATION_LOG.md` |
 | Schema spec (data) | `schema/data/*.yaml` |
 | DB schema | `schema/db/sql/*.sql` |
-| Agent contracts | `agents/librarian.md`, `agents/builder.md` |
+| Space overlays | `schema/data/{gorae,workshop,learnings}.overlay.yaml` |
+| Learnings redesign (flat facets) | `docs/rfc/0001-flat-facet-learnings.md` |
 | User config template | `config/example.config.yaml` |
 
 ## Local config (out of tree)

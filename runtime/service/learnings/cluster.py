@@ -292,8 +292,11 @@ def _count_accepted(vault: Path) -> int:
     reindex, so the cadence counter reads the filesystem directly.
     """
     from . import store as _store
+    from . import recall as _recall
+    # Share recall's noise predicate (INDEX/TAXONOMY/README) with load_accepted
+    # so the cadence count matches the actually-loadable set.
     return sum(1 for p in _store.iter_accepted_files(vault)
-               if p.name != "INDEX.md")
+               if not _recall.is_noise(p.name))
 
 
 def dream_status() -> Dict[str, Any]:

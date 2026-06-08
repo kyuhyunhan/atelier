@@ -132,7 +132,7 @@ async def _h_lint(space: Optional[str] = None,
                   rule_ids: Optional[List[str]] = None,
                   apply_fixes: bool = False) -> Dict[str, Any]:
     """Run lint rules (L1/L3/L5/L6). With apply_fixes=true requires
-    librarian-write claim and lock."""
+    wiki-write claim and lock."""
     if apply_fixes:
         sess = current_session()
         _claims.require(sess.to_call_context(), _claims.Claim.WIKI_WRITE)
@@ -613,7 +613,7 @@ def _register_v01_tools() -> None:
                      _h_list_pages))
     register(ToolDef("atelier_lint",
                      "Run lint rules; optionally apply fixes "
-                     "(requires librarian-write).",
+                     "(requires wiki-write).",
                      _h_lint))
     register(ToolDef("atelier_doctor",
                      "Drift diagnostics; optionally remediate.",

@@ -45,13 +45,15 @@ def _facet_clause(project: Optional[str], topic: Optional[str],
     (RFC 0001). Classification lives in facets, resolved here — not in the path
     and not in a Python frontmatter scan. The 'project' facet was populated from
     `target_project or project_hint`, preserving the old OR semantics."""
+    # Facet values are stored lowercased (reindex._facet_rows); lowercase the
+    # query side too so the exact `=` match is case-insensitive end to end.
     pairs: List[tuple[str, str]] = []
     if project:
-        pairs.append(("project", project))
+        pairs.append(("project", project.lower()))
     if topic:
-        pairs.append(("topic", topic))
+        pairs.append(("topic", topic.lower()))
     if aspect:
-        pairs.append(("aspect", aspect))
+        pairs.append(("aspect", aspect.lower()))
     sql = "".join(
         " AND EXISTS (SELECT 1 FROM learning_facets lf "
         "WHERE lf.page_id=p.id AND lf.kind=? AND lf.value=?)"
@@ -117,9 +119,14 @@ def search(*, query: str = "",
            topic: Optional[str] = None,
            aspect: Optional[str] = None,
            limit: int = 20) -> Dict[str, Any]:
+    from ...search import fts as _fts
     vault = _vault_root()
     types = _STATUS_TO_TYPES.get(status, _STATUS_TO_TYPES["accepted"])
     facet_sql, facet_params = _facet_clause(project, topic, aspect)
+    # Sanitize the FTS query (mirrors fts.sanitize_match / recall): a raw prompt
+    # with punctuation would otherwise crash MATCH and silently fall through to
+    # the slow grep scan. Empty → treat as no text query (facet-only listing).
+    match = _fts.sanitize_match(query) if query else ""
 
     # FTS path. Classification (project/topic/aspect) is filtered in SQL via the
     # indexed learning_facets table — not by scanning frontmatter in Python.
@@ -128,7 +135,7 @@ def search(*, query: str = "",
         conn = _db.connect()
         try:
             placeholders = ",".join("?" * len(types))
-            if query:
+            if match:
                 base = (
                     "SELECT p.slug, p.page_type, p.space, p.frontmatter "
                     "FROM chunks_fts f "
@@ -138,7 +145,7 @@ def search(*, query: str = "",
                     "AND p.page_type IN (" + placeholders + ") "
                     + facet_sql + " LIMIT ?"
                 )
-                params: List[Any] = [query, *types, *facet_params, limit * 3]
+                params: List[Any] = [match, *types, *facet_params, limit * 3]
             else:
                 base = (
                     "SELECT p.slug, p.page_type, p.space, p.frontmatter "

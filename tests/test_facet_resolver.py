@@ -58,6 +58,19 @@ def test_search_project_filter_uses_facet_table(vault_env: Dict) -> None:
     assert ids == {"B"}
 
 
+def test_facet_match_is_case_insensitive(vault_env: Dict) -> None:
+    """Facet values are stored lowercased; a mixed-case frontmatter aspect must
+    still match a lowercase query (and a mixed-case project too)."""
+    vault = vault_env["vault"]
+    write_page(vault / "learnings" / "notes" / "2026-01" / "M.md",
+               {**_BASE, "entry_id": "M", "target_project": "Lexio",
+                "aspect": ["Cross-Cutting"]},
+               "## Observation\n\nmixed case facet values here\n")
+    api.reindex(full=True)
+    assert {h["entry_id"] for h in _se.search(aspect="cross-cutting")["items"]} == {"M"}
+    assert {h["entry_id"] for h in _se.search(project="lexio")["items"]} == {"M"}
+
+
 def test_recall_aspect_scope_hard_filters(vault_env: Dict) -> None:
     """recall(aspect=…) hard-scopes; without it, project stays a boost (both
     projects' client learnings remain eligible)."""

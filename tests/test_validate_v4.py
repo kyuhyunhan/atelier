@@ -59,15 +59,17 @@ def test_v5_accepted_with_facets_and_no_topic_passes(atelier_env: Dict) -> None:
         "links": [{"to": "20260513T1700", "why": "extends the policy"}],
         # NOTE: no target_topic — legal under v5.
     }
-    p = vault / "learnings" / "accepted" / "by-topic" / "x" / "n.md"
+    # Must live under notes/ so the learning_accepted overlay actually matches
+    # and its field_specs are exercised (not the path-unmatched minimal check).
+    p = vault / "learnings" / "notes" / "2026-05" / "n.md"
     _write(p, fm)
     findings = validate_v4.validate_paths([p], vault_root=vault)
     assert findings == [], [f.message for f in findings]
 
 
-def test_legacy_v4_accepted_still_valid(atelier_env: Dict) -> None:
-    """Backward-compat: existing v4 accepted records (with target_topic) remain
-    valid through the migration window."""
+def test_v4_accepted_in_notes_still_valid(atelier_env: Dict) -> None:
+    """Backward-compat: a v4 accepted record (with target_topic) in the flat
+    notes/ store remains valid (schema_version accepts {4, 5})."""
     vault = atelier_env["gorae"]
     fm = {
         "schema_version": 4,
@@ -80,10 +82,32 @@ def test_legacy_v4_accepted_still_valid(atelier_env: Dict) -> None:
         "observation_kind": "project",
         "target_topic": "rendering",
     }
-    p = vault / "learnings" / "accepted" / "by-topic" / "rendering" / "n.md"
+    p = vault / "learnings" / "notes" / "2026-05" / "n.md"
     _write(p, fm)
     findings = validate_v4.validate_paths([p], vault_root=vault)
     assert findings == [], [f.message for f in findings]
+
+
+def test_accepted_missing_required_field_fails(atelier_env: Dict) -> None:
+    """Proves the learning_accepted overlay actually matches notes/ paths: a
+    missing required field (accepted_at) must FAIL validation, not slip through
+    the path-unmatched minimal check."""
+    vault = atelier_env["gorae"]
+    fm = {
+        "schema_version": 5,
+        "entry_id": _uid(),
+        "captured_at": "2026-05-28T13:00:00+09:00",
+        # accepted_at intentionally omitted
+        "agent_kind": "claude-code",
+        "status": "accepted",
+        "ac_status": "passed",
+        "observation_kind": "project",
+    }
+    p = vault / "learnings" / "notes" / "2026-05" / "bad.md"
+    _write(p, fm)
+    findings = validate_v4.validate_paths([p], vault_root=vault)
+    msgs = " ".join(f.message for f in findings)
+    assert "accepted_at" in msgs, msgs
 
 
 def test_missing_required_field_fails(atelier_env: Dict) -> None:

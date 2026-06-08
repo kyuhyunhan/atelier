@@ -52,8 +52,8 @@ def _iter_candidates(vault: Path) -> Iterable[Path]:
 
 
 def _iter_accepted(vault: Path) -> Iterable[Path]:
-    # RFC 0001: the flat notes/ store plus the legacy by-topic tree during the
-    # migration window. Single source of truth in store.iter_accepted_files.
+    # RFC 0001: the flat notes/ store. Single source of truth in
+    # store.iter_accepted_files (the legacy by-topic/by-project trees are gone).
     yield from _store.iter_accepted_files(vault)
 
 

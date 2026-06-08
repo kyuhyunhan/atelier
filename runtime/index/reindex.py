@@ -204,10 +204,14 @@ def _facet_rows(fm: dict) -> list[tuple[str, str]]:
 
     def _add(kind: str, value) -> None:
         if isinstance(value, str) and value.strip():
-            key = (kind, value.strip().lower())
+            # Store lowercased: facet values are matched with exact `=` (SQLite is
+            # case-sensitive by default), and the rest of the system normalizes to
+            # lowercase (_slugify, concept tokens). The query side lowercases too.
+            norm = value.strip().lower()
+            key = (kind, norm)
             if key not in seen:
                 seen.add(key)
-                rows.append((kind, value.strip()))
+                rows.append((kind, norm))
 
     _add("project", fm.get("target_project") or fm.get("project_hint"))
     aspect = fm.get("aspect")

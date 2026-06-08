@@ -35,6 +35,23 @@ def test_search_accepted_default(atelier_env: Dict) -> None:
     assert out["items"][0]["project"] == "lexio"
 
 
+def test_search_sanitizes_punctuated_query(atelier_env: Dict) -> None:
+    """A hyphenated/operator query must not crash FTS MATCH and silently fall to
+    the grep scan — search() sanitizes like fts.search/recall do."""
+    from runtime.service import api
+    cap = _cap.capture(
+        observation="the session-end auto-commit safety net catches the skip",
+        why="phase-advance could skip the commit", rule="commit at session end",
+        working_dir="/Users/me/workspaces/lexio", session_id="z", hook="Stop")
+    _rev.accept(candidate_slug=cap["entry_id"], target_topic="cross-cutting",
+                target_project="lexio")
+    api.reindex(full=True)
+    # Would previously raise OperationalError → empty FTS → degraded grep path.
+    out = _ls.search(query="session-end auto-commit: safety-net!")
+    assert out["count"] == 1
+    assert out["items"][0]["project"] == "lexio"
+
+
 def test_search_filters_by_project(atelier_env: Dict) -> None:
     _accept_one(project="lexio")
     _accept_one(project="bht")

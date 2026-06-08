@@ -39,7 +39,7 @@ def test_add_writes_principle(atelier_env: Dict) -> None:
         title="prefer real db in integration tests",
         rule="integration tests must hit a real database, not mocks.",
         why="mocked tests pass while prod migration fails (lexio 2026-03; bht 2026-04).",
-        evidence=["learnings/accepted/by-project/lexio/foo.md"],
+        evidence=["learnings/notes/2026-01/foo.md"],
         coverage="cross-project",
         priority="always-inject",
     )

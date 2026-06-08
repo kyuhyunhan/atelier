@@ -61,7 +61,8 @@ def _facet_clause(facets: Optional[List[tuple]]) -> tuple:
     nothing, so the default recall path is unchanged (project stays a *boost*,
     not a filter — see _boost). Used when a caller wants to hard-scope recall to
     an aspect/topic/project."""
-    pairs = [p for p in (facets or []) if p and p[1]]
+    # Lowercase values to match the lowercased facet rows (reindex._facet_rows).
+    pairs = [(k, v.lower()) for (k, v) in (facets or []) if k and v]
     sql = "".join(
         " AND EXISTS (SELECT 1 FROM learning_facets lf "
         "WHERE lf.page_id=p.id AND lf.kind=? AND lf.value=?)"
@@ -120,17 +121,24 @@ def _fts_search(query: str, types: List[str], limit: int,
 
 
 def _fm_has_facet(fm: Dict[str, Any], kind: str, value: str) -> bool:
-    """Frontmatter-side mirror of a learning_facets row, for the no-DB fallback."""
+    """Frontmatter-side mirror of a learning_facets row, for the no-DB fallback.
+    Case-insensitive, matching the lowercased facet rows / query side."""
+    v = (value or "").lower()
+
+    def _lc(x) -> str:
+        return x.lower() if isinstance(x, str) else ""
+
+    def _lc_list(x) -> list:
+        return [e.lower() for e in x if isinstance(e, str)] if isinstance(x, list) else []
+
     if kind == "project":
-        return value in (fm.get("target_project"), fm.get("project_hint"))
+        return v in (_lc(fm.get("target_project")), _lc(fm.get("project_hint")))
     if kind == "topic":
-        return fm.get("target_topic") == value
+        return _lc(fm.get("target_topic")) == v
     if kind == "aspect":
-        a = fm.get("aspect")
-        return isinstance(a, list) and value in a
+        return v in _lc_list(fm.get("aspect"))
     if kind == "touches":
-        t = fm.get("touches")
-        return isinstance(t, list) and value in t
+        return v in _lc_list(fm.get("touches"))
     return False
 
 
@@ -302,10 +310,11 @@ def is_noise(slug: str) -> bool:
 
 
 def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """An accepted learning lives on disk twice by design — the by-topic
-    canonical and its by-project mirror share one entry_id. Keep the first
-    occurrence per entry_id (hits are pre-sorted, so that is the best-ranked
-    copy); hits without an entry_id pass through unchanged."""
+    """An accepted learning has exactly one file in the flat notes/ store
+    (RFC 0001), but FTS can still return the same page via several matching
+    chunks, and the FTS + fs-scan paths can overlap. Keep the first occurrence
+    per entry_id (hits are pre-sorted, so that is the best-ranked one); hits
+    without an entry_id pass through unchanged."""
     seen: set[str] = set()
     out: List[Dict[str, Any]] = []
     for h in hits:

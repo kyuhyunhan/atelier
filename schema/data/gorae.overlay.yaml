@@ -22,19 +22,19 @@ page_types:
   # ── Structural / generated pages (classification-only, no frontmatter contract) ──
   wiki_index:
     path_pattern: "wiki/index.md"
-    writer: librarian
+    writer: wiki-write
     notes: "Auto-regenerated wiki index. No required frontmatter."
 
   wiki_log:
     path_pattern: "wiki/log.md"
-    writer: librarian
+    writer: wiki-write
     notes: "Append-only activity log. No required frontmatter."
 
   # ── Wiki pages (Librarian-owned) ──────────────────────────────────────────
   digest:
     path_pattern: "wiki/digests/YYYY-MM.md"
     filename_pattern: "^[0-9]{4}-[0-9]{2}\\.md$"
-    writer: librarian
+    writer: wiki-write
     required_fields:
       [title, type, period, entry_count, key_themes, key_entities,
        created, updated]
@@ -49,7 +49,7 @@ page_types:
 
   source:
     path_pattern: "wiki/sources/*.md"
-    writer: librarian
+    writer: wiki-write
     required_fields: [title, type, raw, visibility, created, updated]
     field_specs:
       type:       { const: source }
@@ -60,7 +60,7 @@ page_types:
 
   entity:
     path_pattern: "wiki/entities/*.md"
-    writer: librarian
+    writer: wiki-write
     required_fields:
       [title, type, category, first_mention, source_count, created, updated]
     field_specs:
@@ -75,7 +75,7 @@ page_types:
 
   theme:
     path_pattern: "wiki/themes/*.md"
-    writer: librarian
+    writer: wiki-write
     required_fields:
       [title, type, scope, source_count, created, updated]
     optional_fields: [sub_themes]
@@ -91,7 +91,7 @@ page_types:
 
   synthesis:
     path_pattern: "wiki/synthesis/*.md"
-    writer: librarian
+    writer: wiki-write
     required_fields:
       [title, type, scope, query, created, updated]
     optional_fields: [domains]

@@ -20,6 +20,41 @@ def test_fts_returns_hits(atelier_env):
     assert any("example-person" in h["slug"].lower() for h in hits)
 
 
+def test_fts_sanitizes_punctuated_query(atelier_env):
+    """A natural-language query with punctuation (hyphens, colons) must not crash
+    FTS5 MATCH — the client PULL path has to be robust to real prompts."""
+    from runtime.service import api
+    write_page(
+        atelier_env["gorae"] / "wiki" / "entities" / "session-note.md",
+        {"title": "Session Note", "type": "entity", "category": "concept",
+         "first_mention": "2026-01", "source_count": 0,
+         "created": "2026-05-27", "updated": "2026-05-27"},
+        "# Session\n\nthe session-end auto-commit safety net catches the skip.\n",
+    )
+    api.reindex(space="gorae", full=True)
+    # Would previously raise sqlite3.OperationalError: no such column: end
+    hits = api.search("session-end auto-commit: safety-net!", space="gorae")
+    assert any("session-note" in h["slug"] for h in hits)
+
+
+def test_fts_dedups_multi_chunk_pages(atelier_env):
+    """A page with several matching chunks must appear ONCE, not once per chunk."""
+    from runtime.service import api
+    body = "# Doc\n\n" + "\n\n".join(
+        f"paragraph {i} mentions widget repeatedly." for i in range(6))
+    write_page(
+        atelier_env["gorae"] / "wiki" / "entities" / "widgety.md",
+        {"title": "Widgety", "type": "entity", "category": "concept",
+         "first_mention": "2026-01", "source_count": 0,
+         "created": "2026-05-27", "updated": "2026-05-27"},
+        body,
+    )
+    api.reindex(space="gorae", full=True)
+    hits = api.search("widget", space="gorae")
+    slugs = [h["slug"] for h in hits]
+    assert slugs.count("wiki/entities/widgety.md") == 1   # de-duplicated by page
+
+
 def test_graph_inbound_outbound(atelier_env):
     from runtime.service import api
     from runtime.search import graph

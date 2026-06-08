@@ -26,8 +26,8 @@ Dry-run by default; refuses to overwrite existing destinations.
 from __future__ import annotations
 
 import argparse
+import os
 import re
-import shutil
 import sys
 import uuid as _uuid
 from collections import Counter
@@ -39,6 +39,7 @@ from typing import Dict, List, Optional, Tuple
 import yaml
 
 from runtime.index import parse as _parse
+from runtime.service.learnings import store as _store
 from runtime.util import config as _config
 
 
@@ -58,11 +59,18 @@ def _now_iso() -> str:
 @dataclass
 class Plan:
     src: Path
-    dest_by_topic: Path
-    dest_by_project: Path
+    dest: Path                 # flat notes/<YYYY-MM>/<name>
     project: str
-    topic: str
+    aspects: List[str]         # project-local categories (layer + also_in)
     new_fm: Dict
+
+
+def _as_list(value) -> List[str]:
+    if isinstance(value, list):
+        return [str(v) for v in value if isinstance(v, (str, int))]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
 
 
 def _resolve_vault(cfg: _config.Config) -> Path:
@@ -107,8 +115,22 @@ def _build_plan(srcs: List[Tuple[Path, str, str]],
         topic_slug = _slugify(topic, fallback="general")
         fm, _body = _parse.split_frontmatter(src.read_text(encoding="utf-8"))
 
+        # Corrected mapping (RFC 0001 §2.2). The workshop note's project-local
+        # category is an ASPECT, not the global target_topic. Primary aspect =
+        # the explicit `layer` if present, else the memory subdirectory; secondary
+        # aspects = `also_in`. target_topic is left UNSET — there is no global
+        # topic here, and flattening one into it is the exact bug being fixed.
+        layer = fm.get("layer")
+        primary = _slugify(layer) if isinstance(layer, str) and layer else topic_slug
+        aspects: List[str] = []
+        for a in [primary, *(_slugify(x) for x in _as_list(fm.get("also_in")))]:
+            if a and a not in aspects:
+                aspects.append(a)
+
         fm = dict(fm)
-        fm["schema_version"] = 4
+        fm["schema_version"] = 5
+        # Idempotent identity — keep the original source-location namespace key
+        # so re-running never duplicates an already-absorbed note.
         fm.setdefault("entry_id", str(_uuid.uuid5(
             _uuid.NAMESPACE_DNS,
             f"learnings:absorbed:{project_slug}/{topic_slug}/{src.name}",
@@ -120,30 +142,19 @@ def _build_plan(srcs: List[Tuple[Path, str, str]],
         fm["status"] = "accepted"
         fm["ac_status"] = "passed"
         fm["accepted_at"] = _now_iso()
-        fm["target_topic"] = topic_slug
         fm["target_project"] = project_slug
+        fm["aspect"] = aspects
+        fm.pop("target_topic", None)         # never flatten a layer into topic
+        # `links` (typed {to, why}) and any `also_in` are preserved as-is.
         fm["ac_results"] = {"absorbed_from": "workshop/memory/"}
 
-        dest_topic = (vault / "learnings" / "accepted" / "by-topic"
-                      / topic_slug / src.name)
-        dest_project = (vault / "learnings" / "accepted" / "by-project"
-                        / project_slug / src.name)
-
-        if dest_topic.exists():
-            conflicts.append(f"already exists: {dest_topic}")
-            continue
-        if dest_project.exists():
-            conflicts.append(f"already exists: {dest_project}")
+        dest = _store.flat_dest(vault, fm.get("captured_at"), src.name)
+        if dest.exists():
+            conflicts.append(f"already exists: {dest}")
             continue
 
-        plans.append(Plan(
-            src=src,
-            dest_by_topic=dest_topic,
-            dest_by_project=dest_project,
-            project=project_slug,
-            topic=topic_slug,
-            new_fm=fm,
-        ))
+        plans.append(Plan(src=src, dest=dest, project=project_slug,
+                          aspects=aspects, new_fm=fm))
     return plans, conflicts
 
 
@@ -151,20 +162,11 @@ def _apply(plan: Plan) -> None:
     _, body = _parse.split_frontmatter(plan.src.read_text(encoding="utf-8"))
     serialized = yaml.safe_dump(plan.new_fm, sort_keys=False,
                                 allow_unicode=True).rstrip()
-    plan.dest_by_topic.parent.mkdir(parents=True, exist_ok=True)
-    plan.dest_by_topic.write_text(f"---\n{serialized}\n---\n{body}",
-                                  encoding="utf-8")
-    plan.dest_by_project.parent.mkdir(parents=True, exist_ok=True)
-    # Collision avoidance — two memory files in different topic subdirs
-    # can share a filename (e.g. README.md) and would otherwise overwrite
-    # in the by-project mirror.
-    target = plan.dest_by_project
-    n = 1
-    while target.exists():
-        stem = target.stem
-        target = target.with_name(f"{stem}-{n}{target.suffix}")
-        n += 1
-    shutil.copy2(plan.dest_by_topic, target)
+    # One flat note (RFC 0001), written atomically. The by-project mirror is gone.
+    plan.dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = plan.dest.parent / f".{plan.dest.name}.tmp"
+    tmp.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
+    os.replace(tmp, plan.dest)
     # Source file is left in place — operator decides when to delete the
     # original memory/ subtree (likely after committing this absorption).
 
@@ -203,12 +205,13 @@ def absorb(*, apply: bool,
         for c in conflicts:
             print(f"  ! {c}")
 
-    by_topic_counts: Counter[str] = Counter()
+    by_aspect_counts: Counter[str] = Counter()
     for p in plans:
-        by_topic_counts[p.topic] += 1
-    if by_topic_counts:
-        print("by topic:")
-        for t, n in sorted(by_topic_counts.items()):
+        for a in (p.aspects or ["(none)"]):
+            by_aspect_counts[a] += 1
+    if by_aspect_counts:
+        print("by aspect (primary + secondary):")
+        for t, n in sorted(by_aspect_counts.items()):
             print(f"  {n:4}  {t}")
 
     if not apply:

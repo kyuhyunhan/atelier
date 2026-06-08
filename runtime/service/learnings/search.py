@@ -62,14 +62,6 @@ def _facet_clause(project: Optional[str], topic: Optional[str],
     return sql, params
 
 
-def _ensure_iter(value: Any) -> List[Any]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
-
-
 def _grep_walk(root: Path, query: str,
                *, types: Iterable[str],
                project: Optional[str],
@@ -77,7 +69,10 @@ def _grep_walk(root: Path, query: str,
                aspect: Optional[str],
                limit: int) -> List[Dict[str, Any]]:
     """Filesystem-side fallback when FTS hasn't indexed learnings yet. No DB, so
-    facets are read straight from frontmatter here (the index is unavailable)."""
+    facets are read straight from frontmatter here (the index is unavailable).
+    Facet comparison delegates to recall._fm_has_facet so it is case-insensitive
+    and identical to the DB / recall-fallback paths (no silent mismatch)."""
+    from . import recall as _recall
     learnings_root = root / "learnings"
     if not learnings_root.exists():
         return []
@@ -89,12 +84,11 @@ def _grep_walk(root: Path, query: str,
         status = fm.get("status") or "candidate"
         if not any(status == t.removeprefix("learning_") for t in types):
             continue
-        if project and fm.get("project_hint") != project \
-                and fm.get("target_project") != project:
+        if project and not _recall._fm_has_facet(fm, "project", project):
             continue
-        if topic and fm.get("target_topic") != topic:
+        if topic and not _recall._fm_has_facet(fm, "topic", topic):
             continue
-        if aspect and aspect not in _ensure_iter(fm.get("aspect")):
+        if aspect and not _recall._fm_has_facet(fm, "aspect", aspect):
             continue
         if rx is not None and not rx.search(body) and not rx.search(str(fm)):
             continue
@@ -179,7 +173,10 @@ def search(*, query: str = "",
         hits = []
 
     if not hits:
-        hits = _grep_walk(vault, query,
+        # Mirror the FTS path's text signal: a query that sanitizes to empty
+        # (e.g. all punctuation) is a facet-only listing, so don't regex-match
+        # the raw punctuation in the fallback either.
+        hits = _grep_walk(vault, query if match else "",
                           types=types, project=project, topic=topic,
                           aspect=aspect, limit=limit)
     return {"count": len(hits), "items": hits, "vault": str(vault)}

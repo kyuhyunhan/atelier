@@ -38,7 +38,7 @@ class SubtreeConfig:
     operation. Read tools do not consult subtrees.
     """
     path: str             # relative to vault.local (e.g. "wiki", "learnings/candidates")
-    writer: str           # WriterRole value: "librarian-write" | "builder-write" | "captor-write" | "curator-write" | "human-only"
+    writer: str           # WriterRole value: "wiki-write" | "learnings-write" | "captor-write" | "curator-write" | "human-only" (legacy: librarian-write/builder-write)
     append_only: bool = False
 
 

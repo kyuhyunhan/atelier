@@ -52,6 +52,22 @@ def test_search_sanitizes_punctuated_query(atelier_env: Dict) -> None:
     assert out["items"][0]["project"] == "lexio"
 
 
+def test_grep_fallback_facet_is_case_insensitive(atelier_env: Dict) -> None:
+    """The DB-absent grep fallback must filter facets case-insensitively, exactly
+    like the DB path — no silent mismatch (round-2 regression guard)."""
+    vault = atelier_env["gorae"]
+    # write directly + do NOT reindex → forces the grep fallback (no FTS rows)
+    p = vault / "learnings" / "notes" / "2026-01" / "g.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("---\nschema_version: 5\nentry_id: g\nstatus: accepted\n"
+                 "ac_status: passed\nobservation_kind: project\n"
+                 "captured_at: '2026-01-01T00:00:00Z'\n"
+                 "accepted_at: '2026-01-02T00:00:00Z'\nagent_kind: claude-code\n"
+                 "target_project: Lexio\naspect:\n- Cross-Cutting\n---\nbody words\n")
+    out = _ls.search(query="", project="lexio", aspect="cross-cutting")
+    assert out["count"] == 1 and out["items"][0]["entry_id"] == "g"
+
+
 def test_search_filters_by_project(atelier_env: Dict) -> None:
     _accept_one(project="lexio")
     _accept_one(project="bht")

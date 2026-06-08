@@ -81,9 +81,22 @@ def migrate(vault: Path, *, apply: bool = False) -> Dict[str, object]:
         dest = _store.flat_dest(vault, fm.get("captured_at"), src.name)
         rel = src.relative_to(vault).as_posix()
         if dest.exists():
-            # Idempotent: a prior run already placed this note.
-            res.skipped.append(rel)
-            continue
+            # Idempotent ONLY when the destination holds the SAME record —
+            # otherwise it is a genuine filename collision (two distinct
+            # learnings share a name, e.g. README.md) and must be suffixed, not
+            # skipped (skipping would strand the second one in the legacy tree).
+            try:
+                dfm, _ = _parse.split_frontmatter(dest.read_text(encoding="utf-8"))
+            except Exception:
+                dfm = {}
+            if isinstance(dfm, dict) and dfm.get("entry_id") == fm.get("entry_id"):
+                res.skipped.append(rel)
+                continue
+            stem, suffix = src.name[:-3], ".md"     # collision: find a free name
+            n = 1
+            while dest.exists():
+                dest = dest.parent / f"{stem}-{n}{suffix}"
+                n += 1
 
         fm = dict(fm)
         fm["schema_version"] = 5                      # v4 → v5 (RFC 0001)

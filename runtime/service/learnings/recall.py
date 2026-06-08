@@ -204,7 +204,13 @@ def concept_tokens(fm: Dict[str, Any]) -> List[str]:
     """Ordered tokens of the concepts a learning is *about* (`touches` +
     `target_topic`), split on slug separators so `dependency-direction` matches
     a query word `dependency`. Deterministic — mirrors reindex's concept edges.
-    Public: the surfacing audit shares this tokenizer."""
+    Public: the surfacing audit shares this tokenizer.
+
+    NOTE: `aspect` is deliberately NOT a concept token. aspect values are coarse,
+    project-local buckets (client/server/cross-cutting) shared by many records;
+    putting them in the probe recreates the coarse-bucket competition the facet
+    redesign set out to break. aspect is for FACET FILTERING, not free-text recall.
+    """
     concepts: List[str] = []
     raw = fm.get("touches")
     if isinstance(raw, list):

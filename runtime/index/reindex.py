@@ -167,7 +167,9 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
 def _concept_targets(fm: dict) -> list[str]:
     """The concept edges a learning contributes: its explicit `touches` plus
     its `target_topic`. Deduplicated, order-stable, no LLM, no body re-parse
-    (body `[[...]]` are already extracted as `wikilink` edges)."""
+    (body `[[...]]` are already extracted as `wikilink` edges). `aspect` is NOT
+    a concept edge — it is a coarse project-local facet for filtering, not a
+    free-text recall concept (RFC 0001)."""
     items: list[str] = []
     raw = fm.get("touches")
     if isinstance(raw, list):

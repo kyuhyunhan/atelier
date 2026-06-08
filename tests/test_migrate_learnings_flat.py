@@ -64,6 +64,39 @@ def test_apply_is_idempotent(vault_env: Dict) -> None:
     assert rep2["counts"]["skipped"] == 0       # sources already gone
 
 
+def test_same_name_distinct_learnings_are_suffixed_not_stranded(vault_env: Dict) -> None:
+    """Two distinct learnings sharing a filename (e.g. README.md) in the same
+    month shard must BOTH move — the second is suffixed, never skipped/stranded
+    (the bug the surfacing gate caught on the live vault)."""
+    vault = vault_env["vault"]
+    write_page(vault / "learnings/accepted/by-topic/a/README.md",
+               {**_ACC, "entry_id": "R1"}, "## Observation\n\none\n")
+    write_page(vault / "learnings/accepted/by-topic/b/README.md",
+               {**_ACC, "entry_id": "R2"}, "## Observation\n\ntwo\n")
+    rep = _mig.migrate(vault, apply=True)
+    assert rep["counts"]["moved"] == 2
+    assert rep["counts"]["skipped"] == 0
+    moved = sorted(p.name for p in (vault / "learnings/notes/2026-05").glob("*.md"))
+    assert moved == ["README-1.md", "README.md"]      # both landed, distinct names
+    # both source files are gone (nothing stranded in by-topic)
+    assert not list((vault / "learnings/accepted/by-topic").rglob("README.md"))
+
+
+def test_apply_twice_same_record_skips_not_suffixes(vault_env: Dict) -> None:
+    """Idempotency guard: re-running must NOT create a -1 duplicate of the same
+    record (skip on matching entry_id)."""
+    vault = vault_env["vault"]
+    write_page(vault / "learnings/accepted/by-topic/a/n.md",
+               {**_ACC, "entry_id": "R1"}, "## Observation\n\none\n")
+    _mig.migrate(vault, apply=True)
+    # simulate the legacy copy reappearing (e.g. a re-run before tree deletion)
+    write_page(vault / "learnings/accepted/by-topic/a/n.md",
+               {**_ACC, "entry_id": "R1"}, "## Observation\n\none\n")
+    _mig.migrate(vault, apply=True)
+    notes = sorted(p.name for p in (vault / "learnings/notes/2026-05").glob("*.md"))
+    assert notes == ["n.md"]                          # no n-1.md duplicate
+
+
 def test_readers_find_flattened_notes(vault_env: Dict) -> None:
     """End-to-end: after flattening + reindex, recall surfaces a moved note."""
     from runtime.service import api

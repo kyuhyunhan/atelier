@@ -152,6 +152,15 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
                     (p["id"], concept, target_id, "concept"),
                 )
                 n += 1
+            # Facet index (RFC 0001) — clear-and-repopulate per page so a re-run
+            # is idempotent. Classification the resolver filters on at query time.
+            conn.execute("DELETE FROM learning_facets WHERE page_id=?", (p["id"],))
+            for kind, value in _facet_rows(fm):
+                conn.execute(
+                    "INSERT INTO learning_facets(page_id, kind, value) "
+                    "VALUES (?, ?, ?)",
+                    (p["id"], kind, value),
+                )
     return n
 
 
@@ -175,6 +184,40 @@ def _concept_targets(fm: dict) -> list[str]:
                 seen.add(key.lower())
                 out.append(key)
     return out
+
+
+def _facet_rows(fm: dict) -> list[tuple[str, str]]:
+    """The (kind, value) facet rows a learning contributes (RFC 0001).
+
+    Classification the resolver filters on at query time, projected from
+    frontmatter — never a folder, never an LLM. Deduplicated within a kind,
+    order-stable. Kinds:
+      project ← target_project | project_hint   (single, project-local)
+      aspect  ← aspect[]                          (many,   project-local)
+      topic   ← target_topic                      (single, global, optional)
+      touches ← touches[]                          (many,   global concepts)
+    """
+    rows: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def _add(kind: str, value) -> None:
+        if isinstance(value, str) and value.strip():
+            key = (kind, value.strip().lower())
+            if key not in seen:
+                seen.add(key)
+                rows.append((kind, value.strip()))
+
+    _add("project", fm.get("target_project") or fm.get("project_hint"))
+    aspect = fm.get("aspect")
+    if isinstance(aspect, list):
+        for a in aspect:
+            _add("aspect", a)
+    _add("topic", fm.get("target_topic"))
+    touches = fm.get("touches")
+    if isinstance(touches, list):
+        for t in touches:
+            _add("touches", t)
+    return rows
 
 
 def _norm(s: str) -> str:

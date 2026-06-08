@@ -33,13 +33,13 @@ _BASE = {
 
 def _accepted(vault, *, entry_id: str, topic: str, body: str,
               project: Optional[str] = None, touches=None) -> None:
-    """Seed an accepted learning in the CURRENT by-topic canonical layout."""
+    """Seed an accepted learning in the flat notes/ store (RFC 0001)."""
     fm = {**_BASE, "entry_id": entry_id, "target_topic": topic}
     if project:
         fm["target_project"] = project
     if touches:
         fm["touches"] = touches
-    write_page(vault / "learnings" / "accepted" / "by-topic" / topic /
+    write_page(vault / "learnings" / "notes" / "2026-01" /
                f"{entry_id}.md", fm, body)
 
 

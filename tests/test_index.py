@@ -90,13 +90,13 @@ def test_learning_concept_edges_connect_cross_project(vault_env):
         "captured_at": "2026-01-01T00:00:00Z", "accepted_at": "2026-01-02T00:00:00Z",
     }
     write_page(
-        vault / "learnings" / "accepted" / "by-topic" / "architecture" / "a.md",
+        vault / "learnings" / "notes" / "2026-01" / "a.md",
         {**base, "entry_id": "aaaa", "target_topic": "architecture",
          "target_project": "lexio", "touches": ["dependency-direction"]},
         "## Observation\n\ndepend on protocols, not implementations\n",
     )
     write_page(
-        vault / "learnings" / "accepted" / "by-topic" / "layering" / "b.md",
+        vault / "learnings" / "notes" / "2026-01" / "b.md",
         {**base, "entry_id": "bbbb", "target_topic": "layering",
          "target_project": "app", "touches": ["dependency-direction"]},
         "## Observation\n\ndependencies point inward\n",

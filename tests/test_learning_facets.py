@@ -24,7 +24,7 @@ def _seed_one(vault) -> None:
     fm = {**_BASE, "entry_id": "F1", "target_project": "lexio",
           "aspect": ["client", "cross-cutting"], "target_topic": "rendering",
           "touches": ["render-batching"]}
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "rendering" /
+    write_page(vault / "learnings" / "notes" / "2026-01" /
                "F1.md", fm, "## Observation\n\nbatching body words\n")
 
 
@@ -72,7 +72,7 @@ def test_topicless_learning_has_no_topic_facet(vault_env: Dict) -> None:
     vault = vault_env["vault"]
     fm = {**_BASE, "entry_id": "F2", "target_project": "pmi",
           "aspect": ["persistence"]}      # no target_topic
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "misc" /
+    write_page(vault / "learnings" / "notes" / "2026-01" /
                "F2.md", fm, "## Observation\n\nrepository owns unit of work\n")
     api.reindex(full=True)
     rows = _facets()

@@ -6,14 +6,9 @@ a FLAT store sharded only by immutable creation month:
     learnings/notes/<YYYY-MM>/<slug>.md
 
 This module is the single place that knows that layout. Every enumerator reads
-through `iter_accepted_files` so the by-topic → notes/ move touches one helper,
-not a dozen call sites.
-
-During the migration window the legacy `accepted/by-topic` tree is enumerated
-too (its files are unread duplicates once moved, but seeding/tests and a
-half-run migration must not lose them). The by-project mirror is never read —
-project is a facet, not a location. P7 deletes the legacy trees and drops the
-legacy root here.
+through `iter_accepted_files`, so the layout is defined once, not at a dozen call
+sites. (The legacy accepted/by-topic|by-project trees were migrated and removed
+in RFC 0001; only the flat notes/ store remains.)
 """
 from __future__ import annotations
 
@@ -26,30 +21,18 @@ def notes_root(vault: Path) -> Path:
     return vault / "learnings" / "notes"
 
 
-# Legacy canonical root, kept readable during the migration window (removed P7).
-_LEGACY_ACCEPTED = ("learnings", "accepted", "by-topic")
-
-
 def accepted_roots(vault: Path) -> List[Path]:
-    """Filesystem roots that may hold accepted-learning markdown, new first."""
-    return [notes_root(vault), vault.joinpath(*_LEGACY_ACCEPTED)]
+    """Filesystem roots that hold accepted-learning markdown."""
+    return [notes_root(vault)]
 
 
 def iter_accepted_files(vault: Path) -> Iterator[Path]:
-    """Every accepted-learning markdown file, across the flat store and the
-    legacy by-topic tree. The by-project mirror is intentionally excluded."""
-    seen: set = set()
-    for root in accepted_roots(vault):
-        if not root.exists():
-            continue
-        for p in sorted(root.rglob("*.md")):
-            if "by-project" in p.parts:
-                continue
-            key = p.resolve()
-            if key in seen:
-                continue
-            seen.add(key)
-            yield p
+    """Every accepted-learning markdown file in the flat notes/ store."""
+    root = notes_root(vault)
+    if not root.exists():
+        return
+    for p in sorted(root.rglob("*.md")):
+        yield p
 
 
 _MONTH_RX = re.compile(r"(\d{4})-(\d{2})")

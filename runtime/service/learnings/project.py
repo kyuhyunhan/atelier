@@ -33,9 +33,9 @@ inspecting a remote.
                    never a remote). Primary repos fall through to basename.
   6. basename    — ``Path(working_dir).name`` (the local default)
 
-`known` reports whether ``learnings/accepted/by-project/<slug>/`` exists,
-so callers can warn loudly when a session's captures won't be recalled
-instead of failing silently.
+`known` reports whether any accepted learning carries this project (a facet
+query, RFC 0001 — not a by-project directory check), so callers can warn loudly
+when a session's captures won't be recalled instead of failing silently.
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ class ProjectResolution:
     """The resolved project plus provenance for telemetry / loud warnings."""
     slug: Optional[str]      # None only when no working_dir and no explicit hint
     source: str              # explicit|config-map|marker|vault-self|basename|none
-    known: bool              # learnings/accepted/by-project/<slug>/ exists
+    known: bool              # some accepted learning carries this project (facet)
 
 
 # ── vault root (mirrors the per-module _vault_root helpers) ──────────────────

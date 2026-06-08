@@ -8,7 +8,7 @@ generalizing into a cross-project principle. The semantic generalization
 
 Algorithm (fully deterministic — same vault → same clusters):
 
-1. Load every accepted learning (by-topic canonical copies only).
+1. Load every accepted learning from the flat notes/ store.
 2. Extract a salient term-set per learning from its body + title
    (lowercased word tokens, stopword-filtered, length≥4).
 3. Build clusters by single-link agglomeration on term-overlap:
@@ -69,7 +69,7 @@ def _vault_root() -> Path:
 
 @dataclass
 class Learning:
-    """One accepted learning as loaded from the canonical by-topic markdown.
+    """One accepted learning loaded from the flat notes/ markdown.
     Public: shared by the dream cycle (cluster) and the lateral mutator."""
     slug: str
     project: str
@@ -119,7 +119,7 @@ def salient_terms(text: str) -> Set[str]:
 
 
 def load_accepted(vault: Path) -> List[Learning]:
-    """Read accepted learnings from the canonical by-topic markdown.
+    """Read accepted learnings from the flat notes/ store (RFC 0001).
 
     Markdown is the source of truth; the dream cycle runs infrequently
     (batch), so we read the filesystem directly rather than the DB

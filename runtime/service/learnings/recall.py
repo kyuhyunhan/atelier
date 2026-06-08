@@ -149,8 +149,7 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     facet_pairs = [p for p in (facets or []) if p and p[1]]
     out: List[Dict[str, Any]] = []
     # (ptype, iterable-of-paths). Accepted learnings live in the flat notes/
-    # store (RFC 0001) — store.iter_accepted_files spans it plus the legacy
-    # by-topic tree during migration and excludes the by-project mirror.
+    # store (RFC 0001) via store.iter_accepted_files.
     from . import store as _store
     roots: List[tuple[str, Any]] = []
     if "learning_principle" in types:
@@ -166,8 +165,6 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     for ptype, paths in roots:
         for p in paths:
             if is_noise(p.name):        # shared predicate (INDEX + TAXONOMY)
-                continue
-            if "by-project" in p.parts:
                 continue
             text = p.read_text(encoding="utf-8")
             try:

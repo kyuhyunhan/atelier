@@ -29,7 +29,7 @@ def _accepted(vault, topic, entry_id, body, *, project=None, touches=None):
         fm["target_project"] = project
     if touches:
         fm["touches"] = touches
-    write_page(vault / "learnings" / "accepted" / "by-topic" / topic /
+    write_page(vault / "learnings" / "notes" / "2026-01" /
                f"{entry_id}.md", fm, body)
 
 
@@ -119,7 +119,7 @@ def test_audit_excludes_navigational_views(vault_env: Dict) -> None:
     _accepted(vault, "general", "real",
               "## Observation\n\nreal learning body words\n")
     # an absorbed memory-model view: has an entry_id, but is a view, not a learning
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "general" / "TAXONOMY.md",
+    write_page(vault / "learnings" / "notes" / "2026-01" / "TAXONOMY.md",
                {**_BASE, "entry_id": "tax", "target_topic": "general"},
                "vocabulary tables\n")
     api.reindex(full=True)

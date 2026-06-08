@@ -553,7 +553,7 @@ async def _h_session_bootstrap(working_dir: Optional[str] = None,
                                 max_chars: int = 6000
                                 ) -> Dict[str, Any]:
     """Return a markdown block intended for the *first turn* of a
-    Claude Code session: always-inject principles + by-project learnings."""
+    Claude Code session: always-inject principles + this project's learnings."""
     from .learnings import bootstrap as _bs
     sess = current_session()
     return _bs.bootstrap(

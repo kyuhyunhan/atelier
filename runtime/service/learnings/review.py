@@ -4,8 +4,8 @@ The 4 operations form the lifecycle:
 
     candidates/<date>/<slug>.md
             │
-            ├──→  accepted/by-topic/<topic>/<slug>.md
-            │     (+ accepted/by-project/<project>/<slug>.md as a hardlink-style copy)
+            ├──→  notes/<YYYY-MM>/<slug>.md   (flat store, RFC 0001 — one file,
+            │                                   classification lives in facets)
             │
             ├──→  archived/<slug>.md  (with archive_reason)
             │

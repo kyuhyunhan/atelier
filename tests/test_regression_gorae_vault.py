@@ -25,7 +25,7 @@ def test_classify_schema_driven_both_layouts() -> None:
         "workshop/products/demo/README.md": "product_readme",
         "workshop/products/demo/spec/x.md": "product_page",
         "learnings/candidates/2026-06/x.md": "learning_candidate",
-        "learnings/accepted/by-topic/t/x.md": "learning_accepted",
+        "learnings/notes/2026-01/x.md": "learning_accepted",
         "learnings/principles/INDEX.md": "learnings_index",   # NOT a principle
         "learnings/principles/p.md": "learning_principle",
         # legacy two-space slug (back-compat)
@@ -126,7 +126,7 @@ def test_alias_resolution(vault_env: Dict) -> None:
     write_page(vault / "wiki" / "entities" / "bar.md",
                {"title": "Bar", "type": "entity", "aliases": ["Bar Alias"]},
                "Entity with an alias.")
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "t" / "l.md",
+    write_page(vault / "learnings" / "notes" / "2026-01" / "l.md",
                {"schema_version": 4, "entry_id": "x", "status": "accepted",
                 "target_topic": "t"},
                "Mentions [[Bar Alias]].")
@@ -138,7 +138,7 @@ def test_alias_resolution(vault_env: Dict) -> None:
         ent_id = conn.execute(
             "SELECT id FROM pages WHERE slug='wiki/entities/bar.md'"
         ).fetchone()["id"]
-        rows = _links_from(conn, "learnings/accepted/by-topic/t/l.md")
+        rows = _links_from(conn, "learnings/notes/2026-01/l.md")
         assert any(r["to_page_id"] == ent_id for r in rows), rows
     finally:
         conn.close()

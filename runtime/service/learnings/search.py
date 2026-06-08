@@ -82,9 +82,6 @@ def _grep_walk(root: Path, query: str,
     rx = re.compile(re.escape(query), re.I) if query else None
     out: List[Dict[str, Any]] = []
     for p in sorted(learnings_root.rglob("*.md")):
-        if "by-project" in p.parts:
-            # Skip the mirror so each accepted entry is reported once.
-            continue
         text = p.read_text(encoding="utf-8")
         fm, body = _parse.split_frontmatter(text)
         status = fm.get("status") or "candidate"

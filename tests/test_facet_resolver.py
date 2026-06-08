@@ -22,15 +22,15 @@ _BASE = {
 
 
 def _seed(vault) -> None:
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "t" / "C.md",
+    write_page(vault / "learnings" / "notes" / "2026-01" / "C.md",
                {**_BASE, "entry_id": "C", "target_project": "lexio",
                 "aspect": ["client"]},
                "## Observation\n\noverlay hotkey clipboard pipeline\n")
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "t" / "S.md",
+    write_page(vault / "learnings" / "notes" / "2026-01" / "S.md",
                {**_BASE, "entry_id": "S", "target_project": "lexio",
                 "aspect": ["server"]},
                "## Observation\n\nlambda dynamodb api gateway pipeline\n")
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "t" / "B.md",
+    write_page(vault / "learnings" / "notes" / "2026-01" / "B.md",
                {**_BASE, "entry_id": "B", "target_project": "bht",
                 "aspect": ["client"]},
                "## Observation\n\nreact rendering pipeline\n")

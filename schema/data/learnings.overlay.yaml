@@ -62,11 +62,8 @@ page_types:
 
   learning_accepted:
     # RFC 0001 flat store: learnings/notes/<YYYY-MM>/<id>.md. The legacy
-    # accepted/by-topic|by-project trees are matched too during the migration
-    # window; P7 drops the legacy pattern once the trees are deleted.
-    path_patterns:
-      - "learnings/notes/**/*.md"
-      - "learnings/accepted/**/*.md"
+    # accepted/by-topic|by-project trees have been migrated and removed.
+    path_pattern: "learnings/notes/**/*.md"
     writer: curator
     required_fields:
       [schema_version, entry_id, captured_at, agent_kind, status, ac_status,

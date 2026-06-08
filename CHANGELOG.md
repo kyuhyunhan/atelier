@@ -4,6 +4,35 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — flat, facet-based learnings memory (RFC 0001)
+
+Classification for the `learnings/` domain moved out of the directory path and
+into indexed frontmatter **facets** resolved at query time. See
+`docs/rfc/0001-flat-facet-learnings.md`.
+
+- **Schema v5.** Accepted learnings are a flat store `learnings/notes/<YYYY-MM>/`
+  (sharded by immutable creation month only); the `by-topic` canonical and
+  `by-project` mirror trees are retired. New facets: `aspect[]` (project-local,
+  many-valued) kept distinct from `target_topic` (global, now optional); typed
+  `links:[{to,why}]` adopted. `target_project` + `aspect` + `target_topic` +
+  `touches` are projected into an indexed `learning_facets(page_id,kind,value)`
+  table at reindex (migration `0002`).
+- **Resolver.** `search()`/`recall()` filter on the facet index (EXISTS), not a
+  frontmatter scan; recall gains optional aspect/topic scoping (project stays a
+  boost).
+- **Absorb fixed.** The workshop→learnings absorb no longer flattens a note's
+  project-local `layer` into the global `target_topic` (the "indiscriminate
+  knowledge" bug); `layer`→aspect primary, `also_in`→aspect secondary, typed
+  links preserved.
+- **Personas retired.** The librarian/builder *agents* are gone — write-locks are
+  keyed per-subtree (`wiki-write`, `learnings-write`, `captor-write`,
+  `curator-write`); schema overlays renamed to space-named, the `agent:` field and
+  `agents/*.md` contracts removed.
+- **Dead code removed.** `reconcile.py`, the D7 doctor diagnostic, the
+  `atelier_learning_reconcile` tool, and the per-project INDEX generator.
+- **New scripts.** `census_damaged_learnings`, `migrate_learnings_flat`,
+  `repair_lexio_layers` (the live-vault migration/repair tooling).
+
 ### Changed — unified logging on stdlib `logging`
 
 Logging was fragmented (3 formats; Python logs depended on shell redirection;

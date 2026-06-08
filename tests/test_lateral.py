@@ -28,7 +28,7 @@ def _accepted(vault, topic, entry_id, body, *, touches=None, project=None):
         fm["touches"] = touches
     if project:
         fm["target_project"] = project
-    write_page(vault / "learnings" / "accepted" / "by-topic" / topic /
+    write_page(vault / "learnings" / "notes" / "2026-01" /
                f"{entry_id}.md", fm, body)
 
 
@@ -60,7 +60,7 @@ def test_plan_tags_suggests_body_echoing_terms(vault_env: Dict) -> None:
 def test_plan_tags_skips_views_and_flags_inert_tags(vault_env: Dict) -> None:
     vault = vault_env["vault"]
     # a navigational view (noise) must not be teed up for tagging
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "general" /
+    write_page(vault / "learnings" / "notes" / "2026-01" /
                "TAXONOMY.md", {**_BASE, "entry_id": "tax",
                                "target_topic": "general"}, "vocabulary\n")
     # tags with zero body echo are inert — flag for attention
@@ -85,7 +85,7 @@ def test_apply_tags_inserts_snapshot_wrapped(vault_env: Dict) -> None:
 
     out = _lat.apply_tags({"aaa": ["keychain", "sensitive-data"]})
     assert out["applied"] == 1
-    text = (vault / "learnings" / "accepted" / "by-topic" / "client" /
+    text = (vault / "learnings" / "notes" / "2026-01" /
             "aaa.md").read_text()
     assert "touches:" in text and "- keychain" in text
     # snapshot-wrapped: the omission guard is part of the result contract
@@ -108,7 +108,7 @@ def test_apply_rejects_tags_without_body_echo(vault_env: Dict) -> None:
     assert out["applied"] == 1
     rejected = out["rejected"]["bbb"]
     assert rejected == ["quantum-flux"]
-    text = (vault / "learnings" / "accepted" / "by-topic" / "client" /
+    text = (vault / "learnings" / "notes" / "2026-01" /
             "bbb.md").read_text()
     assert "- pasteboard" in text
     assert "quantum-flux" not in text
@@ -165,7 +165,7 @@ def test_insert_touches_idempotent_on_long_frontmatter(vault_env: Dict) -> None:
     line window — touches sitting past line 80 must still block a re-insert
     (the bug double-inserted a second touches block)."""
     vault = vault_env["vault"]
-    p = vault / "learnings" / "accepted" / "by-topic" / "client" / "long.md"
+    p = vault / "learnings" / "notes" / "2026-01" / "long.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     fm = (["---"] + [f"field_{i}: {i}" for i in range(85)]
           + ["entry_id: long", "target_topic: client",
@@ -192,53 +192,31 @@ def test_apply_reports_unknown_and_fully_rejected(vault_env: Dict) -> None:
     assert out["rejected"]["real"] == ["quantum-flux"]
 
 
-def test_apply_tags_mirrors_receive_tags(vault_env: Dict) -> None:
-    """S4: the by-project mirror must receive the same touches as the
-    canonical — a tag applied to one but not the other causes a surfacing
-    discrepancy between the retrieval paths."""
-    import yaml as _yaml
+def test_apply_tags_writes_the_flat_note(vault_env: Dict) -> None:
+    """RFC 0001: one flat note, no mirror — the tag lands in the note itself."""
     vault = vault_env["vault"]
     _accepted(vault, "client", "mm",
               "## Observation\n\nkeychain sensitive token body\n",
               project="lexio")
-    mirror = (vault / "learnings" / "accepted" / "by-project" / "lexio" /
-              "mm.md")
-    canonical = (vault / "learnings" / "accepted" / "by-topic" / "client" /
+    canonical = (vault / "learnings" / "notes" / "2026-01" /
                  "mm.md")
-    mirror.parent.mkdir(parents=True, exist_ok=True)
-    mirror.write_text(canonical.read_text())
     api.reindex(full=True)
 
     out = _lat.apply_tags({"mm": ["keychain"]})
     assert out["applied"] == 1
+    assert out["mirror_skipped"] == 0          # no mirror exists (RFC 0001)
     assert "- keychain" in canonical.read_text()
-    assert "- keychain" in mirror.read_text()
 
 
 def test_insert_touches_refuses_empty_tags(vault_env: Dict) -> None:
     """NEW-1: never write a bare `touches:` header."""
     vault = vault_env["vault"]
     _accepted(vault, "client", "zz", "## Observation\n\nbody words here\n")
-    p = vault / "learnings" / "accepted" / "by-topic" / "client" / "zz.md"
+    p = vault / "learnings" / "notes" / "2026-01" / "zz.md"
     assert _lat._insert_touches(p, []) is False
     assert "touches:" not in p.read_text()
 
 
-def test_apply_counts_pretagged_diverging_mirror(vault_env: Dict) -> None:
-    """NEW-2: a mirror that already carries touches (diverging from its
-    untagged canonical) is counted in mirror_skipped, not silently ignored."""
-    vault = vault_env["vault"]
-    _accepted(vault, "client", "dv",
-              "## Observation\n\nkeychain sensitive body\n", project="lexio")
-    canonical = (vault / "learnings" / "accepted" / "by-topic" / "client" /
-                 "dv.md")
-    mirror = (vault / "learnings" / "accepted" / "by-project" / "lexio" /
-              "dv.md")
-    mirror.parent.mkdir(parents=True, exist_ok=True)
-    # mirror diverges: it is already tagged while the canonical is not
-    mirror.write_text(canonical.read_text().replace(
-        "target_topic: client", "target_topic: client\ntouches:\n- keychain"))
-
-    out = _lat.apply_tags({"dv": ["keychain"]})
-    assert out["applied"] == 1
-    assert out["mirror_skipped"] == 1
+# RFC 0001 retired the by-project mirror, so mirror-divergence (the old
+# mirror_skipped counter) can no longer occur. The counter remains in the
+# return contract, pinned at 0 by test_apply_tags_writes_the_flat_note.

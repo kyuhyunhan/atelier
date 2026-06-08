@@ -39,7 +39,7 @@ def test_add_writes_principle(atelier_env: Dict) -> None:
         title="prefer real db in integration tests",
         rule="integration tests must hit a real database, not mocks.",
         why="mocked tests pass while prod migration fails (lexio 2026-03; bht 2026-04).",
-        evidence=["learnings/accepted/by-project/lexio/foo.md"],
+        evidence=["learnings/notes/2026-01/foo.md"],
         coverage="cross-project",
         priority="always-inject",
     )
@@ -90,7 +90,7 @@ def test_synthesize_from_two_accepted_learnings(atelier_env: Dict) -> None:
     assert fm["priority"] == "always-inject"
     # Two evidence backlinks resolved to vault-relative paths.
     assert len(fm["evidence"]) == 2
-    assert all(e.startswith("learnings/accepted/by-topic/") for e in fm["evidence"])
+    assert all(e.startswith("learnings/notes/") for e in fm["evidence"])
     body = p.read_text()
     for e in fm["evidence"]:
         assert f"[[{e}]]" in body

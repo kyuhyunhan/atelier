@@ -8,7 +8,7 @@ generalizing into a cross-project principle. The semantic generalization
 
 Algorithm (fully deterministic — same vault → same clusters):
 
-1. Load every accepted learning (by-topic canonical copies only).
+1. Load every accepted learning from the flat notes/ store.
 2. Extract a salient term-set per learning from its body + title
    (lowercased word tokens, stopword-filtered, length≥4).
 3. Build clusters by single-link agglomeration on term-overlap:
@@ -69,7 +69,7 @@ def _vault_root() -> Path:
 
 @dataclass
 class Learning:
-    """One accepted learning as loaded from the canonical by-topic markdown.
+    """One accepted learning loaded from the flat notes/ markdown.
     Public: shared by the dream cycle (cluster) and the lateral mutator."""
     slug: str
     project: str
@@ -119,7 +119,7 @@ def salient_terms(text: str) -> Set[str]:
 
 
 def load_accepted(vault: Path) -> List[Learning]:
-    """Read accepted learnings from the canonical by-topic markdown.
+    """Read accepted learnings from the flat notes/ store (RFC 0001).
 
     Markdown is the source of truth; the dream cycle runs infrequently
     (batch), so we read the filesystem directly rather than the DB
@@ -130,11 +130,9 @@ def load_accepted(vault: Path) -> List[Learning]:
     """
     from ...index import parse as _parse
     from . import recall as _recall
+    from . import store as _store
     learnings: List[Learning] = []
-    root = vault / "learnings" / "accepted" / "by-topic"
-    if not root.exists():
-        return []
-    for p in sorted(root.rglob("*.md")):
+    for p in _store.iter_accepted_files(vault):
         if _recall.is_noise(p.name):
             continue
         try:
@@ -293,10 +291,12 @@ def _count_accepted(vault: Path) -> int:
     The DB projection can lag behind accepts that happened since the last
     reindex, so the cadence counter reads the filesystem directly.
     """
-    root = vault / "learnings" / "accepted" / "by-topic"
-    if not root.exists():
-        return 0
-    return sum(1 for p in root.rglob("*.md") if p.name != "INDEX.md")
+    from . import store as _store
+    from . import recall as _recall
+    # Share recall's noise predicate (INDEX/TAXONOMY/README) with load_accepted
+    # so the cadence count matches the actually-loadable set.
+    return sum(1 for p in _store.iter_accepted_files(vault)
+               if not _recall.is_noise(p.name))
 
 
 def dream_status() -> Dict[str, Any]:

@@ -8,24 +8,26 @@ import yaml
 SCHEMA = Path(__file__).resolve().parents[1] / "schema" / "data"
 
 
-def test_base_yaml_loads_and_versions_4():
+def test_base_yaml_loads_and_versions_5():
     data = yaml.safe_load((SCHEMA / "base.yaml").read_text())
-    assert data["version"] == 4
+    assert data["version"] == 5
     assert "schema_version" in data["fields"]
-    assert data["fields"]["schema_version"]["const"] == 4
+    # v5 is current; v4 accepted during the flat-facet migration (RFC 0001).
+    assert data["fields"]["schema_version"]["enum"] == [4, 5]
 
 
-def test_librarian_overlay_has_5_wiki_page_types():
-    data = yaml.safe_load((SCHEMA / "librarian.overlay.yaml").read_text())
-    assert data["agent"] == "librarian"
+def test_gorae_overlay_has_5_wiki_page_types():
+    data = yaml.safe_load((SCHEMA / "gorae.overlay.yaml").read_text())
+    # RFC 0001: no `agent:` field — overlays are space contracts, not personas.
+    assert "agent" not in data
     assert "gorae" in data["spaces"]
     wiki_types = {"digest", "source", "entity", "theme", "synthesis"}
     assert wiki_types <= set(data["page_types"])
 
 
-def test_builder_overlay_has_workshop_space():
-    data = yaml.safe_load((SCHEMA / "builder.overlay.yaml").read_text())
-    assert data["agent"] == "builder"
+def test_workshop_overlay_has_workshop_space():
+    data = yaml.safe_load((SCHEMA / "workshop.overlay.yaml").read_text())
+    assert "agent" not in data
     assert "workshop" in data["spaces"]
     assert "product_readme" in data["page_types"]
 

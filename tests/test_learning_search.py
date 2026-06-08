@@ -35,6 +35,39 @@ def test_search_accepted_default(atelier_env: Dict) -> None:
     assert out["items"][0]["project"] == "lexio"
 
 
+def test_search_sanitizes_punctuated_query(atelier_env: Dict) -> None:
+    """A hyphenated/operator query must not crash FTS MATCH and silently fall to
+    the grep scan — search() sanitizes like fts.search/recall do."""
+    from runtime.service import api
+    cap = _cap.capture(
+        observation="the session-end auto-commit safety net catches the skip",
+        why="phase-advance could skip the commit", rule="commit at session end",
+        working_dir="/Users/me/workspaces/lexio", session_id="z", hook="Stop")
+    _rev.accept(candidate_slug=cap["entry_id"], target_topic="cross-cutting",
+                target_project="lexio")
+    api.reindex(full=True)
+    # Would previously raise OperationalError → empty FTS → degraded grep path.
+    out = _ls.search(query="session-end auto-commit: safety-net!")
+    assert out["count"] == 1
+    assert out["items"][0]["project"] == "lexio"
+
+
+def test_grep_fallback_facet_is_case_insensitive(atelier_env: Dict) -> None:
+    """The DB-absent grep fallback must filter facets case-insensitively, exactly
+    like the DB path — no silent mismatch (round-2 regression guard)."""
+    vault = atelier_env["gorae"]
+    # write directly + do NOT reindex → forces the grep fallback (no FTS rows)
+    p = vault / "learnings" / "notes" / "2026-01" / "g.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("---\nschema_version: 5\nentry_id: g\nstatus: accepted\n"
+                 "ac_status: passed\nobservation_kind: project\n"
+                 "captured_at: '2026-01-01T00:00:00Z'\n"
+                 "accepted_at: '2026-01-02T00:00:00Z'\nagent_kind: claude-code\n"
+                 "target_project: Lexio\naspect:\n- Cross-Cutting\n---\nbody words\n")
+    out = _ls.search(query="", project="lexio", aspect="cross-cutting")
+    assert out["count"] == 1 and out["items"][0]["entry_id"] == "g"
+
+
 def test_search_filters_by_project(atelier_env: Dict) -> None:
     _accept_one(project="lexio")
     _accept_one(project="bht")
@@ -56,11 +89,8 @@ def test_relink_replaces_links(atelier_env: Dict) -> None:
     accepted = _accept_one()
     out = _ls.relink(slug=accepted.stem, links=["wiki/entities/fts5"])
     assert out["links"] == ["wiki/entities/fts5"]
-    # by-project mirror updated too:
-    mirror = (atelier_env["gorae"] / "learnings" / "accepted"
-              / "by-project" / "lexio" / accepted.name)
-    text = mirror.read_text(encoding="utf-8")
-    assert "wiki/entities/fts5" in text
+    # One flat note, no mirror (RFC 0001): the change lands in the note itself.
+    assert "wiki/entities/fts5" in accepted.read_text(encoding="utf-8")
 
 
 def test_relink_merge_preserves_existing(atelier_env: Dict) -> None:

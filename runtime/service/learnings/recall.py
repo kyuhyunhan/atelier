@@ -55,7 +55,24 @@ def _sanitize_fts_query(q: str) -> str:
     return " OR ".join(f'"{t}"' for t in tokens[:24])
 
 
-def _fts_search(query: str, types: List[str], limit: int) -> List[Dict[str, Any]]:
+def _facet_clause(facets: Optional[List[tuple]]) -> tuple:
+    """SQL + params for optional facet filtering via the indexed learning_facets
+    table (RFC 0001). `facets` is a list of (kind, value) pairs; empty/None adds
+    nothing, so the default recall path is unchanged (project stays a *boost*,
+    not a filter — see _boost). Used when a caller wants to hard-scope recall to
+    an aspect/topic/project."""
+    # Lowercase values to match the lowercased facet rows (reindex._facet_rows).
+    pairs = [(k, v.lower()) for (k, v) in (facets or []) if k and v]
+    sql = "".join(
+        " AND EXISTS (SELECT 1 FROM learning_facets lf "
+        "WHERE lf.page_id=p.id AND lf.kind=? AND lf.value=?)"
+        for _ in pairs)
+    params = [x for pair in pairs for x in pair]
+    return sql, params
+
+
+def _fts_search(query: str, types: List[str], limit: int,
+                facets: Optional[List[tuple]] = None) -> List[Dict[str, Any]]:
     safe = _sanitize_fts_query(query)
     if not safe:
         return []
@@ -65,6 +82,7 @@ def _fts_search(query: str, types: List[str], limit: int) -> List[Dict[str, Any]
         return []
     try:
         placeholders = ",".join("?" * len(types))
+        facet_sql, facet_params = _facet_clause(facets)
         sql = (
             "SELECT p.slug, p.page_type, p.space, p.frontmatter, "
             "       f.rank AS score, "
@@ -74,11 +92,12 @@ def _fts_search(query: str, types: List[str], limit: int) -> List[Dict[str, Any]
             "JOIN pages  p ON p.id=c.page_id "
             "WHERE chunks_fts MATCH ? "
             "  AND p.page_type IN (" + placeholders + ") "
-            "ORDER BY f.rank "
+            + facet_sql +
+            " ORDER BY f.rank "
             "LIMIT ?"
         )
         try:
-            rows = list(conn.execute(sql, [safe, *types, limit]))
+            rows = list(conn.execute(sql, [safe, *types, *facet_params, limit]))
         except Exception:                   # SQLite FTS error
             return []
         out: List[Dict[str, Any]] = []
@@ -101,8 +120,31 @@ def _fts_search(query: str, types: List[str], limit: int) -> List[Dict[str, Any]
         conn.close()
 
 
+def _fm_has_facet(fm: Dict[str, Any], kind: str, value: str) -> bool:
+    """Frontmatter-side mirror of a learning_facets row, for the no-DB fallback.
+    Case-insensitive, matching the lowercased facet rows / query side."""
+    v = (value or "").lower()
+
+    def _lc(x) -> str:
+        return x.lower() if isinstance(x, str) else ""
+
+    def _lc_list(x) -> list:
+        return [e.lower() for e in x if isinstance(e, str)] if isinstance(x, list) else []
+
+    if kind == "project":
+        return v in (_lc(fm.get("target_project")), _lc(fm.get("project_hint")))
+    if kind == "topic":
+        return _lc(fm.get("target_topic")) == v
+    if kind == "aspect":
+        return v in _lc_list(fm.get("aspect"))
+    if kind == "touches":
+        return v in _lc_list(fm.get("touches"))
+    return False
+
+
 def _fs_scan(query: str, vault: Path, types: List[str],
-             limit: int) -> List[Dict[str, Any]]:
+             limit: int,
+             facets: Optional[List[tuple]] = None) -> List[Dict[str, Any]]:
     """Fallback when the FTS index has no learning_* rows yet.
 
     Token-based match: hit counts when *any* token from the query
@@ -112,26 +154,33 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     tokens = [t.lower() for t in re.findall(r"\w+", query or "", re.UNICODE)]
     if not tokens:
         return []
+    facet_pairs = [p for p in (facets or []) if p and p[1]]
     out: List[Dict[str, Any]] = []
-    roots: List[tuple[str, Path]] = []
+    # (ptype, iterable-of-paths). Accepted learnings live in the flat notes/
+    # store (RFC 0001) via store.iter_accepted_files.
+    from . import store as _store
+    roots: List[tuple[str, Any]] = []
     if "learning_principle" in types:
-        roots.append(("learning_principle", vault / "learnings" / "principles"))
+        roots.append(("learning_principle",
+                      sorted((vault / "learnings" / "principles").rglob("*.md"))
+                      if (vault / "learnings" / "principles").exists() else []))
     if "learning_accepted" in types:
-        roots.append(("learning_accepted", vault / "learnings" / "accepted"))
+        roots.append(("learning_accepted", _store.iter_accepted_files(vault)))
     if "learning_candidate" in types:
-        roots.append(("learning_candidate", vault / "learnings" / "candidates"))
-    for ptype, root in roots:
-        if not root.exists():
-            continue
-        for p in sorted(root.rglob("*.md")):
+        roots.append(("learning_candidate",
+                      sorted((vault / "learnings" / "candidates").rglob("*.md"))
+                      if (vault / "learnings" / "candidates").exists() else []))
+    for ptype, paths in roots:
+        for p in paths:
             if is_noise(p.name):        # shared predicate (INDEX + TAXONOMY)
-                continue
-            if "by-project" in p.parts:
                 continue
             text = p.read_text(encoding="utf-8")
             try:
                 fm, body = _parse.split_frontmatter(text)
             except Exception:               # pragma: no cover
+                continue
+            if facet_pairs and not all(
+                    _fm_has_facet(fm, k, v) for k, v in facet_pairs):
                 continue
             haystack = (body + " " + str(fm)).lower()
             hits_in_doc = sum(1 for t in tokens if t in haystack)
@@ -160,7 +209,13 @@ def concept_tokens(fm: Dict[str, Any]) -> List[str]:
     """Ordered tokens of the concepts a learning is *about* (`touches` +
     `target_topic`), split on slug separators so `dependency-direction` matches
     a query word `dependency`. Deterministic — mirrors reindex's concept edges.
-    Public: the surfacing audit shares this tokenizer."""
+    Public: the surfacing audit shares this tokenizer.
+
+    NOTE: `aspect` is deliberately NOT a concept token. aspect values are coarse,
+    project-local buckets (client/server/cross-cutting) shared by many records;
+    putting them in the probe recreates the coarse-bucket competition the facet
+    redesign set out to break. aspect is for FACET FILTERING, not free-text recall.
+    """
     concepts: List[str] = []
     raw = fm.get("touches")
     if isinstance(raw, list):
@@ -255,10 +310,11 @@ def is_noise(slug: str) -> bool:
 
 
 def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """An accepted learning lives on disk twice by design — the by-topic
-    canonical and its by-project mirror share one entry_id. Keep the first
-    occurrence per entry_id (hits are pre-sorted, so that is the best-ranked
-    copy); hits without an entry_id pass through unchanged."""
+    """An accepted learning has exactly one file in the flat notes/ store
+    (RFC 0001), but FTS can still return the same page via several matching
+    chunks, and the FTS + fs-scan paths can overlap. Keep the first occurrence
+    per entry_id (hits are pre-sorted, so that is the best-ranked one); hits
+    without an entry_id pass through unchanged."""
     seen: set[str] = set()
     out: List[Dict[str, Any]] = []
     for h in hits:
@@ -274,16 +330,19 @@ def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def rank_hits(query: str, project: Optional[str], types: List[str], *,
               top_k: int,
               relevance_threshold: Optional[float] = None,
+              facets: Optional[List[tuple]] = None,
               vault: Optional[Path] = None) -> List[Dict[str, Any]]:
     """The shared ranking pipeline: FTS (→ fs fallback) → noise filter → boost
     → sort → dedup → top-K. Returns hits *with* their `fm` (so callers that need
     entry_id — e.g. the surfacing audit — can match), not rendered summaries.
     Single source of retrieval order, shared by recall() and surfacing. Pass
-    `vault` to avoid a redundant config read when the caller already has it."""
+    `vault` to avoid a redundant config read when the caller already has it.
+    `facets` (optional (kind, value) pairs) hard-scopes the result to the
+    indexed facet table; `project` remains a ranking *boost*, not a filter."""
     vault = vault if vault is not None else _vault_root()
-    hits = _fts_search(query, types, limit=top_k * 4)
+    hits = _fts_search(query, types, limit=top_k * 4, facets=facets)
     if not hits:
-        hits = _fs_scan(query, vault, types, limit=top_k * 4)
+        hits = _fs_scan(query, vault, types, limit=top_k * 4, facets=facets)
 
     # Drop generated projections (INDEX/TAXONOMY) regardless of source path —
     # the FTS path does not exclude them the way _fs_scan does.
@@ -311,8 +370,14 @@ def recall(*, query: str,
            max_chars: int = 1500,
            include_candidates: bool = False,
            relevance_threshold: Optional[float] = None,
+           aspect: Optional[str] = None,
+           topic: Optional[str] = None,
            ) -> Dict[str, Any]:
-    """Return top-K learnings relevant to `query` (one prompt's worth)."""
+    """Return top-K learnings relevant to `query` (one prompt's worth).
+
+    `project` boosts the current project's learnings without excluding others.
+    `aspect`/`topic` (optional) hard-scope the result via the indexed facet table
+    — e.g. recall only lexio's `client`-aspect lessons."""
     vault = _vault_root()
     types = ["learning_principle", "learning_accepted"]
     if include_candidates:
@@ -324,8 +389,10 @@ def recall(*, query: str,
         return {"query": query, "project": project, "count": 0,
                 "items": [], "markdown": ""}
 
+    facets = [("aspect", aspect), ("topic", topic)]
     hits = rank_hits(query, project, types, top_k=top_k,
-                     relevance_threshold=relevance_threshold, vault=vault)
+                     relevance_threshold=relevance_threshold,
+                     facets=facets, vault=vault)
     summaries = [_summarize_hit(vault, h) for h in hits]
     markdown = _render(summaries, project, max_chars)
 

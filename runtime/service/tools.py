@@ -132,11 +132,11 @@ async def _h_lint(space: Optional[str] = None,
                   rule_ids: Optional[List[str]] = None,
                   apply_fixes: bool = False) -> Dict[str, Any]:
     """Run lint rules (L1/L3/L5/L6). With apply_fixes=true requires
-    librarian-write claim and lock."""
+    wiki-write claim and lock."""
     if apply_fixes:
         sess = current_session()
-        _claims.require(sess.to_call_context(), _claims.Claim.LIBRARIAN_WRITE)
-        async with _claims.registry().acquire(_claims.WriterRole.LIBRARIAN):
+        _claims.require(sess.to_call_context(), _claims.Claim.WIKI_WRITE)
+        async with _claims.registry().acquire(_claims.WriterRole.WIKI):
             return _api.lint(space=space, rule_ids=rule_ids, apply_fixes=True)
     return _api.lint(space=space, rule_ids=rule_ids, apply_fixes=False)
 
@@ -386,16 +386,6 @@ async def _h_learning_relink(slug: str, links: List[str],
     return _ls.relink(slug=slug, links=links, mode=mode)
 
 
-async def _h_learning_reconcile(repair: bool = False) -> Dict[str, Any]:
-    """Detect (repair=false) or fix (repair=true) by-project mirror drift
-    against the by-topic canonical accepted learnings."""
-    from .learnings import reconcile as _rc
-    if repair:
-        return {"repaired": _rc.repair()}
-    drifts = _rc.check()
-    return {"drift_count": len(drifts), "drifts": [vars(d) for d in drifts]}
-
-
 async def _h_principle_add(title: str, rule: str, why: str,
                             evidence: Optional[List[str]] = None,
                             coverage: str = "cross-project",
@@ -563,7 +553,7 @@ async def _h_session_bootstrap(working_dir: Optional[str] = None,
                                 max_chars: int = 6000
                                 ) -> Dict[str, Any]:
     """Return a markdown block intended for the *first turn* of a
-    Claude Code session: always-inject principles + by-project learnings."""
+    Claude Code session: always-inject principles + this project's learnings."""
     from .learnings import bootstrap as _bs
     sess = current_session()
     return _bs.bootstrap(
@@ -623,7 +613,7 @@ def _register_v01_tools() -> None:
                      _h_list_pages))
     register(ToolDef("atelier_lint",
                      "Run lint rules; optionally apply fixes "
-                     "(requires librarian-write).",
+                     "(requires wiki-write).",
                      _h_lint))
     register(ToolDef("atelier_doctor",
                      "Drift diagnostics; optionally remediate.",
@@ -642,61 +632,61 @@ def _register_v01_tools() -> None:
     register(ToolDef("atelier_fix_pending",
                      "Resolve every `entry_id: PENDING` to a stable UUID5.",
                      _h_fix_pending,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_index_regen",
                      "Regenerate wiki/index.md from current wiki contents.",
                      _h_index_regen,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_clip_image",
                      "Fetch a remote image into the vault and return its "
                      "local + (when configured) CDN URL.",
                      _h_clip_image,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_new_doc",
                      "Scaffold a new document. template ∈ "
                      "{product, raw, note, learning}.",
                      _h_new_doc,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_prepare_commit",
                      "Pre-commit hygiene: recalculate word_count, "
                      "embedded_assets, edited_at. LLM facets reclass "
                      "is deferred.",
                      _h_prepare_commit,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_youtube",
                      "Ingest a YouTube URL into raw/knowledge/. Falls "
                      "back to status=needs-stt when neither captions "
                      "nor OpenAI STT are available.",
                      _h_youtube,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
 
     # Write tools — claim + role lock.
     register(ToolDef("atelier_reindex",
                      "Rebuild SQLite projection from markdown.",
                      _h_reindex,
-                     claim=_claims.Claim.LIBRARIAN_WRITE,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     claim=_claims.Claim.WIKI_WRITE,
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_capture",
                      "Append a short note to the librarian inbox.",
                      _h_capture,
                      claim=_claims.Claim.MOBILE_CLAIM,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_promote_apply",
                      "Apply a promotion proposal — writes wiki/.",
                      _h_promote_apply,
                      claim=_claims.Claim.PROMOTE_APPLY,
-                     lock_role=_claims.WriterRole.LIBRARIAN))
+                     lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_new_product",
                      "Scaffold a new product in workshop/products/.",
                      _h_new_product,
-                     claim=_claims.Claim.BUILDER_WRITE,
-                     lock_role=_claims.WriterRole.BUILDER))
+                     claim=_claims.Claim.LEARNINGS_WRITE,
+                     lock_role=_claims.WriterRole.LEARNINGS))
     register(ToolDef(
         "atelier_learning_capture",
         "Append a candidate learning to learnings/candidates/. "
@@ -742,14 +732,6 @@ def _register_v01_tools() -> None:
         "atelier_learning_relink",
         "Replace or merge wiki backlinks on an accepted learning.",
         _h_learning_relink,
-        claim=_claims.Claim.CURATOR_WRITE,
-        lock_role=_claims.WriterRole.CURATOR,
-    ))
-    register(ToolDef(
-        "atelier_learning_reconcile",
-        "Detect (repair=false) or repair (repair=true) drift between the "
-        "by-topic canonical accepted learnings and their by-project mirrors.",
-        _h_learning_reconcile,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))

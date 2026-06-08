@@ -39,11 +39,11 @@ def _vault_root() -> Path:
 def _member_preview(vault: Path, slug: str) -> Dict[str, Any]:
     """A compact preview of one accepted learning for the agent to read
     without opening the file."""
-    # by-topic canonical copy; find by stem.
-    root = vault / "learnings" / "accepted" / "by-topic"
+    # Flat notes/ store (RFC 0001); find by stem.
+    from . import store as _store
     path: Optional[Path] = None
-    if root.exists():
-        for p in root.rglob(f"{slug}.md"):
+    for p in _store.iter_accepted_files(vault):
+        if p.stem == slug:
             path = p
             break
     if path is None:

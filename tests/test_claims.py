@@ -27,7 +27,7 @@ def test_same_role_serializes() -> None:
     order: list[str] = []
 
     async def writer(tag: str, delay: float) -> None:
-        async with reg.acquire(claims.WriterRole.LIBRARIAN):
+        async with reg.acquire(claims.WriterRole.WIKI):
             order.append(f"{tag}:in")
             await asyncio.sleep(delay)
             order.append(f"{tag}:out")
@@ -52,8 +52,8 @@ def test_different_roles_run_in_parallel() -> None:
 
     async def driver() -> None:
         ev = asyncio.Event()
-        t1 = asyncio.create_task(hold(claims.WriterRole.LIBRARIAN, "L", ev))
-        t2 = asyncio.create_task(hold(claims.WriterRole.BUILDER, "B", ev))
+        t1 = asyncio.create_task(hold(claims.WriterRole.WIKI, "L", ev))
+        t2 = asyncio.create_task(hold(claims.WriterRole.LEARNINGS, "B", ev))
         # Yield until both have started; if locks blocked, only one starts.
         for _ in range(50):
             if len(started) == 2:
@@ -89,7 +89,7 @@ def test_authenticate_bearer_accepts_match(monkeypatch: pytest.MonkeyPatch) -> N
     assert sess.transport == "mcp-http"
     assert sess.session_id == "abc"
     assert sess.working_dir == "/tmp"
-    assert claims.Claim.LIBRARIAN_WRITE in sess.claims
+    assert claims.Claim.WIKI_WRITE in sess.claims
     assert claims.Claim.CAPTOR_WRITE in sess.claims
 
 

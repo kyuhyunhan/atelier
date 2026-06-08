@@ -58,12 +58,10 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
     out = _ac.absorb(dry_run=False, source_root=src_root)
     assert len(out["accepted"]) == 2
     assert len(out["candidates"]) == 0
-    # Both land under by-topic and by-project (no by-topic/from-claude).
-    vault = Path(out["vault"])
-    by_proj = vault / "learnings" / "accepted" / "by-project" / "lexio"
-    assert by_proj.exists() and any(by_proj.iterdir())
-    # No from-claude topic directory.
-    assert not (vault / "learnings" / "accepted" / "by-topic" / "from-claude").exists()
+    # RFC 0001: both land as flat notes under notes/<YYYY-MM>/, no mirror.
+    for item in out["accepted"]:
+        assert "/learnings/notes/" in item["path"]
+        assert "by-topic" not in item["path"] and "by-project" not in item["path"]
 
 
 def test_absorb_routes_user_project_to_candidates(atelier_env: Dict,
@@ -105,7 +103,7 @@ def test_absorbed_frontmatter_carries_source_metadata(atelier_env: Dict,
     src = _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback",
                        description="x")
     out = _ac.absorb(dry_run=False, source_root=src_root)
-    accepted_path = Path(out["accepted"][0]["by_topic"])
+    accepted_path = Path(out["accepted"][0]["path"])
     from runtime.index.parse import split_frontmatter
     fm, _ = split_frontmatter(accepted_path.read_text(encoding="utf-8"))
     assert fm["source"] == "claude-memory"

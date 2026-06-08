@@ -39,38 +39,56 @@ def _vault_root() -> Path:
     return cfg.space_by_role("librarian-territory").local
 
 
-def _ensure_iter(value: Any) -> List[Any]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
+def _facet_clause(project: Optional[str], topic: Optional[str],
+                  aspect: Optional[str]) -> tuple[str, List[Any]]:
+    """SQL + params for facet filtering via the indexed `learning_facets` table
+    (RFC 0001). Classification lives in facets, resolved here — not in the path
+    and not in a Python frontmatter scan. The 'project' facet was populated from
+    `target_project or project_hint`, preserving the old OR semantics."""
+    # Facet values are stored lowercased (reindex._facet_rows); lowercase the
+    # query side too so the exact `=` match is case-insensitive end to end.
+    pairs: List[tuple[str, str]] = []
+    if project:
+        pairs.append(("project", project.lower()))
+    if topic:
+        pairs.append(("topic", topic.lower()))
+    if aspect:
+        pairs.append(("aspect", aspect.lower()))
+    sql = "".join(
+        " AND EXISTS (SELECT 1 FROM learning_facets lf "
+        "WHERE lf.page_id=p.id AND lf.kind=? AND lf.value=?)"
+        for _ in pairs)
+    params: List[Any] = [x for pair in pairs for x in pair]
+    return sql, params
 
 
 def _grep_walk(root: Path, query: str,
                *, types: Iterable[str],
                project: Optional[str],
                topic: Optional[str],
+               aspect: Optional[str],
                limit: int) -> List[Dict[str, Any]]:
-    """Filesystem-side fallback when FTS hasn't indexed learnings yet."""
+    """Filesystem-side fallback when FTS hasn't indexed learnings yet. No DB, so
+    facets are read straight from frontmatter here (the index is unavailable).
+    Facet comparison delegates to recall._fm_has_facet so it is case-insensitive
+    and identical to the DB / recall-fallback paths (no silent mismatch)."""
+    from . import recall as _recall
     learnings_root = root / "learnings"
     if not learnings_root.exists():
         return []
     rx = re.compile(re.escape(query), re.I) if query else None
     out: List[Dict[str, Any]] = []
     for p in sorted(learnings_root.rglob("*.md")):
-        if "by-project" in p.parts:
-            # Skip the mirror so each accepted entry is reported once.
-            continue
         text = p.read_text(encoding="utf-8")
         fm, body = _parse.split_frontmatter(text)
         status = fm.get("status") or "candidate"
         if not any(status == t.removeprefix("learning_") for t in types):
             continue
-        if project and fm.get("project_hint") != project \
-                and fm.get("target_project") != project:
+        if project and not _recall._fm_has_facet(fm, "project", project):
             continue
-        if topic and fm.get("target_topic") != topic:
+        if topic and not _recall._fm_has_facet(fm, "topic", topic):
+            continue
+        if aspect and not _recall._fm_has_facet(fm, "aspect", aspect):
             continue
         if rx is not None and not rx.search(body) and not rx.search(str(fm)):
             continue
@@ -93,22 +111,25 @@ def search(*, query: str = "",
            status: str = "accepted",
            project: Optional[str] = None,
            topic: Optional[str] = None,
+           aspect: Optional[str] = None,
            limit: int = 20) -> Dict[str, Any]:
+    from ...search import fts as _fts
     vault = _vault_root()
     types = _STATUS_TO_TYPES.get(status, _STATUS_TO_TYPES["accepted"])
+    facet_sql, facet_params = _facet_clause(project, topic, aspect)
+    # Sanitize the FTS query (mirrors fts.sanitize_match / recall): a raw prompt
+    # with punctuation would otherwise crash MATCH and silently fall through to
+    # the slow grep scan. Empty → treat as no text query (facet-only listing).
+    match = _fts.sanitize_match(query) if query else ""
 
-    # FTS path
+    # FTS path. Classification (project/topic/aspect) is filtered in SQL via the
+    # indexed learning_facets table — not by scanning frontmatter in Python.
     hits: List[Dict[str, Any]] = []
     try:
         conn = _db.connect()
         try:
             placeholders = ",".join("?" * len(types))
-            base = (
-                "SELECT p.slug, p.page_type, p.space, p.frontmatter "
-                "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
-            )
-            params: List[Any] = list(types)
-            if query:
+            if match:
                 base = (
                     "SELECT p.slug, p.page_type, p.space, p.frontmatter "
                     "FROM chunks_fts f "
@@ -116,12 +137,16 @@ def search(*, query: str = "",
                     "JOIN pages p  ON p.id=c.page_id "
                     "WHERE chunks_fts MATCH ? "
                     "AND p.page_type IN (" + placeholders + ") "
-                    "LIMIT ?"
+                    + facet_sql + " LIMIT ?"
                 )
-                params = [query, *types, limit * 3]
+                params: List[Any] = [match, *types, *facet_params, limit * 3]
             else:
-                base += "LIMIT ?"
-                params = [*types, limit * 3]
+                base = (
+                    "SELECT p.slug, p.page_type, p.space, p.frontmatter "
+                    "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
+                    + facet_sql + " LIMIT ?"
+                )
+                params = [*types, *facet_params, limit * 3]
             seen_slugs: set[str] = set()
             for row in conn.execute(base, params):
                 slug = row["slug"]
@@ -130,11 +155,6 @@ def search(*, query: str = "",
                 seen_slugs.add(slug)
                 import json as _json
                 fm = _json.loads(row["frontmatter"] or "{}")
-                if project and fm.get("target_project") != project \
-                        and fm.get("project_hint") != project:
-                    continue
-                if topic and fm.get("target_topic") != topic:
-                    continue
                 hits.append({
                     "slug": slug,
                     "page_type": row["page_type"],
@@ -153,9 +173,12 @@ def search(*, query: str = "",
         hits = []
 
     if not hits:
-        hits = _grep_walk(vault, query,
+        # Mirror the FTS path's text signal: a query that sanitizes to empty
+        # (e.g. all punctuation) is a facet-only listing, so don't regex-match
+        # the raw punctuation in the fallback either.
+        hits = _grep_walk(vault, query if match else "",
                           types=types, project=project, topic=topic,
-                          limit=limit)
+                          aspect=aspect, limit=limit)
     return {"count": len(hits), "items": hits, "vault": str(vault)}
 
 
@@ -172,13 +195,12 @@ def relink(*, slug: str, links: List[str],
     if mode not in ("replace", "merge"):
         raise ValueError(f"unknown mode: {mode!r}")
 
+    from . import store as _store
     vault = _vault_root()
-    # Search by slug or entry_id in accepted/by-topic/.
-    candidates = list((vault / "learnings" / "accepted" / "by-topic").rglob("*.md")) \
-        if (vault / "learnings" / "accepted" / "by-topic").exists() else []
+    # Search by slug or entry_id in the flat notes/ store (RFC 0001).
     needle = slug.removesuffix(".md")
     target: Optional[Path] = None
-    for p in candidates:
+    for p in _store.iter_accepted_files(vault):
         if p.stem == needle:
             target = p
             break
@@ -197,11 +219,5 @@ def relink(*, slug: str, links: List[str],
 
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     target.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
-
-    # Mirror the change to the by-project copy if present.
-    by_proj_root = vault / "learnings" / "accepted" / "by-project"
-    if by_proj_root.exists():
-        for mirror in by_proj_root.rglob(target.name):
-            mirror.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
-
+    # One file, no mirror (RFC 0001).
     return {"path": str(target), "links": new_links}

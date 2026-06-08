@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 from ...util import config as _config
 from ...index import parse as _parse
 from . import recall as _recall
+from . import store as _store
 
 # A learning should be findable within this many results when searched by its
 # own concept; deeper than this it is effectively drowned out → "dark".
@@ -53,21 +54,16 @@ def _concept_probe(fm: Dict[str, Any]) -> str:
 
 
 def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
-    """The canonical accepted pool (by-topic) — one row per learning, keyed by
-    entry_id. The by-project view is never read (it is a projection)."""
-    root = vault / "learnings" / "accepted" / "by-topic"
+    """The accepted pool from the flat notes/ store (RFC 0001) — one row per
+    learning, keyed by entry_id. The by-project view is never read (it is a
+    projection; store.iter_accepted_files excludes it)."""
     out: List[Dict[str, Any]] = []
-    if not root.exists():
-        return out
-    for p in sorted(root.glob("**/*.md")):
+    for p in _store.iter_accepted_files(vault):
         # Shared noise predicate with recall: a page recall can never return
-        # must not be probed — it would be dark by construction. This check is
-        # a necessary PRECONDITION to the entry_id gate below: absorbed
-        # navigational views (e.g. an imported TAXONOMY.md) DO carry an
-        # entry_id, unlike engine-generated INDEX files — name-based exclusion
-        # is deliberate here, the opposite of reconcile's entry_id-based
-        # discrimination (which must keep mirroring real learnings named
-        # README.md). Do not remove this in favor of the entry_id check.
+        # must not be probed — it would be dark by construction. Name-based
+        # exclusion is deliberate: absorbed navigational views (e.g. an imported
+        # TAXONOMY.md) DO carry an entry_id, unlike engine-generated INDEX files,
+        # so the entry_id gate below is not enough on its own. Do not remove this.
         if _recall.is_noise(p.name):
             continue
         try:

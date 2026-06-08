@@ -85,61 +85,8 @@ def _write_if_changed(target: Path, body: str) -> bool:
     return True
 
 
-# ── per-project INDEX.md ─────────────────────────────────────────────────
-
-
-def regen_project(project: str, vault: Optional[Path] = None) -> Dict[str, object]:
-    vault = vault or _vault_root()
-    root = vault / "learnings" / "accepted" / "by-project" / project
-    if not root.exists():
-        return {"project": project, "written": False, "count": 0,
-                "reason": "no by-project dir"}
-
-    entries: List[Dict[str, str]] = []
-    for p in sorted(root.glob("*.md")):
-        if p.name == "INDEX.md":
-            continue
-        s = _summarize(p)
-        if s:
-            entries.append(s)
-
-    lines: List[str] = []
-    lines.append("---")
-    lines.append("schema_version: 4")
-    lines.append("type: learnings_index")
-    lines.append("scope: by-project")
-    lines.append(f"project: {project}")
-    lines.append(f"entry_count: {len(entries)}")
-    lines.append("---")
-    lines.append("")
-    lines.append(_GENERATED_BANNER)
-    lines.append("")
-    lines.append(f"# learnings — project `{project}`")
-    lines.append("")
-    lines.append(f"_{len(entries)} entries_")
-    lines.append("")
-
-    if not entries:
-        lines.append("_(none yet)_")
-    else:
-        # Group by topic to keep INDEX readable.
-        by_topic: Dict[str, List[Dict[str, str]]] = {}
-        for e in entries:
-            by_topic.setdefault(e["topic"] or "general", []).append(e)
-        for topic in sorted(by_topic):
-            lines.append(f"## {topic}")
-            lines.append("")
-            for e in by_topic[topic]:
-                lead = f"- [[{e['slug']}]] — {e['title']}"
-                if e["one_liner"]:
-                    lead += f": {e['one_liner']}"
-                lines.append(lead)
-            lines.append("")
-
-    body = "\n".join(lines).rstrip() + "\n"
-    written = _write_if_changed(root / "INDEX.md", body)
-    return {"project": project, "written": written, "count": len(entries),
-            "path": str(root / "INDEX.md")}
+# The per-project INDEX.md was retired with the by-project mirror (RFC 0001):
+# "lexio's learnings" is now a facet query, not a generated folder listing.
 
 
 # ── principles INDEX.md ──────────────────────────────────────────────────
@@ -208,15 +155,6 @@ def regen_principles(vault: Optional[Path] = None) -> Dict[str, object]:
 
 
 # ── best-effort wrapper for callers ─────────────────────────────────────
-
-
-def safe_regen_project(project: Optional[str]) -> None:
-    if not project:
-        return
-    try:
-        regen_project(project)
-    except Exception:                        # pragma: no cover
-        pass
 
 
 def safe_regen_principles() -> None:

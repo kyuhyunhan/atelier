@@ -1,14 +1,17 @@
-# atelier schema v4 — base fields
+# atelier schema v5 — base fields
 # Applies to all pages across all spaces. Overlays extend or restrict.
 
-version: 4
+version: 5
 
 fields:
   schema_version:
     type: integer
     required: true
-    const: 4
-    description: "Schema authority version. v3 files are auto-upgraded on first index."
+    enum: [4, 5]
+    description: >
+      Schema authority version. v5 is current; v4 is accepted during the
+      flat-facet migration (RFC 0001) and rewritten to v5 when a record is
+      flattened. v3 files were auto-upgraded to v4 on first index.
 
   entry_id:
     type: string
@@ -94,3 +97,16 @@ upgrades:
       - field: schema_version
         from: 3
         to: 4
+  v4_to_v5:
+    description: >
+      Learnings flat-facet migration (RFC 0001). Additive + one relaxation:
+      `aspect[]` and typed `links:[{to,why}]` added; `target_topic` demoted from
+      required to optional on accepted learnings; accepted notes move from
+      by-topic/by-project trees to a flat notes/<YYYY-MM>/ store. The
+      schema_version bump rides with the on-disk flatten (P4), not the field
+      contract change (P1), so v4 records stay valid until rewritten.
+    auto_migrate: true
+    changes:
+      - field: schema_version
+        from: 4
+        to: 5

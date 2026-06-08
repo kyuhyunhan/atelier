@@ -33,9 +33,9 @@ inspecting a remote.
                    never a remote). Primary repos fall through to basename.
   6. basename    — ``Path(working_dir).name`` (the local default)
 
-`known` reports whether ``learnings/accepted/by-project/<slug>/`` exists,
-so callers can warn loudly when a session's captures won't be recalled
-instead of failing silently.
+`known` reports whether any accepted learning carries this project (a facet
+query, RFC 0001 — not a by-project directory check), so callers can warn loudly
+when a session's captures won't be recalled instead of failing silently.
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ class ProjectResolution:
     """The resolved project plus provenance for telemetry / loud warnings."""
     slug: Optional[str]      # None only when no working_dir and no explicit hint
     source: str              # explicit|config-map|marker|vault-self|basename|none
-    known: bool              # learnings/accepted/by-project/<slug>/ exists
+    known: bool              # some accepted learning carries this project (facet)
 
 
 # ── vault root (mirrors the per-module _vault_root helpers) ──────────────────
@@ -72,9 +72,35 @@ def _vault_root(cfg: Optional[_config.Config]) -> Optional[Path]:
 
 
 def _is_known(vault: Optional[Path], slug: Optional[str]) -> bool:
+    """True if any accepted learning carries this project (RFC 0001: a facet
+    query, not a by-project directory check). DB first; on a cold/missing index
+    fall back to a frontmatter scan of the flat store."""
     if not vault or not slug:
         return False
-    return (Path(vault) / "learnings" / "accepted" / "by-project" / slug).is_dir()
+    try:
+        from ...util import db as _db
+        conn = _db.connect()
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM learning_facets WHERE kind='project' AND value=? "
+                "LIMIT 1", (slug,)).fetchone()
+            if row is not None:
+                return True
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    # Fallback: scan the flat store's frontmatter (no DB / not yet indexed).
+    from . import store as _store
+    from ...index import parse as _parse
+    for p in _store.iter_accepted_files(Path(vault)):
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:               # pragma: no cover
+            continue
+        if slug in (fm.get("target_project"), fm.get("project_hint")):
+            return True
+    return False
 
 
 # ── layer 2: config project_map ──────────────────────────────────────────────

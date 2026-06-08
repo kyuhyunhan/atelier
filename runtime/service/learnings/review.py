@@ -4,8 +4,8 @@ The 4 operations form the lifecycle:
 
     candidates/<date>/<slug>.md
             │
-            ├──→  accepted/by-topic/<topic>/<slug>.md
-            │     (+ accepted/by-project/<project>/<slug>.md as a hardlink-style copy)
+            ├──→  notes/<YYYY-MM>/<slug>.md   (flat store, RFC 0001 — one file,
+            │                                   classification lives in facets)
             │
             ├──→  archived/<slug>.md  (with archive_reason)
             │
@@ -30,6 +30,7 @@ import yaml
 from ...index import parse as _parse
 from ...util import config as _config
 from . import criteria as _crit
+from . import store as _store
 
 
 # ── Filesystem helpers ───────────────────────────────────────────────────────
@@ -51,14 +52,9 @@ def _iter_candidates(vault: Path) -> Iterable[Path]:
 
 
 def _iter_accepted(vault: Path) -> Iterable[Path]:
-    root = vault / "learnings" / "accepted"
-    if not root.exists():
-        return
-    for p in sorted(root.rglob("*.md")):
-        # Skip the by-project mirror so each entry shows up once.
-        if "by-project" in p.parts:
-            continue
-        yield p
+    # RFC 0001: the flat notes/ store. Single source of truth in
+    # store.iter_accepted_files (the legacy by-topic/by-project trees are gone).
+    yield from _store.iter_accepted_files(vault)
 
 
 def _accepted_entry_ids(vault: Path) -> List[str]:
@@ -208,7 +204,7 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
 # ── accept ─────────────────────────────────────────────────────────────────
 
 
-def accept(*, candidate_slug: str, target_topic: str,
+def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
            target_project: Optional[str] = None,
            links: Optional[List[str]] = None,
            override_unknown: bool = False,
@@ -249,12 +245,14 @@ def accept(*, candidate_slug: str, target_topic: str,
                      "despite a must heuristic miss"),
         })
 
-    topic = _slugify(target_topic, fallback="general")
-    dest_dir = vault / "learnings" / "accepted" / "by-topic" / topic
+    # Flat store (RFC 0001): notes/<YYYY-MM>/<slug>.md, sharded by immutable
+    # creation month. Classification (topic/project/aspect) lives in facets, not
+    # the path — so there is one file, no by-topic/by-project trees.
+    topic = _slugify(target_topic, fallback="") if target_topic else ""
+    dest_dir = _store.flat_dest(vault, fm.get("captured_at"), src.name).parent
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / src.name
-    # Collision avoidance — two captures with the same minute + slug from
-    # different sessions would otherwise overwrite one another.
+    # Collision avoidance — two captures with the same slug in one month shard.
     n = 1
     while dest.exists():
         stem = Path(src.name).stem
@@ -265,7 +263,8 @@ def accept(*, candidate_slug: str, target_topic: str,
     fm["status"] = "accepted"
     fm["ac_status"] = "passed"
     fm["accepted_at"] = _now_iso()
-    fm["target_topic"] = topic
+    if topic:
+        fm["target_topic"] = topic           # optional under v5 (RFC 0001)
     if target_project:
         fm["target_project"] = target_project
     if links:
@@ -283,26 +282,13 @@ def accept(*, candidate_slug: str, target_topic: str,
     src.unlink()
     _prune_empty_dirs(src.parent, stop=vault / "learnings" / "candidates")
 
-    # by-project mirror — copy rather than symlink (portable across
-    # filesystems and easier to backup).
-    project_path: Optional[Path] = None
-    if target_project:
-        project_path = (vault / "learnings" / "accepted" / "by-project"
-                        / _slugify(target_project, fallback="misc") / dest.name)
-        project_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(dest, project_path)
-
     _append_log(vault,
-                f"- {fm['accepted_at']}  accept  {topic}/{src.stem}  "
+                f"- {fm['accepted_at']}  accept  {topic or '-'}/{src.stem}  "
                 f"project={target_project or '-'}")
-
-    from . import indexes as _indexes
-    if target_project:
-        _indexes.safe_regen_project(target_project)
 
     return {
         "path": str(dest),
-        "by_project_path": str(project_path) if project_path else None,
+        "by_project_path": None,             # mirror retired (RFC 0001)
         "topic": topic,
         "project": target_project,
         "entry_id": fm.get("entry_id"),
@@ -362,24 +348,17 @@ def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
     # come from accepted/, whose dirs we keep)
     _prune_empty_dirs(src_parent, stop=vault / "learnings" / "candidates")
 
-    # If retracting an accepted, also remove the by-project mirror.
+    # Defensive: drop any LEGACY by-project mirror copy left over from before
+    # the flat-store migration (RFC 0001 retired the mirror; P7 deletes the
+    # tree). No-op once the tree is gone.
     if from_state == "accepted":
-        for p in (vault / "learnings" / "accepted" / "by-project").rglob(src.name) \
-                 if (vault / "learnings" / "accepted" / "by-project").exists() else []:
-            p.unlink(missing_ok=True)
+        legacy_mirror = vault / "learnings" / "accepted" / "by-project"
+        if legacy_mirror.exists():
+            for p in legacy_mirror.rglob(src.name):
+                p.unlink(missing_ok=True)
 
     _append_log(vault,
                 f"- {_now_iso()}  retract  {src.stem}  from={from_state} "
                 f"reason={reason!r}")
-
-    if from_state == "accepted":
-        # We lost the project mapping by the time we get here; safest is
-        # to regen every project that had a by-project mirror for this file.
-        from . import indexes as _indexes
-        proj_root = vault / "learnings" / "accepted" / "by-project"
-        if proj_root.exists():
-            for proj_dir in proj_root.iterdir():
-                if proj_dir.is_dir():
-                    _indexes.safe_regen_project(proj_dir.name)
 
     return {"path": str(dest), "slug": src.stem, "from": from_state}

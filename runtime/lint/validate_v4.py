@@ -1,7 +1,7 @@
 """Schema v4 frontmatter validator.
 
 Driven entirely by `schema/data/base.yaml` + the matching overlay
-(librarian.overlay.yaml, builder.overlay.yaml, learnings.overlay.yaml).
+(gorae.overlay.yaml, workshop.overlay.yaml, learnings.overlay.yaml).
 Returns a list of Findings shaped like the rest of the lint pipeline,
 but is invoked separately so non-frontmatter rules (L1/L3/L5/L6) can
 stay independent.
@@ -35,11 +35,24 @@ def _load_overlay(name: str) -> Dict[str, Any]:
 
 
 def _all_overlays() -> List[Dict[str, Any]]:
+    # Space-named overlays (RFC 0001 retired the librarian/builder agent names).
     return [
-        _load_overlay("librarian"),
-        _load_overlay("builder"),
+        _load_overlay("gorae"),
+        _load_overlay("workshop"),
         _load_overlay("learnings"),
     ]
+
+
+def _patterns_of(spec: Dict[str, Any]) -> List[str]:
+    """A page_type may declare a single `path_pattern` or, during a layout
+    migration, several via `path_patterns` (list). Both are supported so one
+    type can match an old and a new location at once (RFC 0001: learning_accepted
+    matches both the legacy by-topic tree and the flat notes/ store)."""
+    multi = spec.get("path_patterns")
+    if isinstance(multi, list):
+        return [p for p in multi if p]
+    one = spec.get("path_pattern")
+    return [one] if one else []
 
 
 def page_type_rules() -> List[Tuple[str, str]]:
@@ -54,8 +67,7 @@ def page_type_rules() -> List[Tuple[str, str]]:
     rules: List[Tuple[str, str]] = []
     for overlay in _all_overlays():
         for ptype, spec in (overlay.get("page_types") or {}).items():
-            pattern = spec.get("path_pattern")
-            if pattern:
+            for pattern in _patterns_of(spec):
                 rules.append((pattern, ptype))
     return rules
 
@@ -81,11 +93,9 @@ def _match_page_type(rel_path: str, overlays: Iterable[Dict[str, Any]]
     import fnmatch
     for overlay in overlays:
         for ptype, spec in (overlay.get("page_types") or {}).items():
-            pattern = spec.get("path_pattern")
-            if not pattern:
-                continue
-            if _glob_match(pattern, rel_path) or fnmatch.fnmatchcase(rel_path, pattern):
-                return ptype, spec
+            for pattern in _patterns_of(spec):
+                if _glob_match(pattern, rel_path) or fnmatch.fnmatchcase(rel_path, pattern):
+                    return ptype, spec
     return None, None
 
 
@@ -149,8 +159,9 @@ def _validate_one(path: Path, rel_path: str,
     fm, _body = _parse.split_frontmatter(text)
     errors: List[str] = []
 
-    if fm.get("schema_version") != 4:
-        errors.append(f"schema_version: must be 4, got {fm.get('schema_version')!r}")
+    if fm.get("schema_version") not in (4, 5):
+        errors.append(
+            f"schema_version: must be 4 or 5, got {fm.get('schema_version')!r}")
     if not _is_uuid(fm.get("entry_id")) and fm.get("entry_id") != "PENDING":
         errors.append(f"entry_id: must be a valid UUID, got {fm.get('entry_id')!r}")
 

@@ -1,6 +1,7 @@
 """FTS5 keyword search over chunks."""
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import List, Optional
@@ -16,12 +17,29 @@ class Hit:
     rank: float
 
 
+def sanitize_match(query: str) -> str:
+    """Turn an arbitrary natural-language query into a safe FTS5 MATCH expr.
+
+    FTS5 treats `-`, `:`, `"` etc. as operators, so a raw prompt like
+    'session-end auto-commit' raises `no such column: end`. We reduce the query
+    to word-class tokens, quote each, and OR them — robust for client PULL calls.
+    Mirrors recall._sanitize_fts_query so the two search paths can't diverge.
+    Returns '' when the query has no usable tokens (caller returns no hits)."""
+    tokens = re.findall(r"\w+", query or "", flags=re.UNICODE)
+    if not tokens:
+        return ""
+    return " OR ".join(f'"{t}"' for t in tokens[:24])
+
+
 def search(
     conn: sqlite3.Connection,
     query: str,
     space: Optional[str] = None,
     limit: int = 20,
 ) -> List[Hit]:
+    match = sanitize_match(query)
+    if not match:
+        return []
     sql = """
         SELECT p.slug, p.space, p.page_type, p.title,
                snippet(chunks_fts, 0, '[', ']', '…', 16) AS snip,
@@ -31,19 +49,28 @@ def search(
         JOIN   pages p ON p.id     = chunks.page_id
         WHERE  chunks_fts MATCH ?
     """
-    params: list = [query]
+    params: list = [match]
     if space:
         sql += " AND p.space = ?"
         params.append(space)
+    # A page has many chunks, so the same slug can match several times. Over-fetch
+    # and collapse to one hit per page (best rank first), then truncate — so the
+    # caller sees pages, not chunk rows.
     sql += " ORDER BY rank LIMIT ?"
-    params.append(limit)
+    params.append(limit * 8)
 
     out: List[Hit] = []
+    seen: set = set()
     for r in conn.execute(sql, params):
+        if r["slug"] in seen:
+            continue
+        seen.add(r["slug"])
         out.append(Hit(
             slug=r["slug"], space=r["space"], page_type=r["page_type"],
             title=r["title"], snippet=r["snip"], rank=r["rank"],
         ))
+        if len(out) >= limit:
+            break
     return out
 
 

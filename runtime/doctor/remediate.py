@@ -56,14 +56,6 @@ def _r_D2(cfg, d, budget_left) -> RemediationResult:
     return RemediationResult(d.id, "reindex --full", True)
 
 
-def _r_D7(cfg, d, budget_left) -> RemediationResult:
-    """D7 (learnings mirror drift) → reconcile mirrors to by-topic canonical."""
-    from ..service.learnings import reconcile
-    counts = reconcile.repair()
-    return RemediationResult(d.id, "learnings mirror reconcile", True,
-                             notes=str(counts))
-
-
 def _r_D6(cfg, d, budget_left) -> RemediationResult:
     """D6 (FTS desync) → rebuild FTS from chunks."""
     conn = db.connect()
@@ -78,5 +70,4 @@ def _r_D6(cfg, d, budget_left) -> RemediationResult:
 _ACTIONS = {
     "D2": _r_D2,
     "D6": _r_D6,
-    "D7": _r_D7,
 }

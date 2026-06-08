@@ -25,7 +25,7 @@ def test_classify_schema_driven_both_layouts() -> None:
         "workshop/products/demo/README.md": "product_readme",
         "workshop/products/demo/spec/x.md": "product_page",
         "learnings/candidates/2026-06/x.md": "learning_candidate",
-        "learnings/accepted/by-topic/t/x.md": "learning_accepted",
+        "learnings/notes/2026-01/x.md": "learning_accepted",
         "learnings/principles/INDEX.md": "learnings_index",   # NOT a principle
         "learnings/principles/p.md": "learning_principle",
         # legacy two-space slug (back-compat)
@@ -126,7 +126,7 @@ def test_alias_resolution(vault_env: Dict) -> None:
     write_page(vault / "wiki" / "entities" / "bar.md",
                {"title": "Bar", "type": "entity", "aliases": ["Bar Alias"]},
                "Entity with an alias.")
-    write_page(vault / "learnings" / "accepted" / "by-topic" / "t" / "l.md",
+    write_page(vault / "learnings" / "notes" / "2026-01" / "l.md",
                {"schema_version": 4, "entry_id": "x", "status": "accepted",
                 "target_topic": "t"},
                "Mentions [[Bar Alias]].")
@@ -138,41 +138,11 @@ def test_alias_resolution(vault_env: Dict) -> None:
         ent_id = conn.execute(
             "SELECT id FROM pages WHERE slug='wiki/entities/bar.md'"
         ).fetchone()["id"]
-        rows = _links_from(conn, "learnings/accepted/by-topic/t/l.md")
+        rows = _links_from(conn, "learnings/notes/2026-01/l.md")
         assert any(r["to_page_id"] == ent_id for r in rows), rows
     finally:
         conn.close()
 
 
-# ── 3.2 learnings mirror reconcile (D7) ─────────────────────────────────────
-
-def test_learnings_mirror_reconcile(vault_env: Dict) -> None:
-    from runtime.service.learnings import reconcile
-
-    vault = vault_env["vault"]
-    acc = vault / "learnings" / "accepted"
-    fm = {"schema_version": 4, "entry_id": "e1", "status": "accepted",
-          "ac_status": "passed", "target_topic": "t", "target_project": "proj"}
-    # canonical with a project → expects exactly one mirror
-    write_page(acc / "by-topic" / "t" / "note.md", fm, "Lesson body.")
-    # but we seed a DUPLICATE mirror and NO correct one is missing here…
-    write_page(acc / "by-project" / "proj" / "note.md", fm, "Lesson body.")
-    write_page(acc / "by-project" / "proj" / "note-1.md", fm, "Lesson body.")
-    # …plus an orphan mirror whose canonical doesn't exist
-    write_page(acc / "by-project" / "proj" / "ghost.md",
-               {**fm, "entry_id": "gone"}, "Orphan.")
-
-    drifts = reconcile.check(vault)
-    kinds = sorted(d.kind for d in drifts)
-    assert "duplicate" in kinds   # note-1.md
-    assert "orphan" in kinds      # ghost.md
-
-    counts = reconcile.repair(vault)
-    assert counts["duplicate_removed"] >= 1
-    assert counts["orphan_removed"] >= 1
-    # after repair: clean
-    assert reconcile.check(vault) == []
-    # the canonical-named mirror survives; the duplicate is gone
-    assert (acc / "by-project" / "proj" / "note.md").exists()
-    assert not (acc / "by-project" / "proj" / "note-1.md").exists()
-    assert not (acc / "by-project" / "proj" / "ghost.md").exists()
+# 3.2 The learnings by-project mirror and its reconcile (D7) were retired in
+# RFC 0001 — the flat, facet-classified store has no mirror to drift.

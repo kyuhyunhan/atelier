@@ -42,14 +42,17 @@ vault:
     message_prefix: "chore(vault):"
 
 # ── Subtree writer roles ─────────────────────────────────────────────────────
-# Each subtree under the vault root binds to exactly one writer role. The
-# engine refuses writes from any other role.
+# Each subtree under the vault root binds to exactly one writer role, keyed by
+# SUBTREE (RFC 0001 retired the librarian/builder agent personas). The engine
+# refuses writes from any other role. `learnings/notes` is the flat accepted
+# store. The legacy librarian-write / builder-write names are still accepted.
 subtrees:
   raw:                    { writer: human-only }
-  wiki:                   { writer: librarian-write }
-  workshop:               { writer: builder-write }
+  wiki:                   { writer: wiki-write }
+  workshop:               { writer: learnings-write }   # being retired into learnings
+  learnings/notes:        { writer: curator-write }
   learnings/candidates:   { writer: captor-write, append_only: true }
-  learnings/accepted:     { writer: curator-write }
+  learnings/accepted:     { writer: curator-write }      # legacy tree (pre-flatten)
   learnings/archived:     { writer: curator-write }
 
 # ── Service / transports ─────────────────────────────────────────────────────
@@ -103,13 +106,16 @@ auth:
   r2_access:    ${ATELIER_R2_ACCESS_KEY}
   r2_secret:    ${ATELIER_R2_SECRET_KEY}
 
-# ── Agent persona overlays ───────────────────────────────────────────────────
+# ── Voice overlays ───────────────────────────────────────────────────────────
+# RFC 0001 retired the librarian/builder agent personas. Voice overlays are now
+# space-keyed tone contracts (optional), loaded at runtime from ~/.atelier/voices.
+# The block is still named `agents:` for config back-compat; the keys are spaces.
 agents:
-  librarian:
-    voice_overlay: ~/.atelier/voices/librarian.md
+  wiki:
+    voice_overlay: ~/.atelier/voices/wiki.md
     primary_language: en
-  builder:
-    voice_overlay: ~/.atelier/voices/builder.md
+  learnings:
+    voice_overlay: ~/.atelier/voices/learnings.md
     primary_language: en
 
 # ── Sync / indexing knobs ────────────────────────────────────────────────────

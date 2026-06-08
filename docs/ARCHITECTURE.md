@@ -85,10 +85,17 @@ can be deleted at any time and rebuilt from Layer 2 via `atelier reindex`.
 Single-writer per space is the integrity invariant. Promotion from workshop
 → wiki always passes through Librarian via the promote pipeline.
 
-> **Stewards are role labels, not runtime agents.** "Librarian" and "Builder"
-> are *not* autonomous processes the engine spawns or loads — the engine never
-> reads `agents/*.md`. Their only runtime teeth are the single-writer locks in
-> `runtime/service/claims.py` (the `librarian-write` / `builder-write` roles).
+> **⚠️ RFC 0001 retired the Librarian/Builder personas.** The agent labels and
+> their `agents/*.md` contracts are gone; this section is kept for historical
+> context. Write-locks are now keyed by **subtree** — `wiki-write`,
+> `learnings-write`, `captor-write`, `curator-write` (`runtime/service/claims.py`)
+> — not by an agent persona. The single-writer-per-subtree invariant is unchanged.
+> See `docs/rfc/0001-flat-facet-learnings.md`.
+>
+> **Stewards were role labels, not runtime agents.** "Librarian" and "Builder"
+> were *not* autonomous processes the engine spawned or loaded — the engine never
+> read `agents/*.md`. Their only runtime teeth were the single-writer locks in
+> `runtime/service/claims.py`.
 > The contracts in `agents/` describe the *responsibilities and voice* of
 > whoever fills a role — a human, a Claude session, or a user-authored skill —
 > while `claims.py` enforces the one invariant that must hold no matter who
@@ -166,13 +173,19 @@ captures *how the developer works*.
 learnings/
 ├── candidates/<date>/<slug>.md     tier 1 — aggressive capture, append-only
 │      ↓  (review: accept / archive)
-├── accepted/
-│   ├── by-topic/<topic>/<slug>.md  tier 2 — curated, canonical
-│   └── by-project/<project>/<slug> tier 2 — same entries, project-indexed mirror
-│      ↓  (dream cycle: cluster → synthesize)
-└── principles/<slug>.md            tier 3 — cross-project ethos
-       priority: always-inject | on-relevant-prompt | manual-only
+├── notes/<YYYY-MM>/<slug>.md       tier 2 — curated, FLAT store (RFC 0001),
+│      ↓                                       sharded by creation month only.
+│      ↓  (dream cycle: cluster → synthesize)  Classification is in FACETS
+└── principles/<slug>.md            tier 3 — (target_project, aspect[],
+       priority: always-inject |              target_topic?, touches[]) resolved
+                | on-relevant-prompt           at query time via the indexed
+                | manual-only                  learning_facets table — NOT folders.
 ```
+
+> **⚠️ RFC 0001.** Tier 2 was previously `accepted/by-topic/<topic>/` (canonical)
+> + a duplicated `accepted/by-project/<project>/` mirror. Both trees are retired:
+> classification lives in frontmatter facets, not the path. See
+> `docs/rfc/0001-flat-facet-learnings.md`.
 
 - **tier 1 (candidates)** — captured by an *agent*, not a blind hook. A
   bash hook cannot judge what was learned or *why it matters*, so the
@@ -186,12 +199,11 @@ learnings/
   Signal/noise separation is still deferred to promotion.
 - **tier 2 (accepted)** — promoted by a curator through
   `atelier_learning_accept`, gated by `criteria.yaml` (must/should/
-  forbidden). The canonical copy lives under `by-topic/`; `by-project/<n>/`
-  is a **generated view**, not a source — retrieval (recall, bootstrap §B)
-  selects on the `target_project` *facet*, never the folder, and the whole
-  `by-project/` tree is regenerable from canonical via the reconcile routine
-  (delete it and `repair()` reproduces it). Project is a derived facet, not a
-  placement decision.
+  forbidden). A single flat note lives under `notes/<YYYY-MM>/` (RFC 0001);
+  there is no `by-topic`/`by-project` tree. Retrieval (recall, bootstrap §B)
+  selects on the `target_project` / `aspect` *facets* via the indexed
+  `learning_facets` table, never a folder. Project — and every other
+  classification — is a derived facet, not a placement decision.
 - **tier 3 (principles)** — generalizations that hold across projects.
   `priority: always-inject` principles are surfaced at *every* session
   start; this is the highest-authority, highest-blast-radius tier, so it
@@ -208,7 +220,7 @@ learnings/
    Stop/SessionEnd hook                 UserPromptSubmit hook
    → atelier_learning_capture           → session_bootstrap (1st turn):
    → candidates/                           always-inject principles +
-                                            by-project/<project> learnings
+                                            this project's learnings (facet)
    absorb (← offline)                   → signal_recall (every turn):
    → atelier_absorb_claude_memory          FTS-ranked learnings for this
    → accepted/ + candidates/               prompt, project-boosted
@@ -391,7 +403,7 @@ runtime/
 │   └── L6.py           stale
 │
 ├── doctor/         Drift detection + remediation
-│   ├── D1..D7.py       individual diagnostics   (D7 = learnings-mirror reconcile)
+│   ├── D1..D6.py       individual diagnostics   (D7 mirror check retired, RFC 0001)
 │   └── remediate.py    bounded fixer (--max-usd N for LLM cost cap)
 │
 ├── sync/adapters/  Remote ↔ local
@@ -417,7 +429,8 @@ runtime/
 │   ├── jobs/           youtube · clip · prepare · pending · index_regen · new_doc
 │   └── learnings/      capture · review · principles · dream · cluster ·
 │                       bootstrap · recall · absorb_claude · indexes ·
-│                       criteria · reconcile   (by-project mirror drift check/repair)
+│                       criteria · store (flat notes/ layout, RFC 0001) ·
+│                       surfacing · lateral
 │
 └── util/           Cross-cutting
     ├── config.py       ~/.atelier/config.yaml loader

@@ -43,7 +43,7 @@ def lint(space: Optional[str] = None, rule_ids: Optional[List[str]] = None,
          apply_fixes: bool = False, token: Optional[str] = None) -> Dict[str, Any]:
     ctx = auth.authenticate(token)
     if apply_fixes:
-        claims.require(ctx, claims.Claim.LIBRARIAN_WRITE)
+        claims.require(ctx, claims.Claim.WIKI_WRITE)
     from ..lint import runner
     conn = db.connect()
     try:

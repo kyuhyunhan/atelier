@@ -163,13 +163,16 @@ def test_bootstrap_cross_cuts_on_explicit_touches(atelier_env: Dict) -> None:
     learning touching that concept — connection by idea, not folder."""
     import yaml as _yaml
     from runtime.index.parse import split_frontmatter
+    from runtime.service.learnings import store as _store
 
     a = _accept("app", topic="layering")
     lx = _accept("lexio", topic="architecture")
-    # `touches` isn't set by accept; tag both canonicals with a shared concept.
-    vault = atelier_env["gorae"]            # librarian-territory == vault root
-    for stem, topic in ((a, "layering"), (lx, "architecture")):
-        p = vault / "learnings" / "accepted" / "by-topic" / topic / f"{stem}.md"
+    # `touches` isn't set by accept; tag both notes with a shared concept. The
+    # flat store (RFC 0001) means we locate each by stem, not a by-topic path.
+    vault = atelier_env["gorae"]            # vault root
+    by_stem = {p.stem: p for p in _store.iter_accepted_files(vault)}
+    for stem in (a, lx):
+        p = by_stem[stem]
         fm, body = split_frontmatter(p.read_text())
         fm["touches"] = ["dependency-direction"]
         p.write_text("---\n" + _yaml.safe_dump(fm, sort_keys=False) + "---\n" + body)

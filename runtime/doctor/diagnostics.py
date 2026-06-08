@@ -69,10 +69,13 @@ def D2_filesystem_drift(cfg: config.Config) -> Diagnosis:
 
 
 def D3_voice_overlay(cfg: config.Config) -> Diagnosis:
-    """D3: each agent's voice overlay file exists (warns if missing)."""
+    """D3: every configured voice-overlay file exists (warns if missing).
+
+    RFC 0001 retired the fixed librarian/builder agent names — this iterates
+    whatever voices the config declares, so it is persona-neutral."""
     missing: list[str] = []
-    for agent in ("librarian", "builder"):
-        overlay = (cfg.raw.get("agents") or {}).get(agent, {}).get("voice_overlay")
+    for _name, spec in (cfg.raw.get("agents") or {}).items():
+        overlay = (spec or {}).get("voice_overlay")
         if not overlay:
             continue
         p = Path(overlay).expanduser()
@@ -134,32 +137,12 @@ def D6_orphan_chunks(cfg: config.Config) -> Diagnosis:
         conn.close()
 
 
-def D7_learnings_mirror(cfg: config.Config) -> Diagnosis:
-    """D7: by-project mirrors agree with the by-topic canonical learnings."""
-    try:
-        from ..service.learnings import reconcile
-    except Exception as e:  # learnings domain optional / import guard
-        return Diagnosis("D7", "learnings-mirror", "OK",
-                         f"skipped ({e.__class__.__name__})")
-    try:
-        drifts = reconcile.check()
-    except FileNotFoundError:
-        return Diagnosis("D7", "learnings-mirror", "OK", "no learnings vault")
-    if not drifts:
-        return Diagnosis("D7", "learnings-mirror", "OK",
-                         "by-project mirrors agree with by-topic")
-    by_kind: Dict[str, int] = {}
-    for d in drifts:
-        by_kind[d.kind] = by_kind.get(d.kind, 0) + 1
-    sample = [(d.kind, d.by_project or d.by_topic, d.detail) for d in drifts[:5]]
-    return Diagnosis("D7", "learnings-mirror", "WARN",
-                     f"{len(drifts)} mirror drift(s) — run `atelier_learning_reconcile` "
-                     "(or doctor remediate)",
-                     {"count": len(drifts), "by_kind": by_kind, "sample": sample})
+# D7 (by-project mirror drift) was retired with the mirror itself (RFC 0001):
+# learnings are a flat, facet-classified store, so there is no mirror to drift.
 
 
 ALL_CHECKS = [D1_db_present, D2_filesystem_drift, D3_voice_overlay,
-              D4_git_remote, D5_asset_index, D6_orphan_chunks, D7_learnings_mirror]
+              D4_git_remote, D5_asset_index, D6_orphan_chunks]
 
 
 def run_all(cfg: config.Config) -> List[Diagnosis]:

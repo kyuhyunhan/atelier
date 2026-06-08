@@ -25,8 +25,8 @@ from . import claims as _claims
 # claim they need; the bearer-authenticated session carries all of these
 # in v0.2 (single owner-user).
 _BEARER_DEFAULT_CLAIMS = frozenset({
-    _claims.Claim.LIBRARIAN_WRITE,
-    _claims.Claim.BUILDER_WRITE,
+    _claims.Claim.WIKI_WRITE,
+    _claims.Claim.LEARNINGS_WRITE,
     _claims.Claim.CAPTOR_WRITE,
     _claims.Claim.CURATOR_WRITE,
     _claims.Claim.PROMOTE_APPLY,
@@ -107,7 +107,7 @@ def authenticate(token: Optional[str] = None) -> _claims.CallContext:
     if expected and token == expected:
         return _claims.CallContext(
             caller="api-client",
-            claims=frozenset({_claims.Claim.LIBRARIAN_WRITE,
-                              _claims.Claim.BUILDER_WRITE}),
+            claims=frozenset({_claims.Claim.WIKI_WRITE,
+                              _claims.Claim.LEARNINGS_WRITE}),
         )
     return _claims.local_cli_context()

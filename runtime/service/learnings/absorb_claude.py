@@ -48,6 +48,7 @@ import yaml
 
 from ...index import parse as _parse
 from ...util import config as _config
+from . import store as _store
 
 
 _CLAUDE_PROJECTS = Path.home() / ".claude" / "projects"
@@ -257,21 +258,16 @@ def absorb(*, dry_run: bool = False,
         if is_accepted:
             topic = _topic_from(mem)
             base = f"claude-{mem.project}-{_slugify(mem.name)}-{mem.body_sha[:10]}.md"
-            by_topic = (vault / "learnings" / "accepted" / "by-topic"
-                        / topic / base)
-            by_project = (vault / "learnings" / "accepted" / "by-project"
-                          / mem.project / base)
             fm = _build_frontmatter(mem, status="accepted",
                                      target_topic=topic)
+            # Flat store (RFC 0001): one note under notes/<YYYY-MM>/, no mirror.
+            dest = _store.flat_dest(vault, fm.get("captured_at"), base)
             if not dry_run:
-                _write_md(by_topic, fm, mem.body)
-                by_project.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(by_topic, by_project)
-                _record_dedup(vault, mem, by_topic)
+                _write_md(dest, fm, mem.body)
+                _record_dedup(vault, mem, dest)
             absorbed_accepted.append({
                 "src": str(mem.src),
-                "by_topic": str(by_topic),
-                "by_project": str(by_project),
+                "path": str(dest),
                 "type": mem.type,
                 "project": mem.project,
             })

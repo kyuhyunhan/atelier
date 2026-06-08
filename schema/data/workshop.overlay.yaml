@@ -1,17 +1,17 @@
-# atelier schema v4 — Builder overlay
-# Governs all pages in the `workshop` space.
-# Writer: Builder agent owns all of workshop/**.
+# atelier schema v5 — workshop-space overlay
+# Governs all pages in the `workshop` space (being retired into learnings —
+# RFC 0001). Writer: learnings-write. (The "Builder" agent persona is gone;
+# this is a space contract, not an agent.)
 
 inherits: base
 spaces: [workshop]
-agent: builder
 
 page_types:
 
   # ── Products (one product = one subdirectory) ─────────────────────────────
   product_readme:
     path_pattern: "products/*/README.md"
-    writer: builder
+    writer: learnings-write
     required_fields: [title, type, status, created, updated]
     optional_fields: [summary, tags, related_wiki, version]
     field_specs:
@@ -27,7 +27,7 @@ page_types:
 
   product_page:
     path_pattern: "products/**/*.md"
-    writer: builder
+    writer: learnings-write
     required_fields: [title, type, created, updated]
     optional_fields: [summary, tags]
     field_specs:
@@ -38,7 +38,7 @@ page_types:
   # ── Standalone notes (outside products) ──────────────────────────────────
   note:
     path_pattern: "notes/**/*.md"
-    writer: builder
+    writer: learnings-write
     required_fields: [title, type, created, updated]
     optional_fields: [summary, tags]
     field_specs:
@@ -49,7 +49,7 @@ page_types:
   # ── Daily / weekly build logs ─────────────────────────────────────────────
   build_log:
     path_pattern: "logs/**/*.md"
-    writer: builder
+    writer: learnings-write
     required_fields: [title, type, date, created, updated]
     field_specs:
       type:    { const: log }

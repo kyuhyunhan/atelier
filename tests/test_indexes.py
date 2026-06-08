@@ -55,12 +55,3 @@ def test_principle_archive_regens_index(atelier_env: Dict) -> None:
     assert "entry_count: 2" in idx.read_text()
     _pr.archive(slug="a", reason="x")
     assert "entry_count: 1" in idx.read_text()
-
-
-# ── direct regen API ─────────────────────────────────────────────────────
-
-
-def test_regen_project_missing_dir_is_safe(atelier_env: Dict) -> None:
-    out = _idx.regen_project("nonexistent-project")
-    assert out["written"] is False
-    assert out["count"] == 0

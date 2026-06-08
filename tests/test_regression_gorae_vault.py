@@ -144,35 +144,5 @@ def test_alias_resolution(vault_env: Dict) -> None:
         conn.close()
 
 
-# ── 3.2 learnings mirror reconcile (D7) ─────────────────────────────────────
-
-def test_learnings_mirror_reconcile(vault_env: Dict) -> None:
-    from runtime.service.learnings import reconcile
-
-    vault = vault_env["vault"]
-    acc = vault / "learnings" / "accepted"
-    fm = {"schema_version": 4, "entry_id": "e1", "status": "accepted",
-          "ac_status": "passed", "target_topic": "t", "target_project": "proj"}
-    # canonical with a project → expects exactly one mirror
-    write_page(acc / "by-topic" / "t" / "note.md", fm, "Lesson body.")
-    # but we seed a DUPLICATE mirror and NO correct one is missing here…
-    write_page(acc / "by-project" / "proj" / "note.md", fm, "Lesson body.")
-    write_page(acc / "by-project" / "proj" / "note-1.md", fm, "Lesson body.")
-    # …plus an orphan mirror whose canonical doesn't exist
-    write_page(acc / "by-project" / "proj" / "ghost.md",
-               {**fm, "entry_id": "gone"}, "Orphan.")
-
-    drifts = reconcile.check(vault)
-    kinds = sorted(d.kind for d in drifts)
-    assert "duplicate" in kinds   # note-1.md
-    assert "orphan" in kinds      # ghost.md
-
-    counts = reconcile.repair(vault)
-    assert counts["duplicate_removed"] >= 1
-    assert counts["orphan_removed"] >= 1
-    # after repair: clean
-    assert reconcile.check(vault) == []
-    # the canonical-named mirror survives; the duplicate is gone
-    assert (acc / "by-project" / "proj" / "note.md").exists()
-    assert not (acc / "by-project" / "proj" / "note-1.md").exists()
-    assert not (acc / "by-project" / "proj" / "ghost.md").exists()
+# 3.2 The learnings by-project mirror and its reconcile (D7) were retired in
+# RFC 0001 — the flat, facet-classified store has no mirror to drift.

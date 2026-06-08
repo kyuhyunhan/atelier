@@ -168,12 +168,11 @@ def apply_tags(mapping: Dict[str, List[str]],
     4. surfacing snapshot (after) → diff — `newly_dark` is the omission guard
        and is part of the return contract; a caller MUST look at it.
 
-    Result counters: `applied` (canonical written), `skipped` (already had
-    touches), `fully_rejected` (every tag failed the echo gate — nothing
-    written), `mirror_skipped` (a pre-tagged mirror diverging from its
-    canonical — reconcile is the repair path), `unknown` (entry_id not in the
-    corpus), `rejected` (per-entry tags dropped by the gate, regardless of
-    counter).
+    Result counters: `applied` (note written), `skipped` (already had touches),
+    `fully_rejected` (every tag failed the echo gate — nothing written),
+    `mirror_skipped` (retired with the by-project mirror, always 0; kept in the
+    return contract), `unknown` (entry_id not in the corpus), `rejected`
+    (per-entry tags dropped by the gate, regardless of counter).
     """
     from .. import api as _api
     kw = {"probe_k": probe_k} if probe_k is not None else {}

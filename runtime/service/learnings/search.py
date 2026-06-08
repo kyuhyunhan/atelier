@@ -194,13 +194,12 @@ def relink(*, slug: str, links: List[str],
     if mode not in ("replace", "merge"):
         raise ValueError(f"unknown mode: {mode!r}")
 
+    from . import store as _store
     vault = _vault_root()
-    # Search by slug or entry_id in accepted/by-topic/.
-    candidates = list((vault / "learnings" / "accepted" / "by-topic").rglob("*.md")) \
-        if (vault / "learnings" / "accepted" / "by-topic").exists() else []
+    # Search by slug or entry_id in the flat notes/ store (RFC 0001).
     needle = slug.removesuffix(".md")
     target: Optional[Path] = None
-    for p in candidates:
+    for p in _store.iter_accepted_files(vault):
         if p.stem == needle:
             target = p
             break
@@ -219,11 +218,5 @@ def relink(*, slug: str, links: List[str],
 
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     target.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
-
-    # Mirror the change to the by-project copy if present.
-    by_proj_root = vault / "learnings" / "accepted" / "by-project"
-    if by_proj_root.exists():
-        for mirror in by_proj_root.rglob(target.name):
-            mirror.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
-
+    # One file, no mirror (RFC 0001).
     return {"path": str(target), "links": new_links}

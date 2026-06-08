@@ -148,17 +148,23 @@ def _fs_scan(query: str, vault: Path, types: List[str],
         return []
     facet_pairs = [p for p in (facets or []) if p and p[1]]
     out: List[Dict[str, Any]] = []
-    roots: List[tuple[str, Path]] = []
+    # (ptype, iterable-of-paths). Accepted learnings live in the flat notes/
+    # store (RFC 0001) — store.iter_accepted_files spans it plus the legacy
+    # by-topic tree during migration and excludes the by-project mirror.
+    from . import store as _store
+    roots: List[tuple[str, Any]] = []
     if "learning_principle" in types:
-        roots.append(("learning_principle", vault / "learnings" / "principles"))
+        roots.append(("learning_principle",
+                      sorted((vault / "learnings" / "principles").rglob("*.md"))
+                      if (vault / "learnings" / "principles").exists() else []))
     if "learning_accepted" in types:
-        roots.append(("learning_accepted", vault / "learnings" / "accepted"))
+        roots.append(("learning_accepted", _store.iter_accepted_files(vault)))
     if "learning_candidate" in types:
-        roots.append(("learning_candidate", vault / "learnings" / "candidates"))
-    for ptype, root in roots:
-        if not root.exists():
-            continue
-        for p in sorted(root.rglob("*.md")):
+        roots.append(("learning_candidate",
+                      sorted((vault / "learnings" / "candidates").rglob("*.md"))
+                      if (vault / "learnings" / "candidates").exists() else []))
+    for ptype, paths in roots:
+        for p in paths:
             if is_noise(p.name):        # shared predicate (INDEX + TAXONOMY)
                 continue
             if "by-project" in p.parts:

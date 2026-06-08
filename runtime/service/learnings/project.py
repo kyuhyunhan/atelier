@@ -72,9 +72,35 @@ def _vault_root(cfg: Optional[_config.Config]) -> Optional[Path]:
 
 
 def _is_known(vault: Optional[Path], slug: Optional[str]) -> bool:
+    """True if any accepted learning carries this project (RFC 0001: a facet
+    query, not a by-project directory check). DB first; on a cold/missing index
+    fall back to a frontmatter scan of the flat store."""
     if not vault or not slug:
         return False
-    return (Path(vault) / "learnings" / "accepted" / "by-project" / slug).is_dir()
+    try:
+        from ...util import db as _db
+        conn = _db.connect()
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM learning_facets WHERE kind='project' AND value=? "
+                "LIMIT 1", (slug,)).fetchone()
+            if row is not None:
+                return True
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    # Fallback: scan the flat store's frontmatter (no DB / not yet indexed).
+    from . import store as _store
+    from ...index import parse as _parse
+    for p in _store.iter_accepted_files(Path(vault)):
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:               # pragma: no cover
+            continue
+        if slug in (fm.get("target_project"), fm.get("project_hint")):
+            return True
+    return False
 
 
 # ── layer 2: config project_map ──────────────────────────────────────────────

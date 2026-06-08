@@ -42,6 +42,18 @@ def _all_overlays() -> List[Dict[str, Any]]:
     ]
 
 
+def _patterns_of(spec: Dict[str, Any]) -> List[str]:
+    """A page_type may declare a single `path_pattern` or, during a layout
+    migration, several via `path_patterns` (list). Both are supported so one
+    type can match an old and a new location at once (RFC 0001: learning_accepted
+    matches both the legacy by-topic tree and the flat notes/ store)."""
+    multi = spec.get("path_patterns")
+    if isinstance(multi, list):
+        return [p for p in multi if p]
+    one = spec.get("path_pattern")
+    return [one] if one else []
+
+
 def page_type_rules() -> List[Tuple[str, str]]:
     """All (path_pattern, page_type) pairs across overlays, declaration order.
 
@@ -54,8 +66,7 @@ def page_type_rules() -> List[Tuple[str, str]]:
     rules: List[Tuple[str, str]] = []
     for overlay in _all_overlays():
         for ptype, spec in (overlay.get("page_types") or {}).items():
-            pattern = spec.get("path_pattern")
-            if pattern:
+            for pattern in _patterns_of(spec):
                 rules.append((pattern, ptype))
     return rules
 
@@ -81,11 +92,9 @@ def _match_page_type(rel_path: str, overlays: Iterable[Dict[str, Any]]
     import fnmatch
     for overlay in overlays:
         for ptype, spec in (overlay.get("page_types") or {}).items():
-            pattern = spec.get("path_pattern")
-            if not pattern:
-                continue
-            if _glob_match(pattern, rel_path) or fnmatch.fnmatchcase(rel_path, pattern):
-                return ptype, spec
+            for pattern in _patterns_of(spec):
+                if _glob_match(pattern, rel_path) or fnmatch.fnmatchcase(rel_path, pattern):
+                    return ptype, spec
     return None, None
 
 

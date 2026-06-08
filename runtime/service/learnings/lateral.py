@@ -186,19 +186,6 @@ def apply_tags(mapping: Dict[str, List[str]],
     before = _surfacing.snapshot(**kw)
 
     learnings = {l.entry_id: l for l in _cluster.load_accepted(vault)}
-    # mirrors keyed by entry_id (one canonical may have several copies)
-    from ...index import parse as _parse
-    mirrors: Dict[str, List[Path]] = {}
-    bp = vault / "learnings" / "accepted" / "by-project"
-    if bp.exists():
-        for p in sorted(bp.rglob("*.md")):
-            if p.name == "INDEX.md":
-                continue
-            try:
-                fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
-            except Exception:       # pragma: no cover
-                continue
-            mirrors.setdefault(str(fm.get("entry_id")), []).append(p)
 
     applied = skipped = fully_rejected = mirror_skipped = 0
     rejected: Dict[str, List[str]] = {}
@@ -219,13 +206,7 @@ def apply_tags(mapping: Dict[str, List[str]],
             fully_rejected += 1
             continue
         if _insert_touches(l.path, good):
-            applied += 1
-            for m in mirrors.get(eid, []):
-                if not _insert_touches(m, good):
-                    # a pre-tagged mirror diverging from its canonical must be
-                    # visible, not silently ignored (review NEW-2): reconcile
-                    # is the repair path for mirror drift.
-                    mirror_skipped += 1
+            applied += 1                       # one flat note, no mirror (RFC 0001)
         else:
             skipped += 1
 

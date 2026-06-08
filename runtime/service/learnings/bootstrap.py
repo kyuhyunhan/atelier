@@ -27,6 +27,7 @@ from ...index import parse as _parse
 from ...util import config as _config
 from . import principles as _principles
 from . import project as _project
+from . import store as _store
 
 
 def _vault_root(cfg: Optional[_config.Config] = None) -> Path:
@@ -97,14 +98,11 @@ def _explicit_concepts(fm: Dict[str, Any]) -> set:
 
 
 def _scan_accepted(vault: Path) -> List[Dict[str, Any]]:
-    """Read the canonical accepted pool (by-topic), folder-free w.r.t. project.
-    The by-project tree is never read — project is a frontmatter facet, not a
-    storage location (nervous-system: index by idea, not folder)."""
-    root = vault / "learnings" / "accepted" / "by-topic"
+    """Read the accepted pool from the flat notes/ store (RFC 0001), folder-free
+    w.r.t. project — project is a facet, not a storage location. The by-project
+    tree is never read (store.iter_accepted_files excludes it)."""
     items: List[Dict[str, Any]] = []
-    if not root.exists():
-        return items
-    for p in sorted(root.glob("**/*.md")):
+    for p in _store.iter_accepted_files(vault):
         if p.name == "INDEX.md":
             continue
         try:

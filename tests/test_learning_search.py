@@ -56,11 +56,8 @@ def test_relink_replaces_links(atelier_env: Dict) -> None:
     accepted = _accept_one()
     out = _ls.relink(slug=accepted.stem, links=["wiki/entities/fts5"])
     assert out["links"] == ["wiki/entities/fts5"]
-    # by-project mirror updated too:
-    mirror = (atelier_env["gorae"] / "learnings" / "accepted"
-              / "by-project" / "lexio" / accepted.name)
-    text = mirror.read_text(encoding="utf-8")
-    assert "wiki/entities/fts5" in text
+    # One flat note, no mirror (RFC 0001): the change lands in the note itself.
+    assert "wiki/entities/fts5" in accepted.read_text(encoding="utf-8")
 
 
 def test_relink_merge_preserves_existing(atelier_env: Dict) -> None:

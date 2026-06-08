@@ -130,11 +130,9 @@ def load_accepted(vault: Path) -> List[Learning]:
     """
     from ...index import parse as _parse
     from . import recall as _recall
+    from . import store as _store
     learnings: List[Learning] = []
-    root = vault / "learnings" / "accepted" / "by-topic"
-    if not root.exists():
-        return []
-    for p in sorted(root.rglob("*.md")):
+    for p in _store.iter_accepted_files(vault):
         if _recall.is_noise(p.name):
             continue
         try:
@@ -293,10 +291,9 @@ def _count_accepted(vault: Path) -> int:
     The DB projection can lag behind accepts that happened since the last
     reindex, so the cadence counter reads the filesystem directly.
     """
-    root = vault / "learnings" / "accepted" / "by-topic"
-    if not root.exists():
-        return 0
-    return sum(1 for p in root.rglob("*.md") if p.name != "INDEX.md")
+    from . import store as _store
+    return sum(1 for p in _store.iter_accepted_files(vault)
+               if p.name != "INDEX.md")
 
 
 def dream_status() -> Dict[str, Any]:

@@ -192,27 +192,20 @@ def test_apply_reports_unknown_and_fully_rejected(vault_env: Dict) -> None:
     assert out["rejected"]["real"] == ["quantum-flux"]
 
 
-def test_apply_tags_mirrors_receive_tags(vault_env: Dict) -> None:
-    """S4: the by-project mirror must receive the same touches as the
-    canonical — a tag applied to one but not the other causes a surfacing
-    discrepancy between the retrieval paths."""
-    import yaml as _yaml
+def test_apply_tags_writes_the_flat_note(vault_env: Dict) -> None:
+    """RFC 0001: one flat note, no mirror — the tag lands in the note itself."""
     vault = vault_env["vault"]
     _accepted(vault, "client", "mm",
               "## Observation\n\nkeychain sensitive token body\n",
               project="lexio")
-    mirror = (vault / "learnings" / "accepted" / "by-project" / "lexio" /
-              "mm.md")
     canonical = (vault / "learnings" / "accepted" / "by-topic" / "client" /
                  "mm.md")
-    mirror.parent.mkdir(parents=True, exist_ok=True)
-    mirror.write_text(canonical.read_text())
     api.reindex(full=True)
 
     out = _lat.apply_tags({"mm": ["keychain"]})
     assert out["applied"] == 1
+    assert out["mirror_skipped"] == 0          # no mirror exists (RFC 0001)
     assert "- keychain" in canonical.read_text()
-    assert "- keychain" in mirror.read_text()
 
 
 def test_insert_touches_refuses_empty_tags(vault_env: Dict) -> None:
@@ -224,21 +217,6 @@ def test_insert_touches_refuses_empty_tags(vault_env: Dict) -> None:
     assert "touches:" not in p.read_text()
 
 
-def test_apply_counts_pretagged_diverging_mirror(vault_env: Dict) -> None:
-    """NEW-2: a mirror that already carries touches (diverging from its
-    untagged canonical) is counted in mirror_skipped, not silently ignored."""
-    vault = vault_env["vault"]
-    _accepted(vault, "client", "dv",
-              "## Observation\n\nkeychain sensitive body\n", project="lexio")
-    canonical = (vault / "learnings" / "accepted" / "by-topic" / "client" /
-                 "dv.md")
-    mirror = (vault / "learnings" / "accepted" / "by-project" / "lexio" /
-              "dv.md")
-    mirror.parent.mkdir(parents=True, exist_ok=True)
-    # mirror diverges: it is already tagged while the canonical is not
-    mirror.write_text(canonical.read_text().replace(
-        "target_topic: client", "target_topic: client\ntouches:\n- keychain"))
-
-    out = _lat.apply_tags({"dv": ["keychain"]})
-    assert out["applied"] == 1
-    assert out["mirror_skipped"] == 1
+# RFC 0001 retired the by-project mirror, so mirror-divergence (the old
+# mirror_skipped counter) can no longer occur. The counter remains in the
+# return contract, pinned at 0 by test_apply_tags_writes_the_flat_note.

@@ -111,9 +111,17 @@ def test_unknown_when_no_by_project_dir(atelier_env: Dict) -> None:
     assert res.known is False
 
 
-def test_known_when_by_project_dir_exists(atelier_env: Dict) -> None:
-    (_vault(atelier_env) / "learnings" / "accepted" / "by-project" / "lexio") \
-        .mkdir(parents=True)
+def test_known_when_project_has_accepted_learning(atelier_env: Dict) -> None:
+    """RFC 0001: `known` is a facet query — true when some accepted learning
+    carries the project, not when a by-project directory exists."""
+    from runtime.service.learnings import capture as _cap
+    from runtime.service.learnings import review as _rev
+    cap = _cap.capture(observation="lexio overlay bug", why="needs a key",
+                       rule="stabilize keys",
+                       working_dir="/Users/me/workspaces/lexio",
+                       session_id="s", hook="Stop")
+    _rev.accept(candidate_slug=cap["entry_id"], target_topic="t",
+                target_project="lexio")
     res = _proj.resolve_project("/Users/me/workspaces/lexio")
     assert res.slug == "lexio"
     assert res.known is True

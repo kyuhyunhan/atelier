@@ -189,16 +189,16 @@ def add(*, title: str, rule: str, why: str,
 
 
 def _resolve_source(vault: Path, slug_or_path: str) -> Optional[Path]:
-    """Find an accepted learning by relative path or by file stem."""
-    accepted_root = vault / "learnings" / "accepted" / "by-topic"
-    if not accepted_root.exists():
-        return None
+    """Find an accepted learning by relative path or by file stem (RFC 0001:
+    the flat notes/ store, plus the legacy by-topic tree during migration)."""
+    from . import store as _store
     needle = slug_or_path.removesuffix(".md")
-    # Direct path under accepted/by-topic
-    candidate = accepted_root / slug_or_path
-    if candidate.exists():
-        return candidate
-    for p in accepted_root.rglob("*.md"):
+    # Direct relative path under either accepted root.
+    for root in _store.accepted_roots(vault):
+        candidate = root / slug_or_path
+        if candidate.exists():
+            return candidate
+    for p in _store.iter_accepted_files(vault):
         if p.stem == needle:
             return p
     return None

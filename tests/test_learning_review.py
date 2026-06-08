@@ -60,17 +60,17 @@ def test_review_pending_filters_by_project(atelier_env: Dict) -> None:
 # ── accept ─────────────────────────────────────────────────────────────────
 
 
-def test_accept_promotes_to_by_topic_and_by_project(atelier_env: Dict) -> None:
+def test_accept_promotes_to_flat_notes_store(atelier_env: Dict) -> None:
     good = _make_good_candidate()
     result = _rev.accept(candidate_slug=good["entry_id"],
                          target_topic="search-fallback",
                          target_project="lexio")
     accepted = Path(result["path"])
     assert accepted.exists()
-    assert "accepted/by-topic/search-fallback/" in str(accepted)
-    by_proj = Path(result["by_project_path"])
-    assert by_proj.exists()
-    assert "accepted/by-project/lexio/" in str(by_proj)
+    # RFC 0001: one flat file under notes/<YYYY-MM>/, no by-topic/by-project.
+    assert "/learnings/notes/" in str(accepted)
+    assert "by-topic" not in str(accepted) and "by-project" not in str(accepted)
+    assert result["by_project_path"] is None
     # Source candidate must be gone (single source of truth move).
     assert not Path(good["path"]).exists()
 
@@ -108,17 +108,16 @@ def test_archive_moves_to_archived(atelier_env: Dict) -> None:
 # ── retract ────────────────────────────────────────────────────────────────
 
 
-def test_retract_from_accepted_removes_mirrors(atelier_env: Dict) -> None:
+def test_retract_from_accepted_moves_flat_note(atelier_env: Dict) -> None:
     good = _make_good_candidate()
     accepted = _rev.accept(candidate_slug=good["entry_id"],
                            target_topic="search-fallback",
                            target_project="lexio")
-    by_proj = Path(accepted["by_project_path"])
-    assert by_proj.exists()
-    _rev.retract(slug=Path(accepted["path"]).stem,
-                 reason="user-said-no")
-    assert not Path(accepted["path"]).exists()
-    assert not by_proj.exists()
+    assert accepted["by_project_path"] is None       # no mirror (RFC 0001)
+    out = _rev.retract(slug=Path(accepted["path"]).stem,
+                       reason="user-said-no")
+    assert not Path(accepted["path"]).exists()        # moved out of notes/
+    assert "archived/" in out["path"]
 
 
 def test_retract_from_candidate(atelier_env: Dict) -> None:

@@ -141,6 +141,17 @@ def _vault_root() -> Path:
     return _surfacing._vault_root()
 
 
+def gate(before: Dict[str, Dict[str, Any]],
+         after: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """The hard omission gate every phase must pass (RFC 0001/0002 discipline):
+    given two `surfacing.snapshot`s, a change is allowed only if NO learning that
+    was visible went dark. Wraps `surfacing.diff` and adds `passed` so the gate
+    is one call. Rank drops are reported but do not fail the gate (they are a
+    quality signal, not an omission)."""
+    d = _surfacing.diff(before, after)
+    return {**d, "passed": not d["newly_dark"]}
+
+
 def run(*, k: int = 5, vault: Path | None = None) -> Dict[str, Any]:
     """Compute both probe sets' metrics over the current (FTS-only at P0) path.
 

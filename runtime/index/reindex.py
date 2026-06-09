@@ -125,7 +125,12 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
         conn.execute("DELETE FROM links WHERE from_page=?", (p["id"],))
         body = "\n".join(
             r["text"] for r in conn.execute(
-                "SELECT text FROM chunks WHERE page_id=? ORDER BY position", (p["id"],)
+                # Exclude the synthetic frontmatter chunk (RFC 0002 P1a): it is
+                # for FTS only, never body — link extraction must not parse a
+                # frontmatter value as a wikilink.
+                "SELECT text FROM chunks WHERE page_id=? "
+                "AND (heading_path IS NULL OR heading_path != ?) ORDER BY position",
+                (p["id"], parse.FRONTMATTER_HEADING),
             )
         )
         for link in linker.extract_links(body, default_space=space):

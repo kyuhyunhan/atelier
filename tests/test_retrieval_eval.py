@@ -88,6 +88,15 @@ def test_concept_probes_group_only_shared_concepts(vault_env: Dict):
     assert "logging" not in by_concept
 
 
+def test_gate_fails_on_newly_dark_passes_otherwise():
+    before = {"x": {"visible": True, "rank": 0, "title": "X", "project": "p",
+                    "probe": "x"}}
+    dark = {"x": {"visible": False, "rank": None, "title": "X", "project": "p",
+                  "probe": "x"}}
+    assert _eval.gate(before, dark)["passed"] is False
+    assert _eval.gate(before, before)["passed"] is True
+
+
 def test_run_reports_both_probe_sets(vault_env: Dict):
     vault = vault_env["vault"]
     _accepted(vault, "c1", "the cache eviction body words\n", touches=["caching"])

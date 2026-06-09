@@ -13,6 +13,22 @@ FRONTMATTER_RE = re.compile(
     re.DOTALL,
 )
 
+# The synthetic chunk carrying frontmatter values into FTS (RFC 0002 P1a) is
+# tagged with this heading_path. It is a real chunk for search, but link
+# rebuild excludes it so frontmatter text is never parsed as body (reindex.py).
+FRONTMATTER_HEADING = "frontmatter"
+
+# Mechanical/plumbing frontmatter keys whose values carry no retrieval signal
+# (ids, hashes, enums, timestamps). Denylisting these is noise control, not a
+# schema decision (hard-rule #3): they are mechanical regardless of schema, so
+# this set stays valid as the schema evolves. Anything ending in `_at` (any
+# timestamp field) is also skipped, below.
+_FM_PLUMBING_KEYS = frozenset({
+    "entry_id", "schema_version", "status", "ac_status", "agent_kind",
+    "observation_kind", "content_hash", "mtime", "confidence", "source_count",
+    "created", "updated", "sensitivity", "first_mention", "id", "hash",
+})
+
 
 @dataclass
 class Chunk:
@@ -81,8 +97,46 @@ def chunk_body(body: str) -> List[Chunk]:
     return chunks
 
 
+def _searchable_fm_values(fm: Dict[str, Any]) -> List[str]:
+    """Ordered string values worth indexing from frontmatter: scalars and
+    list-of-string members, minus the plumbing denylist and any `*_at` field.
+    Non-string scalars (ints, bools) and nested structures are skipped — they
+    are not free-text retrieval signal."""
+    out: List[str] = []
+    for key, val in fm.items():
+        if not isinstance(key, str):
+            continue
+        k = key.lower()
+        if k in _FM_PLUMBING_KEYS or k.endswith("_at"):
+            continue
+        if isinstance(val, str):
+            v = val.strip()
+            if v:
+                out.append(v)
+        elif isinstance(val, list):
+            for e in val:
+                if isinstance(e, str) and e.strip():
+                    out.append(e.strip())
+    return out
+
+
+def frontmatter_chunk(fm: Dict[str, Any], position: int = 0) -> Optional[Chunk]:
+    """A synthetic chunk carrying frontmatter values into FTS (RFC 0002 P1a), so
+    a page whose concept lives only in a tag (`touches`, `target_topic`, …) is
+    retrievable. Returns None when frontmatter has no searchable text."""
+    values = _searchable_fm_values(fm)
+    if not values:
+        return None
+    return Chunk(position=position, heading_path=FRONTMATTER_HEADING,
+                 text="\n".join(values))
+
+
 def parse_file(path: Path) -> ParsedPage:
     text = path.read_text(encoding="utf-8", errors="replace")
     fm, body = split_frontmatter(text)
     chunks = chunk_body(body)
+    # Append the frontmatter chunk last so body chunk positions are unchanged.
+    fmc = frontmatter_chunk(fm, position=len(chunks))
+    if fmc is not None:
+        chunks.append(fmc)
     return ParsedPage(frontmatter=fm, body=body, chunks=chunks)

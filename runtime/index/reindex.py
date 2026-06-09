@@ -40,8 +40,15 @@ def reindex_space(
             # Pass 1: upsert pages + chunks
             for item in crawl.crawl_space(conn, space_name, space.local, full=full):
                 stats.pages_seen += 1
-                parsed = parse.parse_file(item.path)
-                ptype = classify.classify(space_name, item.slug, parsed.frontmatter)
+                # Structured files (.yaml/.yml/.json) are a `data` page by format
+                # (RFC 0002 P1b) — a file-format fact, kept out of the schema-driven
+                # `classify` (which keys off overlay md path patterns, hard-rule #3).
+                if parse.is_data_path(item.path):
+                    parsed = parse.parse_data_file(item.path)
+                    ptype = "data"
+                else:
+                    parsed = parse.parse_file(item.path)
+                    ptype = classify.classify(space_name, item.slug, parsed.frontmatter)
                 page_id = _upsert_page(conn, space_name, item.slug, ptype, parsed.frontmatter,
                                        item.content_hash, item.mtime)
                 _replace_chunks(conn, page_id, parsed.chunks)

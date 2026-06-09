@@ -140,3 +140,55 @@ def parse_file(path: Path) -> ParsedPage:
     if fmc is not None:
         chunks.append(fmc)
     return ParsedPage(frontmatter=fm, body=body, chunks=chunks)
+
+
+# Structured (.yaml/.yml/.json) page handling — RFC 0002 P1b.
+DATA_SUFFIXES = {".yaml", ".yml", ".json"}
+
+
+def is_data_path(path: Path) -> bool:
+    return path.suffix.lower() in DATA_SUFFIXES
+
+
+def _flatten(value: Any, prefix: str = "") -> List[str]:
+    """Flatten a nested yaml/json structure into `key.path: scalar` lines so FTS
+    can match both the keys and the leaf values. Lists index their members by
+    index path. Scalars render as `prefix: value`."""
+    lines: List[str] = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            key = f"{prefix}.{k}" if prefix else str(k)
+            lines.extend(_flatten(v, key))
+    elif isinstance(value, list):
+        for i, v in enumerate(value):
+            lines.extend(_flatten(v, f"{prefix}[{i}]" if prefix else f"[{i}]"))
+    else:
+        rendered = "" if value is None else str(value)
+        lines.append(f"{prefix}: {rendered}".strip())
+    return lines
+
+
+def parse_data_file(path: Path) -> ParsedPage:
+    """Parse a structured file into a `data` page. yaml/json is loaded and
+    flattened to searchable text; on a parse error we fall back to indexing the
+    raw text so a malformed file is still discoverable (and never crashes the
+    indexer). Frontmatter is the top-level mapping when present, so `title` and
+    friends still populate the generated columns."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    fm: Dict[str, Any] = {}
+    lines: List[str]
+    try:
+        if path.suffix.lower() == ".json":
+            import json as _json
+            data = _json.loads(text)
+        else:
+            data = yaml.safe_load(text)
+        lines = _flatten(data) if data is not None else []
+        if isinstance(data, dict):
+            fm = data
+    except (yaml.YAMLError, ValueError):
+        lines = []
+    body = "\n".join(lines) if lines else text.strip()
+    chunks = [Chunk(position=0, heading_path=None, text=body)] if body else []
+    return ParsedPage(frontmatter=fm if isinstance(fm, dict) else {},
+                      body=body, chunks=chunks)

@@ -88,6 +88,33 @@ def test_concept_probes_group_only_shared_concepts(vault_env: Dict):
     assert "logging" not in by_concept
 
 
+def test_paraphrase_block_scores_against_fixture(vault_env: Dict, tmp_path):
+    """The paraphrase set measures meaning-match without word-match: a probe
+    whose gold exists is scored; a probe whose gold has been retracted is
+    flagged stale, never silently dropped."""
+    vault = vault_env["vault"]
+    _accepted(vault, "g1", "## Observation\n\ncache eviction policy notes\n",
+              touches=["caching"])
+    from runtime.service import api
+    api.reindex(full=True)
+
+    import json
+    fixture = tmp_path / "probes.json"
+    fixture.write_text(json.dumps({"version": 1, "probes": [
+        # lexical hit possible: query shares the word 'eviction' with the body
+        {"query": "eviction strategy", "gold": ["g1"]},
+        # stale: gold id no longer exists in the vault
+        {"query": "anything", "gold": ["gone-id"]},
+    ]}))
+
+    block = _eval.paraphrase_block(vault, k=5, fixture_path=fixture)
+    assert block["probes"] == 2
+    assert block["scored"] == 1                 # stale probe excluded from scoring
+    assert block["stale"] == [{"query": "anything", "gold": ["gone-id"]}]
+    assert block["recall_at_k"] == 1.0          # the lexical-findable one
+    assert "mrr" in block
+
+
 def test_gate_fails_on_newly_dark_passes_otherwise():
     before = {"x": {"visible": True, "rank": 0, "title": "X", "project": "p",
                     "probe": "x"}}

@@ -141,6 +141,52 @@ def _vault_root() -> Path:
     return _surfacing._vault_root()
 
 
+# ── paraphrase probe set (frozen authored fixture) ──────────────────────────
+
+# The committed yardstick for semantic headroom: queries that share MEANING but
+# not words with their gold. Authored once, frozen; see the fixture's _about.
+PARAPHRASE_FIXTURE = (Path(__file__).resolve().parents[3]
+                      / "tests" / "fixtures" / "paraphrase_probes.json")
+
+
+def paraphrase_block(vault: Path, k: int,
+                     fixture_path: Path | None = None) -> Dict[str, Any]:
+    """Score the frozen paraphrase probes against the live retrieval path.
+
+    Lexical-only retrieval is expected to score LOW here by design — the gap to
+    1.0 is the semantic headroom P2/P3 must close. Probes whose gold entry_id no
+    longer exists in the vault are reported under `stale` and excluded from the
+    averages (a retracted learning must not silently deflate the score); the
+    fixture should then be re-authored, not auto-pruned."""
+    import json as _json
+    path = fixture_path or PARAPHRASE_FIXTURE
+    if not path.exists():
+        return {"probes": 0, "scored": 0, "stale": [],
+                "recall_at_k": 0.0, "mrr": 0.0, "missing_fixture": str(path)}
+    probes = _json.loads(path.read_text(encoding="utf-8"))["probes"]
+
+    existing = {eid for eid, _ in _enumerate_with_concepts(vault)}
+    stale: List[Dict[str, Any]] = []
+    recalls: List[float] = []
+    rrs: List[float] = []
+    for pr in probes:
+        gold = set(pr["gold"])
+        if not gold <= existing:
+            stale.append({"query": pr["query"], "gold": pr["gold"]})
+            continue
+        hits = _recall.rank_hits(pr["query"], None, _TYPES, top_k=k, vault=vault)
+        ranked = [str((h.get("fm") or {}).get("entry_id")) for h in hits]
+        recalls.append(recall_at_k(ranked, gold, k))
+        rrs.append(reciprocal_rank(ranked, gold))
+    return {
+        "probes": len(probes),
+        "scored": len(recalls),
+        "stale": stale,
+        "recall_at_k": _mean(recalls),
+        "mrr": _mean(rrs),
+    }
+
+
 def gate(before: Dict[str, Dict[str, Any]],
          after: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """The hard omission gate every phase must pass (RFC 0001/0002 discipline):
@@ -163,4 +209,5 @@ def run(*, k: int = 5, vault: Path | None = None) -> Dict[str, Any]:
         "engine": "fts-only",
         "self_probe": _self_probe_block(k),
         "concept_grouped": _concept_block(vault, k),
+        "paraphrase": paraphrase_block(vault, k),
     }

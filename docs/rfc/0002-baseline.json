@@ -3,6 +3,11 @@
   "captured_date": "2026-06-09",
   "engine": "fts-only",
   "vault": "gorae",
+  "paraphrase_post_p1": {
+    "_note": "Captured 2026-06-10 AFTER P1 (frontmatter + structured coverage), against the frozen authored fixture tests/fixtures/paraphrase_probes.json (22 probes). This is the semantic-headroom yardstick for P2/P3: queries share meaning but not words with their gold. The 7 misses @5 are pure meaning!=words cases (incl. one cross-lingual English-query/Korean-body probe) — the class only semantic retrieval can recover.",
+    "k5": {"probes": 22, "scored": 22, "recall_at_k": 0.6818181818181818, "mrr": 0.5681818181818181},
+    "k10": {"probes": 22, "scored": 22, "recall_at_k": 0.7272727272727273, "mrr": 0.572979797979798}
+  },
   "baseline_k5": {
     "self_probe": {
       "probes": 134,

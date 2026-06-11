@@ -26,6 +26,11 @@ youtube = [
     "yt-dlp>=2025.1",
     "openai>=1.50",
 ]
+# RFC 0002 P2 — semantic retrieval substrate. Optional by design: without it
+# (or without a reachable embedding provider) atelier degrades to lexical-only.
+semantic = [
+    "sqlite-vec>=0.1.9",
+]
 
 [project.scripts]
 atelier = "runtime.cli:main"

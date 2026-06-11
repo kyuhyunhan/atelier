@@ -3,10 +3,11 @@
 This package is the *contract layer* for retrieval. It is split one-file-per-mode
 so the substrate's three responsibilities are visible at a glance:
 
-    lexical.py     keyword / BM25            (LexicalSearcher    — impl P0)
-    semantic.py    vector kNN                (SemanticSearcher   — impl P2)
+    lexical.py     keyword / BM25            (LexicalSearcher    — FtsLexical, P0)
+    semantic.py    vector kNN                (SemanticSearcher   — VecSemantic, P2)
     relational.py  graph traversal           (RelationalSearcher — impl P4)
-    types.py       shared vocabulary         (Scope, Candidate, VectorRow)
+    types.py       shared vocabulary         (Scope, Candidate)
+    vecstore.py    vectors.db sidecar        (semantic write side + kNN index)
 
 `RetrievalEngine` below is the higher-level view: a bundle holding *one searcher
 of each mode*. The resolver (P3) depends on this bundle and on the three Protocols
@@ -25,14 +26,15 @@ from typing import Optional
 
 from .lexical import FtsLexical, LexicalSearcher
 from .relational import RelationalSearcher
-from .semantic import SemanticSearcher
-from .types import Candidate, Scope, VectorRow
+from .semantic import SemanticSearcher, VecSemantic
+from .types import Candidate, Scope
+from .vecstore import VecStore
 
 __all__ = [
     "RetrievalEngine",
     "LexicalSearcher", "SemanticSearcher", "RelationalSearcher",
-    "FtsLexical",
-    "Scope", "Candidate", "VectorRow",
+    "FtsLexical", "VecSemantic", "VecStore",
+    "Scope", "Candidate",
 ]
 
 

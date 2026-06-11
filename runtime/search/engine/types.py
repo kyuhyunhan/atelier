@@ -47,17 +47,7 @@ class Candidate:
     snippet: str = ""
 
 
-@dataclass(frozen=True)
-class VectorRow:
-    """A chunk embedding to persist (semantic write side, P2).
-
-    `signature` is the `embedding_signature` from RFC 0002 §5
-    (provider+model+dim+chunker_version) — reindex re-embeds only rows whose
-    signature is stale, so a `rm db && reindex` reuses unchanged embeddings
-    instead of paying to recompute them.
-    """
-
-    page_id: int
-    chunk_id: int
-    embedding: Sequence[float]
-    signature: str
+# NOTE: P0 sketched a `VectorRow` write-side value object here. P2 removed it:
+# the semantic write side (content-hash cache, signature stale-detection, batch
+# sync) proved backend-specific and lives on the backend (vecstore.VecStore),
+# not in the cross-backend contract — the resolver only reads.

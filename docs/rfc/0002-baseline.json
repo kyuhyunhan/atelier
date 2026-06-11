@@ -8,6 +8,12 @@
     "k5": {"probes": 22, "scored": 22, "recall_at_k": 0.6818181818181818, "mrr": 0.5681818181818181},
     "k10": {"probes": 22, "scored": 22, "recall_at_k": 0.7272727272727273, "mrr": 0.572979797979798}
   },
+  "paraphrase_p2_semantic_only": {
+    "_note": "Captured 2026-06-11 — semantic mode ALONE (VecSemantic over bge-m3, dim 1024, no lexical, no fusion) on the same 22-probe fixture. Beats lexical (R@5 0.682) by +0.18. Recovered 4 of 7 lexical misses incl. the cross-lingual EN-query/KO-body probe (rank 0). NOT a strict superset of lexical hits — the argument for P3 fusion (RRF) rather than replacement. Bulk embed: 855s one-time for ~22K chunks on an M1 Pro; steady-state reindex reuses the content-hash cache.",
+    "model": "ollama:bge-m3:1024",
+    "k5": {"probes": 22, "recall_at_k": 0.8636363636363636, "mrr": 0.7840909090909091},
+    "residual_misses": ["accountless identity metrics", "parallel worktree agent sessions", "version-bump pbxproj mechanics"]
+  },
   "baseline_k5": {
     "self_probe": {
       "probes": 134,

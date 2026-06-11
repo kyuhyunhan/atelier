@@ -19,6 +19,13 @@ class ReindexStats:
     chunks_written: int = 0
     links_written: int = 0
     entities_upserted: int = 0
+    chunks_embedded: int = 0     # semantic substrate (RFC 0002 P2): cache misses paid
+    chunks_reused: int = 0       # cache hits — no gateway work
+
+
+# Sentinel: "resolve the embedding gateway from config" (auto-when-reachable).
+# Pass None to skip the embed pass, or an explicit gateway (tests, tools).
+_AUTO_GATEWAY = object()
 
 
 def reindex_space(
@@ -26,6 +33,7 @@ def reindex_space(
     space_name: str,
     full: bool = False,
     incremental: bool = True,
+    embed_gateway=_AUTO_GATEWAY,
 ) -> ReindexStats:
     space = cfg.space(space_name)
     if not space.local.exists():
@@ -66,10 +74,43 @@ def reindex_space(
 
             db.set_meta(conn, f"reindex.{space_name}.last_run", _now())
 
+        # Pass 4 (RFC 0002 P2): semantic substrate — embed stale chunks into the
+        # vectors.db sidecar. Strictly optional: no gateway (provider down,
+        # ATELIER_EMBED=off, sqlite-vec missing) → skip with a log line; the
+        # lexical index above is already complete and committed.
+        gw = (_resolve_gateway(cfg) if embed_gateway is _AUTO_GATEWAY
+              else embed_gateway)
+        if gw is not None:
+            _embed_pass(conn, gw, stats)
+
         log.info("reindex.done", **vars(stats))
         return stats
     finally:
         conn.close()
+
+
+def _resolve_gateway(cfg: config.Config):
+    """Auto-when-reachable: a live gateway from the `embedding:` config block,
+    or None. Import is local so atelier without the semantic extra never pays
+    for (or breaks on) the AI layer at reindex time."""
+    from ..ai import gateway as _gw
+    return _gw.from_config(_gw.settings_from(cfg.raw))
+
+
+def _embed_pass(conn: sqlite3.Connection, gw, stats: ReindexStats) -> None:
+    from ..search.engine.vecstore import VecStore
+    store = VecStore.open(gateway_signature=gw.signature, dim=gw.dim)
+    if store is None:
+        log.info("reindex.embed_skipped", reason="sqlite-vec unavailable")
+        return
+    try:
+        s = store.sync(conn, gw)
+        stats.chunks_embedded = s.embedded
+        stats.chunks_reused = s.reused
+        log.info("reindex.embedded", embedded=s.embedded, reused=s.reused,
+                 total=s.total)
+    finally:
+        store.close()
 
 
 def _now() -> str:

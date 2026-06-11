@@ -66,3 +66,30 @@ def test_auto_mode_disabled_by_env_kill_switch(atelier_env, monkeypatch):
     settings = gwmod.settings_from({"embedding": {"enabled": True}})
     assert settings.enabled is False
     assert gwmod.from_config(settings) is None
+
+
+def test_gateway_failure_midpass_does_not_abort_reindex(atelier_env):
+    """A provider that dies mid-embed must NOT fail a reindex whose lexical
+    passes already committed — 'optional semantic, never crash' applies to a
+    provider that drops DURING the pass, not only one down before it starts."""
+    _seed(atelier_env)
+    cfg = _config.load()
+
+    class BoomGateway:
+        signature = "fake:boom:4:chunker_v1"
+        dim = 4
+        def embed(self, texts):
+            raise OSError("provider died mid-pass")
+
+    # Must not raise.
+    stats = _reindex.reindex_space(cfg, "gorae", full=True, embed_gateway=BoomGateway())
+    assert stats.pages_seen > 0           # lexical reindex completed
+    assert stats.chunks_embedded == 0     # embed pass aborted cleanly
+
+    from runtime.util import db
+    conn = db.connect()
+    try:
+        n = conn.execute("SELECT COUNT(*) n FROM pages").fetchone()["n"]
+    finally:
+        conn.close()
+    assert n > 0                          # pages queryable via the lexical index

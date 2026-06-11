@@ -81,7 +81,13 @@ def reindex_space(
         gw = (_resolve_gateway(cfg) if embed_gateway is _AUTO_GATEWAY
               else embed_gateway)
         if gw is not None:
-            _embed_pass(conn, gw, stats)
+            try:
+                _embed_pass(conn, gw, stats)
+            except Exception as e:
+                # A provider that drops MID-pass must not fail a reindex whose
+                # lexical passes already committed. Completed embed batches are
+                # durable (streamed commits); the next reindex resumes the rest.
+                log.info("reindex.embed_aborted", error=str(e))
 
         log.info("reindex.done", **vars(stats))
         return stats

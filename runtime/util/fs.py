@@ -22,7 +22,10 @@ _SKIP_DIRS = {".git", ".obsidian", "node_modules", "_attachments", ".trash"}
 
 # Structured formats indexed alongside markdown (RFC 0002 P1b). Markdown is
 # parsed as prose; the rest are flattened key:value → text and classified `data`.
-_INDEXABLE_EXT = {".md", ".yaml", ".yml", ".json"}
+# DATA_SUFFIXES is the single source of truth — `parse.is_data_path` imports it,
+# so the walk and the parse dispatch can never disagree on what a data file is.
+DATA_SUFFIXES = (".yaml", ".yml", ".json")
+_INDEXABLE_EXT = (".md", *DATA_SUFFIXES)
 
 # Structured files that are build/tooling artifacts, not knowledge content. A
 # real vault that absorbed code repos is full of these; indexing them adds pure
@@ -77,9 +80,15 @@ def walk_indexable(root: Path) -> Iterator[Path]:
     The indexer (`crawl`) and the doctor's drift check (`D2`) MUST both use this
     one walk, or data pages the indexer writes look like phantom drift to a
     md-only scan (same single-source lesson as `reindex.canonical_spaces`)."""
-    for p in sorted(root.rglob("*")):
+    # Glob per extension so the OS filters by suffix — avoids materializing every
+    # file+dir under a large absorbed tree just to discard non-indexable ones.
+    # Sort only the (smaller) indexable set, preserving deterministic order.
+    candidates: list[Path] = []
+    for ext in _INDEXABLE_EXT:
+        candidates.extend(root.rglob(f"*{ext}"))
+    for p in sorted(candidates):
         suffix = p.suffix.lower()
-        if not p.is_file() or suffix not in _INDEXABLE_EXT:
+        if not p.is_file():
             continue
         if _excluded(p.relative_to(root).parts):
             continue

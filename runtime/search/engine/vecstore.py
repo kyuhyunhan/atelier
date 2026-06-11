@@ -98,30 +98,34 @@ class VecStore:
         if not _load_sqlite_vec(conn):
             conn.close()
             return None
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS embedding_cache (
-              content_hash TEXT NOT NULL,
-              signature    TEXT NOT NULL,
-              dim          INTEGER NOT NULL,
-              vector       BLOB NOT NULL,
-              PRIMARY KEY (content_hash, signature)
-            );
-            CREATE TABLE IF NOT EXISTS meta (
-              key TEXT PRIMARY KEY, value TEXT NOT NULL
-            );
-        """)
-        # The vec0 projection is dim-bound: a dim change (new model family)
-        # means a new virtual table. Signature lives in meta for diagnostics.
-        row = conn.execute("SELECT value FROM meta WHERE key='dim'").fetchone()
-        if row is not None and int(row["value"]) != dim:
-            conn.execute("DROP TABLE IF EXISTS vec_chunks")
-        conn.execute(
-            f"CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0("
-            f"embedding float[{dim}])")
-        conn.execute("INSERT OR REPLACE INTO meta VALUES ('dim', ?)", (str(dim),))
-        conn.execute("INSERT OR REPLACE INTO meta VALUES ('signature', ?)",
-                     (gateway_signature,))
-        conn.commit()
+        try:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS embedding_cache (
+                  content_hash TEXT NOT NULL,
+                  signature    TEXT NOT NULL,
+                  dim          INTEGER NOT NULL,
+                  vector       BLOB NOT NULL,
+                  PRIMARY KEY (content_hash, signature)
+                );
+                CREATE TABLE IF NOT EXISTS meta (
+                  key TEXT PRIMARY KEY, value TEXT NOT NULL
+                );
+            """)
+            # The vec0 projection is dim-bound: a dim change (new model family)
+            # means a new virtual table. Signature lives in meta for diagnostics.
+            row = conn.execute("SELECT value FROM meta WHERE key='dim'").fetchone()
+            if row is not None and int(row["value"]) != dim:
+                conn.execute("DROP TABLE IF EXISTS vec_chunks")
+            conn.execute(
+                f"CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0("
+                f"embedding float[{dim}])")
+            conn.execute("INSERT OR REPLACE INTO meta VALUES ('dim', ?)", (str(dim),))
+            conn.execute("INSERT OR REPLACE INTO meta VALUES ('signature', ?)",
+                         (gateway_signature,))
+            conn.commit()
+        except Exception:
+            conn.close()                # never leak the handle on a setup error
+            raise
         return cls(conn, gateway_signature, dim)
 
     def close(self) -> None:

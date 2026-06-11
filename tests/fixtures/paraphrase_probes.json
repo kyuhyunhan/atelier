@@ -5,116 +5,136 @@
   "probes": [
     {
       "query": "may a low-level module reach up and call code in the UI level above it",
-      "gold": ["b12b5a79-cb6f-57d7-be0f-4e6dcd13187d"],
-      "gold_title": "Dependency direction — upper may import lower, never reverse"
+      "gold": [
+        "b12b5a79-cb6f-57d7-be0f-4e6dcd13187d"
+      ]
     },
     {
       "query": "where should interface definitions live versus the concrete classes that fulfill them",
-      "gold": ["9a24171b-9f77-5b39-842b-28768a1b4a20"],
-      "gold_title": "Protocols live in L3_Foundation; implementations in L2_Core"
+      "gold": [
+        "9a24171b-9f77-5b39-842b-28768a1b4a20"
+      ]
     },
     {
       "query": "why we collapsed the five-tier structure into three tiers plus a shell",
-      "gold": ["499afdc9-e41c-5009-980f-2333120c4a75"],
-      "gold_title": "Adopt 3-layer architecture (L0–L3)"
+      "gold": [
+        "499afdc9-e41c-5009-980f-2333120c4a75"
+      ]
     },
     {
       "query": "why the app no longer uses one global shared object to wire up its services",
-      "gold": ["164db8e8-67cd-5b92-8189-986789d26888"],
-      "gold_title": "DependencyContainer is injectable, not a singleton"
+      "gold": [
+        "164db8e8-67cd-5b92-8189-986789d26888"
+      ]
     },
     {
       "query": "which vendor's service powers both single-word lookups and whole-sentence rendering",
-      "gold": ["3386f108-8301-5cb4-bb54-a960ad97ca07"],
-      "gold_title": "OpenAI as the single translation provider"
+      "gold": [
+        "3386f108-8301-5cb4-bb54-a960ad97ca07"
+      ]
     },
     {
       "query": "why we abandoned the built-in on-device macOS language conversion framework",
-      "gold": ["0f1e9367-dab4-5601-9c19-e50ad833477b"],
-      "gold_title": "Drop Apple Translation entirely"
+      "gold": [
+        "0f1e9367-dab4-5601-9c19-e50ad833477b"
+      ]
     },
     {
       "query": "how the app grabs whatever text the user currently has highlighted in another program",
-      "gold": ["7b509ef9-4077-5844-ba05-1996fda7912e"],
-      "gold_title": "Clipboard-based input via Cmd+C simulation"
+      "gold": [
+        "7b509ef9-4077-5844-ba05-1996fda7912e"
+      ]
     },
     {
       "query": "who decides if the request is a word lookup or a sentence conversion, the app or the backend",
-      "gold": ["6272dda9-d0a8-5e4c-9e4a-2828ba117cab"],
-      "gold_title": "Server decides dictionary vs translation; client does not classify"
+      "gold": [
+        "6272dda9-d0a8-5e4c-9e4a-2828ba117cab"
+      ]
     },
     {
       "query": "where do we keep the third-party credential the backend functions need at runtime",
-      "gold": ["4524f510-867d-528d-9dc6-9496f59b2540"],
-      "gold_title": "OpenAI API key lives only in AWS Secrets Manager"
+      "gold": [
+        "4524f510-867d-528d-9dc6-9496f59b2540"
+      ]
     },
     {
       "query": "what protects the public endpoint while there is no login system yet",
-      "gold": ["e8790fa9-0e7a-5178-87b9-60de84a15f78"],
-      "gold_title": "No authentication during Phase 7 dogfooding"
+      "gold": [
+        "e8790fa9-0e7a-5178-87b9-60de84a15f78"
+      ]
     },
     {
       "query": "how do we tell individual people apart in the metrics without any account system",
-      "gold": ["1820284e-e125-545c-865a-35940f18dd28"],
-      "gold_title": "Usage tracking is server-side raw logs + Keychain UUID"
+      "gold": [
+        "1820284e-e125-545c-865a-35940f18dd28"
+      ]
     },
     {
       "query": "why we postponed deciding prices until real day-to-day usage evidence exists",
       "gold": [
         "24a7f1bc-e3b6-5856-919d-f805ccaa71ef",
         "64ef2007-ec1f-53a5-ac4b-0cf160426b1b"
-      ],
-      "gold_title": "Pivot to Dogfooding First / Monetization paused (multi-gold)"
+      ]
     },
     {
       "query": "when something misbehaves, should I adjust settings around it or change the program itself",
-      "gold": ["822adcee-40d8-59ff-9cbf-eae0f87f071f"],
-      "gold_title": "Fix bugs at the root cause in source, not via config workarounds"
+      "gold": [
+        "822adcee-40d8-59ff-9cbf-eae0f87f071f"
+      ]
     },
     {
       "query": "how we satisfied the app store requirement that people can erase their profile and stored records",
-      "gold": ["00d68b46-418d-55ac-b59a-fc1a3495f437"],
-      "gold_title": "Account Deletion Feature"
+      "gold": [
+        "00d68b46-418d-55ac-b59a-fc1a3495f437"
+      ]
     },
     {
       "query": "running several coding agent sessions at the same time on separate checkouts to write specs",
-      "gold": ["8bd41b57-89bc-55a7-82f4-6e610c4aeb96"],
-      "gold_title": "Git Worktree Parallel Test Writing Runbook"
+      "gold": [
+        "8bd41b57-89bc-55a7-82f4-6e610c4aeb96"
+      ]
     },
     {
       "query": "why we stopped trusting the json file that mapped features to their checks, and what replaced it",
-      "gold": ["ab11812e-5f15-5fbf-92f2-ecc9e491408c"],
-      "gold_title": "Contract-based unidirectional workflow"
+      "gold": [
+        "ab11812e-5f15-5fbf-92f2-ecc9e491408c"
+      ]
     },
     {
       "query": "keeping people's original writing out of the cloud while still letting them ask questions over it",
-      "gold": ["3948a331-6752-579f-b84b-b55f6b64ef1b"],
-      "gold_title": "ich design decisions from office-hours (privacy proxy)"
+      "gold": [
+        "3948a331-6752-579f-b84b-b55f6b64ef1b"
+      ]
     },
     {
       "query": "what working hours overlap between our colleagues across the three countries",
-      "gold": ["d60b02d0-1eaa-5b66-a35f-dc2910d5402a"],
-      "gold_title": "Inheaden team timezone distribution"
+      "gold": [
+        "d60b02d0-1eaa-5b66-a35f-dc2910d5402a"
+      ]
     },
     {
       "query": "the careful two-step manual procedure for loading my devotional journal entries",
-      "gold": ["de9f36af-8f71-53f8-85be-bf7410fc34e1"],
-      "gold_title": "project-qt-ingest-pipeline"
+      "gold": [
+        "de9f36af-8f71-53f8-85be-bf7410fc34e1"
+      ]
     },
     {
       "query": "why build a personal toolkit from my own needs instead of adopting other people's automation wholesale",
-      "gold": ["d46fcd9b-21bf-55d3-ab29-e31684d495b1"],
-      "gold_title": "TAS project overview (skill design philosophy)"
+      "gold": [
+        "d46fcd9b-21bf-55d3-ab29-e31684d495b1"
+      ]
     },
     {
       "query": "the recommended way to organize a window whose appearance switches among several visual modes",
-      "gold": ["364e7942-ea31-52aa-851b-8b27c5e41dc1"],
-      "gold_title": "State-Driven UI pattern for AppKit panels with 3+ visual states"
+      "gold": [
+        "364e7942-ea31-52aa-851b-8b27c5e41dc1"
+      ]
     },
     {
       "query": "why the release number stayed the same even after running Apple's official bump utility",
-      "gold": ["ede28e4b-b1d7-5f4e-89d2-5d85289e6a6a"],
-      "gold_title": "Version bumps require editing project.pbxproj MARKETING_VERSION directly"
+      "gold": [
+        "ede28e4b-b1d7-5f4e-89d2-5d85289e6a6a"
+      ]
     }
   ]
 }

@@ -142,12 +142,11 @@ def parse_file(path: Path) -> ParsedPage:
     return ParsedPage(frontmatter=fm, body=body, chunks=chunks)
 
 
-# Structured (.yaml/.yml/.json) page handling — RFC 0002 P1b.
-DATA_SUFFIXES = {".yaml", ".yml", ".json"}
-
-
+# Structured (.yaml/.yml/.json) page handling — RFC 0002 P1b. Suffixes come from
+# fs (single source of truth) so the walk and this parse dispatch never diverge.
 def is_data_path(path: Path) -> bool:
-    return path.suffix.lower() in DATA_SUFFIXES
+    from ..util import fs as _fs
+    return path.suffix.lower() in _fs.DATA_SUFFIXES
 
 
 def _flatten(value: Any, prefix: str = "") -> List[str]:

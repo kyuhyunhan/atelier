@@ -34,7 +34,7 @@ def crawl_space(
     }
     seen: set[str] = set()
 
-    for path in fs.walk_markdown(root):
+    for path in fs.walk_indexable(root):
         slug = fs.slug_for(root, path)
         seen.add(slug)
         st = path.stat()

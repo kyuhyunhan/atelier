@@ -52,7 +52,7 @@ def D2_filesystem_drift(cfg: config.Config) -> Diagnosis:
             sp = cfg.spaces[space_name]
             if not sp.local.exists():
                 continue
-            on_disk = {fs.slug_for(sp.local, p) for p in fs.walk_markdown(sp.local)}
+            on_disk = {fs.slug_for(sp.local, p) for p in fs.walk_indexable(sp.local)}
             in_db = {r["slug"] for r in conn.execute(
                 "SELECT slug FROM pages WHERE space=?", (space_name,))}
             for slug in on_disk - in_db:

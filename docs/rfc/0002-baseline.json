@@ -1,0 +1,49 @@
+{
+  "_about": "RFC 0002 P0 — frozen FTS-only retrieval baseline. Produced read-only by runtime.service.learnings.eval.run(). Every later phase re-runs eval and must improve these numbers, never regress. The self_probe.dark_count and the surfacing audit's newly_dark gate stay empty across phases.",
+  "captured_date": "2026-06-09",
+  "engine": "fts-only",
+  "vault": "gorae",
+  "paraphrase_post_p1": {
+    "_note": "Captured 2026-06-10 AFTER P1 (frontmatter + structured coverage), against the frozen authored fixture tests/fixtures/paraphrase_probes.json (22 probes). This is the semantic-headroom yardstick for P2/P3: queries share meaning but not words with their gold. The 7 misses @5 are pure meaning!=words cases (incl. one cross-lingual English-query/Korean-body probe) — the class only semantic retrieval can recover.",
+    "k5": {"probes": 22, "scored": 22, "recall_at_k": 0.6818181818181818, "mrr": 0.5681818181818181},
+    "k10": {"probes": 22, "scored": 22, "recall_at_k": 0.7272727272727273, "mrr": 0.572979797979798}
+  },
+  "paraphrase_p2_semantic_only": {
+    "_note": "Captured 2026-06-11 — semantic mode ALONE (VecSemantic over bge-m3, dim 1024, no lexical, no fusion) on the same 22-probe fixture. Beats lexical (R@5 0.682) by +0.18. Recovered 4 of 7 lexical misses incl. the cross-lingual EN-query/KO-body probe (rank 0). NOT a strict superset of lexical hits — the argument for P3 fusion (RRF) rather than replacement. Bulk embed: 855s one-time for ~22K chunks on an M1 Pro; steady-state reindex reuses the content-hash cache.",
+    "model": "ollama:bge-m3:1024",
+    "k5": {"probes": 22, "recall_at_k": 0.8636363636363636, "mrr": 0.7840909090909091},
+    "residual_misses": ["accountless identity metrics", "parallel worktree agent sessions", "version-bump pbxproj mechanics"]
+  },
+  "baseline_k5": {
+    "self_probe": {
+      "probes": 134,
+      "recall_at_k": 0.8059701492537313,
+      "mrr": 0.5820895522388062,
+      "dark_count": 26
+    },
+    "concept_grouped": {
+      "probes": 51,
+      "precision_at_k": 0.32549019607843127,
+      "recall_at_k": 0.588418444300797
+    }
+  },
+  "baseline_k10": {
+    "self_probe": {
+      "probes": 134,
+      "recall_at_k": 0.9104477611940298,
+      "mrr": 0.5973999052357263,
+      "dark_count": 12
+    },
+    "concept_grouped": {
+      "probes": 51,
+      "precision_at_k": 0.19999999999999993,
+      "recall_at_k": 0.7027041585865115
+    }
+  },
+  "surfacing_audit_k5": {
+    "total": 135,
+    "visible": 108,
+    "dark_count": 27,
+    "_note": "Audit total (135) is one more than eval self_probe.probes (134): one accepted learning has no concept tag and no usable title, so it has an empty self-probe. eval excludes empty-probe rows from its denominator; the audit counts it (dark by construction)."
+  }
+}

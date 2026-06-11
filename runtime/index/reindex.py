@@ -19,6 +19,13 @@ class ReindexStats:
     chunks_written: int = 0
     links_written: int = 0
     entities_upserted: int = 0
+    chunks_embedded: int = 0     # semantic substrate (RFC 0002 P2): cache misses paid
+    chunks_reused: int = 0       # cache hits — no gateway work
+
+
+# Sentinel: "resolve the embedding gateway from config" (auto-when-reachable).
+# Pass None to skip the embed pass, or an explicit gateway (tests, tools).
+_AUTO_GATEWAY = object()
 
 
 def reindex_space(
@@ -26,6 +33,7 @@ def reindex_space(
     space_name: str,
     full: bool = False,
     incremental: bool = True,
+    embed_gateway=_AUTO_GATEWAY,
 ) -> ReindexStats:
     space = cfg.space(space_name)
     if not space.local.exists():
@@ -40,8 +48,15 @@ def reindex_space(
             # Pass 1: upsert pages + chunks
             for item in crawl.crawl_space(conn, space_name, space.local, full=full):
                 stats.pages_seen += 1
-                parsed = parse.parse_file(item.path)
-                ptype = classify.classify(space_name, item.slug, parsed.frontmatter)
+                # Structured files (.yaml/.yml/.json) are a `data` page by format
+                # (RFC 0002 P1b) — a file-format fact, kept out of the schema-driven
+                # `classify` (which keys off overlay md path patterns, hard-rule #3).
+                if parse.is_data_path(item.path):
+                    parsed = parse.parse_data_file(item.path)
+                    ptype = "data"
+                else:
+                    parsed = parse.parse_file(item.path)
+                    ptype = classify.classify(space_name, item.slug, parsed.frontmatter)
                 page_id = _upsert_page(conn, space_name, item.slug, ptype, parsed.frontmatter,
                                        item.content_hash, item.mtime)
                 _replace_chunks(conn, page_id, parsed.chunks)
@@ -59,10 +74,49 @@ def reindex_space(
 
             db.set_meta(conn, f"reindex.{space_name}.last_run", _now())
 
+        # Pass 4 (RFC 0002 P2): semantic substrate — embed stale chunks into the
+        # vectors.db sidecar. Strictly optional: no gateway (provider down,
+        # ATELIER_EMBED=off, sqlite-vec missing) → skip with a log line; the
+        # lexical index above is already complete and committed.
+        gw = (_resolve_gateway(cfg) if embed_gateway is _AUTO_GATEWAY
+              else embed_gateway)
+        if gw is not None:
+            try:
+                _embed_pass(conn, gw, stats)
+            except Exception as e:
+                # A provider that drops MID-pass must not fail a reindex whose
+                # lexical passes already committed. Completed embed batches are
+                # durable (streamed commits); the next reindex resumes the rest.
+                log.info("reindex.embed_aborted", error=str(e))
+
         log.info("reindex.done", **vars(stats))
         return stats
     finally:
         conn.close()
+
+
+def _resolve_gateway(cfg: config.Config):
+    """Auto-when-reachable: a live gateway from the `embedding:` config block,
+    or None. Import is local so atelier without the semantic extra never pays
+    for (or breaks on) the AI layer at reindex time."""
+    from ..ai import gateway as _gw
+    return _gw.from_config(_gw.settings_from(cfg.raw))
+
+
+def _embed_pass(conn: sqlite3.Connection, gw, stats: ReindexStats) -> None:
+    from ..search.engine.vecstore import VecStore
+    store = VecStore.open(gateway_signature=gw.signature, dim=gw.dim)
+    if store is None:
+        log.info("reindex.embed_skipped", reason="sqlite-vec unavailable")
+        return
+    try:
+        s = store.sync(conn, gw)
+        stats.chunks_embedded = s.embedded
+        stats.chunks_reused = s.reused
+        log.info("reindex.embedded", embedded=s.embedded, reused=s.reused,
+                 total=s.total)
+    finally:
+        store.close()
 
 
 def _now() -> str:
@@ -125,7 +179,12 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
         conn.execute("DELETE FROM links WHERE from_page=?", (p["id"],))
         body = "\n".join(
             r["text"] for r in conn.execute(
-                "SELECT text FROM chunks WHERE page_id=? ORDER BY position", (p["id"],)
+                # Exclude the synthetic frontmatter chunk (RFC 0002 P1a): it is
+                # for FTS only, never body — link extraction must not parse a
+                # frontmatter value as a wikilink.
+                "SELECT text FROM chunks WHERE page_id=? "
+                "AND (heading_path IS NULL OR heading_path != ?) ORDER BY position",
+                (p["id"], parse.FRONTMATTER_HEADING),
             )
         )
         for link in linker.extract_links(body, default_space=space):

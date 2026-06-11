@@ -44,18 +44,19 @@ def test_snapshot_marks_self_findable_learning_visible(vault_env: Dict) -> None:
     assert snap["v1"]["rank"] is not None
 
 
-def test_audit_flags_learning_dark_under_fts(vault_env: Dict) -> None:
-    """A learning whose concept is only in its frontmatter `touches`/`topic` —
-    never in its body — is invisible to body-indexed FTS. The audit flags it as
-    dark; a content diff never would."""
+def test_frontmatter_only_concept_no_longer_dark_under_fts(vault_env: Dict) -> None:
+    """RFC 0002 P1a closed this omission vector. A learning whose concept lives
+    only in its frontmatter `touches`/`topic` — never its body — used to go dark
+    under body-only FTS even with decoys burying it. Now frontmatter is indexed
+    into FTS, so it surfaces by its own concept. This guards the win."""
     vault = vault_env["vault"]
     # `ghost`'s concept lives only in its tags; its body avoids the words.
     _accepted(vault, "architecture", "ghost",
               "## Observation\n\nfoo bar baz qux\n",
               touches=["dependency-direction"])
-    # Competition: decoys whose *bodies* contain the probe words. FTS returns
-    # these (non-empty) so the fs fallback never fires — and `ghost`, absent
-    # from the body index, is buried out of reach: the real omission vector.
+    # Decoys whose *bodies* contain the probe words keep the FTS path non-empty,
+    # so the fs fallback never fires. Pre-P1a this buried `ghost`; now its
+    # frontmatter chunk is in the index, so it is reachable regardless.
     for i in range(3):
         _accepted(vault, "architecture", f"decoy{i}",
                   f"## Observation\n\narchitecture dependency direction note {i}\n")
@@ -63,7 +64,7 @@ def test_audit_flags_learning_dark_under_fts(vault_env: Dict) -> None:
 
     report = _sf.audit()
     dark_ids = {d["entry_id"] for d in report["dark"]}
-    assert "ghost" in dark_ids          # buried under FTS competition → dark
+    assert "ghost" not in dark_ids      # frontmatter now FTS-indexed → visible
     assert "decoy0" not in dark_ids     # body-findable → visible
 
 

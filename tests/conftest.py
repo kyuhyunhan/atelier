@@ -9,6 +9,13 @@ from typing import Any, Dict
 import pytest
 import yaml
 
+# Kill switch for the reindex embed pass (RFC 0002 P2). A dev machine often has
+# a live Ollama — without this, every fixture reindex would silently embed tiny
+# test vaults through the real provider (slow, non-deterministic). Set at import
+# (not per-fixture) so subprocesses spawned by serve/MCP tests inherit it. Tests
+# that exercise embedding pass a fake gateway explicitly via reindex_space.
+os.environ.setdefault("ATELIER_EMBED", "off")
+
 
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:

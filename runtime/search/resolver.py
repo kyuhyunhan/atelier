@@ -36,9 +36,10 @@ from .engine import Candidate, RetrievalEngine, Scope
 # merely #2 in a single mode. Pinned and tested: changing it reshuffles results.
 C_RRF = 60
 
-# Each mode over-fetches this multiple of the final k before fusion, so a doc
+# Each mode is asked for this multiple of the final k before fusion, so a doc
 # that is mid-ranked in one mode but top in another still has a vote to fuse.
-# Matches the modes' own internal over-fetch (lexical.py / semantic.py: k*8).
+# (Each mode then applies its OWN k*8 row over-fetch internally before per-page
+# dedup — see lexical.py / semantic.py — so this is page depth, not row depth.)
 _OVERFETCH = 8
 
 
@@ -90,9 +91,10 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
     a mode-native score — callers that threshold or boost do so on this scale.
 
     Snippet carry: a page hit by both modes keeps the *lexical* snippet (FTS's
-    `[...]`-highlighted, query-relevant) over the semantic substring; a page hit
-    only by semantic keeps the semantic snippet. Slug/page_type are mode-agnostic
-    (same page), so either mode's value is fine.
+    `[...]`-highlighted, query-relevant) when it is non-empty, else falls back to
+    the semantic substring; a page hit only by semantic keeps the semantic
+    snippet. Slug/page_type are mode-agnostic (same page), so either mode's value
+    is fine.
     """
     fetch = max(k, 1) * _OVERFETCH
     lexical_hits = engine.lexical.search(query, scope=scope, k=fetch)

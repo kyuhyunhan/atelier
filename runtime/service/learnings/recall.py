@@ -97,19 +97,24 @@ def _resolve_hits(query: str, types: List[str], limit: int,
         conn = _db.connect()
     except Exception:                       # pragma: no cover
         return []
+    ctx = None
     try:
         ctx = _resolver.build_context(conn)
-        try:
-            cands = _resolver.resolve(
-                query, engine=ctx.engine,
-                scope=Scope(page_types=tuple(types)),
-                gateway=ctx.gateway, k=limit)
-        finally:
-            ctx.close()
+        cands = _resolver.resolve(
+            query, engine=ctx.engine,
+            scope=Scope(page_types=tuple(types)),
+            gateway=ctx.gateway, k=limit)
         if not cands:
             return []
         return _rehydrate(conn, cands, facets)
+    except Exception:
+        # A resolver/sidecar failure (e.g. a corrupt vectors.db) must degrade to
+        # rank_hits' fs-scan fallback, never crash the per-prompt recall hook.
+        # Mirrors search._resolve_search's resilience.
+        return []
     finally:
+        if ctx is not None:
+            ctx.close()
         conn.close()
 
 

@@ -112,6 +112,28 @@ def test_semantic_fusion_recalls_a_body_less_concept(atelier_env: Dict,
         "semantic fusion should recover the body-less learning"
 
 
+def test_resolver_failure_degrades_to_fs_scan(atelier_env: Dict, monkeypatch) -> None:
+    """RFC 0002 P3 resilience: recall fires on every UserPromptSubmit, so a
+    resolver/sidecar failure (e.g. a corrupt vectors.db making build_context
+    raise) must degrade to the fs-scan fallback, never crash the hook. Mirrors
+    search._resolve_search's protection."""
+    from runtime.search import resolver as _resolver
+    _accept("kafka consumer rebalance storms under load",
+            "partitions thrash", "tune session timeout",
+            project="lexio", topic="messaging")
+
+    def _boom(conn):
+        raise RuntimeError("corrupt vectors.db")
+
+    monkeypatch.setattr(_resolver, "build_context", _boom)
+    # No reindex needed: the resolver path raises, so rank_hits must fall through
+    # to _fs_scan, which token-matches the body on the filesystem.
+    hits = _rc.rank_hits("kafka rebalance", None,
+                         ["learning_principle", "learning_accepted"], top_k=5)
+    assert hits, "a resolver failure must degrade to the fs-scan fallback"
+    assert any("kafka" in (h.get("snippet") or "").lower() for h in hits)
+
+
 def test_relevance_threshold_is_a_floor_on_positive_rrf_score(atelier_env: Dict) -> None:
     """RFC 0002 P3 item A. The resolver flipped scores from negative BM25
     (smaller = better, threshold was a ceiling `<=`) to positive RRF (larger =
@@ -221,11 +243,13 @@ def test_is_noise_excludes_generated_projections() -> None:
 
 
 def test_dedup_by_entry_id_keeps_best_ranked_and_passes_eidless() -> None:
+    # Positive, descending (best-first) — the P3 RRF convention; dedup keeps the
+    # first occurrence per entry_id, so input order is what the assertion pins.
     hits = [
-        {"slug": "by-topic/a.md",   "fm": {"entry_id": "E1"}, "score": -2.0},
-        {"slug": "by-project/a.md", "fm": {"entry_id": "E1"}, "score": -1.0},
-        {"slug": "by-topic/b.md",   "fm": {"entry_id": "E2"}, "score": -1.5},
-        {"slug": "no-eid.md",       "fm": {},                 "score": -0.5},
+        {"slug": "by-topic/a.md",   "fm": {"entry_id": "E1"}, "score": 2.0},
+        {"slug": "by-project/a.md", "fm": {"entry_id": "E1"}, "score": 1.8},
+        {"slug": "by-topic/b.md",   "fm": {"entry_id": "E2"}, "score": 1.5},
+        {"slug": "no-eid.md",       "fm": {},                 "score": 1.0},
     ]
     out = _rc._dedup_by_entry_id(hits)
     assert [h["slug"] for h in out] == ["by-topic/a.md", "by-topic/b.md", "no-eid.md"]

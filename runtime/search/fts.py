@@ -23,7 +23,8 @@ def sanitize_match(query: str) -> str:
     FTS5 treats `-`, `:`, `"` etc. as operators, so a raw prompt like
     'session-end auto-commit' raises `no such column: end`. We reduce the query
     to word-class tokens, quote each, and OR them — robust for client PULL calls.
-    Mirrors recall._sanitize_fts_query so the two search paths can't diverge.
+    This is the single tokenizer for every lexical path: recall and learnings
+    search reach it via the resolver's `FtsLexical` mode, so they cannot diverge.
     Returns '' when the query has no usable tokens (caller returns no hits)."""
     tokens = re.findall(r"\w+", query or "", flags=re.UNICODE)
     if not tokens:

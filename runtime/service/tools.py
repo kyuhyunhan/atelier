@@ -804,8 +804,8 @@ def _register_v01_tools() -> None:
     register(ToolDef(
         "atelier_recall",
         "Per-turn signal-detector retrieval over the learnings domain. "
-        "Returns top-K learnings ranked by FTS5 relevance to the query, "
-        "with a project-match boost.",
+        "Returns top-K learnings ranked by hybrid retrieval (lexical BM25 + "
+        "semantic vectors, fused by reciprocal rank), with a project-match boost.",
         _h_recall,
     ))
     register(ToolDef(

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 from typing import Iterator
 
@@ -80,16 +81,22 @@ def walk_indexable(root: Path) -> Iterator[Path]:
     The indexer (`crawl`) and the doctor's drift check (`D2`) MUST both use this
     one walk, or data pages the indexer writes look like phantom drift to a
     md-only scan (same single-source lesson as `reindex.canonical_spaces`)."""
-    # Glob per extension so the OS filters by suffix — avoids materializing every
-    # file+dir under a large absorbed tree just to discard non-indexable ones.
-    # Sort only the (smaller) indexable set, preserving deterministic order.
+    # os.walk with in-place dir pruning so we never DESCEND into skip/hidden/
+    # secrets dirs (a vault that absorbed code repos has huge node_modules trees).
+    # Suffix match is case-insensitive (CONFIG.YAML must index). Collect then sort
+    # for deterministic, reproducible order (rm db && reindex is stable).
     candidates: list[Path] = []
-    for ext in _INDEXABLE_EXT:
-        candidates.extend(root.rglob(f"*{ext}"))
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames
+                       if d not in _SKIP_DIRS and not d.startswith(".")
+                       and d != "secrets"]
+        for name in filenames:
+            if Path(name).suffix.lower() in _INDEXABLE_EXT:
+                candidates.append(Path(dirpath) / name)
     for p in sorted(candidates):
         suffix = p.suffix.lower()
-        if not p.is_file():
-            continue
+        # _excluded is belt-and-suspenders (dirs are already pruned) but still
+        # catches *.local.* filenames, which pruning does not.
         if _excluded(p.relative_to(root).parts):
             continue
         if suffix != ".md" and _is_tooling_data(p.name):

@@ -36,6 +36,28 @@ def test_walk_indexable_includes_structured_and_excludes_private(tmp_path: Path)
     assert ".obsidian/app.json" not in found       # hidden dir skipped
 
 
+def test_walk_indexable_is_case_insensitive_on_extension(tmp_path: Path):
+    """Extension matching must be case-insensitive: a file authored as CONFIG.YAML
+    or NOTE.MD in an absorbed repo must still be indexed (regression guard)."""
+    (tmp_path / "NOTE.MD").write_text("# n\n")
+    (tmp_path / "CONFIG.YAML").write_text("a: 1\n")
+    (tmp_path / "Data.Json").write_text('{"b": 2}\n')
+    found = {fs.slug_for(tmp_path, p) for p in fs.walk_indexable(tmp_path)}
+    assert {"NOTE.MD", "CONFIG.YAML", "Data.Json"} <= found
+
+
+def test_walk_indexable_does_not_descend_into_skip_dirs(tmp_path: Path):
+    """Pruned dirs (node_modules, .git, secrets) are never descended into — a
+    yaml deep inside one must not surface."""
+    deep = tmp_path / "node_modules" / "pkg" / "sub"
+    deep.mkdir(parents=True)
+    (deep / "buried.yaml").write_text("x: 1\n")
+    (tmp_path / "keep.yaml").write_text("y: 2\n")
+    found = {fs.slug_for(tmp_path, p) for p in fs.walk_indexable(tmp_path)}
+    assert "keep.yaml" in found
+    assert not any("buried" in s for s in found)
+
+
 def test_walk_indexable_excludes_tooling_artifacts(tmp_path: Path):
     """Build/tooling structured files are noise, not knowledge — excluded. But a
     markdown file is never tooling, and genuine content yaml is kept."""

@@ -68,10 +68,14 @@ def test_auto_mode_disabled_by_env_kill_switch(atelier_env, monkeypatch):
     assert gwmod.from_config(settings) is None
 
 
-def test_gateway_failure_midpass_does_not_abort_reindex(atelier_env):
-    """A provider that dies mid-embed must NOT fail a reindex whose lexical
-    passes already committed — 'optional semantic, never crash' applies to a
-    provider that drops DURING the pass, not only one down before it starts."""
+def test_gateway_failure_does_not_abort_reindex(atelier_env):
+    """A gateway that raises during the embed pass must NOT fail a reindex whose
+    lexical passes already committed — 'optional semantic, never crash' applies
+    to a provider that errors during the pass, not only one down beforehand.
+
+    (Per-batch durability — that already-committed batches survive a mid-pass
+    crash — is covered separately by
+    test_vecstore.test_sync_persists_completed_batches_on_midway_failure.)"""
     _seed(atelier_env)
     cfg = _config.load()
 

@@ -133,6 +133,8 @@ def test_run_reports_both_probe_sets(vault_env: Dict):
 
     report = _eval.run(k=5, vault=vault)
     assert report["k"] == 5
+    # CI runs ATELIER_EMBED=off → no semantic mode → RRF over lexical alone.
+    assert report["engine"] == "lexical-rrf"
     # self-probe block: known-item metrics + the omission gate
     sp = report["self_probe"]
     assert "recall_at_k" in sp and "mrr" in sp and "dark_count" in sp

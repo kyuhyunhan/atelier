@@ -14,6 +14,20 @@
     "k5": {"probes": 22, "recall_at_k": 0.8636363636363636, "mrr": 0.7840909090909091},
     "residual_misses": ["accountless identity metrics", "parallel worktree agent sessions", "version-bump pbxproj mechanics"]
   },
+  "p3_hybrid": {
+    "_note": "Captured 2026-06-11 — RFC 0002 P3 LANDED. recall + learnings/search now route through runtime.search.resolver: lexical (FTS5 BM25) + semantic (VecSemantic/bge-m3) fused by Reciprocal Rank Fusion (C=60), inline hand-boosts retired to RFC-scaled post-fusion nudges (gap-scaled, not vote-scaled). engine='hybrid'. Improves every frozen P0 metric: self_probe dark_count 26->0 @k5 and 12->0 @k10 (the dark-learnings class dissolved); concept R@5 0.588->0.963, P@5 0.325->0.545; self_probe MRR@5 0.582->0.975. The omission gate (surfacing newly_dark) stays empty. PARAPHRASE TRADEOFF: hybrid R@5 0.727 sits BELOW the P2 semantic-only probe (0.864) on that adversarial-for-lexical fixture — unweighted RRF dilutes semantic's edge with lexical's wrong votes on pure meaning!=words queries. Acceptable: it is the common-case-optimal point, and recovering the semantic tail is the P5 reranker / weighted-fusion job. Boost constants tuned against the live vault gate (see surfacing audit), NOT guessed.",
+    "model": "ollama:bge-m3:1024",
+    "k5": {
+      "self_probe": {"probes": 134, "recall_at_k": 1.0, "mrr": 0.9745024875621889, "dark_count": 0},
+      "concept_grouped": {"probes": 51, "precision_at_k": 0.5450980392156862, "recall_at_k": 0.9625224448753861},
+      "paraphrase": {"probes": 22, "scored": 22, "recall_at_k": 0.7272727272727273, "mrr": 0.6212121212121212}
+    },
+    "k10": {
+      "self_probe": {"probes": 134, "recall_at_k": 1.0, "mrr": 0.9745024875621889, "dark_count": 0},
+      "concept_grouped": {"probes": 51, "precision_at_k": 0.2941176470588235, "recall_at_k": 0.9939668174962293},
+      "paraphrase": {"probes": 22, "scored": 22, "recall_at_k": 0.8636363636363636, "mrr": 0.638437950937951}
+    }
+  },
   "baseline_k5": {
     "self_probe": {
       "probes": 134,

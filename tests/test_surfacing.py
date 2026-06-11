@@ -12,6 +12,7 @@ from typing import Dict
 import yaml
 
 from runtime.service import api
+from runtime.service.learnings import principles as _pr
 from runtime.service.learnings import surfacing as _sf
 from tests.conftest import write_page
 
@@ -66,6 +67,34 @@ def test_frontmatter_only_concept_no_longer_dark_under_fts(vault_env: Dict) -> N
     dark_ids = {d["entry_id"] for d in report["dark"]}
     assert "ghost" not in dark_ids      # frontmatter now FTS-indexed → visible
     assert "decoy0" not in dark_ids     # body-findable → visible
+
+
+def test_principle_boost_does_not_push_accepted_learnings_dark(vault_env: Dict) -> None:
+    """RFC 0002 P3 gate guard. Routing recall through the RRF resolver flipped the
+    score convention to a compressed positive scale; the first cut used a whole
+    mode-vote as the boost unit, which made a principle sharing a concept vault
+    over the accepted learnings that share it and push them DARK (caught against
+    the live vault). The boosts are now inter-rank-gap-scaled nudges. This seeds
+    that exact shape — several accepted learnings + a principle all on one concept
+    — and asserts none of the accepted ones go dark."""
+    vault = vault_env["vault"]
+    for i in range(4):
+        _accepted(vault, "architecture", f"acc{i}",
+                  f"## Observation\n\ndepend on protocols not implementations {i}\n",
+                  touches=["dependency-direction"])
+    _pr.add(
+        title="dependency direction is a hard rule",
+        rule="modules depend on protocols, never on concrete implementations.",
+        why="inverting it couples layers and blocks substitution.",
+        evidence=["learnings/notes/2026-01/acc0.md"],
+        coverage="cross-project", priority="always-inject",
+    )
+    api.reindex(full=True)
+
+    dark = {d["entry_id"] for d in _sf.audit(probe_k=5)["dark"]}
+    for i in range(4):
+        assert f"acc{i}" not in dark, \
+            f"acc{i} went dark — the principle boost is over-scaled again"
 
 
 def test_diff_detects_newly_dark(vault_env: Dict) -> None:

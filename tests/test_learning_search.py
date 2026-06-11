@@ -76,6 +76,24 @@ def test_search_filters_by_project(atelier_env: Dict) -> None:
     assert out["items"][0]["project"] == "bht"
 
 
+def test_text_query_with_facet_post_filters_fused_set(atelier_env: Dict) -> None:
+    """RFC 0002 P3: a text query routes through the resolver, and project/topic/
+    aspect facets are applied as a post-fusion filter on the fused candidate set
+    (not in the resolver's Scope). Two projects share the same body text; the
+    facet must keep only the matching project's hit. Reindex first so the FTS/
+    resolver path is live (not the grep fallback, which needs a verbatim match)."""
+    from runtime.service import api
+    _accept_one(project="lexio")
+    _accept_one(project="bht")
+    api.reindex(full=True)
+
+    both = _ls.search(query="tilde queries fallback")
+    assert both["count"] == 2, "multi-token query fuses both same-bodied learnings"
+    only_bht = _ls.search(query="tilde queries fallback", project="bht")
+    assert only_bht["count"] == 1
+    assert only_bht["items"][0]["project"] == "bht"
+
+
 def test_search_includes_candidates_when_requested(atelier_env: Dict) -> None:
     _cap.capture(observation="raw candidate text here", hook="Stop",
                  require_why=False)

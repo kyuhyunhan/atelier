@@ -110,7 +110,7 @@ def test_recall_concept_overlap_boost_is_active(vault_env: Dict) -> None:
                               "target_topic": "architecture"},
          "page_type": "learning_accepted"},
         None, frozenset({"dependency"}))
-    assert boosted < base
+    assert boosted > base   # P3: positive RRF-scale boost, descending sort
 
 
 # ── session bootstrap ─────────────────────────────────────────────────────────

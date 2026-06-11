@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from ...index import parse as _parse
+from ...search.resolver import C_RRF
 from ...util import config as _config
 from ...util import db as _db
 
@@ -42,17 +43,20 @@ def _vault_root() -> Path:
 
 _DEFAULT_TYPES = ("learning_principle", "learning_accepted",
                   "learning_candidate")
-_PRINCIPLE_PROJECT_BOOST = 1.5
 
-
-def _sanitize_fts_query(q: str) -> str:
-    """FTS5 MATCH expressions are picky about punctuation. Strip down to
-    word-class tokens and quote phrases so user prompts don't break."""
-    tokens = re.findall(r"\w+", q, flags=re.UNICODE)
-    if not tokens:
-        return ""
-    # Quote each token to avoid prefix/operator interpretation, OR them.
-    return " OR ".join(f'"{t}"' for t in tokens[:24])
+# Post-fusion boost magnitudes (RFC 0002 P3). The resolver's fused score is a
+# small POSITIVE RRF magnitude, and RRF scores are COMPRESSED by construction:
+# rank-0 is 1/60 ≈ 0.01667, rank-1 is 1/61 ≈ 0.01639 — a gap of only ~0.00027.
+# A whole mode-vote (1/60) added to one hit would vault it up ~60 ranks and
+# obliterate fusion order; the gate (surfacing audit) proved this empirically.
+# So a boost is scaled to the inter-rank GAP and expressed as "worth ~N rank
+# positions near the top": a gentle nudge that refines order without overriding
+# the modes' own agreement. The relative hierarchy (project > concept > principle)
+# mirrors the pre-P3 BM25 constants (1.0 / 0.75 / 0.5).
+_RANK_GAP = 1.0 / C_RRF - 1.0 / (C_RRF + 1)      # ≈ 0.00027, the rank0→rank1 step
+_PROJECT_BOOST = 6.0 * _RANK_GAP                 # current-project preference
+_CONCEPT_BOOST = 3.0 * _RANK_GAP                 # concept-overlap (P4: relational)
+_PRINCIPLE_BOOST = 2.0 * _RANK_GAP               # principles edge out ties
 
 
 def _facet_clause(facets: Optional[List[tuple]]) -> tuple:
@@ -71,53 +75,73 @@ def _facet_clause(facets: Optional[List[tuple]]) -> tuple:
     return sql, params
 
 
-def _fts_search(query: str, types: List[str], limit: int,
-                facets: Optional[List[tuple]] = None) -> List[Dict[str, Any]]:
-    safe = _sanitize_fts_query(query)
-    if not safe:
-        return []
+def _resolve_hits(query: str, types: List[str], limit: int,
+                  facets: Optional[List[tuple]] = None) -> List[Dict[str, Any]]:
+    """Hybrid retrieval via the resolver (RFC 0002 P3), shaped back into the
+    `dict` hits the ranking pipeline expects.
+
+    Replaces the old single-stage FTS query: the resolver fuses lexical + (when
+    available) semantic by RRF, and we rehydrate each fused `Candidate` with its
+    frontmatter so downstream boosts / entry_id dedup keep working. Facets are a
+    post-fusion `WHERE EXISTS` filter on the fused page set (RFC §3) — the
+    resolver's `Scope` deliberately doesn't know about facets.
+
+    Lexical-only is the automatic degrade (semantic slot None when embeddings are
+    off / Ollama down). A new main-DB connection per call mirrors the old
+    `_fts_search`; the per-call `build_context` opens the vec sidecar only when a
+    gateway resolves, so the `ATELIER_EMBED=off` path pays nothing extra."""
+    from ...search.engine import Scope
+    from ...search import resolver as _resolver
+
     try:
         conn = _db.connect()
     except Exception:                       # pragma: no cover
         return []
     try:
-        placeholders = ",".join("?" * len(types))
-        facet_sql, facet_params = _facet_clause(facets)
-        sql = (
-            "SELECT p.slug, p.page_type, p.space, p.frontmatter, "
-            "       f.rank AS score, "
-            "       snippet(chunks_fts, 0, '', '', '...', 24) AS snip "
-            "FROM chunks_fts f "
-            "JOIN chunks c ON c.rowid=f.rowid "
-            "JOIN pages  p ON p.id=c.page_id "
-            "WHERE chunks_fts MATCH ? "
-            "  AND p.page_type IN (" + placeholders + ") "
-            + facet_sql +
-            " ORDER BY f.rank "
-            "LIMIT ?"
-        )
+        ctx = _resolver.build_context(conn)
         try:
-            rows = list(conn.execute(sql, [safe, *types, *facet_params, limit]))
-        except Exception:                   # SQLite FTS error
+            cands = _resolver.resolve(
+                query, engine=ctx.engine,
+                scope=Scope(page_types=tuple(types)),
+                gateway=ctx.gateway, k=limit)
+        finally:
+            ctx.close()
+        if not cands:
             return []
-        out: List[Dict[str, Any]] = []
-        seen: set[str] = set()
-        for r in rows:
-            slug = r["slug"]
-            if slug in seen:
-                continue
-            seen.add(slug)
-            fm = json.loads(r["frontmatter"] or "{}")
-            out.append({
-                "slug": slug,
-                "page_type": r["page_type"],
-                "fm": fm,
-                "score": float(r["score"] or 0.0),
-                "snippet": r["snip"] or "",
-            })
-        return out
+        return _rehydrate(conn, cands, facets)
     finally:
         conn.close()
+
+
+def _rehydrate(conn, cands, facets: Optional[List[tuple]]) -> List[Dict[str, Any]]:
+    """Attach frontmatter to fused candidates, applying the facet post-filter.
+
+    One `WHERE id IN (...)` over `pages` (frontmatter is `NOT NULL`), optionally
+    AND-ed with the facet EXISTS clauses. We iterate the *fused candidate order*
+    and look rows up by id — SQL `IN (...)` does not preserve order, and the fused
+    order is the whole point. A candidate whose id is absent from the result was
+    filtered out by a facet."""
+    ids = [c.page_id for c in cands]
+    placeholders = ",".join("?" * len(ids))
+    facet_sql, facet_params = _facet_clause(facets)
+    sql = (
+        "SELECT p.id, p.slug, p.page_type, p.frontmatter "
+        "FROM pages p WHERE p.id IN (" + placeholders + ") " + facet_sql
+    )
+    rows = {r["id"]: r for r in conn.execute(sql, [*ids, *facet_params])}
+    out: List[Dict[str, Any]] = []
+    for c in cands:
+        r = rows.get(c.page_id)
+        if r is None:                       # dropped by a facet filter
+            continue
+        out.append({
+            "slug": c.slug,
+            "page_type": c.page_type,
+            "fm": json.loads(r["frontmatter"] or "{}"),
+            "score": float(c.score),
+            "snippet": c.snippet or "",
+        })
+    return out
 
 
 def _fm_has_facet(fm: Dict[str, Any], kind: str, value: str) -> bool:
@@ -148,8 +172,10 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     """Fallback when the FTS index has no learning_* rows yet.
 
     Token-based match: hit counts when *any* token from the query
-    appears in body or stringified frontmatter. Score is `-token_count`
-    so multi-match entries rank higher (more negative = better).
+    appears in body or stringified frontmatter. Score is `+token_count`
+    so multi-match entries rank higher (larger = better) — the same
+    descending convention as the resolver's RRF score, so rank_hits can
+    sort both paths identically.
     """
     tokens = [t.lower() for t in re.findall(r"\w+", query or "", re.UNICODE)]
     if not tokens:
@@ -190,8 +216,8 @@ def _fs_scan(query: str, vault: Path, types: List[str],
                 "slug": p.stem,
                 "page_type": ptype,
                 "fm": fm,
-                # Negative = better. More token hits → more negative.
-                "score": -float(hits_in_doc),
+                # Larger = better. More token hits → higher score.
+                "score": float(hits_in_doc),
                 "snippet": body[:200].strip(),
                 "path": str(p),
             })
@@ -231,22 +257,27 @@ def concept_tokens(fm: Dict[str, Any]) -> List[str]:
 
 def _boost(hit: Dict[str, Any], project: Optional[str],
            query_tokens: frozenset = frozenset()) -> float:
+    """Post-fusion boosts on the resolver's RRF score (RFC 0002 P3).
+
+    The base `score` is now a POSITIVE RRF magnitude (larger = better), so each
+    boost ADDS a fraction of a mode-vote — the inverse of the old BM25 path,
+    which subtracted from a negative rank. Sorting is descending (see rank_hits).
+    """
     score = hit["score"] or 0.0
     fm = hit.get("fm") or {}
     if project and (
         fm.get("target_project") == project
         or fm.get("project_hint") == project
     ):
-        # FTS rank is negative — multiplying by >1 amplifies the magnitude;
-        # we instead subtract a constant to push it up the order.
-        score -= 1.0
-    # Concept-overlap: the learning is *about* something the query names, even
-    # if the body doesn't lexically match. This is the retrieval payoff of the
-    # concept index — surfacing by idea, not just by word. No LLM.
+        score += _PROJECT_BOOST
+    # Concept-overlap: the learning is *about* something the query names, even if
+    # the body doesn't lexically match. A hand-rolled stand-in for semantic recall
+    # — kept post-fusion for P3 so concept-probe metrics don't regress before the
+    # relational mode lands. P4: subsumed by the relational (concept-edge) mode.
     if query_tokens and (set(concept_tokens(fm)) & query_tokens):
-        score -= 0.75
+        score += _CONCEPT_BOOST
     if hit["page_type"] == "learning_principle":
-        score -= 0.5
+        score += _PRINCIPLE_BOOST
     hit["score"] = score
     return score
 
@@ -338,14 +369,19 @@ def rank_hits(query: str, project: Optional[str], types: List[str], *,
     Single source of retrieval order, shared by recall() and surfacing. Pass
     `vault` to avoid a redundant config read when the caller already has it.
     `facets` (optional (kind, value) pairs) hard-scopes the result to the
-    indexed facet table; `project` remains a ranking *boost*, not a filter."""
+    indexed facet table; `project` remains a ranking *boost*, not a filter.
+
+    Scores are POSITIVE and sorted descending (larger = better) since P3 —
+    the resolver's RRF magnitude and the fs-fallback's token count both follow
+    this convention. `relevance_threshold`, if given, is a *floor* on that score
+    (keep `>= threshold`), the inverse of the pre-P3 BM25 ceiling."""
     vault = vault if vault is not None else _vault_root()
-    hits = _fts_search(query, types, limit=top_k * 4, facets=facets)
+    hits = _resolve_hits(query, types, limit=top_k * 4, facets=facets)
     if not hits:
         hits = _fs_scan(query, vault, types, limit=top_k * 4, facets=facets)
 
     # Drop generated projections (INDEX/TAXONOMY) regardless of source path —
-    # the FTS path does not exclude them the way _fs_scan does.
+    # the resolver path does not exclude them the way _fs_scan does.
     hits = [h for h in hits if not is_noise(h["slug"])]
 
     query_tokens = frozenset(
@@ -355,9 +391,9 @@ def rank_hits(query: str, project: Optional[str], types: List[str], *,
         _boost(h, project, query_tokens)
 
     if relevance_threshold is not None:
-        hits = [h for h in hits if h["score"] <= relevance_threshold]
+        hits = [h for h in hits if h["score"] >= relevance_threshold]
 
-    hits.sort(key=lambda h: h["score"])
+    hits.sort(key=lambda h: h["score"], reverse=True)
     # Collapse the by-topic / by-project duplicate pair before truncating, so
     # a dropped duplicate never crowds a distinct learning out of the top-K.
     hits = _dedup_by_entry_id(hits)

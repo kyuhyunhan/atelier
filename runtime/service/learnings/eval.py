@@ -198,15 +198,39 @@ def gate(before: Dict[str, Dict[str, Any]],
     return {**d, "passed": not d["newly_dark"]}
 
 
-def run(*, k: int = 5, vault: Path | None = None) -> Dict[str, Any]:
-    """Compute both probe sets' metrics over the current (FTS-only at P0) path.
+def _engine_label() -> str:
+    """The live retrieval mode, so a frozen baseline records *what* it measured.
 
-    Returns a JSON-serializable baseline. `engine` names the live retrieval mode
-    so a frozen baseline records *what* it measured, not just the numbers."""
+    Reflects what the resolver actually wires right now: `hybrid` when the
+    semantic mode is available (embeddings on + sqlite-vec), else `lexical-rrf`
+    (RRF over lexical alone — the degrade path, and what CI measures under
+    `ATELIER_EMBED=off`)."""
+    from ...search import resolver as _resolver
+    from ...util import db as _db
+    try:
+        conn = _db.connect()
+    except Exception:                       # pragma: no cover
+        return "unknown"
+    try:
+        ctx = _resolver.build_context(conn)
+        try:
+            return "hybrid" if ctx.engine.semantic is not None else "lexical-rrf"
+        finally:
+            ctx.close()
+    finally:
+        conn.close()
+
+
+def run(*, k: int = 5, vault: Path | None = None) -> Dict[str, Any]:
+    """Compute both probe sets' metrics over the live retrieval path.
+
+    Since P3 this path is the hybrid resolver (RFC 0002): `rank_hits` fuses
+    lexical + semantic by RRF. Returns a JSON-serializable baseline; `engine`
+    names the mode actually wired at measurement time."""
     vault = vault if vault is not None else _vault_root()
     return {
         "k": k,
-        "engine": "fts-only",
+        "engine": _engine_label(),
         "self_probe": _self_probe_block(k),
         "concept_grouped": _concept_block(vault, k),
         "paraphrase": paraphrase_block(vault, k),

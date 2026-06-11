@@ -135,14 +135,29 @@ class OllamaGateway:
 
 
 def from_config(settings: EmbeddingSettings,
-                transport: Transport = _http_transport) -> Optional[EmbeddingGateway]:
+                transport: Transport = _http_transport,
+                *, warmup: bool = True) -> Optional[EmbeddingGateway]:
     """Auto-when-reachable (RFC 0002 P2): return a live gateway, or None when
-    embeddings are disabled or the provider doesn't answer. Callers treat None
-    as 'skip the semantic substrate' — never an error."""
+    embeddings are disabled (or, with warmup, the provider doesn't answer).
+    Callers treat None as 'skip the semantic substrate' — never an error.
+
+    `warmup` controls the eager `embed(["ping"])` probe:
+      True  (default, the WRITE path)  — ping the provider so a reindex either
+            has a working gateway or cleanly degrades up front, and the model is
+            warm for the bulk pass. An unreachable provider returns None here.
+      False (the READ path)            — skip the ping. Recall runs per
+            `UserPromptSubmit`; a synchronous round-trip on every keystroke-turn
+            is pure latency tax. The gateway is returned optimistically; if the
+            provider is in fact down, the first real `embed` raises and the
+            resolver degrades to lexical-only (`resolver._embed_query`). The cost
+            of a down provider moves from every call to one call.
+    """
     if not settings.enabled:
         return None
     g = OllamaGateway(model=settings.model, dim=settings.dim, url=settings.url,
                       transport=transport, batch_size=settings.batch_size)
+    if not warmup:
+        return g
     try:
         g.embed(["ping"])               # also warms the model for the real pass
     except Exception as e:              # any failure → degrade, never crash:

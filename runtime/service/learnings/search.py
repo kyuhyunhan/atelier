@@ -107,6 +107,101 @@ def _grep_walk(root: Path, query: str,
     return out
 
 
+def _hit_from_row(row) -> Dict[str, Any]:
+    """One result row (slug, page_type, space, frontmatter) → the search hit
+    shape. Shared by the resolver path and the facet-only listing so the two
+    can never drift in shape."""
+    import json as _json
+    fm = _json.loads(row["frontmatter"] or "{}")
+    return {
+        "slug": row["slug"],
+        "page_type": row["page_type"],
+        "space": row["space"],
+        "entry_id": fm.get("entry_id"),
+        "project": fm.get("target_project") or fm.get("project_hint"),
+        "topic": fm.get("target_topic"),
+        "captured_at": fm.get("captured_at"),
+    }
+
+
+def _resolve_search(query: str, types: tuple, *, project: Optional[str],
+                    topic: Optional[str], aspect: Optional[str],
+                    limit: int) -> List[Dict[str, Any]]:
+    """Text-query search via the hybrid resolver (RFC 0002 P3).
+
+    The resolver fuses lexical + (when available) semantic by RRF, scoped to the
+    status page_types. Facets (project/topic/aspect) are a post-fusion `WHERE
+    EXISTS` filter on the fused page set — the resolver's `Scope` deliberately
+    doesn't know about facets (RFC §3). Over-fetch (`limit*3`) before the facet
+    filter so a restrictive facet still has fused depth to draw from."""
+    from ...search.engine import Scope
+    from ...search import resolver as _resolver
+    from . import recall as _recall
+
+    try:
+        conn = _db.connect()
+    except Exception:                       # pragma: no cover - uninitialized DB
+        return []
+    try:
+        ctx = _resolver.build_context(conn)
+        try:
+            cands = _resolver.resolve(query, engine=ctx.engine,
+                                      scope=Scope(page_types=tuple(types)),
+                                      gateway=ctx.gateway, k=limit * 3)
+        finally:
+            ctx.close()
+        if not cands:
+            return []
+        # Post-fusion facet filter via the same EXISTS clause recall uses.
+        facet_sql, facet_params = _recall._facet_clause(
+            [("project", project), ("topic", topic), ("aspect", aspect)])
+        ids = [c.page_id for c in cands]
+        ph = ",".join("?" * len(ids))
+        rows = {r["id"]: r for r in conn.execute(
+            "SELECT p.id, p.slug, p.page_type, p.space, p.frontmatter "
+            "FROM pages p WHERE p.id IN (" + ph + ") " + facet_sql,
+            [*ids, *facet_params])}
+        out: List[Dict[str, Any]] = []
+        for c in cands:                     # iterate fused order; IN() is unordered
+            r = rows.get(c.page_id)
+            if r is None:                   # dropped by a facet filter
+                continue
+            out.append(_hit_from_row(r))
+            if len(out) >= limit:
+                break
+        return out
+    finally:
+        conn.close()
+
+
+def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
+                  limit: int) -> List[Dict[str, Any]]:
+    """Facet-only listing (no text query): a straight `pages` scan filtered by
+    page_type + facets. NOT routed through the resolver — there is no query to
+    fuse on. This is the 'list every accepted learning in project X' path."""
+    try:
+        conn = _db.connect()
+    except Exception:                       # pragma: no cover
+        return []
+    try:
+        placeholders = ",".join("?" * len(types))
+        sql = ("SELECT p.slug, p.page_type, p.space, p.frontmatter "
+               "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
+               + facet_sql + " LIMIT ?")
+        seen: set[str] = set()
+        out: List[Dict[str, Any]] = []
+        for row in conn.execute(sql, [*types, *facet_params, limit * 3]):
+            if row["slug"] in seen:
+                continue
+            seen.add(row["slug"])
+            out.append(_hit_from_row(row))
+            if len(out) >= limit:
+                break
+        return out
+    finally:
+        conn.close()
+
+
 def search(*, query: str = "",
            status: str = "accepted",
            project: Optional[str] = None,
@@ -116,66 +211,26 @@ def search(*, query: str = "",
     from ...search import fts as _fts
     vault = _vault_root()
     types = _STATUS_TO_TYPES.get(status, _STATUS_TO_TYPES["accepted"])
-    facet_sql, facet_params = _facet_clause(project, topic, aspect)
-    # Sanitize the FTS query (mirrors fts.sanitize_match / recall): a raw prompt
-    # with punctuation would otherwise crash MATCH and silently fall through to
-    # the slow grep scan. Empty → treat as no text query (facet-only listing).
+    # Sanitize to decide text-vs-listing: a raw prompt with punctuation that
+    # reduces to empty is a facet-only listing, not a broken MATCH.
     match = _fts.sanitize_match(query) if query else ""
 
-    # FTS path. Classification (project/topic/aspect) is filtered in SQL via the
-    # indexed learning_facets table — not by scanning frontmatter in Python.
-    hits: List[Dict[str, Any]] = []
     try:
-        conn = _db.connect()
-        try:
-            placeholders = ",".join("?" * len(types))
-            if match:
-                base = (
-                    "SELECT p.slug, p.page_type, p.space, p.frontmatter "
-                    "FROM chunks_fts f "
-                    "JOIN chunks c ON c.rowid=f.rowid "
-                    "JOIN pages p  ON p.id=c.page_id "
-                    "WHERE chunks_fts MATCH ? "
-                    "AND p.page_type IN (" + placeholders + ") "
-                    + facet_sql + " LIMIT ?"
-                )
-                params: List[Any] = [match, *types, *facet_params, limit * 3]
-            else:
-                base = (
-                    "SELECT p.slug, p.page_type, p.space, p.frontmatter "
-                    "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
-                    + facet_sql + " LIMIT ?"
-                )
-                params = [*types, *facet_params, limit * 3]
-            seen_slugs: set[str] = set()
-            for row in conn.execute(base, params):
-                slug = row["slug"]
-                if slug in seen_slugs:
-                    continue
-                seen_slugs.add(slug)
-                import json as _json
-                fm = _json.loads(row["frontmatter"] or "{}")
-                hits.append({
-                    "slug": slug,
-                    "page_type": row["page_type"],
-                    "space": row["space"],
-                    "entry_id": fm.get("entry_id"),
-                    "project": fm.get("target_project") or fm.get("project_hint"),
-                    "topic": fm.get("target_topic"),
-                    "captured_at": fm.get("captured_at"),
-                })
-                if len(hits) >= limit:
-                    break
-        finally:
-            conn.close()
+        if match:
+            # Text query → hybrid resolver (RFC 0002 P3), facets post-filtered.
+            hits = _resolve_search(query, types, project=project, topic=topic,
+                                   aspect=aspect, limit=limit)
+        else:
+            # No text query → facet-only listing scan (untouched by P3).
+            facet_sql, facet_params = _facet_clause(project, topic, aspect)
+            hits = _listing_scan(types, facet_sql, facet_params, limit)
     except Exception:
-        # Schema not initialized or pages table empty — fall through.
+        # Schema not initialized or pages table empty — fall through to grep.
         hits = []
 
     if not hits:
-        # Mirror the FTS path's text signal: a query that sanitizes to empty
-        # (e.g. all punctuation) is a facet-only listing, so don't regex-match
-        # the raw punctuation in the fallback either.
+        # Mirror the text signal: a query that sanitized to empty is a facet-only
+        # listing, so don't regex-match the raw punctuation in the fallback.
         hits = _grep_walk(vault, query if match else "",
                           types=types, project=project, topic=topic,
                           aspect=aspect, limit=limit)

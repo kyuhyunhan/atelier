@@ -78,3 +78,26 @@ def test_from_config_returns_none_when_unreachable():
 def test_from_config_disabled_returns_none():
     g = gw.from_config(gw.EmbeddingSettings(enabled=False))
     assert g is None
+
+
+def test_from_config_warmup_pings_once():
+    """Default (write-path) construction probes the provider once."""
+    t = FakeTransport(dim=4)
+    g = gw.from_config(gw.EmbeddingSettings(dim=4), transport=t)
+    assert g is not None
+    assert t.calls == [["ping"]]
+
+
+def test_from_config_no_warmup_makes_no_transport_call():
+    """Read-path construction (RFC 0002 P3): the gateway is returned WITHOUT a
+    provider round-trip — recall fires per UserPromptSubmit, so the ping tax is
+    removed. A down provider is discovered lazily at the first real embed."""
+    t = FakeTransport(dim=4)
+    g = gw.from_config(gw.EmbeddingSettings(dim=4), transport=t, warmup=False)
+    assert g is not None
+    assert t.calls == []
+
+
+def test_from_config_disabled_none_even_without_warmup():
+    """`enabled=False` / ATELIER_EMBED=off still wins over warmup=False."""
+    assert gw.from_config(gw.EmbeddingSettings(enabled=False), warmup=False) is None

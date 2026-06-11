@@ -66,14 +66,6 @@ def _excluded(rel_parts: tuple[str, ...]) -> bool:
     return False
 
 
-def walk_markdown(root: Path) -> Iterator[Path]:
-    """Yield all .md files under root, ignoring hidden dirs and common junk."""
-    for p in root.rglob("*.md"):
-        if _excluded(p.relative_to(root).parts):
-            continue
-        yield p
-
-
 def walk_indexable(root: Path) -> Iterator[Path]:
     """Yield every indexable file under root — markdown plus structured
     `.yaml`/`.yml`/`.json` (RFC 0002 P1b) — applying the shared exclusions.
@@ -95,8 +87,8 @@ def walk_indexable(root: Path) -> Iterator[Path]:
                 candidates.append(Path(dirpath) / name)
     for p in sorted(candidates):
         suffix = p.suffix.lower()
-        # _excluded is belt-and-suspenders (dirs are already pruned) but still
-        # catches *.local.* filenames, which pruning does not.
+        # _excluded is redundant for dir exclusions (already pruned above) but is
+        # the SOLE guard for *.local.* filenames, which dir pruning cannot catch.
         if _excluded(p.relative_to(root).parts):
             continue
         if suffix != ".md" and _is_tooling_data(p.name):

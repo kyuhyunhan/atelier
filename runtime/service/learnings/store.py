@@ -3,7 +3,7 @@
 Classification lives in frontmatter facets, not the path. Accepted learnings are
 a FLAT store sharded only by immutable creation month:
 
-    learnings/notes/<YYYY-MM>/<slug>.md
+    provenance/learning/notes/<YYYY-MM>/<slug>.md   (RFC 0003 P6; legacy: learnings/)
 
 This module is the single place that knows that layout. Every enumerator reads
 through `iter_accepted_files`, so the layout is defined once, not at a dozen call
@@ -26,11 +26,12 @@ def learning_root(vault: Path) -> Path:
     `git mv` (V1) flips every reader and writer atomically with no dangling — the
     same dual-path discipline that kept GP1 safe.
 
-    Transition default is the LEGACY tree: resolve to `provenance/learning/` only
-    when it actually exists on disk, else `learnings/`. This makes P6-E1 a pure
-    no-op (current and fresh vaults stay on `learnings/`); the switch happens the
-    instant V1's `git mv` creates the new tree. Flipping the fresh-vault *default*
-    to the new canonical location is P6-E2, after the real vault has moved."""
+    Resolves to `provenance/learning/` when it exists on disk (the canonical home
+    after the P6 move), else falls back to the legacy top-level `learnings/`. The
+    fallback is kept as permanent backward-compat: a vault that predates the move,
+    or a fixture that seeds `learnings/`, still resolves correctly. The gorae vault
+    is migrated; this resolver is what made the `git mv` a non-event to every
+    reader and writer."""
     new = vault / "provenance" / "learning"
     if new.exists():
         return new

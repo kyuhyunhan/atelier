@@ -1,7 +1,15 @@
 # RFC 0003 · P6 — relocate `learnings/` → `provenance/learning/`
 
-**Status:** proposed · **Depends on:** RFC 0003 P0–P5 (merged) · **Method:** P1/GP1
-lockstep (engine dual-path → vault `git mv` → cleanup)
+**Status:** E1 ✅ + V1 ✅ live · E2 ✅ (scoped) · **Depends on:** RFC 0003 P0–P5 (merged)
+· **Method:** P1/GP1 lockstep (engine dual-path → vault `git mv` → cleanup)
+
+> **Outcome:** vault moved (171 pages); classification / connectivity (83.5%) /
+> surfacing all preserved; 11 long-dangling principle `evidence:` refs repaired
+> (broken_links 747→736). E2 scope call: the dual-path resolver is **kept as
+> permanent backward-compat** rather than flipping the fresh-vault default and
+> sweeping ~15 test fixtures — the shim is sound engineering, not debt, and the
+> churn buys only nominal purity. Lint/conftest `wiki/→graph/` hygiene stays in
+> issue #17 (a different migration; not mixed in here).
 
 ## 1. Why
 

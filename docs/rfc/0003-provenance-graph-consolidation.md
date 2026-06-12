@@ -139,15 +139,19 @@ a facet, never a path.**
 provenance/                         ← L0 truth, "what came in" (memory inputs)
   personal/  {diary,essay,faith,worklog}/<YYYY>/…    genre + time intrinsic
   knowledge/ <domain>/…
-  learning/  candidates/ · notes/                    lifecycle stage, not topic
+  learning/  candidates/ · notes/ · accepted/ · archived/ · principles/   stage, not topic
 graph/                              ← entity backbone (markdown truth, authored)
   entities/  (domain|concept|person|project|place subtypes)
 product/                            ← work output, NOT provenance (separate space)
   <name>/…
 ```
 
-- **`raw/` → `provenance/`**, **`wiki/` → `graph/`** — the rename makes the *role*
-  (source vs entity backbone) legible, which `raw`/`wiki` obscure.
+- **`raw/` → `provenance/`**, **`wiki/` → `graph/`** (P1/GP1), **`learnings/` →
+  `provenance/learning/`** (P6) — the renames make the *role* (source vs entity
+  backbone) legible, which `raw`/`wiki` obscure, and place learnings under the
+  provenance they declare (`provenance: learning`) instead of a misleading sibling
+  tree. The §8 plan originally scheduled only the first two; P6 (separate doc:
+  `0003-p6-learning-relocation.md`) finishes the directory vision this section drew.
 - **`themes/` are kept, reclassified as the `domain` entity subtype** (measured: they
   are richly-connected domain hubs, in-deg mean 67 / out-deg mean 56 — the coarsest
   backbone nodes, not synthesis). **`digests/` and `synthesis/` are retired to

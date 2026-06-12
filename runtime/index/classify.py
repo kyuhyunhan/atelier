@@ -40,15 +40,17 @@ def _rules() -> Tuple[Tuple[str, str], ...]:
         out.append((pat, ptype))
         if pat.split("/", 1)[0] in ("products", "notes", "logs"):
             out.append(("workshop/" + pat, ptype))
-        # RFC 0003 P6 dual-path: every `learnings/...` rule also matches the
-        # relocated `provenance/learning/...` tree. Order within is the overlay's
-        # (INDEX before glob), so specificity is preserved across the rename.
+        # RFC 0003 P6: every `learnings/...` rule also matches the canonical
+        # `provenance/learning/...` tree (the move target). The overlay still
+        # phrases rules as `learnings/...`; this bridge classifies the relocated
+        # tree without rewriting the data. Order within is the overlay's (INDEX
+        # before glob), so specificity is preserved.
         if pat.startswith("learnings/"):
             learning_variants.append(
                 ("provenance/learning/" + pat[len("learnings/"):], ptype))
     # The variants must OUTRANK the generic `provenance/**/*.md` raw_source
     # catch-all, so they lead the table. They only ever match provenance/learning/,
-    # so leading can shadow nothing else. Dropped in P6-E2 once the move lands.
+    # so leading can shadow nothing else.
     return tuple(learning_variants + out)
 
 

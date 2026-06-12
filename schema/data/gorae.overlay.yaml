@@ -10,7 +10,7 @@ page_types:
 
   # ── Raw sources (human-owned, engine READ-ONLY) ───────────────────────────
   raw_source:
-    path_pattern: "raw/**/*.md"
+    path_patterns: ["provenance/**/*.md", "raw/**/*.md"]
     writer: human
     required_fields:
       [schema_version, entry_id, sensitivity, created_at]
@@ -21,18 +21,18 @@ page_types:
 
   # ── Structural / generated pages (classification-only, no frontmatter contract) ──
   wiki_index:
-    path_pattern: "wiki/index.md"
+    path_patterns: ["graph/index.md", "wiki/index.md"]
     writer: wiki-write
     notes: "Auto-regenerated wiki index. No required frontmatter."
 
   wiki_log:
-    path_pattern: "wiki/log.md"
+    path_patterns: ["graph/log.md", "wiki/log.md"]
     writer: wiki-write
     notes: "Append-only activity log. No required frontmatter."
 
   # ── Wiki pages (Librarian-owned) ──────────────────────────────────────────
   digest:
-    path_pattern: "wiki/digests/YYYY-MM.md"
+    path_patterns: ["graph/digests/YYYY-MM.md", "wiki/digests/YYYY-MM.md"]
     filename_pattern: "^[0-9]{4}-[0-9]{2}\\.md$"
     writer: wiki-write
     required_fields:
@@ -48,7 +48,7 @@ page_types:
       updated:     { type: string, format: date }
 
   source:
-    path_pattern: "wiki/sources/*.md"
+    path_patterns: ["graph/sources/*.md", "wiki/sources/*.md"]
     writer: wiki-write
     required_fields: [title, type, raw, visibility, created, updated]
     field_specs:
@@ -59,7 +59,7 @@ page_types:
       updated:    { type: string, format: date }
 
   entity:
-    path_pattern: "wiki/entities/*.md"
+    path_patterns: ["graph/entities/*.md", "wiki/entities/*.md"]
     writer: wiki-write
     required_fields:
       [title, type, category, first_mention, source_count, created, updated]
@@ -74,7 +74,7 @@ page_types:
       updated:      { type: string, format: date }
 
   theme:
-    path_pattern: "wiki/themes/*.md"
+    path_patterns: ["graph/themes/*.md", "wiki/themes/*.md"]
     writer: wiki-write
     required_fields:
       [title, type, scope, source_count, created, updated]
@@ -90,7 +90,7 @@ page_types:
       updated:      { type: string, format: date }
 
   synthesis:
-    path_pattern: "wiki/synthesis/*.md"
+    path_patterns: ["graph/synthesis/*.md", "wiki/synthesis/*.md"]
     writer: wiki-write
     required_fields:
       [title, type, scope, query, created, updated]
@@ -114,7 +114,7 @@ entity_thresholds:
   concept_domain:     2
 
 inbox:
-  path: "raw/personal/inbox/"
+  path: "provenance/personal/inbox/"
   status_field: inbox_status
   pending_value: pending
   note: "Mobile inbox target. Directory created in Phase 9 operational soak."

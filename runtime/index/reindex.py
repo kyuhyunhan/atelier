@@ -301,6 +301,12 @@ _KNOWN_SLUG_PREFIXES = ("raw/", "provenance/", "wiki/", "graph/", "products/",
 # transition a bare `[[entities/foo]]` resolves to whichever tree exists.
 _SHORTHAND_BASES = ("graph/", "wiki/")
 
+# RFC 0003 GP1 rename aliasing: an explicit old-prefix link resolves to the
+# renamed tree (and vice-versa), so the wiki/->graph/, raw/->provenance/ move
+# never dangles the ~980 explicit [[raw/...]]/[[wiki/...]] body links.
+_PREFIX_ALIASES = {"raw/": "provenance/", "wiki/": "graph/",
+                   "provenance/": "raw/", "graph/": "wiki/"}
+
 
 def _candidate_slugs(to_slug: str) -> list[str]:
     """v3 shorthand wikilink forms:
@@ -312,6 +318,12 @@ def _candidate_slugs(to_slug: str) -> list[str]:
     candidates = [to_slug]
     if not to_slug.endswith(".md"):
         candidates.append(to_slug + ".md")
+    for old, new in _PREFIX_ALIASES.items():
+        if to_slug.startswith(old):
+            alias = new + to_slug[len(old):]
+            candidates.append(alias)
+            if not alias.endswith(".md"):
+                candidates.append(alias + ".md")
     if not to_slug.startswith(_KNOWN_SLUG_PREFIXES):
         for base in _SHORTHAND_BASES:
             candidates.append(base + to_slug)

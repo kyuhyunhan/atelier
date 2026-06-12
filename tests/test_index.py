@@ -135,5 +135,9 @@ def test_candidate_slugs_treats_rename_prefixes_as_exact():
     """A slug already under a known prefix (incl. the new graph/ and provenance/)
     is an exact path, never re-expanded under graph//wiki/."""
     from runtime.index.reindex import _candidate_slugs
-    assert _candidate_slugs("graph/entities/foo.md") == ["graph/entities/foo.md"]
-    assert _candidate_slugs("provenance/personal/x.md") == ["provenance/personal/x.md"]
+    # graph/ and provenance/ are known prefixes (not re-expanded under shorthand),
+    # but DO alias to their old names so links resolve across the rename.
+    g = _candidate_slugs("graph/entities/foo.md")
+    assert g[0] == "graph/entities/foo.md" and "wiki/entities/foo.md" in g
+    pv = _candidate_slugs("provenance/personal/x.md")
+    assert pv[0] == "provenance/personal/x.md" and "raw/personal/x.md" in pv

@@ -14,7 +14,7 @@ import sqlite3
 from typing import List, Protocol, runtime_checkable
 
 from .. import fts as _fts
-from .types import Candidate, Scope
+from .types import Candidate, Scope, scope_where
 
 
 @runtime_checkable
@@ -51,13 +51,9 @@ class FtsLexical:
             "WHERE  chunks_fts MATCH ?",
         ]
         params: list = [match]
-        if scope.space:
-            sql.append("AND p.space = ?")
-            params.append(scope.space)
-        if scope.page_types:
-            placeholders = ",".join("?" * len(scope.page_types))
-            sql.append(f"AND p.page_type IN ({placeholders})")
-            params.extend(scope.page_types)
+        clauses, scope_params = scope_where(scope, "p")
+        sql.extend(clauses)
+        params.extend(scope_params)
         # A page has many chunks → the same slug can match several times. Over-fetch
         # and collapse to one Candidate per page (best rank first), then truncate.
         sql.append("ORDER BY rank LIMIT ?")

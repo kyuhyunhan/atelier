@@ -22,12 +22,43 @@ class Scope:
     `space` scopes to one vault subtree (None = all spaces). `page_types`
     restricts to a set of `pages.page_type` values (empty = no restriction) —
     this is how recall scopes to `learning_*` without the engine knowing what a
-    learning is. Facet filtering (RFC 0001) is a *resolver* concern layered on
-    top of the fused set, not a mode concern, so it is deliberately NOT here.
+    learning is.
+
+    `provenance` / `sensitivity` (RFC 0003) are the single-valued *fields* an
+    application scopes by: a coding agent recalls `learning`+`knowledge`, an essay
+    agent `personal`+`knowledge`. They are a soft query scope (None = no
+    restriction), NOT a hard silo — the engine never branches on what they mean.
+    Facet filtering (RFC 0001, many-valued) stays a *resolver* concern layered on
+    the fused set, not a mode concern, so it is deliberately NOT here.
     """
 
     space: Optional[str] = None
     page_types: tuple[str, ...] = ()
+    provenance: Optional[str] = None
+    sensitivity: Optional[str] = None
+
+
+def scope_where(scope: "Scope", alias: str = "p") -> tuple[list[str], list]:
+    """SQL `AND …` clauses + bound params for a `Scope`, over the given `pages`
+    alias. Shared by every mode searcher so their scope filtering can never
+    diverge — add a new scope dimension here once, not per mode. `provenance` /
+    `sensitivity` read the generated columns of the same name (RFC 0003)."""
+    clauses: list[str] = []
+    params: list = []
+    if scope.space:
+        clauses.append(f"AND {alias}.space = ?")
+        params.append(scope.space)
+    if scope.page_types:
+        ph = ",".join("?" * len(scope.page_types))
+        clauses.append(f"AND {alias}.page_type IN ({ph})")
+        params.extend(scope.page_types)
+    if scope.provenance:
+        clauses.append(f"AND {alias}.provenance = ?")
+        params.append(scope.provenance)
+    if scope.sensitivity:
+        clauses.append(f"AND {alias}.sensitivity = ?")
+        params.append(scope.sensitivity)
+    return clauses, params
 
 
 @dataclass(frozen=True)

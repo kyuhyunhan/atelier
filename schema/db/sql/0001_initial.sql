@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS pages (
   -- Generated columns derived from frontmatter JSON
   title        TEXT    GENERATED ALWAYS AS (json_extract(frontmatter, '$.title'))      STORED,
   sensitivity  TEXT    GENERATED ALWAYS AS (json_extract(frontmatter, '$.sensitivity')) STORED,
+  -- RFC 0003: provenance is a first-class single-valued field (where it came from:
+  -- personal | knowledge | learning), projected like sensitivity. Added to the base
+  -- CREATE TABLE (not via ALTER) because SQLite cannot ALTER-ADD a STORED generated
+  -- column; the DB is a rebuildable projection, so `rm cache && reindex` applies it.
+  provenance   TEXT    GENERATED ALWAYS AS (json_extract(frontmatter, '$.provenance'))  STORED,
   created      TEXT    GENERATED ALWAYS AS (
                           COALESCE(
                             json_extract(frontmatter, '$.created'),
@@ -62,7 +67,7 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 
 -- Seed meta
-INSERT OR IGNORE INTO meta VALUES ('schema_version',   '4');
+INSERT OR IGNORE INTO meta VALUES ('schema_version',   '6');  -- v6: RFC 0003 provenance
 INSERT OR IGNORE INTO meta VALUES ('atelier_db_version', '1');
 INSERT OR IGNORE INTO meta VALUES ('created_at',       (SELECT datetime('now')));
 
@@ -88,6 +93,7 @@ CREATE VIEW IF NOT EXISTS broken_links AS
 CREATE INDEX IF NOT EXISTS idx_pages_space      ON pages(space);
 CREATE INDEX IF NOT EXISTS idx_pages_type       ON pages(page_type);
 CREATE INDEX IF NOT EXISTS idx_pages_space_type ON pages(space, page_type);
+CREATE INDEX IF NOT EXISTS idx_pages_provenance ON pages(provenance);  -- RFC 0003 scope filter
 CREATE INDEX IF NOT EXISTS idx_links_from       ON links(from_page);
 CREATE INDEX IF NOT EXISTS idx_links_to         ON links(to_page_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_page      ON chunks(page_id, position);

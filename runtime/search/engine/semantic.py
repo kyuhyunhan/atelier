@@ -19,7 +19,7 @@ from __future__ import annotations
 import sqlite3
 from typing import List, Protocol, Sequence, runtime_checkable
 
-from .types import Candidate, Scope
+from .types import Candidate, Scope, scope_where
 from .vecstore import VecStore
 
 
@@ -67,13 +67,9 @@ class VecSemantic:
             f"WHERE  chunks.id IN ({placeholders})",
         ]
         params: list = list(by_chunk)
-        if scope.space:
-            sql.append("AND p.space = ?")
-            params.append(scope.space)
-        if scope.page_types:
-            tp = ",".join("?" * len(scope.page_types))
-            sql.append(f"AND p.page_type IN ({tp})")
-            params.extend(scope.page_types)
+        clauses, scope_params = scope_where(scope, "p")
+        sql.extend(clauses)
+        params.extend(scope_params)
 
         rows = sorted(self._conn.execute("\n".join(sql), params),
                       key=lambda r: by_chunk[r["chunk_id"]])

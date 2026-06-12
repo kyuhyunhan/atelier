@@ -4,7 +4,7 @@ Learnings already emit `link_type='concept'` edges from their `touches`/`target_
 (reindex._concept_targets), but those edges DANGLE: ~99% have no entity page to resolve
 to, so relational retrieval is dead for learnings. This tool materializes the missing
 nodes: for every distinct learning concept not already resolvable to an entity, it
-creates a stub `wiki/entities/{slug}.md` carrying the concept string as an `alias`.
+creates a stub `graph/entities/{slug}.md` carrying the concept string as an `alias`.
 After a reindex, the existing concept edges bind via the alias index (reindex._resolve's
 `_norm(concept)` fallback) — with ZERO changes to any learning file.
 
@@ -46,7 +46,7 @@ def _slugify(concept: str) -> str:
 class StubPlan:
     concept: str          # the original (normalized) concept string
     slug: str             # entity basename, slugify(concept)
-    rel_path: str         # vault-relative path, wiki/entities/{slug}.md
+    rel_path: str         # vault-relative path, graph/entities/{slug}.md
 
 
 def _resolvable_norms(conn: sqlite3.Connection) -> set:
@@ -85,7 +85,7 @@ def plan_stubs(conn: sqlite3.Connection) -> List[StubPlan]:
             continue
         seen_slug.add(slug)
         plans.append(StubPlan(concept=c, slug=slug,
-                              rel_path=f"wiki/entities/{slug}.md"))
+                              rel_path=f"graph/entities/{slug}.md"))
     return plans
 
 

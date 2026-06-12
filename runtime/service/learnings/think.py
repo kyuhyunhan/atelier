@@ -116,6 +116,8 @@ def compose(bundle: Dict[str, Any]) -> str:
     out += ["", "## Caveats"]
     out += [f"- {g}" for g in gaps] if gaps else ["None."]
     out += ["", "## Sources"]
+    if not citations:
+        out.append("None.")                  # symmetric with Caveats; never a bare header
     for i, c in enumerate(citations, start=1):
         slug = c.get("slug") or "(unknown)"
         out.append(f"[{c.get('n', i)}] {slug} — {c.get('title') or slug}")

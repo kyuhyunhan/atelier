@@ -153,12 +153,10 @@ def test_think_empty_query_is_a_gap_not_a_crash(atelier_env: Dict):
     assert out["result_count"] == 0 and out["gaps"]
 
 
-def test_atelier_think_tool_registered():
+def test_atelier_think_tool_returns_contract():
+    """The MCP tool surfaces the bundle — citations, gaps, and the contract — so
+    the calling agent has everything to compose a contract-conformant answer."""
+    import asyncio as _a
     from runtime.service import tools as _tools
-    names = {t.name for t in _tools.all_tools()} if hasattr(_tools, "all_tools") else None
-    if names is None:
-        import asyncio as _a
-        out = _a.run(_tools.invoke("atelier_think", query="anything"))
-        assert "citations" in out and "gaps" in out and "contract" in out
-    else:
-        assert "atelier_think" in names
+    out = _a.run(_tools.invoke("atelier_think", query="anything"))
+    assert "citations" in out and "gaps" in out and "contract" in out

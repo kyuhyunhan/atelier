@@ -478,6 +478,22 @@ async def _h_recall(query: str,
                        relevance_threshold=relevance_threshold)
 
 
+async def _h_think(query: str,
+                   project: Optional[str] = None,
+                   top_k: int = 5,
+                   include_candidates: bool = False) -> Dict[str, Any]:
+    """Query-time synthesis evidence over the learnings memory: the top-k cited
+    passages + an explicit gap signal, for the caller to compose into an answer
+    (RFC 0003 P5 — the engine assembles evidence; the agent synthesises prose)."""
+    from .learnings import think as _think
+    sess = current_session()
+    if project is None and sess.working_dir:
+        from .learnings import project as _proj
+        project = _proj.resolve_project(sess.working_dir).slug
+    return _think.think(query=query, project=project, top_k=top_k,
+                        include_candidates=include_candidates)
+
+
 async def _h_surfacing_audit(probe_k: int = 10) -> Dict[str, Any]:
     """Read-only retrieval observability: which accepted learnings can no longer
     be found by their *own* concept (gone dark). The instrument that makes
@@ -807,6 +823,14 @@ def _register_v01_tools() -> None:
         "Returns top-K learnings ranked by hybrid retrieval (lexical BM25 + "
         "semantic vectors, fused by reciprocal rank), with a project-match boost.",
         _h_recall,
+    ))
+    register(ToolDef(
+        "atelier_think",
+        "Query-time synthesis EVIDENCE over the learnings memory: top-K cited "
+        "passages + an explicit gap signal (what the memory does not confidently "
+        "cover). The engine assembles the evidence; the caller composes the prose "
+        "answer with citations.",
+        _h_think,
     ))
     register(ToolDef(
         "atelier_learning_surfacing_audit",

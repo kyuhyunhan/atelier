@@ -99,10 +99,45 @@ def test_compose_zero_coverage_is_honest(atelier_env: Dict):
     assert not re.search(r"\[\d+\]", answer), "no fabricated citation on empty evidence"
 
 
+def test_compose_answer_markers_reference_real_indices(atelier_env: Dict):
+    """Every [n] in the Answer maps to a real citation index — no dangling marker
+    (stronger than 'some [n] present')."""
+    import re
+    out = _bundle_with_hits("RRF fusion boost")
+    body = _think.compose(out).split("## Answer", 1)[1].split("## Caveats", 1)[0]
+    used = {int(m) for m in re.findall(r"\[(\d+)\]", body)}
+    valid = {c["n"] for c in out["citations"]}
+    assert used and used <= valid
+
+
+def test_compose_falls_back_when_snippet_empty():
+    """A citation with an empty snippet still yields a non-blank, cited Answer
+    line (title/slug fallback) — never a markerless or blank claim."""
+    import re
+    bundle = {"query": "q", "gaps": [], "contract": "x", "result_count": 1,
+              "citations": [{"n": 1, "slug": "graph/entities/x", "title": "X",
+                             "snippet": "", "score": 1.0}]}
+    answer = _think.compose(bundle)
+    first = [ln for ln in answer.split("## Answer", 1)[1]
+             .split("## Caveats", 1)[0].splitlines() if ln.strip()][0]
+    assert "X" in first and re.search(r"\[1\]", first)
+
+
+def test_compose_tolerates_minimal_bundle():
+    """compose() never KeyErrors on a citation missing optional fields — it is a
+    public function headless callers use as-is."""
+    answer = _think.compose({"citations": [{"n": 1, "slug": "graph/entities/x"}],
+                             "gaps": []})
+    assert "graph/entities/x" in answer       # must not raise
+
+
 def test_compose_is_deterministic(atelier_env: Dict):
-    """Pure-B determinism: same bundle → byte-identical answer."""
+    """Pure-B determinism: a JSON round-trip of the bundle (different dict object,
+    same logical content) composes byte-identically — catches any iteration-order
+    or unstable-sort sensitivity, which `compose(out) == compose(out)` would not."""
+    import json
     out = _bundle_with_hits("RRF fusion")
-    assert _think.compose(out) == _think.compose(out)
+    assert _think.compose(out) == _think.compose(json.loads(json.dumps(out)))
 
 
 def test_think_reports_a_gap_when_nothing_matches(atelier_env: Dict):

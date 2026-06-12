@@ -42,9 +42,11 @@ One bullet per `gaps` entry — what memory does NOT confidently cover. Never
 paper over a gap; never invent. Empty gaps -> "None.".
 
 ## Sources
-One line per cited citation, index order: [n] slug — title. Only list citations
-actually referenced. Zero citations -> Answer says memory has nothing on this
-query, Caveats carries the gap, no fabricated source.
+One line per citation you reference in Answer, index order: [n] slug — title.
+Don't list an index you didn't cite, and never cite an index absent from the
+bundle. (The deterministic floor cites every passage, so it lists every source.)
+Zero citations -> Answer says memory has nothing on this query, Caveats carries
+the gap, no fabricated source.
 
 RULES: (1) no claim without [n]; (2) surface gaps, never invent; (3) never cite
 an index absent from the bundle; (4) zero-coverage -> honest "no memory", not a guess.
@@ -100,15 +102,21 @@ def compose(bundle: Dict[str, Any]) -> str:
     evidence (honest "no memory"), never fabricating a source."""
     citations = bundle.get("citations") or []
     gaps = bundle.get("gaps") or []
+    # Defensive field access (compose is public; a headless caller may hand-build a
+    # bundle): `n` falls back to position, slug/title to each other, so a citation
+    # missing optional fields degrades gracefully instead of raising KeyError.
     out: List[str] = ["## Answer"]
     if not citations:
         out.append("Memory has nothing on this query.")
     else:
-        for c in citations:
-            claim = c.get("snippet") or c.get("title") or c["slug"]
-            out.append(f"{claim} [{c['n']}]")
+        for i, c in enumerate(citations, start=1):
+            n = c.get("n", i)
+            claim = c.get("snippet") or c.get("title") or c.get("slug") or "(untitled)"
+            out.append(f"{claim} [{n}]")
     out += ["", "## Caveats"]
     out += [f"- {g}" for g in gaps] if gaps else ["None."]
     out += ["", "## Sources"]
-    out += [f"[{c['n']}] {c['slug']} — {c['title']}" for c in citations]
+    for i, c in enumerate(citations, start=1):
+        slug = c.get("slug") or "(unknown)"
+        out.append(f"[{c.get('n', i)}] {slug} — {c.get('title') or slug}")
     return "\n".join(out)

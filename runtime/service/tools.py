@@ -824,6 +824,9 @@ def _register_v01_tools() -> None:
         "semantic vectors, fused by reciprocal rank), with a project-match boost.",
         _h_recall,
     ))
+    # NOTE: this description paraphrases think.SYNTHESIS_CONTRACT for the caller's
+    # convenience; that constant is the single source of truth (also returned in the
+    # payload's `contract` field). Keep this prose in sync when the contract changes.
     register(ToolDef(
         "atelier_think",
         "Query-time synthesis over the learnings memory. Returns a deterministic "

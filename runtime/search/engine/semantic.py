@@ -19,7 +19,8 @@ from __future__ import annotations
 import sqlite3
 from typing import List, Protocol, Sequence, runtime_checkable
 
-from .types import Candidate, Scope, scope_where
+from .sqlite_scope import scope_where
+from .types import Candidate, Scope
 from .vecstore import VecStore
 
 

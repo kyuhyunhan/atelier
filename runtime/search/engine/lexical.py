@@ -14,7 +14,8 @@ import sqlite3
 from typing import List, Protocol, runtime_checkable
 
 from .. import fts as _fts
-from .types import Candidate, Scope, scope_where
+from .sqlite_scope import scope_where
+from .types import Candidate, Scope
 
 
 @runtime_checkable

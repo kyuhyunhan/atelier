@@ -19,6 +19,12 @@ class Diagnosis:
     details: Dict[str, Any] = field(default_factory=dict)
 
 
+# The DB schema_version the engine writes (schema/db/sql/0001_initial.sql seed).
+# Bump in lockstep with that seed; D1 fails loudly on a mismatch so a stale DB is
+# caught. v6 = RFC 0003 (provenance column).
+EXPECTED_SCHEMA_VERSION = "6"
+
+
 def D1_db_present(cfg: config.Config) -> Diagnosis:
     """D1: SQLite cache exists and meta.schema_version matches expected."""
     from ..util import db
@@ -29,10 +35,11 @@ def D1_db_present(cfg: config.Config) -> Diagnosis:
     conn = db.connect()
     try:
         sv = db.get_meta(conn, "schema_version")
-        if sv != "4":
+        if sv != EXPECTED_SCHEMA_VERSION:
             return Diagnosis("D1", "db-present", "FAIL",
-                             f"schema_version={sv}, expected 4",
-                             {"actual": sv})
+                             f"schema_version={sv}, expected {EXPECTED_SCHEMA_VERSION}"
+                             " — run `atelier reindex --full`",
+                             {"actual": sv, "expected": EXPECTED_SCHEMA_VERSION})
         return Diagnosis("D1", "db-present", "OK", f"schema_version={sv}")
     finally:
         conn.close()

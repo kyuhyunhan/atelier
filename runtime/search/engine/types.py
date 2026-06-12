@@ -36,29 +36,8 @@ class Scope:
     page_types: tuple[str, ...] = ()
     provenance: Optional[str] = None
     sensitivity: Optional[str] = None
-
-
-def scope_where(scope: "Scope", alias: str = "p") -> tuple[list[str], list]:
-    """SQL `AND …` clauses + bound params for a `Scope`, over the given `pages`
-    alias. Shared by every mode searcher so their scope filtering can never
-    diverge — add a new scope dimension here once, not per mode. `provenance` /
-    `sensitivity` read the generated columns of the same name (RFC 0003)."""
-    clauses: list[str] = []
-    params: list = []
-    if scope.space:
-        clauses.append(f"AND {alias}.space = ?")
-        params.append(scope.space)
-    if scope.page_types:
-        ph = ",".join("?" * len(scope.page_types))
-        clauses.append(f"AND {alias}.page_type IN ({ph})")
-        params.extend(scope.page_types)
-    if scope.provenance:
-        clauses.append(f"AND {alias}.provenance = ?")
-        params.append(scope.provenance)
-    if scope.sensitivity:
-        clauses.append(f"AND {alias}.sensitivity = ?")
-        params.append(scope.sensitivity)
-    return clauses, params
+    # NOTE: SQL translation of a Scope lives in the backend-specific
+    # `sqlite_scope.scope_where`, NOT here — this module stays backend-free.
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,7 @@ from __future__ import annotations
 from runtime.search import engine
 from runtime.search.engine import Candidate, FtsLexical, RetrievalEngine, Scope
 from runtime.search.engine.lexical import LexicalSearcher
-from runtime.search.engine.types import scope_where
+from runtime.search.engine.sqlite_scope import scope_where
 from runtime.util import db
 from tests.conftest import write_page
 
@@ -99,6 +99,16 @@ def test_scope_where_emits_a_clause_per_set_field():
     assert params == ["gorae", "entity", "digest", "knowledge", "public"]
     # default scope → no filtering
     assert scope_where(Scope(), "p") == ([], [])
+
+
+def test_scope_where_partial_keeps_param_alignment():
+    """Only the set fields emit clauses/params, in field order — so skipped
+    branches never misalign params (the bug a single-case test would miss)."""
+    cl, pr = scope_where(Scope(provenance="knowledge"), "p")
+    assert cl == ["AND p.provenance = ?"] and pr == ["knowledge"]
+    cl, pr = scope_where(Scope(page_types=("entity",), sensitivity="public"), "p")
+    assert cl == ["AND p.page_type IN (?)", "AND p.sensitivity = ?"]
+    assert pr == ["entity", "public"]
 
 
 def _seed_two_provenances(atelier_env):

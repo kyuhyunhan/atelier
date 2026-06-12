@@ -9,6 +9,7 @@ from __future__ import annotations
 from runtime.search import engine
 from runtime.search.engine import Candidate, FtsLexical, RetrievalEngine, Scope
 from runtime.search.engine.lexical import LexicalSearcher
+from runtime.search.engine.sqlite_scope import scope_where
 from runtime.util import db
 from tests.conftest import write_page
 
@@ -80,3 +81,83 @@ def test_bundle_holds_one_searcher_per_mode(atelier_env):
         assert eng.relational is None      # impl lands in P4
     finally:
         conn.close()
+
+
+# ── RFC 0003 P0: provenance / sensitivity scope filters ──────────────────────
+
+def test_scope_where_emits_a_clause_per_set_field():
+    """The shared scope→SQL helper: one AND-clause + one param per set field,
+    nothing for unset fields (so the default Scope filters nothing)."""
+    clauses, params = scope_where(
+        Scope(space="gorae", page_types=("entity", "digest"),
+              provenance="knowledge", sensitivity="public"), "p")
+    joined = " ".join(clauses)
+    assert "p.space = ?" in joined
+    assert "p.page_type IN (?,?)" in joined
+    assert "p.provenance = ?" in joined
+    assert "p.sensitivity = ?" in joined
+    assert params == ["gorae", "entity", "digest", "knowledge", "public"]
+    # default scope → no filtering
+    assert scope_where(Scope(), "p") == ([], [])
+
+
+def test_scope_where_partial_keeps_param_alignment():
+    """Only the set fields emit clauses/params, in field order — so skipped
+    branches never misalign params (the bug a single-case test would miss)."""
+    cl, pr = scope_where(Scope(provenance="knowledge"), "p")
+    assert cl == ["AND p.provenance = ?"] and pr == ["knowledge"]
+    cl, pr = scope_where(Scope(page_types=("entity",), sensitivity="public"), "p")
+    assert cl == ["AND p.page_type IN (?)", "AND p.sensitivity = ?"]
+    assert pr == ["entity", "public"]
+
+
+def _seed_two_provenances(atelier_env):
+    """Two indexed pages with the same body word but different provenance fields,
+    so a provenance scope must pick exactly one."""
+    write_page(
+        atelier_env["gorae"] / "wiki" / "entities" / "knowledge-note.md",
+        {"title": "Knowledge Note", "type": "entity", "category": "concept",
+         "first_mention": "2026-01", "source_count": 0,
+         "created": "2026-05-27", "updated": "2026-05-27",
+         "provenance": "knowledge", "sensitivity": "public"},
+        "# K\n\nthe shared keyword widgetly appears here.\n",
+    )
+    write_page(
+        atelier_env["gorae"] / "raw" / "personal" / "diary" / "2026" / "05" / "p.md",
+        {"title": "Personal Note", "type": "raw_source",
+         "created": "2026-05-27", "updated": "2026-05-27",
+         "provenance": "personal", "sensitivity": "private"},
+        "# P\n\nthe shared keyword widgetly appears here too.\n",
+    )
+    from runtime.service import api
+    api.reindex(space="gorae", full=True)
+
+
+def test_provenance_column_is_populated_from_frontmatter(atelier_env):
+    _seed_two_provenances(atelier_env)
+    conn = db.connect()
+    try:
+        rows = {r["slug"].rsplit("/", 1)[-1]: r["provenance"]
+                for r in conn.execute(
+                    "SELECT slug, provenance FROM pages WHERE provenance IS NOT NULL")}
+    finally:
+        conn.close()
+    assert rows.get("knowledge-note.md") == "knowledge"
+    assert rows.get("p.md") == "personal"
+
+
+def test_lexical_search_filters_by_provenance(atelier_env):
+    _seed_two_provenances(atelier_env)
+    conn = db.connect()
+    try:
+        eng = FtsLexical(conn)
+        both = eng.search("widgetly", scope=Scope(), k=5)
+        knowledge_only = eng.search(
+            "widgetly", scope=Scope(provenance="knowledge"), k=5)
+        public_only = eng.search(
+            "widgetly", scope=Scope(sensitivity="public"), k=5)
+    finally:
+        conn.close()
+    assert len(both) == 2, "both pages share the keyword"
+    assert [h.slug.rsplit("/", 1)[-1] for h in knowledge_only] == ["knowledge-note.md"]
+    assert [h.slug.rsplit("/", 1)[-1] for h in public_only] == ["knowledge-note.md"]

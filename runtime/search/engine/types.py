@@ -22,12 +22,22 @@ class Scope:
     `space` scopes to one vault subtree (None = all spaces). `page_types`
     restricts to a set of `pages.page_type` values (empty = no restriction) —
     this is how recall scopes to `learning_*` without the engine knowing what a
-    learning is. Facet filtering (RFC 0001) is a *resolver* concern layered on
-    top of the fused set, not a mode concern, so it is deliberately NOT here.
+    learning is.
+
+    `provenance` / `sensitivity` (RFC 0003) are the single-valued *fields* an
+    application scopes by: a coding agent recalls `learning`+`knowledge`, an essay
+    agent `personal`+`knowledge`. They are a soft query scope (None = no
+    restriction), NOT a hard silo — the engine never branches on what they mean.
+    Facet filtering (RFC 0001, many-valued) stays a *resolver* concern layered on
+    the fused set, not a mode concern, so it is deliberately NOT here.
     """
 
     space: Optional[str] = None
     page_types: tuple[str, ...] = ()
+    provenance: Optional[str] = None
+    sensitivity: Optional[str] = None
+    # NOTE: SQL translation of a Scope lives in the backend-specific
+    # `sqlite_scope.scope_where`, NOT here — this module stays backend-free.
 
 
 @dataclass(frozen=True)

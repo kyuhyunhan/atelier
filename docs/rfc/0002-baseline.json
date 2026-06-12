@@ -1,31 +1,77 @@
 {
-  "_about": "RFC 0002 P0 — frozen FTS-only retrieval baseline. Produced read-only by runtime.service.learnings.eval.run(). Every later phase re-runs eval and must improve these numbers, never regress. The self_probe.dark_count and the surfacing audit's newly_dark gate stay empty across phases.",
+  "_about": "RFC 0002 P0 \u2014 frozen FTS-only retrieval baseline. Produced read-only by runtime.service.learnings.eval.run(). Every later phase re-runs eval and must improve these numbers, never regress. The self_probe.dark_count and the surfacing audit's newly_dark gate stay empty across phases.",
   "captured_date": "2026-06-09",
   "engine": "fts-only",
   "vault": "gorae",
   "paraphrase_post_p1": {
-    "_note": "Captured 2026-06-10 AFTER P1 (frontmatter + structured coverage), against the frozen authored fixture tests/fixtures/paraphrase_probes.json (22 probes). This is the semantic-headroom yardstick for P2/P3: queries share meaning but not words with their gold. The 7 misses @5 are pure meaning!=words cases (incl. one cross-lingual English-query/Korean-body probe) — the class only semantic retrieval can recover.",
-    "k5": {"probes": 22, "scored": 22, "recall_at_k": 0.6818181818181818, "mrr": 0.5681818181818181},
-    "k10": {"probes": 22, "scored": 22, "recall_at_k": 0.7272727272727273, "mrr": 0.572979797979798}
-  },
-  "paraphrase_p2_semantic_only": {
-    "_note": "Captured 2026-06-11 — semantic mode ALONE (VecSemantic over bge-m3, dim 1024, no lexical, no fusion) on the same 22-probe fixture. Beats lexical (R@5 0.682) by +0.18. Recovered 4 of 7 lexical misses incl. the cross-lingual EN-query/KO-body probe (rank 0). NOT a strict superset of lexical hits — the argument for P3 fusion (RRF) rather than replacement. Bulk embed: 855s one-time for ~22K chunks on an M1 Pro; steady-state reindex reuses the content-hash cache.",
-    "model": "ollama:bge-m3:1024",
-    "k5": {"probes": 22, "recall_at_k": 0.8636363636363636, "mrr": 0.7840909090909091},
-    "residual_misses": ["accountless identity metrics", "parallel worktree agent sessions", "version-bump pbxproj mechanics"]
-  },
-  "p3_hybrid": {
-    "_note": "Captured 2026-06-11 — RFC 0002 P3 LANDED. recall + learnings/search now route through runtime.search.resolver: lexical (FTS5 BM25) + semantic (VecSemantic/bge-m3) fused by Reciprocal Rank Fusion (C=60), inline hand-boosts retired to RFC-scaled post-fusion nudges (gap-scaled, not vote-scaled). engine='hybrid'. Improves every frozen P0 metric: self_probe dark_count 26->0 @k5 and 12->0 @k10 (the dark-learnings class dissolved); concept R@5 0.588->0.963, P@5 0.325->0.545; self_probe MRR@5 0.582->0.975. The omission gate (surfacing newly_dark) stays empty. PARAPHRASE TRADEOFF: hybrid R@5 0.727 sits BELOW the P2 semantic-only probe (0.864) on that adversarial-for-lexical fixture — unweighted RRF dilutes semantic's edge with lexical's wrong votes on pure meaning!=words queries. Acceptable: it is the common-case-optimal point, and recovering the semantic tail is the P5 reranker / weighted-fusion job. Boost constants tuned against the live vault gate (see surfacing audit), NOT guessed.",
-    "model": "ollama:bge-m3:1024",
+    "_note": "Captured 2026-06-10 AFTER P1 (frontmatter + structured coverage), against the frozen authored fixture tests/fixtures/paraphrase_probes.json (22 probes). This is the semantic-headroom yardstick for P2/P3: queries share meaning but not words with their gold. The 7 misses @5 are pure meaning!=words cases (incl. one cross-lingual English-query/Korean-body probe) \u2014 the class only semantic retrieval can recover.",
     "k5": {
-      "self_probe": {"probes": 134, "recall_at_k": 1.0, "mrr": 0.9745024875621889, "dark_count": 0},
-      "concept_grouped": {"probes": 51, "precision_at_k": 0.5450980392156862, "recall_at_k": 0.9625224448753861},
-      "paraphrase": {"probes": 22, "scored": 22, "recall_at_k": 0.7272727272727273, "mrr": 0.6212121212121212}
+      "probes": 22,
+      "scored": 22,
+      "recall_at_k": 0.6818181818181818,
+      "mrr": 0.5681818181818181
     },
     "k10": {
-      "self_probe": {"probes": 134, "recall_at_k": 1.0, "mrr": 0.9745024875621889, "dark_count": 0},
-      "concept_grouped": {"probes": 51, "precision_at_k": 0.2941176470588235, "recall_at_k": 0.9939668174962293},
-      "paraphrase": {"probes": 22, "scored": 22, "recall_at_k": 0.8636363636363636, "mrr": 0.638437950937951}
+      "probes": 22,
+      "scored": 22,
+      "recall_at_k": 0.7272727272727273,
+      "mrr": 0.572979797979798
+    }
+  },
+  "paraphrase_p2_semantic_only": {
+    "_note": "Captured 2026-06-11 \u2014 semantic mode ALONE (VecSemantic over bge-m3, dim 1024, no lexical, no fusion) on the same 22-probe fixture. Beats lexical (R@5 0.682) by +0.18. Recovered 4 of 7 lexical misses incl. the cross-lingual EN-query/KO-body probe (rank 0). NOT a strict superset of lexical hits \u2014 the argument for P3 fusion (RRF) rather than replacement. Bulk embed: 855s one-time for ~22K chunks on an M1 Pro; steady-state reindex reuses the content-hash cache.",
+    "model": "ollama:bge-m3:1024",
+    "k5": {
+      "probes": 22,
+      "recall_at_k": 0.8636363636363636,
+      "mrr": 0.7840909090909091
+    },
+    "residual_misses": [
+      "accountless identity metrics",
+      "parallel worktree agent sessions",
+      "version-bump pbxproj mechanics"
+    ]
+  },
+  "p3_hybrid": {
+    "_note": "Captured 2026-06-11 \u2014 RFC 0002 P3 LANDED. recall + learnings/search now route through runtime.search.resolver: lexical (FTS5 BM25) + semantic (VecSemantic/bge-m3) fused by Reciprocal Rank Fusion (C=60), inline hand-boosts retired to RFC-scaled post-fusion nudges (gap-scaled, not vote-scaled). engine='hybrid'. Improves every frozen P0 metric: self_probe dark_count 26->0 @k5 and 12->0 @k10 (the dark-learnings class dissolved); concept R@5 0.588->0.963, P@5 0.325->0.545; self_probe MRR@5 0.582->0.975. The omission gate (surfacing newly_dark) stays empty. PARAPHRASE TRADEOFF: hybrid R@5 0.727 sits BELOW the P2 semantic-only probe (0.864) on that adversarial-for-lexical fixture \u2014 unweighted RRF dilutes semantic's edge with lexical's wrong votes on pure meaning!=words queries. Acceptable: it is the common-case-optimal point, and recovering the semantic tail is the P5 reranker / weighted-fusion job. Boost constants tuned against the live vault gate (see surfacing audit), NOT guessed.",
+    "model": "ollama:bge-m3:1024",
+    "k5": {
+      "self_probe": {
+        "probes": 134,
+        "recall_at_k": 1.0,
+        "mrr": 0.9745024875621889,
+        "dark_count": 0
+      },
+      "concept_grouped": {
+        "probes": 51,
+        "precision_at_k": 0.5450980392156862,
+        "recall_at_k": 0.9625224448753861
+      },
+      "paraphrase": {
+        "probes": 22,
+        "scored": 22,
+        "recall_at_k": 0.7272727272727273,
+        "mrr": 0.6212121212121212
+      }
+    },
+    "k10": {
+      "self_probe": {
+        "probes": 134,
+        "recall_at_k": 1.0,
+        "mrr": 0.9745024875621889,
+        "dark_count": 0
+      },
+      "concept_grouped": {
+        "probes": 51,
+        "precision_at_k": 0.2941176470588235,
+        "recall_at_k": 0.9939668174962293
+      },
+      "paraphrase": {
+        "probes": 22,
+        "scored": 22,
+        "recall_at_k": 0.8636363636363636,
+        "mrr": 0.638437950937951
+      }
     }
   },
   "baseline_k5": {
@@ -59,5 +105,21 @@
     "visible": 108,
     "dark_count": 27,
     "_note": "Audit total (135) is one more than eval self_probe.probes (134): one accepted learning has no concept tag and no usable title, so it has an empty self-probe. eval excludes empty-probe rows from its denominator; the audit counts it (dark by construction)."
+  },
+  "p4_relational_rfc0003": {
+    "_note": "Captured 2026-06-12 \u2014 RFC 0003 rollout landed the connectivity foundation, reviving RFC 0002 P4. RFC 0003 entity-stub backfill connected learnings into the graph: graph-connectivity 1% \u2192 75% (123/164; the 41 unconnected have no touches/topic tags). Relational mode (LinkRelational, 3rd signal) wired as a GATED POST-FUSION NUDGE, not an equal RRF vote \u2014 an equal vote flooded the dense concept graph and regressed hard (dark@5 0\u219272). As a gentle nudge it is regression-free but supplementary: on this near-ceiling vault it does not move aggregate metrics, and it does NOT subsume the concept hand-boost (retiring the boost regresses concept_grouped P@5 0.545\u21920.522), so the boost STAYS. The relational win (a body-less concept-sibling surfacing via the shared-entity graph) is demonstrated in isolation.",
+    "learning_connectivity": {
+      "before": "1% (2/164)",
+      "after": "75% (123/164)",
+      "dangling_concept_edges": "333 \u2192 0"
+    },
+    "k5_metrics_flat_vs_p3": {
+      "self_probe_dark": 0,
+      "self_probe_recall_at_k": 1.0,
+      "concept_grouped": {
+        "precision_at_k": 0.545,
+        "recall_at_k": 0.963
+      }
+    }
   }
 }

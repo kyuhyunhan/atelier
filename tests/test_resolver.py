@@ -203,3 +203,55 @@ def test_build_context_lexical_only_when_embeddings_off(atelier_env):
     finally:
         ctx.close()
         conn.close()
+
+
+# ── RFC 0002 P4 (revived by RFC 0003): relational mode surfaces concept-siblings ──
+
+_LEARN_BASE = {
+    "schema_version": 4, "agent_kind": "claude-code", "status": "accepted",
+    "ac_status": "passed", "observation_kind": "feedback",
+    "captured_at": "2026-01-01T00:00:00Z", "accepted_at": "2026-01-02T00:00:00Z",
+    "provenance": "learning", "sensitivity": "public",
+}
+
+
+def test_relational_surfaces_a_concept_sibling(atelier_env):
+    """A learning that shares a concept-entity with a strong lexical hit, but
+    matches NO query term itself, surfaces via the relational graph vote —
+    learning A → entity → sibling B (2 hops). This is the dead-P4 revival the
+    RFC 0003 stub backfill enables."""
+    vault = atelier_env["gorae"]
+    # The shared entity (basename normalizes to the concept the learnings touch).
+    write_page(vault / "wiki" / "entities" / "widgetry.md",
+               {"title": "Widgetry", "type": "entity", "category": "concept",
+                "first_mention": "2026-01", "source_count": 0,
+                "created": "2026-05-01", "updated": "2026-05-01",
+                "provenance": "knowledge", "sensitivity": "public",
+                "aliases": ["widgetry"]},
+               "# Widgetry\n\nthe concept.\n")
+    # A matches the query lexically AND touches widgetry.
+    write_page(vault / "learnings" / "notes" / "2026-01" / "aa.md",
+               {**_LEARN_BASE, "entry_id": "aa", "target_topic": "arch",
+                "touches": ["widgetry"]},
+               "## Observation\n\nkafka rebalance storms under load.\n")
+    # B touches widgetry but its body shares NO word with the query.
+    write_page(vault / "learnings" / "notes" / "2026-01" / "bb.md",
+               {**_LEARN_BASE, "entry_id": "bb", "target_topic": "arch",
+                "touches": ["widgetry"]},
+               "## Observation\n\nalpha beta gamma delta.\n")
+    from runtime.service import api
+    api.reindex(space="gorae", full=True)
+
+    conn = db.connect()
+    ctx = build_context(conn)
+    try:
+        hits = resolve("kafka rebalance", engine=ctx.engine,
+                       scope=Scope(page_types=("learning_accepted",)),
+                       gateway=ctx.gateway, k=10)
+    finally:
+        ctx.close()
+        conn.close()
+    slugs = [h.slug for h in hits]
+    assert any("aa" in s for s in slugs), "the lexical hit must be present"
+    assert any("bb" in s for s in slugs), \
+        "the concept-sibling must surface via the relational vote"

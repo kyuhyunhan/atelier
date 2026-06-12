@@ -276,9 +276,10 @@ def _boost(hit: Dict[str, Any], project: Optional[str],
     ):
         score += _PROJECT_BOOST
     # Concept-overlap: the learning is *about* something the query names, even if
-    # the body doesn't lexically match. A hand-rolled stand-in for semantic recall
-    # — kept post-fusion for P3 so concept-probe metrics don't regress before the
-    # relational mode lands. P4: subsumed by the relational (concept-edge) mode.
+    # the body doesn't lexically match. KEPT after P4: measured, the relational
+    # mode supplements but does NOT subsume this — retiring it regresses
+    # concept_grouped (P@5 0.545→0.522) on the dense vault, because relational is
+    # gated gently to avoid flooding. So the boost stays as the concept signal.
     if query_tokens and (set(concept_tokens(fm)) & query_tokens):
         score += _CONCEPT_BOOST
     if hit["page_type"] == "learning_principle":

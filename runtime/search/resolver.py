@@ -42,6 +42,10 @@ C_RRF = 60
 # dedup — see lexical.py / semantic.py — so this is page depth, not row depth.)
 _OVERFETCH = 8
 
+# Relational expansion seeds from the top-N primary (lexical+semantic) fused
+# hits — a floor-ratio proxy: expand only from confident hits, not the tail.
+_RELATIONAL_SEEDS = 10
+
 
 def _rrf_scores(rankings: Sequence[Sequence[int]]) -> Dict[int, float]:
     """Fused score per id: `Σ_modes 1/(C_RRF + rank)`. The math core shared by
@@ -105,20 +109,28 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
         if embedding:
             semantic_hits = engine.semantic.search(embedding, scope=scope, k=fetch)
 
-    rankings = [
-        [c.page_id for c in lexical_hits],
-        [c.page_id for c in semantic_hits],
-    ]
+    # Primary fusion (lexical + semantic) seeds the relational expansion (P4):
+    # a learning that shares a concept-entity with a confident hit surfaces via
+    # the graph vote even when it matched no query term.
+    primary = [[c.page_id for c in lexical_hits], [c.page_id for c in semantic_hits]]
+    relational_hits: List[Candidate] = []
+    if engine.relational is not None:
+        seeds = rrf_fuse(primary)[:_RELATIONAL_SEEDS]
+        if seeds:
+            relational_hits = engine.relational.search(seeds, scope=scope, k=fetch)
+
+    rankings = primary + [[c.page_id for c in relational_hits]]
     scores = _rrf_scores(rankings)
     fused_order = rrf_fuse(rankings)
 
-    # Display fields per page. Lexical overwrites semantic for slug/page_type
-    # (identical anyway); snippet is resolved explicitly so the highlighted
-    # lexical snippet wins even when it would otherwise be an empty string.
-    info: Dict[int, Candidate] = {c.page_id: c for c in semantic_hits}
+    # Display fields per page. Lexical wins slug/page_type/snippet over semantic
+    # over relational; snippet falls through non-empty in that priority.
+    info: Dict[int, Candidate] = {c.page_id: c for c in relational_hits}
+    info.update({c.page_id: c for c in semantic_hits})
     info.update({c.page_id: c for c in lexical_hits})
     lex_snip = {c.page_id: c.snippet for c in lexical_hits}
     sem_snip = {c.page_id: c.snippet for c in semantic_hits}
+    rel_snip = {c.page_id: c.snippet for c in relational_hits}
 
     out: List[Candidate] = []
     for page_id in fused_order[:k]:
@@ -126,7 +138,8 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
         out.append(Candidate(
             page_id=page_id, slug=c.slug, page_type=c.page_type,
             score=scores[page_id],
-            snippet=lex_snip.get(page_id) or sem_snip.get(page_id) or "",
+            snippet=(lex_snip.get(page_id) or sem_snip.get(page_id)
+                     or rel_snip.get(page_id) or ""),
         ))
     return out
 
@@ -188,7 +201,7 @@ def build_context(conn: sqlite3.Connection) -> ResolverContext:
     """
     from ..ai import gateway as _gw
     from ..util import config as _config
-    from .engine import FtsLexical, VecSemantic, VecStore
+    from .engine import FtsLexical, LinkRelational, VecSemantic, VecStore
 
     lexical = FtsLexical(conn)
     gateway = _gw.from_config(_gw.settings_from(_config.load().raw), warmup=False)
@@ -201,6 +214,7 @@ def build_context(conn: sqlite3.Connection) -> ResolverContext:
             semantic = VecSemantic(conn, store)
 
     return ResolverContext(
-        engine=RetrievalEngine(lexical=lexical, semantic=semantic),
+        engine=RetrievalEngine(lexical=lexical, semantic=semantic,
+                               relational=LinkRelational(conn)),
         gateway=gateway, _store=store,
     )

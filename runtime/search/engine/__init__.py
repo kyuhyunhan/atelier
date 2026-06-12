@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from .lexical import FtsLexical, LexicalSearcher
-from .relational import RelationalSearcher
+from .relational import LinkRelational, RelationalSearcher
 from .semantic import SemanticSearcher, VecSemantic
 from .types import Candidate, Scope
 from .vecstore import VecStore
@@ -33,7 +33,7 @@ from .vecstore import VecStore
 __all__ = [
     "RetrievalEngine",
     "LexicalSearcher", "SemanticSearcher", "RelationalSearcher",
-    "FtsLexical", "VecSemantic", "VecStore",
+    "FtsLexical", "VecSemantic", "VecStore", "LinkRelational",
     "Scope", "Candidate",
 ]
 

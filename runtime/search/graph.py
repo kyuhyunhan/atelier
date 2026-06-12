@@ -87,3 +87,42 @@ def outbound(conn: sqlite3.Connection, slug: str) -> List[str]:
         "SELECT DISTINCT pp.slug FROM links l JOIN pages pp ON pp.id = l.to_page_id "
         "WHERE l.from_page=? ORDER BY pp.slug", (p["id"],),
     )]
+
+
+def neighbors_by_id(
+    conn: sqlite3.Connection,
+    seed_ids: List[int],
+    depth: int = 2,
+) -> dict[int, int]:
+    """Multi-source BFS over *resolved* links from seed page_ids, both directions.
+
+    Returns {page_id: min_hop_distance} for pages reachable within `depth`,
+    EXCLUDING the seeds themselves. The id-based, multi-seed sibling of
+    `neighborhood` (which is slug-based, single-seed) — the relational retrieval
+    mode (RFC 0002 P4) seeds it with the fused top hits' page_ids, so a learning
+    that shares a concept-entity with a strong hit (learning → entity → sibling,
+    2 hops) surfaces even when it matched no query term.
+    """
+    seeds = set(seed_ids)
+    seen: dict[int, int] = {sid: 0 for sid in seeds}
+    frontier = list(seeds)
+    for d in range(1, depth + 1):
+        if not frontier:
+            break
+        ph = ",".join("?" * len(frontier))
+        nxt: List[int] = []
+        for r in conn.execute(
+            f"SELECT DISTINCT to_page_id FROM links "
+            f"WHERE from_page IN ({ph}) AND to_page_id IS NOT NULL", frontier):
+            nid = r["to_page_id"]
+            if nid not in seen:
+                seen[nid] = d
+                nxt.append(nid)
+        for r in conn.execute(
+            f"SELECT DISTINCT from_page FROM links WHERE to_page_id IN ({ph})", frontier):
+            nid = r["from_page"]
+            if nid not in seen:
+                seen[nid] = d
+                nxt.append(nid)
+        frontier = nxt
+    return {pid: dist for pid, dist in seen.items() if pid not in seeds}

@@ -289,21 +289,34 @@ def _norm(s: str) -> str:
     return s.strip().lower()
 
 
+# Known top-level slug prefixes — a `to_slug` already starting with one of these
+# is treated as a full path, not a bare shorthand. `provenance/` and `graph/` are
+# the RFC 0003 rename targets (raw/→provenance/, wiki/→graph/); both old and new
+# names are kept here so entity links resolve before AND after GP1's `git mv`.
+_KNOWN_SLUG_PREFIXES = ("raw/", "provenance/", "wiki/", "graph/", "products/",
+                        "notes/", "logs/", "workshop/", "learnings/")
+
+# Bare-shorthand expansion bases, tried in order. `graph/` first (the post-rename
+# home for entities/themes), `wiki/` second (legacy, pre-rename) — so during the
+# transition a bare `[[entities/foo]]` resolves to whichever tree exists.
+_SHORTHAND_BASES = ("graph/", "wiki/")
+
+
 def _candidate_slugs(to_slug: str) -> list[str]:
     """v3 shorthand wikilink forms:
-      [[themes/foo]]              → wiki/themes/foo.md
-      [[entities/foo]]            → wiki/entities/foo.md
-      [[raw/path/to/file.md]]     → raw/path/to/file.md  (already exact)
+      [[entities/foo]]            → graph/entities/foo.md (or wiki/entities/foo.md)
+      [[themes/foo]]              → graph/themes/foo.md   (or wiki/themes/foo.md)
+      [[provenance/path/file.md]] → exact (already prefixed)
       [[wiki/themes/foo.md]]      → exact
     """
     candidates = [to_slug]
     if not to_slug.endswith(".md"):
         candidates.append(to_slug + ".md")
-    if not to_slug.startswith(("raw/", "wiki/", "products/", "notes/", "logs/",
-                               "workshop/", "learnings/")):
-        candidates.append("wiki/" + to_slug)
-        if not to_slug.endswith(".md"):
-            candidates.append("wiki/" + to_slug + ".md")
+    if not to_slug.startswith(_KNOWN_SLUG_PREFIXES):
+        for base in _SHORTHAND_BASES:
+            candidates.append(base + to_slug)
+            if not to_slug.endswith(".md"):
+                candidates.append(base + to_slug + ".md")
     return candidates
 
 

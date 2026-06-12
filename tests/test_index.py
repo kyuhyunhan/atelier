@@ -116,3 +116,24 @@ def test_learning_concept_edges_connect_cross_project(vault_env):
         assert any(s.endswith("b.md") for s in slugs), slugs
     finally:
         conn.close()
+
+
+# ── RFC 0003 P1: _candidate_slugs accepts graph/ + provenance/ (rename targets) ──
+
+def test_candidate_slugs_resolves_bare_entity_to_both_trees():
+    """A bare `[[entities/foo]]` must offer BOTH the new graph/ home and the
+    legacy wiki/ path, so entity links resolve before AND after the GP1 rename."""
+    from runtime.index.reindex import _candidate_slugs
+    cands = _candidate_slugs("entities/foo")
+    assert "graph/entities/foo.md" in cands   # post-rename home
+    assert "wiki/entities/foo.md" in cands    # legacy, during transition
+    # graph/ is tried before wiki/ (post-rename is the canonical target)
+    assert cands.index("graph/entities/foo.md") < cands.index("wiki/entities/foo.md")
+
+
+def test_candidate_slugs_treats_rename_prefixes_as_exact():
+    """A slug already under a known prefix (incl. the new graph/ and provenance/)
+    is an exact path, never re-expanded under graph//wiki/."""
+    from runtime.index.reindex import _candidate_slugs
+    assert _candidate_slugs("graph/entities/foo.md") == ["graph/entities/foo.md"]
+    assert _candidate_slugs("provenance/personal/x.md") == ["provenance/personal/x.md"]

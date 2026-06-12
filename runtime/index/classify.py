@@ -34,12 +34,24 @@ def _rules() -> Tuple[Tuple[str, str], ...]:
     from ..lint.validate_v4 import page_type_rules
 
     out: List[Tuple[str, str]] = []
+    learning_variants: List[Tuple[str, str]] = []
     for pattern, ptype in page_type_rules():
         pat = _normalize_pattern(pattern)
         out.append((pat, ptype))
         if pat.split("/", 1)[0] in ("products", "notes", "logs"):
             out.append(("workshop/" + pat, ptype))
-    return tuple(out)
+        # RFC 0003 P6: every `learnings/...` rule also matches the canonical
+        # `provenance/learning/...` tree (the move target). The overlay still
+        # phrases rules as `learnings/...`; this bridge classifies the relocated
+        # tree without rewriting the data. Order within is the overlay's (INDEX
+        # before glob), so specificity is preserved.
+        if pat.startswith("learnings/"):
+            learning_variants.append(
+                ("provenance/learning/" + pat[len("learnings/"):], ptype))
+    # The variants must OUTRANK the generic `provenance/**/*.md` raw_source
+    # catch-all, so they lead the table. They only ever match provenance/learning/,
+    # so leading can shadow nothing else.
+    return tuple(learning_variants + out)
 
 
 def classify(space: str, slug: str, fm: Dict[str, Any]) -> str:

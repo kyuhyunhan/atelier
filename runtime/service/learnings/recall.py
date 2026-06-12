@@ -191,16 +191,17 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     # store (RFC 0001) via store.iter_accepted_files.
     from . import store as _store
     roots: List[tuple[str, Any]] = []
+    lroot = _store.learning_root(vault)   # provenance/learning/ post-P6, else legacy
     if "learning_principle" in types:
         roots.append(("learning_principle",
-                      sorted((vault / "learnings" / "principles").rglob("*.md"))
-                      if (vault / "learnings" / "principles").exists() else []))
+                      sorted((lroot / "principles").rglob("*.md"))
+                      if (lroot / "principles").exists() else []))
     if "learning_accepted" in types:
         roots.append(("learning_accepted", _store.iter_accepted_files(vault)))
     if "learning_candidate" in types:
         roots.append(("learning_candidate",
-                      sorted((vault / "learnings" / "candidates").rglob("*.md"))
-                      if (vault / "learnings" / "candidates").exists() else []))
+                      sorted((lroot / "candidates").rglob("*.md"))
+                      if (lroot / "candidates").exists() else []))
     for ptype, paths in roots:
         for p in paths:
             if is_noise(p.name):        # shared predicate (INDEX + TAXONOMY)

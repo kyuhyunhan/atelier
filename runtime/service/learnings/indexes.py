@@ -21,6 +21,7 @@ from typing import Dict, Iterable, List, Optional
 
 from ...index import parse as _parse
 from ...util import config as _config
+from . import store as _store
 
 
 _GENERATED_BANNER = (
@@ -94,7 +95,7 @@ def _write_if_changed(target: Path, body: str) -> bool:
 
 def regen_principles(vault: Optional[Path] = None) -> Dict[str, object]:
     vault = vault or _vault_root()
-    root = vault / "learnings" / "principles"
+    root = _store.learning_root(vault) / "principles"
     if not root.exists():
         return {"written": False, "count": 0, "reason": "no principles dir"}
 

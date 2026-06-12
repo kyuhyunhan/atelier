@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 import yaml
 
 from ...util import config as _config
+from . import store as _store
 
 
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
@@ -121,7 +122,7 @@ def capture(*, observation: str,
     now = datetime.now(timezone.utc).astimezone()
     date_dir = now.date().isoformat()
     time_prefix = now.strftime("%H%M")
-    candidates_root = vault_root / "learnings" / "candidates" / date_dir
+    candidates_root = _store.learning_root(vault_root) / "candidates" / date_dir
     candidates_root.mkdir(parents=True, exist_ok=True)
 
     slug = _slug_from_observation(observation, fallback=hook)

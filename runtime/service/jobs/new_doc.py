@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 import yaml
 
 from ...util import config as _config
+from ..learnings import store as _store
 
 
 _TEMPLATES = ("product", "raw", "note", "learning")
@@ -127,9 +128,8 @@ def new_doc(*, template: str, name: str,
     if template == "learning":
         vault = _vault_root()
         day = _now_iso_day()
-        target = (vault / "learnings" / "candidates" / day
-                  / f"{name}.md")
-        rel = f"learnings/candidates/{day}/{name}.md"
+        target = _store.learning_root(vault) / "candidates" / day / f"{name}.md"
+        rel = target.relative_to(vault).as_posix()
         fm = {
             "schema_version": 4,
             "entry_id": _entry_id(rel),

@@ -305,7 +305,11 @@ _SHORTHAND_BASES = ("graph/", "wiki/")
 # renamed tree (and vice-versa), so the wiki/->graph/, raw/->provenance/ move
 # never dangles the ~980 explicit [[raw/...]]/[[wiki/...]] body links.
 _PREFIX_ALIASES = {"raw/": "provenance/", "wiki/": "graph/",
-                   "provenance/": "raw/", "graph/": "wiki/"}
+                   "provenance/": "raw/", "graph/": "wiki/",
+                   # RFC 0003 P6: body links [[learnings/...]] resolve to the
+                   # relocated tree (and vice-versa), symmetric with raw/wiki.
+                   "learnings/": "provenance/learning/",
+                   "provenance/learning/": "learnings/"}
 
 
 def _candidate_slugs(to_slug: str) -> list[str]:

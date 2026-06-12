@@ -73,7 +73,8 @@ def _grep_walk(root: Path, query: str,
     Facet comparison delegates to recall._fm_has_facet so it is case-insensitive
     and identical to the DB / recall-fallback paths (no silent mismatch)."""
     from . import recall as _recall
-    learnings_root = root / "learnings"
+    from . import store as _store
+    learnings_root = _store.learning_root(root)
     if not learnings_root.exists():
         return []
     rx = re.compile(re.escape(query), re.I) if query else None

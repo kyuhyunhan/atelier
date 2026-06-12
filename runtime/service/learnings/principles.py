@@ -2,7 +2,7 @@
 
 A *principle* generalizes recurring per-project learnings into a
 universal rule that the developer adopts across all projects. Principles
-live at `<vault>/learnings/principles/<slug>.md` and carry an `evidence`
+live at `<vault>/provenance/learning/principles/<slug>.md` and carry an `evidence`
 array linking back to the by-project learnings that ground them.
 
 Two creation paths:

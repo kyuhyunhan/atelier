@@ -19,7 +19,7 @@ Each memory file's frontmatter declares its semantic type. We map:
                                     human review before promoting).
 
 Deduplication is by sha256(body) recorded in
-`<vault>/learnings/.absorbed-from-claude/<hash>.json`. Re-runs are no-ops
+`<vault>/provenance/learning/.absorbed-from-claude/<hash>.json`. Re-runs are no-ops
 for hashes already seen; a file whose body changes upstream becomes a
 new hash and lands as a fresh entry — the curator decides whether the
 old one is now stale.

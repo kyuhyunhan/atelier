@@ -293,9 +293,8 @@ def _norm(s: str) -> str:
 # is treated as a full path, not a bare shorthand. `provenance/` and `graph/` are
 # the RFC 0003 rename targets (raw/→provenance/, wiki/→graph/); both old and new
 # names are kept here so entity links resolve before AND after GP1's `git mv`.
-_KNOWN_SLUG_PREFIXES = ("raw/", "provenance/", "provenance/learning/", "wiki/",
-                        "graph/", "products/", "notes/", "logs/", "workshop/",
-                        "learnings/")
+_KNOWN_SLUG_PREFIXES = ("raw/", "provenance/", "wiki/", "graph/", "products/",
+                        "notes/", "logs/", "workshop/", "learnings/")
 
 # Bare-shorthand expansion bases, tried in order. `graph/` first (the post-rename
 # home for entities/themes), `wiki/` second (legacy, pre-rename) — so during the

@@ -14,7 +14,7 @@ The 4 operations form the lifecycle:
 `accept` enforces the criteria `must` checks; `should` is informational.
 `retract` works on candidates and on already-accepted entries.
 
-A single-line entry per operation is appended to `learnings/log.md`.
+A single-line entry per operation is appended to `provenance/learning/log.md`.
 """
 from __future__ import annotations
 

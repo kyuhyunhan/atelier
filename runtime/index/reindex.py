@@ -293,8 +293,9 @@ def _norm(s: str) -> str:
 # is treated as a full path, not a bare shorthand. `provenance/` and `graph/` are
 # the RFC 0003 rename targets (raw/→provenance/, wiki/→graph/); both old and new
 # names are kept here so entity links resolve before AND after GP1's `git mv`.
-_KNOWN_SLUG_PREFIXES = ("raw/", "provenance/", "wiki/", "graph/", "products/",
-                        "notes/", "logs/", "workshop/", "learnings/")
+_KNOWN_SLUG_PREFIXES = ("raw/", "provenance/", "provenance/learning/", "wiki/",
+                        "graph/", "products/", "notes/", "logs/", "workshop/",
+                        "learnings/")
 
 # Bare-shorthand expansion bases, tried in order. `graph/` first (the post-rename
 # home for entities/themes), `wiki/` second (legacy, pre-rename) — so during the
@@ -305,7 +306,11 @@ _SHORTHAND_BASES = ("graph/", "wiki/")
 # renamed tree (and vice-versa), so the wiki/->graph/, raw/->provenance/ move
 # never dangles the ~980 explicit [[raw/...]]/[[wiki/...]] body links.
 _PREFIX_ALIASES = {"raw/": "provenance/", "wiki/": "graph/",
-                   "provenance/": "raw/", "graph/": "wiki/"}
+                   "provenance/": "raw/", "graph/": "wiki/",
+                   # RFC 0003 P6: body links [[learnings/...]] resolve to the
+                   # relocated tree (and vice-versa), symmetric with raw/wiki.
+                   "learnings/": "provenance/learning/",
+                   "provenance/learning/": "learnings/"}
 
 
 def _candidate_slugs(to_slug: str) -> list[str]:

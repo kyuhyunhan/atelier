@@ -10,11 +10,14 @@ page_types:
 
   # ── Raw sources (human-owned, engine READ-ONLY) ───────────────────────────
   raw_source:
-    # Scoped to the two genres raw_source owns. `provenance/` gained a third child
-    # under RFC 0003 P6 — `provenance/learning/` — which has its own learning_*
-    # page types; a bare `provenance/**` catch-all would misclassify relocated
-    # learnings as raw sources. (Legacy `raw/` never held learnings, so it stays broad.)
-    path_patterns: ["provenance/personal/**/*.md", "provenance/knowledge/**/*.md",
+    # Scoped to the two genres raw_source owns, by SECOND path segment. fnmatch's
+    # single `*` crosses `/`, so `provenance/personal/*.md` matches personal pages
+    # at ANY depth (single- AND multi-level) — unlike `**/*.md`, whose literal `/`
+    # requires an intermediate dir. This (a) keeps single-depth pages classified
+    # and (b) excludes `provenance/learning/**` wholesale (RFC 0003 P6) — including
+    # flat files like archived/<id>.md that match no learning_* glob and would
+    # otherwise fall through to this catch-all and be mislabeled raw_source.
+    path_patterns: ["provenance/personal/*.md", "provenance/knowledge/*.md",
                     "raw/**/*.md"]
     writer: human
     required_fields:

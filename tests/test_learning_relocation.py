@@ -75,3 +75,22 @@ def test_notes_root_derives_from_learning_root(tmp_path: Path) -> None:
     hard-coded literal."""
     (tmp_path / "provenance" / "learning").mkdir(parents=True)
     assert store.notes_root(tmp_path) == tmp_path / "provenance" / "learning" / "notes"
+
+
+def test_fs_scan_finds_principles_and_candidates_under_provenance_learning(
+        tmp_path: Path) -> None:
+    """The FTS-less recall fallback must read principles/candidates from the
+    relocated tree — not the legacy learnings/ path (regression guard: the
+    fallback was the one reader that bypassed learning_root)."""
+    from runtime.service.learnings import recall
+    v = tmp_path
+    pdir = v / "provenance" / "learning" / "principles"
+    pdir.mkdir(parents=True)
+    (pdir / "p.md").write_text("---\ntitle: p\n---\nzebrafish principle body\n",
+                               encoding="utf-8")
+    cdir = v / "provenance" / "learning" / "candidates" / "2026-06"
+    cdir.mkdir(parents=True)
+    (cdir / "c.md").write_text("---\ntitle: c\n---\nzebrafish candidate body\n",
+                               encoding="utf-8")
+    assert len(recall._fs_scan("zebrafish", v, ["learning_principle"], 10)) == 1
+    assert len(recall._fs_scan("zebrafish", v, ["learning_candidate"], 10)) == 1

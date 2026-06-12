@@ -17,8 +17,28 @@ from pathlib import Path
 from typing import Iterator, List, Optional
 
 
+def learning_root(vault: Path) -> Path:
+    """Base of the learnings subtree — the ONE place that knows where it lives.
+
+    RFC 0003 P6 relocates the tree from top-level `learnings/` to
+    `provenance/learning/` (finishing the §4 directory vision P1/GP1 left undone).
+    During the transition we resolve to whichever tree is on disk, so the vault
+    `git mv` (V1) flips every reader and writer atomically with no dangling — the
+    same dual-path discipline that kept GP1 safe.
+
+    Transition default is the LEGACY tree: resolve to `provenance/learning/` only
+    when it actually exists on disk, else `learnings/`. This makes P6-E1 a pure
+    no-op (current and fresh vaults stay on `learnings/`); the switch happens the
+    instant V1's `git mv` creates the new tree. Flipping the fresh-vault *default*
+    to the new canonical location is P6-E2, after the real vault has moved."""
+    new = vault / "provenance" / "learning"
+    if new.exists():
+        return new
+    return vault / "learnings"
+
+
 def notes_root(vault: Path) -> Path:
-    return vault / "learnings" / "notes"
+    return learning_root(vault) / "notes"
 
 
 def accepted_roots(vault: Path) -> List[Path]:

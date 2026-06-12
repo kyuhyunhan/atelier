@@ -151,7 +151,7 @@ def _iter_memories(source_root: Path) -> Iterable[Path]:
 
 
 def _dedup_dir(vault: Path) -> Path:
-    return vault / "learnings" / _DEDUP_DIRNAME
+    return _store.learning_root(vault) / _DEDUP_DIRNAME
 
 
 def _already_absorbed(vault: Path, body_sha: str) -> bool:
@@ -275,7 +275,7 @@ def absorb(*, dry_run: bool = False,
             day = datetime.now(timezone.utc).date().isoformat()
             base = (f"{datetime.now().strftime('%H%M')}-claude-"
                     f"{_slugify(mem.name)}-{mem.body_sha[:10]}.md")
-            cand_path = (vault / "learnings" / "candidates" / day / base)
+            cand_path = (_store.learning_root(vault) / "candidates" / day / base)
             fm = _build_frontmatter(mem, status="candidate", target_topic=None)
             if not dry_run:
                 _write_md(cand_path, fm, mem.body)

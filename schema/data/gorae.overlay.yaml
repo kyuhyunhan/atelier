@@ -10,7 +10,12 @@ page_types:
 
   # ── Raw sources (human-owned, engine READ-ONLY) ───────────────────────────
   raw_source:
-    path_patterns: ["provenance/**/*.md", "raw/**/*.md"]
+    # Scoped to the two genres raw_source owns. `provenance/` gained a third child
+    # under RFC 0003 P6 — `provenance/learning/` — which has its own learning_*
+    # page types; a bare `provenance/**` catch-all would misclassify relocated
+    # learnings as raw sources. (Legacy `raw/` never held learnings, so it stays broad.)
+    path_patterns: ["provenance/personal/**/*.md", "provenance/knowledge/**/*.md",
+                    "raw/**/*.md"]
     writer: human
     required_fields:
       [schema_version, entry_id, sensitivity, created_at]

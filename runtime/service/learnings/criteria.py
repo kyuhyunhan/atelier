@@ -24,6 +24,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from . import store as _store
+
 
 _OVERLAY = (Path(__file__).resolve().parents[3] / "schema" / "data"
             / "learnings.overlay.yaml")
@@ -66,7 +68,7 @@ def _parse(blob: Dict[str, Any]) -> CriteriaSet:
 def load(vault_root: Path) -> CriteriaSet:
     """Parse the in-vault criteria file, falling back to the overlay
     template when the user hasn't seeded one yet."""
-    in_vault = vault_root / "learnings" / "criteria.yaml"
+    in_vault = _store.learning_root(vault_root) / "criteria.yaml"
     blob: Dict[str, Any]
     if in_vault.exists():
         blob = yaml.safe_load(in_vault.read_text()) or {}

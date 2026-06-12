@@ -44,7 +44,7 @@ def _vault_root() -> Path:
 
 
 def _iter_candidates(vault: Path) -> Iterable[Path]:
-    root = vault / "learnings" / "candidates"
+    root = _store.learning_root(vault) / "candidates"
     if not root.exists():
         return
     for p in sorted(root.rglob("*.md")):
@@ -89,7 +89,7 @@ def _find_candidate(vault: Path, slug: str) -> Path:
 
     # 1) exact filename or relative-path match
     for p in candidates:
-        rel = p.relative_to(vault / "learnings" / "candidates").as_posix()
+        rel = p.relative_to(_store.learning_root(vault) / "candidates").as_posix()
         if rel == needle or rel == slug:
             return p
         if p.stem == needle:
@@ -139,7 +139,7 @@ def _prune_empty_dirs(start: Path, *, stop: Path) -> None:
 
 
 def _append_log(vault: Path, line: str) -> None:
-    log = vault / "learnings" / "log.md"
+    log = _store.learning_root(vault) / "log.md"
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("a", encoding="utf-8") as f:
         f.write(line.rstrip("\n") + "\n")
@@ -280,7 +280,7 @@ def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     dest.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
     src.unlink()
-    _prune_empty_dirs(src.parent, stop=vault / "learnings" / "candidates")
+    _prune_empty_dirs(src.parent, stop=_store.learning_root(vault) / "candidates")
 
     _append_log(vault,
                 f"- {fm['accepted_at']}  accept  {topic or '-'}/{src.stem}  "
@@ -301,7 +301,7 @@ def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
 def archive(*, candidate_slug: str, reason: str) -> Dict[str, Any]:
     vault = _vault_root()
     src = _find_candidate(vault, candidate_slug)
-    dest_dir = vault / "learnings" / "archived"
+    dest_dir = _store.learning_root(vault) / "archived"
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / src.name
 
@@ -313,7 +313,7 @@ def archive(*, candidate_slug: str, reason: str) -> Dict[str, Any]:
     })
     src_parent = src.parent
     shutil.move(str(src), str(dest))
-    _prune_empty_dirs(src_parent, stop=vault / "learnings" / "candidates")
+    _prune_empty_dirs(src_parent, stop=_store.learning_root(vault) / "candidates")
 
     _append_log(vault,
                 f"- {_now_iso()}  archive  {src.stem}  reason={reason!r}")
@@ -332,7 +332,7 @@ def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
         src = _find_candidate(vault, slug)
         from_state = "candidate"
 
-    dest_dir = vault / "learnings" / "archived"
+    dest_dir = _store.learning_root(vault) / "archived"
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / src.name
 
@@ -346,13 +346,13 @@ def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
     shutil.move(str(src), str(dest))
     # prune only if the source lived under candidates/ (retract can also
     # come from accepted/, whose dirs we keep)
-    _prune_empty_dirs(src_parent, stop=vault / "learnings" / "candidates")
+    _prune_empty_dirs(src_parent, stop=_store.learning_root(vault) / "candidates")
 
     # Defensive: drop any LEGACY by-project mirror copy left over from before
     # the flat-store migration (RFC 0001 retired the mirror; P7 deletes the
     # tree). No-op once the tree is gone.
     if from_state == "accepted":
-        legacy_mirror = vault / "learnings" / "accepted" / "by-project"
+        legacy_mirror = _store.learning_root(vault) / "accepted" / "by-project"
         if legacy_mirror.exists():
             for p in legacy_mirror.rglob(src.name):
                 p.unlink(missing_ok=True)

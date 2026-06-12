@@ -32,6 +32,7 @@ import yaml
 
 from ...index import parse as _parse
 from ...util import config as _config
+from . import store as _store
 
 
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
@@ -45,11 +46,11 @@ def _vault_root() -> Path:
 
 
 def _principles_dir(vault: Optional[Path] = None) -> Path:
-    return (vault or _vault_root()) / "learnings" / "principles"
+    return _store.learning_root(vault or _vault_root()) / "principles"
 
 
 def _archived_dir(vault: Optional[Path] = None) -> Path:
-    return (vault or _vault_root()) / "learnings" / "archived"
+    return _store.learning_root(vault or _vault_root()) / "archived"
 
 
 def _now_iso() -> str:
@@ -544,7 +545,7 @@ def reject(*, slug: str, reason: str = "rejected") -> Dict[str, Any]:
 
 
 def _append_log(vault: Path, line: str) -> None:
-    log = vault / "learnings" / "log.md"
+    log = _store.learning_root(vault) / "log.md"
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("a", encoding="utf-8") as f:
         f.write(line.rstrip("\n") + "\n")

@@ -43,7 +43,7 @@ def test_backfill_creates_stub_that_resolves_dangling_concept_edge(atelier_env: 
         conn.close()
 
     assert stats["created"] >= 2          # dependency-direction + layering
-    assert (vault / "wiki" / "entities" / "dependency-direction.md").exists()
+    assert (vault / "graph" / "entities" / "dependency-direction.md").exists()
 
     # Reindex picks up the new stubs → the concept edges now RESOLVE.
     api.reindex(space="gorae", full=True)
@@ -81,7 +81,7 @@ def test_backfill_skips_concepts_an_existing_entity_already_covers(atelier_env: 
     vault = atelier_env["gorae"]
     # An entity already covers 'dependency-direction' via an alias.
     write_page(
-        vault / "wiki" / "entities" / "dep-dir.md",
+        vault / "graph" / "entities" / "dep-dir.md",
         {"title": "Dependency Direction", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 1, "created": "2026-05-01",
          "updated": "2026-05-01", "provenance": "knowledge", "sensitivity": "public",

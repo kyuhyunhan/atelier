@@ -46,6 +46,12 @@ _OVERFETCH = 8
 # hits — a floor-ratio proxy: expand only from confident hits, not the tail.
 _RELATIONAL_SEEDS = 10
 
+# Post-fusion relational nudge weight, as a multiple of the RRF rank-gap
+# (1/C - 1/(C+1) ~ 0.00027). Tuned against the live gate so a concept sibling
+# surfaces without displacing precise hits. c.score is 1/(1+hop_distance).
+_RANK_GAP = 1.0 / C_RRF - 1.0 / (C_RRF + 1)
+_REL_BOOST = 4.0 * _RANK_GAP
+
 
 def _rrf_scores(rankings: Sequence[Sequence[int]]) -> Dict[int, float]:
     """Fused score per id: `Σ_modes 1/(C_RRF + rank)`. The math core shared by
@@ -109,19 +115,35 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
         if embedding:
             semantic_hits = engine.semantic.search(embedding, scope=scope, k=fetch)
 
-    # Primary fusion (lexical + semantic) seeds the relational expansion (P4):
-    # a learning that shares a concept-entity with a confident hit surfaces via
-    # the graph vote even when it matched no query term.
+    # Primary fusion (lexical + semantic) — this owns the score scale.
     primary = [[c.page_id for c in lexical_hits], [c.page_id for c in semantic_hits]]
+    scores = _rrf_scores(primary)
+    first_seen: Dict[int, int] = {}
+    _o = 0
+    for lst in primary:
+        for pid in lst:
+            if pid not in first_seen:
+                first_seen[pid] = _o
+                _o += 1
+
+    # Relational (P4) as a GATED POST-FUSION nudge, NOT an equal RRF vote: the
+    # dense concept graph makes graph-expansion non-selective, so an equal vote
+    # floods and displaces precise hits (measured: dark 0→72). Instead a graph
+    # neighbour of a confident hit gets a SMALL additive bump (a fraction of an
+    # RRF rank-gap, scaled by proximity) — enough to surface a body-less concept
+    # sibling at the margin, never enough to outrank a real lexical/semantic hit.
     relational_hits: List[Candidate] = []
     if engine.relational is not None:
         seeds = rrf_fuse(primary)[:_RELATIONAL_SEEDS]
         if seeds:
             relational_hits = engine.relational.search(seeds, scope=scope, k=fetch)
+    for c in relational_hits:
+        scores[c.page_id] = scores.get(c.page_id, 0.0) + _REL_BOOST * c.score
+        if c.page_id not in first_seen:
+            first_seen[c.page_id] = _o
+            _o += 1
 
-    rankings = primary + [[c.page_id for c in relational_hits]]
-    scores = _rrf_scores(rankings)
-    fused_order = rrf_fuse(rankings)
+    fused_order = sorted(scores, key=lambda pid: (-scores[pid], first_seen[pid]))
 
     # Display fields per page. Lexical wins slug/page_type/snippet over semantic
     # over relational; snippet falls through non-empty in that priority.

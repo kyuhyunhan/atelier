@@ -1,8 +1,9 @@
-"""PR-10: regenerate wiki/index.md from wiki/* page frontmatter.
+"""PR-10: regenerate the graph index (graph/index.md) from page frontmatter.
 
 Distinct from the DB reindex pipeline — this produces a human-readable
-catalog under wiki/index.md. The categories follow the gorae overlay
-(digests, sources, entities, themes, synthesis).
+catalog under graph/index.md (legacy: wiki/index.md, pre-GP1 vaults). The
+categories follow the gorae overlay; retired sections (digests, synthesis —
+RFC 0003 GP5) scan empty and render nothing.
 """
 from __future__ import annotations
 
@@ -36,17 +37,20 @@ def _scan(wiki: Path, subdir: str) -> List[Tuple[str, Dict[str, Any]]]:
     return pages
 
 
-def _render(sections: Dict[str, List[Tuple[str, Dict[str, Any]]]]) -> str:
+def _render(sections: Dict[str, List[Tuple[str, Dict[str, Any]]]],
+            root_name: str = "graph") -> str:
     today = dt.date.today().isoformat()
     total = sum(len(v) for v in sections.values())
     out: List[str] = []
     out.append("---")
+    # `wiki_index` stays the page_type name post-GP1: the overlay's path_patterns
+    # cover graph/index.md, and renaming the type is schema churn for no gain.
     out.append("type: wiki_index")
     out.append(f"updated: {today}")
     out.append(f"page_count: {total}")
     out.append("---")
     out.append("")
-    out.append("# wiki — index")
+    out.append(f"# {root_name} — index")
     out.append("")
     out.append(f"_{total} pages, regenerated {today}_")
     out.append("")
@@ -63,14 +67,25 @@ def _render(sections: Dict[str, List[Tuple[str, Dict[str, Any]]]]) -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
+def _graph_root(vault: Path) -> Path:
+    """Scan/write base for the index — `graph/` post-GP1 (RFC 0003), falling back
+    to legacy `wiki/` for an un-renamed vault. ONE resolver for both the scan and
+    the write target, so regen can never read one tree and resurrect the other
+    (the 1507 bug class: a writer whose path misses a rename re-creates it)."""
+    new = vault / "graph"
+    if new.exists():
+        return new
+    return vault / "wiki"
+
+
 def regen(*, role: str = "librarian-territory",
           dry_run: bool = False) -> Dict[str, Any]:
     vault = _vault_root()
-    wiki = vault / "wiki"
+    wiki = _graph_root(vault)
     sections: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {
         name: _scan(wiki, name) for name in _SECTIONS
     }
-    rendered = _render(sections)
+    rendered = _render(sections, root_name=wiki.name)
 
     target = wiki / "index.md"
     changed = (not target.exists()) or target.read_text(encoding="utf-8") != rendered

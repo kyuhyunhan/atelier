@@ -5,6 +5,7 @@ Covers fix_pending, index_regen, clip_image, new_doc.
 from __future__ import annotations
 
 import asyncio
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -67,6 +68,20 @@ def test_index_regen_idempotent_second_run(atelier_env: Dict) -> None:
     _idx.regen()
     out2 = _idx.regen()
     assert out2["changed"] is False
+
+
+def test_index_regen_targets_graph_tree_post_rename(atelier_env: Dict) -> None:
+    """RFC 0003 GP1: on a renamed vault (graph/, no wiki/), regen must scan AND
+    write graph/ — never resurrect the deprecated wiki/ tree (the 1507 bug class:
+    a writer whose target misses a rename re-creates the old tree)."""
+    vault = atelier_env["gorae"]
+    shutil.rmtree(vault / "wiki", ignore_errors=True)
+    _write(vault / "graph" / "entities" / "foo.md",
+           {"schema_version": 4, "entry_id": "abc", "title": "Foo"})
+    out = _idx.regen()
+    assert out["page_count"] == 1
+    assert (vault / "graph" / "index.md").exists()
+    assert not (vault / "wiki").exists(), "must not resurrect the deprecated wiki/ tree"
 
 
 # ── clip_image (PR-12) ─────────────────────────────────────────────────────

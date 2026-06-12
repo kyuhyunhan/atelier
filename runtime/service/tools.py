@@ -824,12 +824,20 @@ def _register_v01_tools() -> None:
         "semantic vectors, fused by reciprocal rank), with a project-match boost.",
         _h_recall,
     ))
+    # NOTE: this description paraphrases think.SYNTHESIS_CONTRACT for the caller's
+    # convenience; that constant is the single source of truth (also returned in the
+    # payload's `contract` field). Keep this prose in sync when the contract changes.
     register(ToolDef(
         "atelier_think",
-        "Query-time synthesis EVIDENCE over the learnings memory: top-K cited "
-        "passages + an explicit gap signal (what the memory does not confidently "
-        "cover). The engine assembles the evidence; the caller composes the prose "
-        "answer with citations.",
+        "Query-time synthesis over the learnings memory. Returns a deterministic "
+        "evidence bundle — top-K cited passages each with a 1-based index `n`, an "
+        "explicit `gaps` signal (what memory does not confidently cover), and a "
+        "`contract`. The engine does retrieval; YOU compose the prose answer. "
+        "Compose your reply FOLLOWING the returned `contract`: an `## Answer` where "
+        "every factual claim ends with an inline [n] citation marker, a `## Caveats` "
+        "section listing each gap, and a `## Sources` list mapping [n] -> slug/title. "
+        "Never assert what the citations don't support; surface gaps, never invent; "
+        "zero coverage -> an honest 'no memory' answer, not a guess.",
         _h_think,
     ))
     register(ToolDef(

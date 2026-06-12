@@ -5,6 +5,7 @@ Covers fix_pending, index_regen, clip_image, new_doc.
 from __future__ import annotations
 
 import asyncio
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -74,7 +75,6 @@ def test_index_regen_targets_graph_tree_post_rename(atelier_env: Dict) -> None:
     write graph/ — never resurrect the deprecated wiki/ tree (the 1507 bug class:
     a writer whose target misses a rename re-creates the old tree)."""
     vault = atelier_env["gorae"]
-    import shutil
     shutil.rmtree(vault / "wiki", ignore_errors=True)
     _write(vault / "graph" / "entities" / "foo.md",
            {"schema_version": 4, "entry_id": "abc", "title": "Foo"})

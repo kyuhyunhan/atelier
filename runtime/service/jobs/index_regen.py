@@ -37,17 +37,20 @@ def _scan(wiki: Path, subdir: str) -> List[Tuple[str, Dict[str, Any]]]:
     return pages
 
 
-def _render(sections: Dict[str, List[Tuple[str, Dict[str, Any]]]]) -> str:
+def _render(sections: Dict[str, List[Tuple[str, Dict[str, Any]]]],
+            root_name: str = "graph") -> str:
     today = dt.date.today().isoformat()
     total = sum(len(v) for v in sections.values())
     out: List[str] = []
     out.append("---")
+    # `wiki_index` stays the page_type name post-GP1: the overlay's path_patterns
+    # cover graph/index.md, and renaming the type is schema churn for no gain.
     out.append("type: wiki_index")
     out.append(f"updated: {today}")
     out.append(f"page_count: {total}")
     out.append("---")
     out.append("")
-    out.append("# wiki — index")
+    out.append(f"# {root_name} — index")
     out.append("")
     out.append(f"_{total} pages, regenerated {today}_")
     out.append("")
@@ -82,7 +85,7 @@ def regen(*, role: str = "librarian-territory",
     sections: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {
         name: _scan(wiki, name) for name in _SECTIONS
     }
-    rendered = _render(sections)
+    rendered = _render(sections, root_name=wiki.name)
 
     target = wiki / "index.md"
     changed = (not target.exists()) or target.read_text(encoding="utf-8") != rendered

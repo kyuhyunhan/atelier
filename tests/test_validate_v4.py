@@ -150,6 +150,23 @@ def _write_ret(path: Path, fm: Dict, body: str = "body\n") -> Path:
     return path
 
 
+def test_present_first_mention_still_pattern_checked(atelier_env: Dict) -> None:
+    """Making first_mention optional must NOT stop pattern-checking it when
+    present — a malformed value on a person entity still fails (the field_specs
+    loop fires on presence, independent of required_fields)."""
+    vault = atelier_env["gorae"]
+    fm = {
+        "title": "이모부", "type": "entity", "category": "person",
+        "first_mention": "2013-7",        # malformed: needs YYYY-MM
+        "source_count": 2, "created": "2026-04-08", "updated": "2026-04-08",
+        "schema_version": 5, "entry_id": _uid(),
+    }
+    p = vault / "graph" / "entities" / "imobu.md"
+    findings = validate_v4.validate_paths([_write_ret(p, fm)], vault_root=vault)
+    assert any("first_mention" in f.message for f in findings), \
+        [f.message for f in findings]
+
+
 def test_wrong_schema_version_fails(atelier_env: Dict) -> None:
     vault = atelier_env["gorae"]
     fm = {"schema_version": 3, "entry_id": _uid()}

@@ -71,7 +71,9 @@ page_types:
     writer: wiki-write
     # first_mention is OPTIONAL (RFC 0003): `domain` entities (folded themes) and
     # concept stubs have no single first-mention month; only event/person-like
-    # entities do. When present it must still match YYYY-MM.
+    # entities do. When present it is still pattern-checked — enforcement comes
+    # from the `field_specs` entry below (which fires on presence), NOT from
+    # listing it in optional_fields (that list is documentation for authors).
     required_fields:
       [title, type, category, source_count, created, updated]
     optional_fields: [first_mention, subtype, scope, sub_themes, aliases]

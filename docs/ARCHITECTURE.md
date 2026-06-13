@@ -67,9 +67,9 @@ can be deleted at any time and rebuilt from Layer 2 via `atelier reindex`.
      ┌──────────────────┐              ┌──────────────────┐
      │    Librarian     │              │     Builder      │
      │  ─────────────   │              │  ─────────────   │
-     │  WRITE: wiki/**  │              │  WRITE: workshop │
-     │  READ:  raw/**   │              │  READ:  gorae/** │
-     │  READ:  workshop │              │  READ:  raw/**   │
+     │ WRITE: graph/**  │              │  WRITE: workshop │
+     │ READ: provenance/│              │  READ:  gorae/** │
+     │ READ:  workshop  │              │ READ: provenance/│
      │                  │              │                  │
      │  ops: ingest,    │              │  ops: new-prod,  │
      │       query,     │              │       log, adr,  │
@@ -110,19 +110,20 @@ Single-writer per space is the integrity invariant. Promotion from workshop
 ### Ingest (gorae)
 
 ```
-human writes raw/personal/diary/2026/05/15.md
+human writes provenance/personal/diary/2026/05/15.md
         │
         ▼
 "ingest this diary"  ──▶  Librarian agent
         │
         ▼
-1. read raw file
-2. update or create wiki/digests/2026-05.md
-3. extract entities → update wiki/entities/*.md
-4. update wiki/themes/*.md
-5. atelier reindex (rebuild DB tables for changed pages)
-6. append wiki/log.md
-7. git commit wiki/
+1. read provenance file
+2. create/update graph/sources/*.md (per-source summary)
+3. extract entities → update graph/entities/*.md (incl. category:domain hubs)
+4. atelier reindex (rebuild DB tables for changed pages)
+5. append graph/log.md
+6. git commit
+   # No digest/theme step: monthly synthesis is query-time (RFC 0003 GP5);
+   #   theme hubs are domain entities (GP2).
 ```
 
 ### Query (cross-space)
@@ -138,9 +139,9 @@ Librarian agent
    → SQLite FTS5 + links table BFS
 2. drill down into ranked pages
 3. (optional) cross-space search workshop for product context
-4. synthesize answer
-5. ask user: file as synthesis?
-6. if yes → wiki/synthesis/*.md → reindex → log → commit
+4. synthesize answer via `atelier_think` (query-time, cited; RFC 0003 P5)
+   # Synthesis is ephemeral — composed on demand from the deterministic
+   #   evidence bundle, no longer filed as a stored graph/synthesis page.
 ```
 
 ### Build (workshop)
@@ -160,11 +161,12 @@ atelier new-product foo
 
 ## Learnings domain & dream cycle
 
-The `learnings/` subtree (added v0.2.1) is the **developer-self memory**:
-lessons accumulated across *every* project the user touches through an
-agent, then distilled into universal principles. It is the bidirectional
-counterpart to the rest of the vault — where `raw/`+`wiki/` capture
-*knowledge* and `workshop/` captures *product work*, `learnings/`
+The learnings subtree (added v0.2.1; relocated to `provenance/learning/` in
+RFC 0003 P6) is the **developer-self memory**: lessons accumulated across
+*every* project the user touches through an agent, then distilled into
+universal principles. It is the bidirectional counterpart to the rest of the
+vault — where `provenance/`+`graph/` capture *knowledge* and `workshop/`
+captures *product work*, the learning subtree
 captures *how the developer works*.
 
 ### Three tiers
@@ -449,17 +451,21 @@ in v0.2 without restructuring.
 ### Filesystem (authoritative)
 
 ```
-<librarian-space>/                    Librarian territory (path from config.yaml)
-├── raw/                              human-written, immutable from agents
+<vault>/                              single vault (path from config.yaml)
+├── provenance/                       L0 "what came in" — human-written, immutable from agents
 │   ├── personal/{diary,writings,...}
 │   ├── knowledge/{...domains...}
-│   └── personal/inbox/               (mobile inbox landing; v0.3)
-├── wiki/                             Librarian-written
-│   ├── digests/, sources/, entities/, themes/, synthesis/
+│   ├── personal/inbox/               (mobile inbox landing; v0.3)
+│   └── learning/                     captured lessons (RFC 0003 P6)
+│       └── candidates/, notes/, principles/, archived/
+├── graph/                            entity backbone — Librarian-written
+│   ├── entities/, sources/           (entities incl. category:domain = folded themes)
 │   ├── index.md                      auto-regenerated
 │   └── log.md                        append-only
+                                      # digests/, synthesis/, themes/ retired (RFC 0003
+                                      #   GP5/GP2): synthesis is query-time via `think`
 
-<builder-space>/                      Builder territory (path from config.yaml)
+<workshop-space>/                     Builder territory (path from config.yaml)
 ├── products/{name}/
 │   ├── README.md
 │   ├── spec/, adr/, retro/, log/
@@ -597,7 +603,7 @@ five named entry points:
 | Reservation | Where | Active in |
 |---|---|---|
 | `base.yaml.source` and `inbox_status` | schema/data/base.yaml | Phase 1 (defined, nullable) |
-| `raw/personal/inbox/` directory | gorae | Phase 9 (created on first capture) |
+| `provenance/personal/inbox/` directory | gorae | Phase 9 (created on first capture) |
 | `runtime/service/capture.py` | runtime | Phase 7 (function, no HTTP) |
 | `claims.py` `mobile-claim` enum | runtime/service | Phase 7 (placeholder) |
 | `config.channels.mobile` | example.config.yaml | Phase 0 (commented) |

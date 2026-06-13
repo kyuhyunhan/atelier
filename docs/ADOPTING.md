@@ -48,7 +48,7 @@ is annotated.
 
 ```bash
 atelier setup                                 # verify config + apply DB schema
-atelier reindex --space gorae --full          # index your wiki/raw
+atelier reindex --space gorae --full          # index your provenance/ + graph/
 atelier reindex --space workshop --full       # index your products
 atelier doctor                                # confirm all six checks green
 atelier lint --space gorae --show 20          # see what needs cleanup
@@ -76,7 +76,7 @@ overlays.
 
 | Thing to customize | Where |
 |---|---|
-| Page types | `schema/data/{librarian,builder}.overlay.yaml` |
+| Page types | `schema/data/{gorae,workshop,learnings}.overlay.yaml` |
 | Lint rules | `schema/data/lint.yaml` (severity, automation, queries) |
 | Voice (per-user) | `~/.atelier/voices/{librarian,builder}.md` (out of tree) |
 | PII guard regexes | `~/.atelier/pii_patterns.txt` (out of tree) |

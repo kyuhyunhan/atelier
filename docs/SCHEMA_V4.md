@@ -1,8 +1,12 @@
-# atelier Schema v4
+# atelier Schema (v4 → v5, RFC 0003)
 
-Schema v4 is the first version under atelier's authority. It is a non-breaking evolution
-of gorae's Schema v3: all field meanings are preserved; the version number bumps to signal
-that atelier (not gorae's SCHEMA.md alone) is the canonical definition point.
+Schema v4 was the first version under atelier's authority — a non-breaking evolution of
+gorae's Schema v3. **RFC 0003 then evolved it to v5** (provenance/sensitivity as
+first-class fields, the `raw/`→`provenance/` and `wiki/`→`graph/` renames, learnings
+relocated under `provenance/learning/`, digests/synthesis retired to query-time, themes
+folded into `domain` entities). This doc reflects the current (v5) state; the v3→v4 and
+RFC 0003 sections below record the evolution. Canonical definition lives in
+`schema/data/*.yaml`.
 
 ---
 
@@ -11,8 +15,9 @@ that atelier (not gorae's SCHEMA.md alone) is the canonical definition point.
 | File | Role |
 |---|---|
 | `schema/data/base.yaml` | Common frontmatter fields shared across all spaces |
-| `schema/data/librarian.overlay.yaml` | gorae space: raw sources + wiki page types |
-| `schema/data/builder.overlay.yaml` | workshop space: products, notes, logs |
+| `schema/data/gorae.overlay.yaml` | gorae space: provenance sources + graph (entity) page types |
+| `schema/data/workshop.overlay.yaml` | workshop space: products, notes, logs |
+| `schema/data/learnings.overlay.yaml` | learnings domain: candidate / accepted / principle / archived |
 | `schema/data/linking.yaml` | URI scheme, wikilink syntax, backward compat rules |
 | `schema/data/lint.yaml` | L1–L7 rules as data (severity, automation, DB queries) |
 | `schema/db/sql/0001_initial.sql` | SQLite DDL — tables, FTS5, views, indexes, triggers |
@@ -31,13 +36,24 @@ that atelier (not gorae's SCHEMA.md alone) is the canonical definition point.
 | DB | None | SQLite (`~/.atelier/cache/atelier.db`) |
 | Mobile fields | Not present | `source`, `inbox_status` in `base.yaml` (nullable, not validated until Phase H) |
 
-### What did NOT change
+### What did NOT change (v3 → v4)
 
 - All v3 field names, types, and semantics are identical in v4.
-- gorae directory structure is unchanged (`raw/`, `wiki/`, SCHEMA.md).
-- All 5 wiki page types (digest, source, entity, theme, synthesis) are unchanged.
-- Lint rules L1–L7 have the same definitions; L2 and L7 remain manual.
 - Web Clipper template works with `schema_version: 4` (same fields, bump only).
+
+## v4 → v5 Changes (RFC 0003)
+
+| Item | v4 | v5 (current) |
+|---|---|---|
+| Directories | `raw/`, `wiki/`, `learnings/` | `provenance/`, `graph/`, `provenance/learning/` |
+| `provenance` | — | a frontmatter value (`personal`\|`knowledge`\|`learning`) projected to a `GENERATED` DB column in `0001_initial.sql` — NOT declared in base.yaml |
+| `digest` / `synthesis` pages | stored | retired to query-time (`atelier_think`, GP5) |
+| `theme` pages | separate `themes/` tree | folded into `graph/entities/` as `category: domain` (GP2; original `scope` preserved) |
+| entity `category` | person/place/book/concept/organization | + `domain`; `first_mention` now optional |
+| Lint L4 (first-mention) | active | retired (was digest-derived) |
+
+Old prefixes (`raw/`, `wiki/`, `learnings/`) still resolve via the reindex aliasing
+layer, so the rename is non-breaking for existing links.
 
 ### Migration
 
@@ -56,7 +72,7 @@ Defined in `schema/data/base.yaml`. All spaces inherit these.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `schema_version` | integer | yes | Must be `4` |
+| `schema_version` | integer | yes | `4` or `5` |
 | `entry_id` | UUID v5 | yes | Derived from `created_at[0].value` |
 | `title` | string | yes | Nullable |
 | `summary` | string | no | Nullable |
@@ -71,20 +87,28 @@ Defined in `schema/data/base.yaml`. All spaces inherit these.
 
 ---
 
-## Librarian Overlay (gorae space)
+## Gorae Overlay (gorae space)
 
-Defined in `schema/data/librarian.overlay.yaml`.
+Defined in `schema/data/gorae.overlay.yaml`. Paths cover both the canonical
+post-RFC-0003 prefix and the legacy one (for un-migrated vaults).
 
 ### Page types
 
-| Type | Path | Writer |
-|---|---|---|
-| `raw_source` | `raw/**/*.md` | human |
-| `digest` | `wiki/digests/YYYY-MM.md` | librarian |
-| `source` | `wiki/sources/*.md` | librarian |
-| `entity` | `wiki/entities/*.md` | librarian |
-| `theme` | `wiki/themes/*.md` | librarian |
-| `synthesis` | `wiki/synthesis/*.md` | librarian |
+| Type | Path (canonical / legacy) | Writer | Status |
+|---|---|---|---|
+| `raw_source` | `provenance/{personal,knowledge}/**` / `raw/**` | human | active |
+| `source` | `graph/sources/*` / `wiki/sources/*` | librarian | active |
+| `entity` | `graph/entities/*` / `wiki/entities/*` | librarian | active (incl. `category: domain` = folded themes) |
+| `digest` | `graph/digests/YYYY-MM` | librarian | **defined, retired in vault (GP5)** |
+| `theme` | `graph/themes/*` | librarian | **defined, folded into entities (GP2)** |
+| `synthesis` | `graph/synthesis/*` | librarian | **defined, retired in vault (GP5)** |
+
+Learnings live in a separate overlay (`learnings.overlay.yaml`): `learning_candidate`,
+`learning_accepted` (the flat `notes/` store), `learning_principle`, `learning_archived`.
+**Canonical vault location is `provenance/learning/{candidates,notes,principles,archived}/`**
+(files relocated there in RFC 0003 P6). Note the overlay's `path_pattern`s still use the
+legacy `learnings/...` prefix; the classify layer aliases `provenance/learning/...` to
+match (the same dual-path mechanism as wiki↔graph), so both resolve.
 
 ### Entity thresholds (unchanged from v3)
 
@@ -99,9 +123,9 @@ Defined in `schema/data/librarian.overlay.yaml`.
 
 ---
 
-## Builder Overlay (workshop space)
+## Workshop Overlay (workshop space)
 
-Defined in `schema/data/builder.overlay.yaml`.
+Defined in `schema/data/workshop.overlay.yaml`.
 
 | Type | Path | Writer |
 |---|---|---|
@@ -121,13 +145,13 @@ Defined in `schema/data/lint.yaml`. Loaded by `runtime/lint/` at startup.
 | L1 | broken-links | FAIL | yes |
 | L2 | hallucination | FAIL | no (manual) |
 | L3 | source-count | WARN | yes (fixable) |
-| L4 | first-mention | WARN | yes (fixable) |
+| L4 | first-mention | — | **RETIRED (RFC 0003 GP5; was digest-derived). YAML keeps it as a record (`check: null`); dropped from `run_on_lint_command`, never runs.** |
 | L5 | orphan | WARN | yes |
 | L6 | stale | INFO | yes |
 | L7 | gap | INFO | no (manual) |
 
-`atelier lint` runs L1, L3, L4, L5, L6 automatically.
-`atelier lint --fix` applies L3, L4 fixers.
+`atelier lint` runs L1, L3, L5, L6 automatically.
+`atelier lint --fix` applies the L3 fixer.
 L2 and L7 are flagged only after manual agent review.
 
 ---
@@ -161,12 +185,13 @@ atelier reindex --space workshop --full
 Defined in `schema/data/linking.yaml`.
 
 ```
-[[gorae:wiki/entities/foo.md]]          # qualified cross-space link
-[[gorae:wiki/themes/example.md|example theme]]   # with display label
+[[gorae:graph/entities/foo.md]]         # qualified cross-space link
+[[gorae:graph/entities/example.md|example]]      # with display label
 [[workshop:products/bar/README.md]]     # workshop link
-[[raw/personal/diary/2026/01/01.md]]    # v3 bare link (resolved as gorae:)
+[[provenance/personal/diary/2026/01/01.md]]    # bare link (resolved as gorae:)
 ```
 
-v3 bare links (`[[raw/...]]`, `[[wiki/...]]`) are treated as `gorae:`-scoped during
+Bare and legacy-prefixed links (`[[raw/...]]`, `[[wiki/...]]`, `[[provenance/...]]`,
+`[[graph/...]]`) are treated as `gorae:`-scoped during
 indexing. The linker records the resolved form; source files are not rewritten until
 `atelier promote apply` is run.

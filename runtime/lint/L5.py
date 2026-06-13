@@ -1,4 +1,4 @@
-"""L5 — orphan wiki pages with zero inbound links."""
+"""L5 — orphan graph pages with zero inbound links (graph/ post-GP1; wiki/ legacy)."""
 from __future__ import annotations
 
 import sqlite3
@@ -17,7 +17,7 @@ def check_orphan_pages(
         SELECT p.slug
         FROM   pages p
         LEFT   JOIN backlinks_count bc ON bc.page_id = p.id
-        WHERE  p.slug LIKE 'wiki/%'
+        WHERE  (p.slug LIKE 'graph/%' OR p.slug LIKE 'wiki/%')
           AND  (bc.inbound_count IS NULL OR bc.inbound_count = 0)
     """
     findings: List[Finding] = []

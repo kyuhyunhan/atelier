@@ -1,4 +1,5 @@
-"""L6 — stale raw sources without a corresponding wiki/sources page."""
+"""L6 — provenance sources without a corresponding graph/sources page.
+(page_type-based, so path-agnostic across the raw/→provenance/, wiki/→graph/ rename.)"""
 from __future__ import annotations
 
 import fnmatch
@@ -52,7 +53,7 @@ def check_stale_sources(
         findings.append(Finding(
             rule_id=rule.id,
             severity=rule.severity,
-            message="raw source has no wiki/sources/ summary",
+            message="provenance source has no graph/sources/ summary",
             page_slug=slug,
         ))
     return findings

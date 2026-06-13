@@ -1,4 +1,5 @@
-"""L1 — broken raw-links from wiki/ pages."""
+"""L1 — broken provenance-links from graph/ pages (raw/→provenance/, wiki/→graph/
+post-GP1; both prefixes covered for legacy vaults)."""
 from __future__ import annotations
 
 import sqlite3
@@ -12,14 +13,14 @@ from .runner import Finding, register_check
 def check_raw_links_exist(
     conn: sqlite3.Connection, rule: Rule, space: Optional[str]
 ) -> List[Finding]:
-    """Wiki pages whose [[raw/...]] link does not resolve."""
+    """Graph pages whose [[provenance/...]] (or legacy [[raw/...]]) link does not resolve."""
     sql = """
         SELECT p.slug AS from_slug, l.to_target
         FROM   links l
         JOIN   pages p ON p.id = l.from_page
         WHERE  l.to_page_id IS NULL
-          AND  l.to_target LIKE 'raw/%'
-          AND  p.slug LIKE 'wiki/%'
+          AND  (l.to_target LIKE 'provenance/%' OR l.to_target LIKE 'raw/%')
+          AND  (p.slug LIKE 'graph/%' OR p.slug LIKE 'wiki/%')
     """
     findings: List[Finding] = []
     for r in conn.execute(sql):

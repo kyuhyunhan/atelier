@@ -46,7 +46,7 @@ RFC 0003 sections below record the evolution. Canonical definition lives in
 | Item | v4 | v5 (current) |
 |---|---|---|
 | Directories | `raw/`, `wiki/`, `learnings/` | `provenance/`, `graph/`, `provenance/learning/` |
-| `provenance` field | — | `personal`\|`knowledge`\|`learning` (first-class, projected DB column) |
+| `provenance` | — | a frontmatter value (`personal`\|`knowledge`\|`learning`) projected to a `GENERATED` DB column in `0001_initial.sql` — NOT declared in base.yaml |
 | `digest` / `synthesis` pages | stored | retired to query-time (`atelier_think`, GP5) |
 | `theme` pages | separate `themes/` tree | folded into `graph/entities/` as `category: domain` (GP2; original `scope` preserved) |
 | entity `category` | person/place/book/concept/organization | + `domain`; `first_mention` now optional |
@@ -73,7 +73,6 @@ Defined in `schema/data/base.yaml`. All spaces inherit these.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `schema_version` | integer | yes | `4` or `5` |
-| `provenance` | enum | — | `personal`\|`knowledge`\|`learning` (RFC 0003; projected DB column) |
 | `entry_id` | UUID v5 | yes | Derived from `created_at[0].value` |
 | `title` | string | yes | Nullable |
 | `summary` | string | no | Nullable |
@@ -104,10 +103,12 @@ post-RFC-0003 prefix and the legacy one (for un-migrated vaults).
 | `theme` | `graph/themes/*` | librarian | **defined, folded into entities (GP2)** |
 | `synthesis` | `graph/synthesis/*` | librarian | **defined, retired in vault (GP5)** |
 
-Learnings live in a separate overlay (`learnings.overlay.yaml`): `learning_candidate`
-(`provenance/learning/candidates/**`), `learning_accepted` (`provenance/learning/notes/**`),
-`learning_principle` (`provenance/learning/principles/*`), `learning_archived`
-(`provenance/learning/archived/**`).
+Learnings live in a separate overlay (`learnings.overlay.yaml`): `learning_candidate`,
+`learning_accepted` (the flat `notes/` store), `learning_principle`, `learning_archived`.
+**Canonical vault location is `provenance/learning/{candidates,notes,principles,archived}/`**
+(files relocated there in RFC 0003 P6). Note the overlay's `path_pattern`s still use the
+legacy `learnings/...` prefix; the classify layer aliases `provenance/learning/...` to
+match (the same dual-path mechanism as wiki↔graph), so both resolve.
 
 ### Entity thresholds (unchanged from v3)
 
@@ -144,7 +145,7 @@ Defined in `schema/data/lint.yaml`. Loaded by `runtime/lint/` at startup.
 | L1 | broken-links | FAIL | yes |
 | L2 | hallucination | FAIL | no (manual) |
 | L3 | source-count | WARN | yes (fixable) |
-| L4 | first-mention | — | **RETIRED (RFC 0003 GP5; was digest-derived)** |
+| L4 | first-mention | — | **RETIRED (RFC 0003 GP5; was digest-derived). YAML keeps it as a record (`check: null`); dropped from `run_on_lint_command`, never runs.** |
 | L5 | orphan | WARN | yes |
 | L6 | stale | INFO | yes |
 | L7 | gap | INFO | no (manual) |

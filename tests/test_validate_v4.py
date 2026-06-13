@@ -126,6 +126,30 @@ def test_missing_required_field_fails(atelier_env: Dict) -> None:
     assert "missing required field: agent_kind" in msgs
 
 
+def test_domain_entity_validates_without_first_mention(atelier_env: Dict) -> None:
+    """RFC 0003: themes fold into entities as the `domain` category, which has no
+    single first_mention. The schema must accept category=domain AND treat
+    first_mention as optional (616 existing domain/concept entities already lack
+    it)."""
+    vault = atelier_env["gorae"]
+    fm = {
+        "title": "AI Engineering", "type": "entity", "category": "domain",
+        "source_count": 44, "created": "2026-04-08", "updated": "2026-04-08",
+        "schema_version": 5, "entry_id": _uid(),
+        # no first_mention — intentional for a domain
+    }
+    p = vault / "graph" / "entities" / "ai-engineering.md"
+    findings = validate_v4.validate_paths([_write_ret(p, fm)], vault_root=vault)
+    msgs = " ".join(f.message for f in findings)
+    assert "category" not in msgs, msgs
+    assert "first_mention" not in msgs, msgs
+
+
+def _write_ret(path: Path, fm: Dict, body: str = "body\n") -> Path:
+    _write(path, fm, body)
+    return path
+
+
 def test_wrong_schema_version_fails(atelier_env: Dict) -> None:
     vault = atelier_env["gorae"]
     fm = {"schema_version": 3, "entry_id": _uid()}

@@ -69,13 +69,19 @@ page_types:
   entity:
     path_patterns: ["graph/entities/*.md", "wiki/entities/*.md"]
     writer: wiki-write
+    # first_mention is OPTIONAL (RFC 0003): `domain` entities (folded themes) and
+    # concept stubs have no single first-mention month; only event/person-like
+    # entities do. When present it must still match YYYY-MM.
     required_fields:
-      [title, type, category, first_mention, source_count, created, updated]
+      [title, type, category, source_count, created, updated]
+    optional_fields: [first_mention, subtype, scope, sub_themes, aliases]
     field_specs:
       type:         { const: entity }
       category:
         type: string
-        enum: [person, place, book, concept, organization]
+        # `domain` (RFC 0003 §4): a thematic hub — knowledge OR personal — that
+        # folded themes become; the original theme `scope` is preserved as a field.
+        enum: [person, place, book, concept, organization, domain]
       first_mention: { type: string, pattern: "^[0-9]{4}-[0-9]{2}$" }
       source_count: { type: integer, minimum: 0 }
       created:      { type: string, format: date }

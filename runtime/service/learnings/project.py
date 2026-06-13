@@ -2,7 +2,7 @@
 
 Three call paths must agree on "what project is this session":
 
-- **capture** writes the `project_hint` tag (and the by-project mirror),
+- **capture** writes the `project_hint` tag (the by-project mirror was retired, RFC 0001),
 - **bootstrap** injects the per-project learnings section at session start,
 - **recall** boosts per-project hits each turn.
 

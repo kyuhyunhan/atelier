@@ -210,7 +210,7 @@ async def _h_new_doc(template: str, name: str,
                       fields: Optional[Dict[str, Any]] = None
                       ) -> Dict[str, Any]:
     """Scaffold a new document under raw/, workshop/products, workshop/notes,
-    or learnings/candidates/."""
+    or provenance/learning/candidates/."""
     from .jobs import new_doc as _jnd
     return _jnd.new_doc(template=template, name=name, role=role,
                          fields=fields)
@@ -259,7 +259,7 @@ async def _h_learning_capture(observation: str = "",
                               observation_kind: str = "feedback",
                               require_why: bool = True
                               ) -> Dict[str, Any]:
-    """Append a candidate learning to learnings/candidates/.
+    """Append a candidate learning to provenance/learning/candidates/.
 
     A substance gate rejects content-free captures (empty/stub
     observation + no why → `no-substance`; and, with require_why=True,
@@ -341,7 +341,7 @@ async def _h_learning_accept(candidate_slug: str,
                              override_unknown: bool = False,
                              override_must: bool = False
                              ) -> Dict[str, Any]:
-    """Promote a candidate to learnings/accepted/. Refuses on must-fail
+    """Promote a candidate to provenance/learning/notes/. Refuses on must-fail
     unless override_must (a reviewed curator decision); forbidden
     criteria (pii/pure-meta) are never overridable."""
     from .learnings import review as _rev
@@ -356,7 +356,7 @@ async def _h_learning_accept(candidate_slug: str,
 
 
 async def _h_learning_archive(candidate_slug: str, reason: str) -> Dict[str, Any]:
-    """Move a candidate to learnings/archived/."""
+    """Move a candidate to provenance/learning/archived/."""
     from .learnings import review as _rev
     return _rev.archive(candidate_slug=candidate_slug, reason=reason)
 
@@ -428,7 +428,7 @@ async def _h_principle_list(priority: Optional[str] = None,
 
 
 async def _h_principle_archive(slug: str, reason: str) -> Dict[str, Any]:
-    """Move a principle to learnings/archived/ with ac_status=retracted."""
+    """Move a principle to provenance/learning/archived/ with ac_status=retracted."""
     from .learnings import principles as _pr
     return _pr.archive(slug=slug, reason=reason)
 
@@ -705,7 +705,7 @@ def _register_v01_tools() -> None:
                      lock_role=_claims.WriterRole.LEARNINGS))
     register(ToolDef(
         "atelier_learning_capture",
-        "Append a candidate learning to learnings/candidates/. "
+        "Append a candidate learning to provenance/learning/candidates/. "
         "Permissive — acceptance criteria are checked at promotion time.",
         _h_learning_capture,
         claim=_claims.Claim.CAPTOR_WRITE,
@@ -718,7 +718,7 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_learning_accept",
-        "Promote a candidate to learnings/accepted/. Refuses unless every "
+        "Promote a candidate to provenance/learning/notes/. Refuses unless every "
         "must-criterion passes (override_unknown=True to bypass unknown).",
         _h_learning_accept,
         claim=_claims.Claim.CURATOR_WRITE,
@@ -726,14 +726,14 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_learning_archive",
-        "Move a candidate to learnings/archived/ with an archive_reason.",
+        "Move a candidate to provenance/learning/archived/ with an archive_reason.",
         _h_learning_archive,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))
     register(ToolDef(
         "atelier_learning_retract",
-        "Retract a candidate or accepted learning into learnings/archived/.",
+        "Retract a candidate or accepted learning into provenance/learning/archived/.",
         _h_learning_retract,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
@@ -784,7 +784,7 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_principle_archive",
-        "Retire a principle into learnings/archived/.",
+        "Retire a principle into provenance/learning/archived/.",
         _h_principle_archive,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,

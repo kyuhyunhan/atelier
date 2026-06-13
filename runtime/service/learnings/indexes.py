@@ -2,7 +2,6 @@
 
 Two indexes:
 
-- `learnings/accepted/by-project/<project>/INDEX.md`
 - `learnings/principles/INDEX.md`
 
 Each is regenerated on demand by the operations that change the

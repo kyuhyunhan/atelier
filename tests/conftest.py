@@ -99,6 +99,8 @@ def vault_env(atelier_env: Dict[str, Path], monkeypatch: pytest.MonkeyPatch
             "provenance": {"writer": "human-only"},
             "graph": {"writer": "librarian-write"},
             "workshop": {"writer": "builder-write"},
+            # candidates is append-only/captor-write; the broader provenance/learning
+            # key covers notes/principles/archived under curator-write.
             "provenance/learning/candidates": {"writer": "captor-write", "append_only": True},
             "provenance/learning":            {"writer": "curator-write"},
         },

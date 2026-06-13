@@ -123,10 +123,10 @@ def test_alias_resolution(vault_env: Dict) -> None:
     from runtime.util import config, db
 
     vault = vault_env["vault"]
-    write_page(vault / "wiki" / "entities" / "bar.md",
+    write_page(vault / "graph" / "entities" / "bar.md",
                {"title": "Bar", "type": "entity", "aliases": ["Bar Alias"]},
                "Entity with an alias.")
-    write_page(vault / "learnings" / "notes" / "2026-01" / "l.md",
+    write_page(vault / "provenance" / "learning" / "notes" / "2026-01" / "l.md",
                {"schema_version": 4, "entry_id": "x", "status": "accepted",
                 "target_topic": "t"},
                "Mentions [[Bar Alias]].")
@@ -136,9 +136,9 @@ def test_alias_resolution(vault_env: Dict) -> None:
     conn = db.connect()
     try:
         ent_id = conn.execute(
-            "SELECT id FROM pages WHERE slug='wiki/entities/bar.md'"
+            "SELECT id FROM pages WHERE slug='graph/entities/bar.md'"
         ).fetchone()["id"]
-        rows = _links_from(conn, "learnings/notes/2026-01/l.md")
+        rows = _links_from(conn, "provenance/learning/notes/2026-01/l.md")
         assert any(r["to_page_id"] == ent_id for r in rows), rows
     finally:
         conn.close()

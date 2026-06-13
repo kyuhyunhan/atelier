@@ -27,7 +27,7 @@ def check_raw_links_exist(
         findings.append(Finding(
             rule_id=rule.id,
             severity=rule.severity,
-            message=f"broken raw-link: {r['to_target']}",
+            message=f"broken provenance-link: {r['to_target']}",
             page_slug=r["from_slug"],
             details={"to_target": r["to_target"]},
         ))

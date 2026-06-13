@@ -20,6 +20,24 @@ def test_L1_catches_broken_raw_link(atelier_env):
     assert out["failed"]
 
 
+def test_L1_catches_broken_provenance_link_from_graph(atelier_env):
+    """Canonical post-GP1 coverage: a graph/ page with a broken [[provenance/...]]
+    link is flagged (the legacy wiki/raw test above only exercises the old branch)."""
+    from runtime.service import api
+    gorae = atelier_env["gorae"]
+    write_page(
+        gorae / "graph" / "sources" / "ghost.md",
+        {"title": "ghost", "type": "source",
+         "raw": "[[provenance/doesnt-exist.md]]",
+         "visibility": "private", "created": "2026-05-27", "updated": "2026-05-27"},
+        "see [[provenance/personal/writings/nonexistent.md]]",
+    )
+    api.reindex(space="gorae", full=True)
+    out = api.lint(space="gorae", rule_ids=["L1"])
+    fails = [f for f in out["findings"] if f["severity"] == "FAIL"]
+    assert fails, "L1 should fail on a broken provenance link from a graph page"
+
+
 def test_L3_source_count_drift_and_fix(atelier_env):
     from runtime.service import api
     from runtime.util import db

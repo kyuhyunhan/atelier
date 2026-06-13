@@ -31,7 +31,7 @@ def check_stale_sources(
     ]
     exempt_patterns = [p for p in exempt_patterns if p]
 
-    # Collect existing wiki/source slugs by basename (sans extension)
+    # Collect existing source-page slugs by basename (sans extension)
     source_basenames = {
         r["slug"].split("/")[-1].rsplit(".", 1)[0]
         for r in conn.execute(

@@ -51,12 +51,12 @@ def test_fix_pending_apply(atelier_env: Dict) -> None:
 
 def test_index_regen_creates_file(atelier_env: Dict) -> None:
     vault = atelier_env["gorae"]
-    _write(vault / "wiki" / "entities" / "foo.md",
+    _write(vault / "graph" / "entities" / "foo.md",
            {"schema_version": 4, "entry_id": "abc", "title": "Foo"})
     out = _idx.regen()
     assert out["changed"] is True
     assert out["page_count"] == 1
-    text = (vault / "wiki" / "index.md").read_text()
+    text = (vault / "graph" / "index.md").read_text()
     assert "entities (1)" in text
     assert "[[foo]] — Foo" in text
 

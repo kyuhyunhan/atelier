@@ -28,7 +28,7 @@ def _seed_workshop_note(vault, name, *, layer, also_in) -> None:
 def test_repair_moves_flattened_topic_to_aspect(vault_env: Dict) -> None:
     vault = vault_env["vault"]
     # damaged: target_topic holds the project-local layer; no aspect, no also_in.
-    write_page(vault / "learnings" / "notes" / "2026-05" / "d1.md",
+    write_page(vault / "provenance" / "learning" / "notes" / "2026-05" / "d1.md",
                {**_DAMAGED, "entry_id": "D1", "target_project": "lexio",
                 "target_topic": "cross-cutting"}, "## Observation\n\nx\n")
     # also_in survives only in the live workshop note.
@@ -39,14 +39,14 @@ def test_repair_moves_flattened_topic_to_aspect(vault_env: Dict) -> None:
     assert rep["recovered_also_in"] == 1
 
     fm, _ = split_frontmatter(
-        (vault / "learnings/notes/2026-05/d1.md").read_text())
+        (vault / "provenance/learning/notes/2026-05/d1.md").read_text())
     assert fm["aspect"] == ["cross-cutting", "product"]
     assert "target_topic" not in fm
 
 
 def test_repair_is_idempotent(vault_env: Dict) -> None:
     vault = vault_env["vault"]
-    write_page(vault / "learnings" / "notes" / "2026-05" / "d1.md",
+    write_page(vault / "provenance" / "learning" / "notes" / "2026-05" / "d1.md",
                {**_DAMAGED, "entry_id": "D1", "target_project": "lexio",
                 "target_topic": "client"}, "## Observation\n\nx\n")
     _rp.repair(vault, apply=True)
@@ -58,14 +58,14 @@ def test_repair_is_idempotent(vault_env: Dict) -> None:
 def test_repair_skips_native_learnings(vault_env: Dict) -> None:
     """A non-absorbed learning with a legitimate global topic is untouched."""
     vault = vault_env["vault"]
-    write_page(vault / "learnings" / "notes" / "2026-05" / "n1.md",
+    write_page(vault / "provenance" / "learning" / "notes" / "2026-05" / "n1.md",
                {**_DAMAGED, "agent_kind": "claude-code", "entry_id": "N1",
                 "target_project": "atelier", "target_topic": "surfacing-audit"},
                "## Observation\n\nx\n")
     rep = _rp.repair(vault, apply=True)
     assert rep["repaired"] == 0
     fm, _ = split_frontmatter(
-        (vault / "learnings/notes/2026-05/n1.md").read_text())
+        (vault / "provenance/learning/notes/2026-05/n1.md").read_text())
     assert fm["target_topic"] == "surfacing-audit"   # untouched
 
 
@@ -73,12 +73,12 @@ def test_repair_without_workshop_uses_topic_as_primary(vault_env: Dict) -> None:
     """If the workshop source is gone (no also_in to recover), the flattened
     topic still becomes the primary aspect — lossless."""
     vault = vault_env["vault"]
-    write_page(vault / "learnings" / "notes" / "2026-05" / "d2.md",
+    write_page(vault / "provenance" / "learning" / "notes" / "2026-05" / "d2.md",
                {**_DAMAGED, "entry_id": "D2", "target_project": "lexio",
                 "target_topic": "server"}, "## Observation\n\nx\n")
     rep = _rp.repair(vault, apply=True)
     assert rep["repaired"] == 1
     fm, _ = split_frontmatter(
-        (vault / "learnings/notes/2026-05/d2.md").read_text())
+        (vault / "provenance/learning/notes/2026-05/d2.md").read_text())
     assert fm["aspect"] == ["server"]
     assert "target_topic" not in fm

@@ -67,7 +67,7 @@ def _accepted(vault, entry_id, body, *, topic=None, touches=None):
         fm["target_topic"] = topic
     if touches:
         fm["touches"] = touches
-    write_page(vault / "learnings" / "notes" / "2026-01" / f"{entry_id}.md", fm, body)
+    write_page(vault / "provenance" / "learning" / "notes" / "2026-01" / f"{entry_id}.md", fm, body)
 
 
 def test_concept_probes_group_only_shared_concepts(vault_env: Dict):

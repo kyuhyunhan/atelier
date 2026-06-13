@@ -158,8 +158,8 @@ def _insert_touches(path: Path, tags: List[str]) -> bool:
 
 def apply_tags(mapping: Dict[str, List[str]],
                *, probe_k: Optional[int] = None) -> Dict[str, Any]:
-    """Apply `entry_id → tags` to canonicals AND their by-project mirrors,
-    snapshot-wrapped:
+    """Apply `entry_id → tags` to canonicals (the by-project mirror was retired,
+    RFC 0001), snapshot-wrapped:
 
     1. surfacing snapshot (before)
     2. per learning: drop tags with no body echo (`rejected`), insert the rest

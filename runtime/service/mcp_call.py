@@ -148,6 +148,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--hook")
     p.add_argument("--observation")
     p.add_argument("--project_hint")
+    # `false`/`true` (case-insensitive) → bool; anything else is left as-is so an
+    # explicit --json require_why still wins. Lets session-end hooks land a
+    # candidate without a why (judged later by curation) — RFC 0004 phase 1.
+    p.add_argument("--require_why")
     args, extra = p.parse_known_args(argv)
 
     params: Dict[str, Any] = {}
@@ -165,6 +169,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         v = getattr(args, fld)
         if v is not None:
             params[fld] = v
+    if args.require_why is not None:
+        low = args.require_why.strip().lower()
+        params["require_why"] = low != "false" if low in ("false", "true") \
+            else args.require_why
+
+    # Claude Code's SessionEnd/PreCompact payload (forwarded via --payload-from-stdin)
+    # carries envelope keys (cwd, hook_event_name, transcript, trigger, …) that are
+    # NOT capture params; the FastMCP handler binds by signature and would choke on
+    # an unexpected kwarg. Whitelist to the capture tool's real fields. Scoped to
+    # this one tool so the generic CLI still passes arbitrary args to other tools.
+    if args.tool == "atelier_learning_capture":
+        _CAPTURE_FIELDS = {
+            "observation", "why", "rule", "excerpt", "working_dir",
+            "project_hint", "session_id", "transcript_path", "agent_kind",
+            "hook", "observation_kind", "require_why",
+        }
+        params = {k: v for k, v in params.items() if k in _CAPTURE_FIELDS}
 
     log.configure()                       # short-lived CLI: ensure the file sink
     cfg = _read_config(Path(args.config).expanduser())

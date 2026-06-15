@@ -89,7 +89,11 @@ if command -v atelier >/dev/null 2>&1; then
     extra_dream="$(atelier dream --status 2>/dev/null)"
 fi
 
+# Join non-empty segments with " | " — never emit a leading separator when the
+# base statusline is empty (e.g. ccstatusline absent).
 out="$base"
-[ -n "$extra_activity" ] && out="$out | $extra_activity"
-[ -n "$extra_dream" ]    && out="$out | $extra_dream"
+for seg in "$extra_activity" "$extra_dream"; do
+    [ -n "$seg" ] || continue
+    if [ -n "$out" ]; then out="$out | $seg"; else out="$seg"; fi
+done
 printf '%s\n' "$out"

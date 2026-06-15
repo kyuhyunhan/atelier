@@ -26,11 +26,26 @@ HOOK_KIND="${1:-SessionEnd}"
 
 command -v atelier-mcp-call >/dev/null 2>&1 || exit 0
 
-# Claude Code pipes the hook payload (JSON: session_id, transcript_path, cwd, …)
-# on stdin. --payload-from-stdin forwards it; mcp_call whitelists capture fields
-# and --require_why false lets the candidate land.
-atelier-mcp-call atelier_learning_capture \
-    --working_dir "$PWD" \
+# Read the payload once so we can both extract cwd AND re-pipe it to the CLI.
+PAYLOAD="$(cat 2>/dev/null || true)"
+
+# Prefer the session's real cwd from the payload, falling back to $PWD — same as
+# signal-recall.sh / session-bootstrap.sh. The hook runner's own working dir is
+# not guaranteed to be the user's project root, so $PWD alone is unreliable.
+WORKING_DIR="$(printf '%s' "$PAYLOAD" | python3 -c "
+import json, sys
+try:
+    print(json.loads(sys.stdin.read() or '{}').get('cwd') or '')
+except Exception:
+    pass
+" 2>/dev/null)"
+[ -z "$WORKING_DIR" ] && WORKING_DIR="$PWD"
+
+# Land a candidate with no why (require_why=false); curation judges quality later.
+# --payload-from-stdin forwards transcript_path/session_id; mcp_call whitelists
+# capture fields and drops Claude Code envelope keys.
+printf '%s' "$PAYLOAD" | atelier-mcp-call atelier_learning_capture \
+    --working_dir "$WORKING_DIR" \
     --hook "$HOOK_KIND" \
     --require_why false \
     --payload-from-stdin \

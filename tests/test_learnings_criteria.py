@@ -14,13 +14,18 @@ def test_default_template_parses() -> None:
     template = _crit.default_template()
     blob = yaml.safe_load(template)
     assert blob["version"] == 1
-    assert any(c["id"] == "has_why" for c in blob["must"])
+    # RFC 0004 phase 2: has_why is advisory (SHOULD), not a MUST.
+    assert any(c["id"] == "has_why" for c in blob["should"])
+    assert not any(c["id"] == "has_why" for c in blob["must"])
 
 
 def test_load_falls_back_to_template(tmp_path: Path) -> None:
     cs = _crit.load(tmp_path)  # no learnings/criteria.yaml present
     must_ids = {c.id for c in cs.must}
-    assert {"has_why", "is_specific", "is_actionable"} <= must_ids
+    should_ids = {c.id for c in cs.should}
+    assert {"is_specific", "is_actionable"} <= must_ids
+    assert "has_why" in should_ids
+    assert "has_why" not in must_ids
 
 
 def test_load_uses_in_vault_when_present(tmp_path: Path) -> None:
@@ -72,14 +77,17 @@ def test_good_candidate_passes_must(tmp_path: Path) -> None:
     assert res.forbidden_clear()
 
 
-def test_missing_why_section_fails_must(tmp_path: Path) -> None:
+def test_missing_why_section_is_should_not_must(tmp_path: Path) -> None:
+    """RFC 0004 phase 2: a missing why no longer blocks promotion (must still
+    passes), but the advisory has_why SHOULD-check records it as False."""
     no_why = _GOOD_BODY.replace("## Why this matters\n"
                                 "fts5 ignores tilde tokens; "
                                 "UI returned 'no results' silently.\n",
                                 "## Why this matters\n\n")
     res = _crit.check(_sample_fm(), no_why, accepted_index=[],
                       vault_root=tmp_path)
-    assert not res.must_pass()
+    assert res.must_pass()                      # promotable without a why
+    assert res.should.get("has_why") is False   # but flagged as missing
 
 
 def test_pii_leak_triggers_forbidden(tmp_path: Path) -> None:

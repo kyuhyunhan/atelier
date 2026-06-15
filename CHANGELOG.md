@@ -4,6 +4,30 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — generous capture + project identity (RFC 0004 phase 2)
+
+- **Empty `why` no longer rejects a capture.** A genuine observation with no
+  `why` is now written and flagged `why_status: missing` instead of being
+  dropped (`empty-why` skip removed). `require_why=True` still adds a soft
+  `why_missing` nudge to the result so a live agent can re-capture with a why,
+  but the candidate is kept either way. Only the `no-substance` gate (empty
+  observation *and* empty why) still rejects. Realizes "generous capture,
+  strict promotion."
+- **`has_why` demoted MUST → SHOULD** in the acceptance-criteria template, so a
+  why-less candidate is promotable (curation judges, or fills the why first).
+  New `why_status` frontmatter field (`present|missing`) added to the candidate
+  and accepted schemas.
+- **Capture is now observable.** `_h_learning_capture` logs one line per
+  outcome (`learning-capture.ok|skip|project-unknown`); previously a rejected
+  or mis-keyed capture left no trace. `project-unknown` fires when a capture
+  lands under a project slug no accepted learning carries yet.
+- **Capture surfaces project identity confidence.** `capture()` now returns
+  `project_known` from the shared resolver (`project.resolve_project`), and the
+  handler logs `project-unknown` when a capture lands under a slug no accepted
+  learning carries yet. (The resolver, `ProjectResolution.known`, and
+  `learnings.project_map` support already existed; this only wires their signal
+  through capture.)
+
 ### Changed — flat, facet-based learnings memory (RFC 0001)
 
 Classification for the `learnings/` domain moved out of the directory path and

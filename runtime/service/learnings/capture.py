@@ -16,12 +16,15 @@ import re
 import uuid as _uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import yaml
 
 from ...util import config as _config
 from . import store as _store
+
+if TYPE_CHECKING:
+    from .project import ProjectResolution
 
 
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
@@ -46,13 +49,15 @@ def _slug_from_observation(observation: str, *, fallback: str) -> str:
 
 def _resolve_project_hint(working_dir: Optional[str],
                           explicit: Optional[str],
-                          cfg: _config.Config) -> Optional[str]:
+                          cfg: _config.Config) -> "ProjectResolution":
     """Resolve the project tag through the shared accessor so capture,
     bootstrap, and recall cannot diverge (learning `1446`). The layered
     chain still honors an explicit hint first and the vault-self
-    dogfooding guard; see `project.resolve_project`."""
+    dogfooding guard; see `project.resolve_project`. Returns the full
+    resolution (slug + source + `known`) so callers can warn when a
+    capture lands under a project no accepted learning carries yet."""
     from . import project as _project
-    return _project.resolve_project(working_dir, explicit=explicit, cfg=cfg).slug
+    return _project.resolve_project(working_dir, explicit=explicit, cfg=cfg)
 
 
 def _build_body(observation: str, why: Optional[str],
@@ -94,25 +99,32 @@ def capture(*, observation: str,
             observation_kind: str = "feedback",
             require_why: bool = True) -> Dict[str, Any]:
     """Write a single candidate. Returns metadata about the new file, or
-    `{skipped: True, reason: ...}` when the capture is rejected.
+    `{skipped: True, reason: ...}` only for the one remaining hard gate.
 
-    Substance gate (C): a capture with no real observation AND no why is
-    a blind hook stub — rejected outright (`no-substance`). With
-    `require_why=True` (default), a capture that has an observation but an
-    empty why is also rejected (`empty-why`): "why this matters" is an
-    LLM judgement a bash hook cannot supply, so the *agent* must fill it.
-    Pass `require_why=False` for sources that carry a free-form rationale
-    outside the template (e.g. absorbed Claude memory).
+    Substance gate: a capture with no real observation AND no why is a
+    blind hook stub — rejected outright (`no-substance`). That is the ONLY
+    rejection.
 
-    Promotion-time acceptance criteria still apply later; this gate only
-    stops content-free noise from ever becoming a candidate.
+    Empty `why` is NOT a rejection (RFC 0004 phase 2). A genuine
+    observation with no why is written and tagged `why_status: missing`;
+    the result carries `why_missing: True` (when `require_why=True`) as a
+    soft nudge so a live agent can re-capture with a why. This realizes
+    "generous capture, strict promotion": nothing real is dropped at the
+    door, and promotion-time criteria (where `has_why` is a SHOULD, not a
+    MUST) decide quality later. `require_why=False` suppresses the nudge
+    for sources that legitimately carry no template why (e.g. session-end
+    hook captures, absorbed Claude memory).
     """
     if _is_substanceless(observation, why):
         return {"skipped": True, "reason": "no-substance",
                 "detail": "empty/stub observation and no why"}
-    if require_why and not (why or "").strip():
-        return {"skipped": True, "reason": "empty-why",
-                "detail": "an agent must fill 'why this matters'"}
+    # A genuine observation with an empty `why` is NO LONGER rejected: it is
+    # written and flagged `why_status: missing` (RFC 0004 phase 2 — "generous
+    # capture, strict promotion"). Losing a real lesson to enforce one optional
+    # field was throwing the baby out with the bathwater. `require_why` now only
+    # controls whether the *result* nudges the caller to add a why; promotion-
+    # time curation judges quality (has_why is a SHOULD, not a MUST).
+    why_present = bool((why or "").strip())
 
     cfg = _config.load()
     vault_root = _resolve_vault_root(cfg)
@@ -148,6 +160,7 @@ def capture(*, observation: str,
         "status": "candidate",
         "ac_status": "pending",
         "observation_kind": observation_kind,
+        "why_status": "present" if why_present else "missing",
         "ac_results": {},
         "links": [],
     }
@@ -155,7 +168,8 @@ def capture(*, observation: str,
         fm["session_id"] = session_id
     if working_dir:
         fm["working_dir"] = working_dir
-    project = _resolve_project_hint(working_dir, project_hint, cfg)
+    resolution = _resolve_project_hint(working_dir, project_hint, cfg)
+    project = resolution.slug
     if project:
         fm["project_hint"] = project
 
@@ -163,9 +177,19 @@ def capture(*, observation: str,
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     target.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
 
-    return {
+    result: Dict[str, Any] = {
         "path": str(target),
         "entry_id": entry_id,
         "project_hint": project,
+        "project_known": resolution.known,
+        "why_status": "present" if why_present else "missing",
         "candidate_dir": str(candidates_root),
     }
+    # Soft nudge (the candidate WAS written): when a why was expected but not
+    # given, tell the caller so a live agent can re-capture with one. Curation
+    # can still promote without it (has_why is a SHOULD).
+    if not why_present and require_why:
+        result["why_missing"] = True
+        result["detail"] = ("captured, but flagged why_status=missing; "
+                            "consider re-capturing with a 'why this matters'")
+    return result

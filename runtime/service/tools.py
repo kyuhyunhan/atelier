@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from ..util import config as _config
+from ..util import logging as _log
 from . import api as _api
 from . import auth as _auth
 from . import claims as _claims
@@ -274,7 +275,7 @@ async def _h_learning_capture(observation: str = "",
     # fabricate a "(hook=...) session_id=..." stub — the gate would (and
     # should) reject that as no-substance anyway.
     obs = observation or _extract_transcript_tail(transcript_path) or ""
-    return _cap.capture(
+    result = _cap.capture(
         observation=obs,
         why=why, rule=rule,
         excerpt=excerpt or (transcript_path or None),
@@ -286,6 +287,23 @@ async def _h_learning_capture(observation: str = "",
         observation_kind=observation_kind,
         require_why=require_why,
     )
+    # Observability: capture is otherwise silent, so a "capture rejected"
+    # report leaves no trace. One line per outcome makes losses auditable
+    # (`rg learning-capture ~/.atelier/logs/atelier.log`).
+    sid = session_id or sess.session_id
+    if result.get("skipped"):
+        _log.warn("learning-capture.skip", reason=result.get("reason"),
+                  hook=hook, session=sid)
+    else:
+        _log.info("learning-capture.ok", project=result.get("project_hint"),
+                  why=result.get("why_status"), session=sid)
+        # The project slug carries no accepted learning yet — this capture
+        # will not be recalled under any existing project context. Surface
+        # it loudly (the `known` signal `resolve_project` already computes).
+        if result.get("project_known") is False and result.get("project_hint"):
+            _log.warn("learning-capture.project-unknown",
+                      project=result.get("project_hint"), session=sid)
+    return result
 
 
 def _extract_transcript_tail(path: Optional[str], *, max_msgs: int = 3,

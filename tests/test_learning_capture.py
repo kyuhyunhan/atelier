@@ -56,13 +56,35 @@ def test_capture_inside_vault_tags_atelier_self(atelier_env: Dict) -> None:
 # ── substance gate (C) ──────────────────────────────────────────────────────
 
 
-def test_capture_rejects_empty_why(atelier_env: Dict) -> None:
-    """An observation with no why is rejected — 'why this matters' is an
-    LLM judgement a blind hook cannot supply."""
+def test_capture_flags_empty_why_but_writes(atelier_env: Dict) -> None:
+    """RFC 0004 phase 2: an observation with no why is NO LONGER rejected.
+    It is written, flagged why_status=missing, and the result carries a soft
+    why_missing nudge (require_why defaults True)."""
     result = _cap.capture(observation="something happened", hook="Stop")
-    assert result["skipped"] is True
-    assert result["reason"] == "empty-why"
-    assert "path" not in result
+    assert "skipped" not in result
+    path = Path(result["path"])
+    assert path.exists()
+    assert result["why_status"] == "missing"
+    assert result["why_missing"] is True
+    assert _read_fm(path)["why_status"] == "missing"
+
+
+def test_capture_require_why_false_suppresses_nudge(atelier_env: Dict) -> None:
+    """With require_why=False (session-end hook / absorbed memory), an empty
+    why still writes + flags missing, but emits no why_missing nudge."""
+    result = _cap.capture(observation="hook-derived observation",
+                          require_why=False, hook="SessionEnd")
+    assert result["why_status"] == "missing"
+    assert "why_missing" not in result
+    assert Path(result["path"]).exists()
+
+
+def test_capture_present_why_sets_status(atelier_env: Dict) -> None:
+    result = _cap.capture(observation="x happens under y",
+                          why="because z, which prevents w", hook="manual")
+    assert result["why_status"] == "present"
+    assert "why_missing" not in result
+    assert _read_fm(Path(result["path"]))["why_status"] == "present"
 
 
 def test_capture_rejects_stub_observation(atelier_env: Dict) -> None:
@@ -84,14 +106,15 @@ def test_capture_accepts_when_why_present(atelier_env: Dict) -> None:
     assert Path(result["path"]).exists()
 
 
-def test_capture_require_why_false_bypasses_gate(atelier_env: Dict) -> None:
-    """Sources with free-form rationale (e.g. absorbed Claude memory) opt
-    out of the empty-why gate."""
+def test_capture_require_why_false_writes(atelier_env: Dict) -> None:
+    """Sources with free-form rationale (e.g. absorbed Claude memory) write
+    without a why and without a nudge."""
     result = _cap.capture(
         observation="absorbed memory with prose rationale inline",
         require_why=False, hook="manual",
     )
     assert Path(result["path"]).exists()
+    assert "why_missing" not in result
 
 
 def test_capture_collision_avoided(atelier_env: Dict) -> None:
@@ -114,8 +137,8 @@ def test_mcp_tool_dispatch_invokes_capture(atelier_env: Dict) -> None:
     assert Path(out["path"]).exists()
 
 
-def test_mcp_tool_dispatch_rejects_empty_why(atelier_env: Dict) -> None:
-    """The hook path (no why) is rejected at the tool layer too."""
+def test_mcp_tool_dispatch_flags_empty_why(atelier_env: Dict) -> None:
+    """The tool layer writes an empty-why capture and flags it missing."""
     async def go() -> Dict:
         return await _tools.invoke(
             "atelier_learning_capture",
@@ -123,7 +146,9 @@ def test_mcp_tool_dispatch_rejects_empty_why(atelier_env: Dict) -> None:
             hook="Stop",
         )
     out = asyncio.run(go())
-    assert out["skipped"] is True
+    assert "skipped" not in out
+    assert out["why_status"] == "missing"
+    assert Path(out["path"]).exists()
 
 
 def test_capture_refuses_when_vault_missing(atelier_env: Dict,

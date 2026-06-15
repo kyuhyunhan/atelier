@@ -21,11 +21,12 @@ All notable changes to atelier.
   outcome (`learning-capture.ok|skip|project-unknown`); previously a rejected
   or mis-keyed capture left no trace. `project-unknown` fires when a capture
   lands under a project slug no accepted learning carries yet.
-- **Project identity map.** Added `learnings.project_map` (working_dir → stable
-  slug, longest-prefix). Fixes basename fragmentation (a repo and its `ios/`
-  subdir resolving to different slugs) and collision (two unrelated `mobile`
-  repos sharing one slug). `capture()` now returns `project_known` from the
-  shared resolver.
+- **Capture surfaces project identity confidence.** `capture()` now returns
+  `project_known` from the shared resolver (`project.resolve_project`), and the
+  handler logs `project-unknown` when a capture lands under a slug no accepted
+  learning carries yet. (The resolver, `ProjectResolution.known`, and
+  `learnings.project_map` support already existed; this only wires their signal
+  through capture.)
 
 ### Changed — flat, facet-based learnings memory (RFC 0001)
 

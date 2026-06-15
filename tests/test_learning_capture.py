@@ -137,6 +137,27 @@ def test_mcp_tool_dispatch_invokes_capture(atelier_env: Dict) -> None:
     assert Path(out["path"]).exists()
 
 
+def test_capture_survives_logging_failure(atelier_env: Dict,
+                                           monkeypatch: pytest.MonkeyPatch) -> None:
+    """Observability must not break the non-blocking capture contract: if the
+    handler's log call raises (e.g. read-only fs), the already-written
+    candidate's result is still returned."""
+    def boom(*a, **k):  # noqa: ANN001
+        raise OSError("log sink unavailable")
+    monkeypatch.setattr(_tools._log, "info", boom)
+    monkeypatch.setattr(_tools._log, "warn", boom)
+
+    async def go() -> Dict:
+        return await _tools.invoke(
+            "atelier_learning_capture",
+            observation="logging is down but the lesson is real",
+            why="captures must never be lost to a log sink error",
+            hook="manual",
+        )
+    out = asyncio.run(go())
+    assert Path(out["path"]).exists()
+
+
 def test_mcp_tool_dispatch_flags_empty_why(atelier_env: Dict) -> None:
     """The tool layer writes an empty-why capture and flags it missing."""
     async def go() -> Dict:

@@ -290,19 +290,25 @@ async def _h_learning_capture(observation: str = "",
     # Observability: capture is otherwise silent, so a "capture rejected"
     # report leaves no trace. One line per outcome makes losses auditable
     # (`rg learning-capture ~/.atelier/logs/atelier.log`).
-    sid = session_id or sess.session_id
-    if result.get("skipped"):
-        _log.warn("learning-capture.skip", reason=result.get("reason"),
-                  hook=hook, session=sid)
-    else:
-        _log.info("learning-capture.ok", project=result.get("project_hint"),
-                  why=result.get("why_status"), session=sid)
-        # The project slug carries no accepted learning yet — this capture
-        # will not be recalled under any existing project context. Surface
-        # it loudly (the `known` signal `resolve_project` already computes).
-        if result.get("project_known") is False and result.get("project_hint"):
-            _log.warn("learning-capture.project-unknown",
-                      project=result.get("project_hint"), session=sid)
+    # Observability must never break the non-blocking capture contract: the
+    # candidate is already written, so a logging I/O error (read-only fs,
+    # permission denied) must not propagate and lose the result.
+    try:
+        sid = session_id or sess.session_id
+        if result.get("skipped"):
+            _log.warn("learning-capture.skip", reason=result.get("reason"),
+                      hook=hook, session=sid)
+        else:
+            _log.info("learning-capture.ok", project=result.get("project_hint"),
+                      why=result.get("why_status"), session=sid)
+            # The project slug carries no accepted learning yet — this capture
+            # will not be recalled under any existing project context. Surface
+            # it loudly (the `known` signal `resolve_project` already computes).
+            if result.get("project_known") is False and result.get("project_hint"):
+                _log.warn("learning-capture.project-unknown",
+                          project=result.get("project_hint"), session=sid)
+    except Exception:                            # pragma: no cover - log I/O only
+        pass
     return result
 
 

@@ -231,7 +231,7 @@ async def _h_youtube(url: str, role: str = "librarian-territory",
                       force_stt: bool = False,
                       staging_subdir: str = "_new"
                       ) -> Dict[str, Any]:
-    """Ingest a YouTube URL into raw/knowledge/<staging_subdir>/. When
+    """Ingest a YouTube URL into provenance/knowledge/<staging_subdir>/. When
     captions are unavailable and STT is not configured, returns
     status=needs-stt for operator follow-up."""
     from .jobs import youtube as _jy
@@ -699,7 +699,7 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_youtube",
-                     "Ingest a YouTube URL into raw/knowledge/. Falls "
+                     "Ingest a YouTube URL into provenance/knowledge/. Falls "
                      "back to status=needs-stt when neither captions "
                      "nor OpenAI STT are available.",
                      _h_youtube,

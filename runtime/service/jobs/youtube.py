@@ -7,7 +7,8 @@ Mechanical port of the proto-engine's `gorae youtube` pipeline:
    parse the VTT into a timestamped markdown body.
 3. Otherwise, when `openai` + an API key are available, download the
    audio and transcribe via gpt-4o-transcribe.
-4. Write to `raw/knowledge/_new/<slug>.md` with v4 frontmatter.
+4. Write to `provenance/knowledge/_new/<slug>.md` with v4 frontmatter
+   (legacy `raw/knowledge/` for an un-renamed vault; see `_knowledge_root`).
 
 Steps (1)/(2)/(4) are pure stdlib + the optional `[youtube]` extras
 (yt-dlp). Step (3) is gated behind the `openai` package and the
@@ -47,6 +48,20 @@ def _vault_root() -> Path:
     if cfg.vault is not None:
         return cfg.vault.local
     return cfg.space_by_role("librarian-territory").local
+
+
+def _knowledge_root(vault: Path) -> Path:
+    """Write base for ingested sources — `provenance/knowledge` post-RFC-0003,
+    falling back to legacy `raw/knowledge` for an un-renamed vault. ONE resolver
+    so the writer can't resurrect the old tree (the 1507 bug class: a writer
+    whose path misses a rename re-creates it). Mirrors index_regen._graph_root."""
+    new = vault / "provenance" / "knowledge"
+    if new.exists():
+        return new
+    legacy = vault / "raw" / "knowledge"
+    if legacy.exists():
+        return legacy
+    return new  # fresh vault: default to the canonical tree
 
 
 def _now_iso() -> str:
@@ -188,7 +203,7 @@ def youtube_ingest(*, url: str,
         # The hook is here so PR-16-followup can add `_stt_transcribe()`.
         status = "needs-stt-stub"
 
-    target_dir = vault / "raw" / "knowledge" / staging_subdir
+    target_dir = _knowledge_root(vault) / staging_subdir
     target_dir.mkdir(parents=True, exist_ok=True)
     slug = _slugify(title, fallback=video_id)
     target = target_dir / f"{day}-{slug}-{video_id}.md"

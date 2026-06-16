@@ -121,7 +121,9 @@ def prepare_commit(*, paths: Optional[List[str]] = None,
     if paths:
         targets = [Path(p) for p in paths]
     else:
-        targets = sorted((vault / "raw").rglob("*.md")) if (vault / "raw").exists() else []
+        # provenance/ post-RFC-0003; legacy raw/ only for an un-renamed vault
+        scan_root = (vault / "provenance") if (vault / "provenance").exists() else (vault / "raw")
+        targets = sorted(scan_root.rglob("*.md")) if scan_root.exists() else []
 
     modified: List[Dict[str, Any]] = []
     for p in targets:

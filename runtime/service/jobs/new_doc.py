@@ -106,8 +106,11 @@ def new_doc(*, template: str, name: str,
 
     if template == "raw":
         vault = _vault_root()
-        target = vault / "raw" / "personal" / "inbox" / f"{name}.md"
-        rel = f"raw/personal/inbox/{name}.md"
+        # provenance/ post-RFC-0003; legacy raw/ only for an un-renamed vault
+        prov = "raw" if (not (vault / "provenance" / "personal").exists()
+                         and (vault / "raw" / "personal").exists()) else "provenance"
+        target = vault / prov / "personal" / "inbox" / f"{name}.md"
+        rel = f"{prov}/personal/inbox/{name}.md"
         fm = {
             "schema_version": 4,
             "entry_id": _entry_id(rel),

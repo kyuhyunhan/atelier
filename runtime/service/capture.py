@@ -31,13 +31,18 @@ def capture(
     title: Optional[str] = None,
     ctx: Optional[claims.CallContext] = None,
 ) -> Path:
-    """Land a capture into gorae/raw/personal/inbox/. Returns the new file path."""
+    """Land a capture into gorae/provenance/personal/inbox/. Returns the new file path."""
     ctx = ctx or claims.local_cli_context()
     claims.require(ctx, claims.Claim.MOBILE_CLAIM)
 
     cfg = config.load()
     librarian_root = cfg.space_by_role("librarian-territory").local
-    inbox = librarian_root / "raw" / "personal" / "inbox"
+    # provenance/ post-RFC-0003; fall back to legacy raw/ only for an un-renamed
+    # vault (mirrors youtube._knowledge_root — never resurrect the dead raw/ tree).
+    personal = librarian_root / "provenance" / "personal"
+    if not personal.exists() and (librarian_root / "raw" / "personal").exists():
+        personal = librarian_root / "raw" / "personal"
+    inbox = personal / "inbox"
     inbox.mkdir(parents=True, exist_ok=True)
 
     now = datetime.now(timezone.utc)

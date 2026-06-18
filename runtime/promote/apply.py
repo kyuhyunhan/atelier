@@ -9,11 +9,11 @@ A PROMOTION_LOG.md is appended in ~/.atelier/cache/.
 from __future__ import annotations
 
 import re
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+from ..structure import resolver as _structure
 from ..util import config
 
 PROMOTION_LOG = config.CACHE_DIR / "PROMOTION_LOG.md"
@@ -54,7 +54,7 @@ def apply_proposal(path: Path) -> Dict[str, Any]:
             continue
 
         now = datetime.now(timezone.utc).date().isoformat()
-        eid = uuid.uuid5(uuid.NAMESPACE_DNS, "promote:" + b["target_slug"])
+        eid = _structure.entry_id("promote", target_slug=b["target_slug"])
         title = b.get("title") or "(promoted)"
 
         body = source_path.read_text(encoding="utf-8")

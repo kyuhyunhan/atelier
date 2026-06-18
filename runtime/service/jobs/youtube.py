@@ -23,7 +23,6 @@ import re
 import shutil
 import subprocess
 import sys
-import uuid as _uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -210,9 +209,7 @@ def youtube_ingest(*, url: str,
     slug = _slugify(title, fallback=video_id)
     target = target_dir / f"{day}-{slug}-{video_id}.md"
 
-    discriminator = video_id
-    entry_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS,
-                                f"atelier:youtube:{discriminator}"))
+    entry_id = _structure.entry_id("youtube", video_id=video_id)
 
     fm: Dict[str, Any] = {
         "schema_version": 4,

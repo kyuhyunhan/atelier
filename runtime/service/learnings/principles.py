@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import re
 import shutil
-import uuid as _uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +30,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import yaml
 
 from ...index import parse as _parse
+from ...structure import resolver as _structure
 from ...util import config as _config
 from . import store as _store
 
@@ -64,7 +64,7 @@ def _slugify(value: str, *, fallback: str = "principle") -> str:
 
 
 def _entry_id(slug: str) -> str:
-    return str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"learnings:principle:{slug}"))
+    return _structure.entry_id("principle", slug=slug)
 
 
 def _serialize(fm: Dict[str, Any], body: str) -> str:

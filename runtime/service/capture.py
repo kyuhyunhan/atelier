@@ -10,7 +10,6 @@ writes to gorae/raw/personal/inbox/{ts}-{slug}.md with inbox_status=pending.
 from __future__ import annotations
 
 import re
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -55,7 +54,7 @@ def capture(
     fname = f"{ts}-{slug}.md"
     path = inbox / fname
 
-    eid = uuid.uuid5(uuid.NAMESPACE_DNS, now.isoformat() + slug)
+    eid = _structure.entry_id("capture", iso=now.isoformat(), slug=slug)
     fm = (
         "---\n"
         "schema_version: 4\n"

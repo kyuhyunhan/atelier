@@ -13,13 +13,13 @@ genuinely cannot proceed.
 from __future__ import annotations
 
 import re
-import uuid as _uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import yaml
 
+from ...structure import resolver as _structure
 from ...util import config as _config
 from . import store as _store
 
@@ -146,10 +146,9 @@ def capture(*, observation: str,
         target = candidates_root / f"{time_prefix}-{slug}-{n}.md"
         n += 1
 
-    entry_id = str(_uuid.uuid5(
-        _uuid.NAMESPACE_DNS,
-        f"learnings:candidate:{date_dir}/{target.name}",
-    ))
+    entry_id = _structure.entry_id(
+        "learning_candidate", date=date_dir, name=target.name
+    )
 
     fm: Dict[str, Any] = {
         "schema_version": 4,

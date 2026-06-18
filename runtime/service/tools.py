@@ -624,9 +624,9 @@ async def _h_new_product(name: str) -> Dict[str, Any]:
         raise FileExistsError(f"product already exists: {product_dir}")
     product_dir.mkdir(parents=True)
     from datetime import datetime, timezone
-    import uuid as _uuid
+    from ..structure import resolver as _structure
     now = datetime.now(timezone.utc).date().isoformat()
-    eid = _uuid.uuid5(_uuid.NAMESPACE_DNS, f"workshop:products/{name}")
+    eid = _structure.entry_id("product", name=name)
     (product_dir / "README.md").write_text(
         f"---\nschema_version: 4\nentry_id: {eid}\ntitle: {name}\n"
         f"type: product\nstatus: active\nsensitivity: private\n"

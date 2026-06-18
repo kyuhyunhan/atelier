@@ -10,7 +10,6 @@ Templates:
 """
 from __future__ import annotations
 
-import uuid as _uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -47,8 +46,17 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
-def _entry_id(rel: str) -> str:
-    return str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"atelier:{rel}"))
+def _entry_id(*, created_at: str, discriminator: str) -> str:
+    """Content-based entry_id for a NEW manual doc (RFC 0005 P1.3).
+
+    Replaces the dropped path-based `atelier:{rel}` form: a fresh doc's id is
+    derived from its own creation timestamp plus a stable discriminator (the
+    user-supplied `name`), never from where it happens to sit on disk. This only
+    affects NEWLY created docs — already-stored ids are never recomputed.
+    """
+    return _structure.entry_id(
+        "source", created_at=created_at, discriminator=discriminator
+    )
 
 
 def _write(path: Path, fm: Dict[str, Any], body: str) -> Path:
@@ -74,16 +82,16 @@ def new_doc(*, template: str, name: str,
         if product_dir.exists():
             raise FileExistsError(str(product_dir))
         product_dir.mkdir(parents=True)
-        rel = f"workshop/products/{name}/README.md"
+        created = _now_iso_day()
         fm = {
             "schema_version": 4,
-            "entry_id": _entry_id(rel),
+            "entry_id": _entry_id(created_at=created, discriminator=name),
             "title": fields.get("title", name),
             "type": "product",
             "status": fields.get("status", "active"),
             "sensitivity": "private",
-            "created": _now_iso_day(),
-            "updated": _now_iso_day(),
+            "created": created,
+            "updated": created,
             "summary": fields.get("summary", ""),
         }
         target = product_dir / "README.md"
@@ -93,14 +101,14 @@ def new_doc(*, template: str, name: str,
     if template == "note":
         builder_root = _builder_root()
         target = builder_root / "notes" / f"{name}.md"
-        rel = f"workshop/notes/{name}.md"
+        created = _now_iso_day()
         fm = {
             "schema_version": 4,
-            "entry_id": _entry_id(rel),
+            "entry_id": _entry_id(created_at=created, discriminator=name),
             "title": fields.get("title", name),
             "type": "note",
             "sensitivity": "private",
-            "created": _now_iso_day(),
+            "created": created,
         }
         _write(target, fm, fields.get("body", f"# {name}\n\n"))
         return {"path": str(target), "template": template}
@@ -116,14 +124,14 @@ def new_doc(*, template: str, name: str,
         prov = legacy if (not (vault / canonical / personal).exists()
                           and (vault / legacy / personal).exists()) else canonical
         target = vault / prov / personal / inbox / f"{name}.md"
-        rel = f"{prov}/{personal}/{inbox}/{name}.md"
+        created = _now_iso()
         fm = {
             "schema_version": 4,
-            "entry_id": _entry_id(rel),
+            "entry_id": _entry_id(created_at=created, discriminator=name),
             "title": fields.get("title", name),
             "sensitivity": fields.get("sensitivity", "private"),
             "created_at": [{
-                "value": _now_iso(),
+                "value": created,
                 "precision": "second",
                 "timezone": "UTC",
             }],
@@ -138,11 +146,11 @@ def new_doc(*, template: str, name: str,
         vault = _vault_root()
         day = _now_iso_day()
         target = _store.learning_root(vault) / "candidates" / day / f"{name}.md"
-        rel = target.relative_to(vault).as_posix()
+        captured = _now_iso()
         fm = {
             "schema_version": 4,
-            "entry_id": _entry_id(rel),
-            "captured_at": _now_iso(),
+            "entry_id": _entry_id(created_at=captured, discriminator=name),
+            "captured_at": captured,
             "agent_kind": "manual",
             "hook": "manual",
             "status": "candidate",

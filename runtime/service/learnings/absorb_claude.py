@@ -38,7 +38,6 @@ import hashlib
 import json
 import re
 import shutil
-import uuid as _uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +46,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import yaml
 
 from ...index import parse as _parse
+from ...structure import resolver as _structure
 from ...util import config as _config
 from . import store as _store
 
@@ -181,10 +181,7 @@ _AUTO_ACCEPT = {"feedback", "reference"}
 def _build_frontmatter(mem: ClaudeMemory, *, status: str,
                        target_topic: Optional[str]) -> Dict[str, Any]:
     """v4 frontmatter common to both accepted and candidate."""
-    entry_id = str(_uuid.uuid5(
-        _uuid.NAMESPACE_DNS,
-        f"learnings:claude:{mem.body_sha}",
-    ))
+    entry_id = _structure.entry_id("claude", body_sha=mem.body_sha)
     fm: Dict[str, Any] = {
         "schema_version": 4,
         "entry_id": entry_id,

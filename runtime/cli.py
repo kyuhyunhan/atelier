@@ -167,9 +167,9 @@ def _cmd_new_product(args: argparse.Namespace) -> int:
         return 1
     product_dir.mkdir(parents=True)
     from datetime import datetime, timezone
-    import uuid as _uuid
+    from .structure import resolver as _structure
     now = datetime.now(timezone.utc).date().isoformat()
-    eid = _uuid.uuid5(_uuid.NAMESPACE_DNS, f"workshop:products/{args.name}")
+    eid = _structure.entry_id("product", name=args.name)
     (product_dir / "README.md").write_text(
         f"---\n"
         f"schema_version: 4\n"

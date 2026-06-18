@@ -1,13 +1,13 @@
 """PR-9: fix PENDING entry_ids across the vault.
 
 Walks raw/ (and any other subtree) for files with `entry_id: PENDING`
-and rewrites them to a stable UUID5 derived from the file's
-vault-relative path. Mirrors the schema-migration script's algorithm so
-the two stay consistent.
+and resolves them to a stable UUID5 derived from the doc's own content
+(creation timestamp + discriminator), via the structure resolver (RFC 0005
+P1.3). A PENDING placeholder is NOT a stored id — resolving it here is the
+doc's first real id; no already-assigned id is ever recomputed.
 """
 from __future__ import annotations
 
-import uuid as _uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +15,7 @@ import yaml
 
 from ...index import parse as _parse
 from ...util import config as _config
+from . import content_id as _content_id
 
 
 def _vault_root() -> Path:
@@ -22,10 +23,6 @@ def _vault_root() -> Path:
     if cfg.vault is not None:
         return cfg.vault.local
     return cfg.space_by_role("librarian-territory").local
-
-
-def _new_uuid(rel: str) -> str:
-    return str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"atelier:{rel}"))
 
 
 def fix_pending(*, dry_run: bool = False,
@@ -40,7 +37,7 @@ def fix_pending(*, dry_run: bool = False,
         fm, body = _parse.split_frontmatter(text)
         if str(fm.get("entry_id", "")).strip().upper() != "PENDING":
             continue
-        new_id = _new_uuid(rel)
+        new_id = _content_id.entry_id_for(fm, md)
         fixed.append({"path": str(md), "rel": rel, "new_entry_id": new_id})
         if dry_run:
             continue

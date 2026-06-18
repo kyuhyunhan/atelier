@@ -30,7 +30,7 @@ def _accepted(vault, topic, entry_id, body, *, project=None, touches=None):
         fm["target_project"] = project
     if touches:
         fm["touches"] = touches
-    write_page(vault / "provenance" / "learning" / "notes" / "2026-01" /
+    write_page(vault / "raw" / "learning" / "notes" / "2026-01" /
                f"{entry_id}.md", fm, body)
 
 
@@ -86,7 +86,7 @@ def test_principle_boost_does_not_push_accepted_learnings_dark(vault_env: Dict) 
         title="dependency direction is a hard rule",
         rule="modules depend on protocols, never on concrete implementations.",
         why="inverting it couples layers and blocks substitution.",
-        evidence=["provenance/learning/notes/2026-01/acc0.md"],
+        evidence=["raw/learning/notes/2026-01/acc0.md"],
         coverage="cross-project", priority="always-inject",
     )
     api.reindex(full=True)
@@ -149,7 +149,7 @@ def test_audit_excludes_navigational_views(vault_env: Dict) -> None:
     _accepted(vault, "general", "real",
               "## Observation\n\nreal learning body words\n")
     # an absorbed memory-model view: has an entry_id, but is a view, not a learning
-    write_page(vault / "provenance" / "learning" / "notes" / "2026-01" / "TAXONOMY.md",
+    write_page(vault / "raw" / "learning" / "notes" / "2026-01" / "TAXONOMY.md",
                {**_BASE, "entry_id": "tax", "target_topic": "general"},
                "vocabulary tables\n")
     api.reindex(full=True)

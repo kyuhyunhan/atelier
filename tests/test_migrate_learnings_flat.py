@@ -35,7 +35,7 @@ def test_dry_run_moves_nothing(vault_env: Dict) -> None:
     assert rep["counts"]["moved"] == 2
     # nothing actually moved
     assert (vault / "learnings/accepted/by-topic/cross-cutting/n1.md").exists()
-    assert not (vault / "provenance/learning/notes").exists()
+    assert not (vault / "raw/learning/notes").exists()
 
 
 def test_apply_flattens_by_month_and_bumps_v5(vault_env: Dict) -> None:
@@ -43,8 +43,8 @@ def test_apply_flattens_by_month_and_bumps_v5(vault_env: Dict) -> None:
     _seed(vault)
     _mig.migrate(vault, apply=True)
     # sharded by captured_at month, slug preserved
-    d1 = vault / "provenance/learning/notes/2026-05/n1.md"
-    d2 = vault / "provenance/learning/notes/2026-03/n2.md"
+    d1 = vault / "raw/learning/notes/2026-05/n1.md"
+    d2 = vault / "raw/learning/notes/2026-03/n2.md"
     assert d1.exists() and d2.exists()
     # source removed
     assert not (vault / "learnings/accepted/by-topic/cross-cutting/n1.md").exists()
@@ -76,7 +76,7 @@ def test_same_name_distinct_learnings_are_suffixed_not_stranded(vault_env: Dict)
     rep = _mig.migrate(vault, apply=True)
     assert rep["counts"]["moved"] == 2
     assert rep["counts"]["skipped"] == 0
-    moved = sorted(p.name for p in (vault / "provenance/learning/notes/2026-05").glob("*.md"))
+    moved = sorted(p.name for p in (vault / "raw/learning/notes/2026-05").glob("*.md"))
     assert moved == ["README-1.md", "README.md"]      # both landed, distinct names
     # both source files are gone (nothing stranded in by-topic)
     assert not list((vault / "learnings/accepted/by-topic").rglob("README.md"))
@@ -93,7 +93,7 @@ def test_apply_twice_same_record_skips_not_suffixes(vault_env: Dict) -> None:
     write_page(vault / "learnings/accepted/by-topic/a/n.md",
                {**_ACC, "entry_id": "R1"}, "## Observation\n\none\n")
     _mig.migrate(vault, apply=True)
-    notes = sorted(p.name for p in (vault / "provenance/learning/notes/2026-05").glob("*.md"))
+    notes = sorted(p.name for p in (vault / "raw/learning/notes/2026-05").glob("*.md"))
     assert notes == ["n.md"]                          # no n-1.md duplicate
 
 

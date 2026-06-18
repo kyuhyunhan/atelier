@@ -134,7 +134,7 @@ def test_new_doc_raw(atelier_env: Dict) -> None:
                       fields={"title": "Quick capture"})
     p = Path(out["path"])
     assert p.exists()
-    assert "provenance/personal/inbox/2026-05-28-note.md" in str(p)
+    assert "raw/personal/inbox/2026-05-28-note.md" in str(p)
     text = p.read_text()
     assert "Quick capture" in text
 

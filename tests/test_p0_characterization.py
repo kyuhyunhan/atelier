@@ -39,7 +39,7 @@ def _accepted(vault, *, entry_id: str, topic: str, body: str,
         fm["target_project"] = project
     if touches:
         fm["touches"] = touches
-    write_page(vault / "provenance" / "learning" / "notes" / "2026-01" /
+    write_page(vault / "raw" / "learning" / "notes" / "2026-01" /
                f"{entry_id}.md", fm, body)
 
 

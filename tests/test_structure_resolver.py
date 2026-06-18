@@ -17,15 +17,15 @@ from runtime.structure import resolver
 
 # --- Path API ------------------------------------------------------------
 def test_roots():
-    assert resolver.content_root() == "provenance"
+    assert resolver.content_root() == "raw"
     assert resolver.graph_root() == "graph"
 
 
 def test_intake_dirs():
-    assert resolver.intake_dir("personal") == "provenance/personal"
-    assert resolver.intake_dir("knowledge") == "provenance/knowledge"
+    assert resolver.intake_dir("personal") == "raw/personal"
+    assert resolver.intake_dir("knowledge") == "raw/knowledge"
     assert resolver.intake_dir("workshop") == "workshop"
-    assert resolver.inbox_dir() == "provenance/personal/inbox"
+    assert resolver.inbox_dir() == "raw/personal/inbox"
 
 
 def test_intake_rejects_unknown():
@@ -39,10 +39,10 @@ def test_homes():
     assert resolver.home("graph_source") == "graph/sources"
     assert resolver.home("graph_entity") == "graph/entities"
     assert resolver.home("graph_theme") == "graph/themes"
-    assert resolver.home("learning_candidate") == "provenance/learning/candidates"
-    assert resolver.home("learning_note") == "provenance/learning/notes"
-    assert resolver.home("learning_principle") == "provenance/learning/principles"
-    assert resolver.home("learning_archived") == "provenance/learning/archived"
+    assert resolver.home("learning_candidate") == "raw/learning/candidates"
+    assert resolver.home("learning_note") == "raw/learning/notes"
+    assert resolver.home("learning_principle") == "raw/learning/principles"
+    assert resolver.home("learning_archived") == "raw/learning/archived"
     assert resolver.home("product") == "workshop/products"
 
 

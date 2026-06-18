@@ -15,7 +15,7 @@
 # to `raw`. graph_root holds entities/themes/sources (post-RFC-0003 rename of
 # wiki/).
 roots:
-  content_root: provenance
+  content_root: raw
   graph_root: graph
 
 # --- Intake ---------------------------------------------------------------
@@ -37,10 +37,10 @@ homes:
   graph_source: graph/sources
   graph_entity: graph/entities
   graph_theme: graph/themes
-  learning_candidate: provenance/learning/candidates
-  learning_note: provenance/learning/notes
-  learning_principle: provenance/learning/principles
-  learning_archived: provenance/learning/archived
+  learning_candidate: raw/learning/candidates
+  learning_note: raw/learning/notes
+  learning_principle: raw/learning/principles
+  learning_archived: raw/learning/archived
   product: workshop/products
 
 # --- Prefix aliasing ------------------------------------------------------
@@ -52,7 +52,8 @@ prefix_aliases:
   "wiki/": "graph/"
   "provenance/": "raw/"
   "graph/": "wiki/"
-  "learnings/": "provenance/learning/"
+  "learnings/": "raw/learning/"
+  "raw/learning/": "learnings/"
   "provenance/learning/": "learnings/"
 
 # Known top-level slug prefixes — a to_slug already starting with one of these

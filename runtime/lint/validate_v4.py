@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import uuid as _uuid
 from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -36,11 +37,36 @@ def _load_overlay(name: str) -> Dict[str, Any]:
 
 def _all_overlays() -> List[Dict[str, Any]]:
     # Space-named overlays (RFC 0001 retired the librarian/builder agent names).
+    # `graph` (RFC 0005 v7) is dispatched by the `kind` field, not by path — it
+    # is intentionally NOT in this path-matched list (see _v7_spec_for). Its
+    # path_pattern `graph/*.md` would otherwise shadow legacy graph/ pages.
     return [
         _load_overlay("gorae"),
         _load_overlay("workshop"),
         _load_overlay("learnings"),
     ]
+
+
+@lru_cache(maxsize=1)
+def _v7_specs() -> Dict[str, Dict[str, Any]]:
+    """v7 node specs (RFC 0005), keyed by `kind` not path.
+
+    The graph overlay lays its three node classes flat under graph/, so they
+    are selected by the `kind` frontmatter field — never by directory (RFC 0005
+    §3 invariant: classification is a field, not a path)."""
+    overlay = _load_overlay("graph")
+    out: Dict[str, Dict[str, Any]] = {}
+    for ptype, spec in (overlay.get("page_types") or {}).items():
+        kind = spec.get("kind") or ptype
+        out[kind] = spec
+    return out
+
+
+def _allowed_schema_versions() -> Tuple[int, ...]:
+    """schema_version enum, single-sourced from base.yaml (hard rule #3)."""
+    base = yaml.safe_load((_SCHEMA_DIR / "base.yaml").read_text(encoding="utf-8"))
+    enum = ((base.get("fields") or {}).get("schema_version") or {}).get("enum")
+    return tuple(enum or (4, 5, 7))
 
 
 def _patterns_of(spec: Dict[str, Any]) -> List[str]:
@@ -159,11 +185,28 @@ def _validate_one(path: Path, rel_path: str,
     fm, _body = _parse.split_frontmatter(text)
     errors: List[str] = []
 
-    if fm.get("schema_version") not in (4, 5):
+    allowed = _allowed_schema_versions()
+    sv = fm.get("schema_version")
+    if sv not in allowed:
         errors.append(
-            f"schema_version: must be 4 or 5, got {fm.get('schema_version')!r}")
+            f"schema_version: must be one of {list(allowed)}, got {sv!r}")
     if not _is_uuid(fm.get("entry_id")) and fm.get("entry_id") != "PENDING":
         errors.append(f"entry_id: must be a valid UUID, got {fm.get('entry_id')!r}")
+
+    # RFC 0005 v7: source/entity/claim nodes are dispatched by the `kind` FIELD
+    # (flat under graph/), BEFORE any path-based legacy match — the projection
+    # reads fields, not the path (§3 invariant).
+    kind = fm.get("kind")
+    if isinstance(sv, int) and sv >= 7 and kind in _v7_specs():
+        spec = _v7_specs()[kind]
+        required = spec.get("required_fields") or []
+        for f in required:
+            if f not in fm or fm.get(f) in (None, ""):
+                errors.append(f"missing required field: {f}")
+        for fname, fspec in (spec.get("field_specs") or {}).items():
+            if fname in fm:
+                errors.extend(_check_field_spec(fname, fm[fname], fspec))
+        return errors
 
     ptype, spec = _match_page_type(rel_path, overlays)
     if spec is None:

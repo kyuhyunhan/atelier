@@ -120,13 +120,36 @@ def _namespace() -> uuid.UUID:
     return _NAMESPACE[marker]
 
 
+# RFC 0005 §5 — content parts that are canonicalized (strip().lower()) BEFORE
+# they enter the entry_id discriminator, so casing/whitespace variants of the
+# same subject/assertion collapse to one id (= the dedup key). Reuses
+# reindex._norm semantics (kept here, not imported, to avoid a dependency cycle
+# resolver -> index -> resolver). Keyed by (kind, part-name).
+_NORMALIZED_PARTS = {
+    ("entity", "pref_label"),   # entity id = type | norm(pref_label)  -> dedup
+    ("claim", "statement"),     # claim id  = norm(statement) | derived_from
+}
+
+
+def _norm(s: str) -> str:
+    """Canonicalize a content part: strip().lower() (== reindex._norm)."""
+    return str(s).strip().lower()
+
+
 def entry_id(kind: str, **parts: Any) -> str:
     """uuid5(NAMESPACE_DNS, template(kind).format(**parts)) -> str.
 
     For existing kinds this reproduces today's stored entry_id byte-for-byte.
+    For v7 content-addressed kinds (RFC 0005 §5) the normalized parts
+    (entity.pref_label, claim.statement) are canonicalized first, so the id is
+    the dedup key.
     """
     templates = _data()["entry_id"]["templates"]
     if kind not in templates:
         raise KeyError(f"no entry_id template for kind: {kind!r}")
-    discriminator = templates[kind].format(**parts)
+    norm_parts = dict(parts)
+    for name, value in parts.items():
+        if (kind, name) in _NORMALIZED_PARTS:
+            norm_parts[name] = _norm(value)
+    discriminator = templates[kind].format(**norm_parts)
     return str(uuid.uuid5(_namespace(), discriminator))

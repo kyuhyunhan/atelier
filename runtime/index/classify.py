@@ -62,9 +62,23 @@ def _rules() -> Tuple[Tuple[str, str], ...]:
     return tuple(learning_variants + out)
 
 
+_V7_KINDS = frozenset({"source", "entity", "claim"})
+
+
 def classify(space: str, slug: str, fm: Dict[str, Any]) -> str:
     # `space` is accepted for signature stability (callers still pass it) but
-    # is intentionally unused — classification keys off the slug path alone.
+    # is intentionally unused — classification keys off the FIELDS first
+    # (RFC 0005 §3: the projection reads fields, never the path), then falls
+    # back to legacy path patterns.
+    #
+    # v7 nodes (source/entity/claim) live FLAT under graph/ with kind as a
+    # field, so they MUST be classified by `kind` BEFORE the path globs (a flat
+    # graph/<id>.md would otherwise hit a legacy graph/ rule or fall through).
+    sv = fm.get("schema_version")
+    kind = fm.get("kind")
+    if isinstance(sv, int) and sv >= 7 and kind in _V7_KINDS:
+        return kind
+
     for pattern, ptype in _rules():
         if fnmatch.fnmatchcase(slug, pattern) or _glob_match(pattern, slug):
             return ptype

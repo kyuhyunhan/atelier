@@ -1,23 +1,58 @@
-# atelier schema v5 — base fields
+# atelier schema v7 — base fields
 # Applies to all pages across all spaces. Overlays extend or restrict.
 
-version: 5
+version: 7
 
 fields:
   schema_version:
     type: integer
     required: true
-    enum: [4, 5]
+    enum: [4, 5, 7]
     description: >
-      Schema authority version. v5 is current; v4 is accepted during the
-      flat-facet migration (RFC 0001) and rewritten to v5 when a record is
-      flattened. v3 files were auto-upgraded to v4 on first index.
+      Schema authority version. v7 is current (RFC 0005 atomic graph: the
+      source/entity/claim node kinds). v5 (RFC 0001 flat-facet learnings) and
+      v4 are still accepted while the migration coexists; v4 records are
+      rewritten to v5 when flattened, and v3 files were auto-upgraded to v4 on
+      first index. The three migrations coexist — older versions stay valid.
+
+  # --- RFC 0005 v7 common base (every atomic-graph node) -----------------
+  # entry_id (below), schema_version (above), kind, created_at (below),
+  # content_hash, sensitivity (below), links[]. Kind-specific fields extend
+  # this in graph.overlay.yaml (base + typed extension — same discipline as
+  # base.yaml + overlay).
+  kind:
+    type: string
+    enum: [source, entity, claim]
+    nullable: true
+    description: >
+      v7 node class (RFC 0005 §4). FIELD, never a directory — v7 nodes live
+      flat under graph/. null on legacy v4/v5 pages (path/page_type-classed).
+
+  content_hash:
+    type: string
+    nullable: true
+    description: >
+      Content address of the node body (R2 / dedup key). Stable input to the
+      claim entry_id. null on legacy pages.
+
+  links:
+    type: array
+    nullable: true
+    default: []
+    description: >
+      Typed edges: [{to, rel, why}]. `to` is an entry_id (never a path) →
+      rename-safe (RFC 0005 §5). rel vocabulary is kind-specific (entity:
+      SKOS broader|narrower|related; claim: supports|refutes|refines).
 
   entry_id:
     type: string
     format: uuid-v5
     required: true
-    description: "UUID v5 derived from created_at.value. Stable across moves."
+    description: >
+      UUID v5 in the single vault namespace (uuid.NAMESPACE_DNS). v7 ids are
+      content-addressed (RFC 0005 §5): source = created_at|discriminator,
+      entity = type|pref_label (dedup key), claim = norm(statement)|derived_from.
+      Stable across move / rename / shard.
 
   title:
     type: string

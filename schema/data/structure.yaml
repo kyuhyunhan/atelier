@@ -96,8 +96,21 @@ entry_id:
     learning_candidate: "learnings:candidate:{date}/{name}"
     capture: "{iso}{slug}"
     # --- NEW (content-based; replaces path-based atelier:{rel}) ---
+    # RFC 0005 §5 — the single content-addressed convention for v7 nodes.
+    #   source = uuid5(NS, created_at | discriminator)   discriminator: video_id|url|hash
+    #   entity = uuid5(NS, type | pref_label)            same subject -> same id = dedup
+    #   claim  = uuid5(NS, normalize(statement) | derived_from)
+    # pref_label and statement are normalized (strip().lower(), reusing
+    # reindex._norm semantics) by the resolver BEFORE format — see
+    # resolver.entry_id(); the {pref_label}/{statement} slots receive the
+    # already-normalized value.
     source: "atelier:source:{created_at}|{discriminator}"
-  # Templates introduced by P1 for NEW writes only — NOT applied to existing
-  # content. Their ids are free to be defined here; they have no legacy form.
+    entity: "atelier:entity:{type}|{pref_label}"
+    claim: "atelier:claim:{statement}|{derived_from}"
+  # Templates introduced for NEW writes only — NOT applied to existing content.
+  # Their ids are free to be defined here; they have no legacy form. The v7
+  # node kinds (RFC 0005) are content-addressed and stable across move/shard.
   new_kinds:
     - source
+    - entity
+    - claim

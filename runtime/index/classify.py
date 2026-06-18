@@ -32,6 +32,14 @@ def _rules() -> Tuple[Tuple[str, str], ...]:
     ordering is preserved.
     """
     from ..lint.validate_v4 import page_type_rules
+    from ..structure import resolver as _structure
+
+    # Structural prefixes single-sourced from schema/data/structure.yaml (RFC
+    # 0005 P1): the single-vault workshop prefix, and the legacy `learnings/` ->
+    # canonical `provenance/learning/` rename mapping (from prefix_aliases).
+    workshop_prefix = _structure.intake_dir("workshop") + "/"
+    learnings_legacy = "learnings/"
+    learnings_canonical = _structure.prefix_aliases()[learnings_legacy]
 
     out: List[Tuple[str, str]] = []
     learning_variants: List[Tuple[str, str]] = []
@@ -39,15 +47,15 @@ def _rules() -> Tuple[Tuple[str, str], ...]:
         pat = _normalize_pattern(pattern)
         out.append((pat, ptype))
         if pat.split("/", 1)[0] in ("products", "notes", "logs"):
-            out.append(("workshop/" + pat, ptype))
+            out.append((workshop_prefix + pat, ptype))
         # RFC 0003 P6: every `learnings/...` rule also matches the canonical
         # `provenance/learning/...` tree (the move target). The overlay still
         # phrases rules as `learnings/...`; this bridge classifies the relocated
         # tree without rewriting the data. Order within is the overlay's (INDEX
         # before glob), so specificity is preserved.
-        if pat.startswith("learnings/"):
+        if pat.startswith(learnings_legacy):
             learning_variants.append(
-                ("provenance/learning/" + pat[len("learnings/"):], ptype))
+                (learnings_canonical + pat[len(learnings_legacy):], ptype))
     # The variants must OUTRANK the generic `provenance/**/*.md` raw_source
     # catch-all, so they lead the table. They only ever match provenance/learning/,
     # so leading can shadow nothing else.

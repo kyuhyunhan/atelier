@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from ...structure import resolver as _structure
 from ...util import config as _config
 from ..learnings import store as _store
 
@@ -34,7 +35,7 @@ def _vault_root() -> Path:
 def _builder_root() -> Path:
     cfg = _config.load()
     if cfg.vault is not None:
-        return cfg.vault.local / "workshop"
+        return cfg.vault.local / _structure.intake_dir("workshop")
     return cfg.space_by_role("builder-territory").local
 
 
@@ -106,11 +107,16 @@ def new_doc(*, template: str, name: str,
 
     if template == "raw":
         vault = _vault_root()
-        # provenance/ post-RFC-0003; legacy raw/ only for an un-renamed vault
-        prov = "raw" if (not (vault / "provenance" / "personal").exists()
-                         and (vault / "raw" / "personal").exists()) else "provenance"
-        target = vault / prov / "personal" / "inbox" / f"{name}.md"
-        rel = f"{prov}/personal/inbox/{name}.md"
+        # canonical content root (provenance) from the resolver; legacy raw/ only
+        # for an un-renamed vault.
+        canonical = _structure.content_root()
+        legacy = _structure.legacy_content_root()
+        personal = _structure.intake_subpath("personal")
+        inbox = _structure.inbox_subpath()
+        prov = legacy if (not (vault / canonical / personal).exists()
+                          and (vault / legacy / personal).exists()) else canonical
+        target = vault / prov / personal / inbox / f"{name}.md"
+        rel = f"{prov}/{personal}/{inbox}/{name}.md"
         fm = {
             "schema_version": 4,
             "entry_id": _entry_id(rel),

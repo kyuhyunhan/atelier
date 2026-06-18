@@ -30,6 +30,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import yaml
 
+from ...structure import resolver as _structure
 from ...util import config as _config
 
 
@@ -55,10 +56,11 @@ def _knowledge_root(vault: Path) -> Path:
     falling back to legacy `raw/knowledge` for an un-renamed vault. ONE resolver
     so the writer can't resurrect the old tree (the 1507 bug class: a writer
     whose path misses a rename re-creates it). Mirrors index_regen._graph_root."""
-    new = vault / "provenance" / "knowledge"
+    new = vault / _structure.intake_dir("knowledge")
     if new.exists():
         return new
-    legacy = vault / "raw" / "knowledge"
+    legacy = (vault / _structure.legacy_content_root()
+              / _structure.intake_subpath("knowledge"))
     if legacy.exists():
         return legacy
     return new  # fresh vault: default to the canonical tree

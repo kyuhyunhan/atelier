@@ -7,8 +7,11 @@ from __future__ import annotations
 
 from runtime.structure.resolver import (
     content_root,
+    legacy_content_root,
     graph_root,
     intake_dir,
+    intake_subpath,
+    inbox_subpath,
     inbox_dir,
     home,
     prefix_aliases,
@@ -19,8 +22,11 @@ from runtime.structure.resolver import (
 
 __all__ = [
     "content_root",
+    "legacy_content_root",
     "graph_root",
     "intake_dir",
+    "intake_subpath",
+    "inbox_subpath",
     "inbox_dir",
     "home",
     "prefix_aliases",

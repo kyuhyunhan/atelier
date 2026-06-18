@@ -24,6 +24,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import yaml
 
 from ...index import parse as _parse
+from ...structure import resolver as _structure
 from ...util import config as _config
 
 
@@ -121,8 +122,11 @@ def prepare_commit(*, paths: Optional[List[str]] = None,
     if paths:
         targets = [Path(p) for p in paths]
     else:
-        # provenance/ post-RFC-0003; legacy raw/ only for an un-renamed vault
-        scan_root = (vault / "provenance") if (vault / "provenance").exists() else (vault / "raw")
+        # canonical content root (provenance) from the resolver; legacy raw/
+        # only for an un-renamed vault.
+        canonical = vault / _structure.content_root()
+        scan_root = canonical if canonical.exists() else (
+            vault / _structure.legacy_content_root())
         targets = sorted(scan_root.rglob("*.md")) if scan_root.exists() else []
 
     modified: List[Dict[str, Any]] = []

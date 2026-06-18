@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from ..structure import resolver as _structure
 from ..util import config
 from . import claims
 
@@ -37,12 +38,15 @@ def capture(
 
     cfg = config.load()
     librarian_root = cfg.space_by_role("librarian-territory").local
-    # provenance/ post-RFC-0003; fall back to legacy raw/ only for an un-renamed
-    # vault (mirrors youtube._knowledge_root — never resurrect the dead raw/ tree).
-    personal = librarian_root / "provenance" / "personal"
-    if not personal.exists() and (librarian_root / "raw" / "personal").exists():
-        personal = librarian_root / "raw" / "personal"
-    inbox = personal / "inbox"
+    # Canonical intake dir (provenance/personal) sourced from the resolver; fall
+    # back to the legacy un-renamed tree (raw/personal) only when it alone exists
+    # (mirrors youtube._knowledge_root — never resurrect the dead raw/ tree).
+    inbox = librarian_root / _structure.inbox_dir()
+    if not inbox.parent.exists():
+        legacy_personal = (librarian_root / _structure.legacy_content_root()
+                           / _structure.intake_subpath("personal"))
+        if legacy_personal.exists():
+            inbox = legacy_personal / _structure.inbox_subpath()
     inbox.mkdir(parents=True, exist_ok=True)
 
     now = datetime.now(timezone.utc)

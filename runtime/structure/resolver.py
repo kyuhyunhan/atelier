@@ -36,6 +36,20 @@ def content_root() -> str:
     return _data()["roots"]["content_root"]
 
 
+def legacy_content_root() -> str:
+    """Pre-rename name of the content root (today: `raw`).
+
+    Writers resolve to `content_root()` but fall back to this name when only the
+    un-renamed tree is on disk (the RFC 0003 raw/->provenance/ transition). The
+    name is derived from `prefix_aliases` so the legacy constant lives in ONE
+    place, never re-hardcoded at a call site.
+    """
+    alias = _data()["prefix_aliases"].get(f"{content_root()}/")
+    if not alias:
+        raise KeyError("no legacy alias for content_root in prefix_aliases")
+    return alias.rstrip("/")
+
+
 def graph_root() -> str:
     """Top dir holding the knowledge graph (entities/themes/sources)."""
     return _data()["roots"]["graph_root"]
@@ -57,9 +71,23 @@ def intake_dir(domain: str) -> str:
     return f"{content_root()}/{sub}"
 
 
+def intake_subpath(domain: str) -> str:
+    """The raw intake `sub` for a domain, RELATIVE to its base (content_root for
+    personal/knowledge, vault root for workshop). e.g. personal -> `personal`."""
+    intake = _data()["intake"]
+    if domain not in intake or domain == "inbox_subpath":
+        raise KeyError(f"unknown intake domain: {domain!r}")
+    return intake[domain]
+
+
+def inbox_subpath() -> str:
+    """Leaf name under the personal intake dir for ad-hoc captures (today: `inbox`)."""
+    return _data()["intake"]["inbox_subpath"]
+
+
 def inbox_dir() -> str:
     """Ad-hoc capture leaf, under the personal intake dir."""
-    return f"{intake_dir('personal')}/{_data()['intake']['inbox_subpath']}"
+    return f"{intake_dir('personal')}/{inbox_subpath()}"
 
 
 # --- Homes ----------------------------------------------------------------

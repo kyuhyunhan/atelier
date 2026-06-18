@@ -1,0 +1,102 @@
+# Canonical vault STRUCTURE — single source of truth (RFC 0005 P1).
+#
+# Every consumer (capture, jobs, learnings, reindex, classify) derives vault
+# paths and entry_ids from THIS file via runtime/structure/resolver.py — never
+# from inline literals. Hard rule #3: schema is DATA, not prose; structural
+# facts live here, not hardcoded in code.
+#
+# entry_id stability: the discriminator TEMPLATES below reproduce the CURRENT
+# stored strings BYTE-FOR-BYTE for existing kinds. entry_id is the R2 asset-key
+# prefix ({entry_id}/file) AND the link target — it MUST stay stable. The only
+# uuid5 namespace is Python stock uuid.NAMESPACE_DNS, for ALL nodes.
+
+# --- Roots ---------------------------------------------------------------
+# P1 keeps content_root = provenance (today's on-disk tree). P2 will flip it
+# to `raw`. graph_root holds entities/themes/sources (post-RFC-0003 rename of
+# wiki/).
+roots:
+  content_root: provenance
+  graph_root: graph
+
+# --- Intake ---------------------------------------------------------------
+# domain -> write dir RELATIVE TO content_root (personal, knowledge) or to the
+# vault root (workshop, which lives outside content_root). inbox_subpath is the
+# leaf under the personal intake dir where ad-hoc captures land.
+intake:
+  personal: personal           # under content_root  -> provenance/personal
+  knowledge: knowledge         # under content_root  -> provenance/knowledge
+  workshop: workshop           # under vault root     -> workshop
+  inbox_subpath: inbox         # under personal intake -> provenance/personal/inbox
+
+# --- Homes ----------------------------------------------------------------
+# page_type -> write dir for that kind of node. graph_* are relative to
+# graph_root; learning_* and products map to their canonical trees. These
+# mirror the current writers: store.learning_root() == content_root/learning,
+# principles/_dir, _archived_dir, candidates, notes.
+homes:
+  graph_source: graph/sources
+  graph_entity: graph/entities
+  graph_theme: graph/themes
+  learning_candidate: provenance/learning/candidates
+  learning_note: provenance/learning/notes
+  learning_principle: provenance/learning/principles
+  learning_archived: provenance/learning/archived
+  product: workshop/products
+
+# --- Prefix aliasing ------------------------------------------------------
+# Legacy<->new prefix map — copied EXACTLY from reindex.py:_PREFIX_ALIASES so
+# the ~980 explicit [[raw/...]]/[[wiki/...]]/[[learnings/...]] body links never
+# dangle across the renames. Symmetric (old->new AND new->old).
+prefix_aliases:
+  "raw/": "provenance/"
+  "wiki/": "graph/"
+  "provenance/": "raw/"
+  "graph/": "wiki/"
+  "learnings/": "provenance/learning/"
+  "provenance/learning/": "learnings/"
+
+# Known top-level slug prefixes — a to_slug already starting with one of these
+# is a full path, not a bare shorthand. From reindex.py:_KNOWN_SLUG_PREFIXES.
+known_prefixes:
+  - "raw/"
+  - "provenance/"
+  - "wiki/"
+  - "graph/"
+  - "products/"
+  - "notes/"
+  - "logs/"
+  - "workshop/"
+  - "learnings/"
+
+# Bare-shorthand expansion bases, tried in order. From _SHORTHAND_BASES.
+shorthand_bases:
+  - "graph/"
+  - "wiki/"
+
+# --- entry_id derivation --------------------------------------------------
+# namespace: the ONLY uuid5 namespace, Python stock uuid.NAMESPACE_DNS. The
+# resolver references it by this marker. No other uuid5 namespace exists in this
+# repo and none must be introduced.
+#
+# templates: per-kind discriminator strings, str.format(**parts) -> uuid5 input.
+# EXISTING templates reproduce today's stored ids byte-for-byte (snapshot-locked
+# in tests/test_structure_resolver.py). NEW templates are the content-based
+# convention for fresh manual docs (replacing the dropped path-based
+# `atelier:{rel}` form) — flagged in `new_kinds` below.
+entry_id:
+  namespace: uuid.NAMESPACE_DNS
+  templates:
+    # --- EXISTING (byte-for-byte stable) ---
+    youtube: "atelier:youtube:{video_id}"
+    claude: "learnings:claude:{body_sha}"
+    principle: "learnings:principle:{slug}"
+    promote: "promote:{target_slug}"
+    product: "workshop:products/{name}"
+    learning_candidate: "learnings:candidate:{date}/{name}"
+    capture: "{iso}{slug}"
+    # --- NEW (content-based; replaces path-based atelier:{rel}) ---
+    source: "atelier:source:{created_at}|{discriminator}"
+  # Templates introduced by P1 for NEW writes only — NOT applied to existing
+  # content. Their ids are free to be defined here; they have no legacy form.
+  new_kinds:
+    - source

@@ -18,7 +18,10 @@ def _read_fm(path: Path) -> dict:
     return fm
 
 
-def test_capture_writes_under_candidates(atelier_env: Dict) -> None:
+def test_capture_is_born_as_a_query_pending_claim(atelier_env: Dict) -> None:
+    """RFC 0005 §7.1: a capture is born DIRECTLY as a v7 Claim
+    (domain:operational, surfacing:query, ac_status:pending, generated_by:<hook>)
+    under the atomic claims tree — NOT a legacy candidates/ file."""
     result = _cap.capture(
         observation="search returns nothing for tilde queries",
         why="fts5 ignores tilde tokens; need fallback",
@@ -29,14 +32,61 @@ def test_capture_writes_under_candidates(atelier_env: Dict) -> None:
     )
     path = Path(result["path"])
     assert path.exists()
-    assert "learnings/candidates/" in str(path)
+    assert "graph/atomic/claims/" in str(path)
+    assert "learnings/candidates/" not in str(path)
     fm = _read_fm(path)
-    assert fm["status"] == "candidate"
+    assert fm["schema_version"] == 7
+    assert fm["kind"] == "claim"
+    assert fm["domain"] == "operational"
+    assert fm["surfacing"] == "query"
     assert fm["ac_status"] == "pending"
-    assert fm["agent_kind"] == "claude-code"
+    # generated_by is the PROV activity (schema enum ingest|atomize|promote|
+    # dream) — a born-as-claim capture is `ingest`; the hook is in `hook`.
+    assert fm["generated_by"] == "ingest"
     assert fm["hook"] == "Stop"
+    assert fm["agent_kind"] == "claude-code"
+    assert fm["attributed_to"] == "claude-code"
     assert fm["project_hint"] == "lexio"
+    assert fm["project"] == "lexio"
     assert fm["entry_id"] == result["entry_id"]
+    # born WITH a thin session Source it derives_from (PROV chain at birth).
+    assert fm["derived_from"] == [result["source_entry_id"]]
+
+
+def test_capture_mints_thin_session_source(atelier_env: Dict) -> None:
+    """The claim derives_from a thin v7 Source carrying the session metadata
+    (session_id / working_dir / agent_kind / hook), domain:inbox."""
+    result = _cap.capture(
+        observation="x happens under y", why="because z",
+        working_dir="/Users/me/workspaces/lexio", session_id="sess-1",
+        hook="manual",
+    )
+    src = (atelier_env["gorae"] / "graph" / "atomic" / "sources")
+    matches = [p for p in src.rglob("*.md")
+               if _read_fm(p).get("entry_id") == result["source_entry_id"]]
+    assert len(matches) == 1
+    sfm = _read_fm(matches[0])
+    assert sfm["kind"] == "source"
+    assert sfm["domain"] == "inbox"
+    assert sfm["session"]["session_id"] == "sess-1"
+    assert sfm["session"]["working_dir"] == "/Users/me/workspaces/lexio"
+    assert sfm["session"]["hook"] == "manual"
+    assert sfm["session"]["learning_entry_id"] == result["entry_id"]
+
+
+def test_capture_resolves_project_to_is_about_entity(atelier_env: Dict) -> None:
+    """project_hint/touches resolve-or-create into is_about Entity ids so the
+    claim is wired into the graph at birth (RFC 0005 §7.1)."""
+    result = _cap.capture(
+        observation="overlay bug", why="needs a stable key",
+        rule="stabilize keys", working_dir="/Users/me/workspaces/lexio",
+        touches=["react-rendering"], hook="manual",
+    )
+    fm = _read_fm(Path(result["path"]))
+    assert len(fm["is_about"]) == 2          # project + one touched concept
+    ents = (atelier_env["gorae"] / "graph" / "atomic" / "entities")
+    ent_ids = {_read_fm(p).get("entry_id") for p in ents.rglob("*.md")}
+    assert set(fm["is_about"]) <= ent_ids    # every is_about points at a real node
 
 
 def test_capture_inside_vault_tags_atelier_self(atelier_env: Dict) -> None:
@@ -117,11 +167,26 @@ def test_capture_require_why_false_writes(atelier_env: Dict) -> None:
     assert "why_missing" not in result
 
 
-def test_capture_collision_avoided(atelier_env: Dict) -> None:
-    """Two captures within the same minute should not collide."""
-    a = _cap.capture(observation="alpha", why="because a", hook="Stop")
-    b = _cap.capture(observation="alpha", why="because a", hook="Stop")
+def test_capture_distinct_lessons_get_distinct_claims(atelier_env: Dict) -> None:
+    """Two captures with DIFFERENT statements land as two distinct claims."""
+    a = _cap.capture(observation="alpha", why="because a", rule="rule alpha",
+                     hook="Stop")
+    b = _cap.capture(observation="beta", why="because b", rule="rule beta",
+                     hook="Stop")
     assert a["path"] != b["path"]
+    assert a["entry_id"] != b["entry_id"]
+
+
+def test_capture_identical_lesson_is_idempotent(atelier_env: Dict) -> None:
+    """RFC 0005 §5: the claim id is content-addressed (norm(statement) |
+    derived_from). Re-capturing the IDENTICAL lesson from the same session
+    converges on the same claim (the dedup key), not a duplicate file."""
+    a = _cap.capture(observation="alpha", why="because a", rule="same rule",
+                     session_id="s", working_dir="/w", hook="Stop")
+    b = _cap.capture(observation="alpha", why="because a", rule="same rule",
+                     session_id="s", working_dir="/w", hook="Stop")
+    assert a["entry_id"] == b["entry_id"]
+    assert a["path"] == b["path"]
 
 
 def test_mcp_tool_dispatch_invokes_capture(atelier_env: Dict) -> None:

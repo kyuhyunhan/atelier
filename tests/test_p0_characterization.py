@@ -145,7 +145,11 @@ def test_surfacing_all_seeded_learnings_visible(vault_env: Dict) -> None:
     an empty `newly_dark` is the acceptance gate."""
     _seed(vault_env["vault"])
     snap = _sf.snapshot()
-    assert set(snap) == {"L1", "L2", "L3", "L4"}
+    # RFC 0005 §7.1 — a principle is now a v7 claim (domain:operational,
+    # surfacing:always), so it is enumerated by the surfacing audit alongside the
+    # four seeded learnings. The four seeds remain present and visible; the gate
+    # is that NONE go dark.
+    assert {"L1", "L2", "L3", "L4"} <= set(snap)
     assert all(snap[e]["visible"] for e in snap), \
         {e: snap[e]["visible"] for e in snap}
     report = _sf.audit()

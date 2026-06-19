@@ -36,8 +36,11 @@ def test_recall_returns_matching_principle(atelier_env: Dict) -> None:
              slug="prefer-real-db")
     out = _rc.recall(query="mocked database tests", top_k=5)
     assert out["count"] >= 1
+    # RFC 0005 §7.1 — a principle is a v7 claim; its file stem carries the
+    # content-addressed id suffix, so match the slug prefix, not an exact stem.
     slugs = {it["slug"] for it in out["items"]}
-    assert "prefer-real-db" in slugs
+    assert any(s.startswith("prefer-real-db") for s in slugs)
+    assert any(it["page_type"] == "learning_principle" for it in out["items"])
 
 
 def test_recall_returns_matching_accepted_learning(atelier_env: Dict) -> None:

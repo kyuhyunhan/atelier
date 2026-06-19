@@ -143,6 +143,259 @@ def surfacing_of(fm: Dict[str, Any]) -> str:
     return s if s in _LADDER else TIER_QUERY
 
 
+def find_claim_by_slug_or_id(needle: str,
+                             vault: Optional[Path] = None
+                             ) -> Optional[Tuple[Path, Dict[str, Any], str]]:
+    """Locate a claim by entry_id, full file stem, or the bare filename.
+
+    The accept/archive/retract callers pass either the claim's entry_id (the
+    stable handle the review listing surfaces) or the file stem. entry_id is
+    tried first because it is unambiguous; the stem match is a convenience for
+    hand-driven CLI use."""
+    want = str(needle).removesuffix(".md")
+    by_id = find_claim_by_entry_id(want, vault)
+    if by_id is not None:
+        return by_id
+    for p in iter_claim_files(vault):
+        if p.stem == want:
+            got = read_claim(p)
+            if got is not None:
+                return p, got[0], got[1]
+    return None
+
+
+# ── born-as-claim: capture / absorb write a v7 Claim directly ─────────────────
+
+
+def _resolve_entity_id(pref_label: str, *, sensitivity: str,
+                       in_scheme: str, vault: Path) -> str:
+    """Resolve-or-create a v7 Entity for `pref_label`, returning its entry_id.
+
+    entry_id is content-addressed (`type | norm(pref_label)`, RFC 0005 §5), so a
+    resolve and a create converge on the same id — the dedup key. When no node
+    file exists yet we mint a thin Concept entity so `is_about` always points at a
+    real node (the projection's referential integrity, doctor v7). Idempotent: a
+    second capture touching the same subject reuses the file."""
+    pref_label = " ".join(str(pref_label).split())
+    eid = _structure.entry_id("entity", type="Concept", pref_label=pref_label)
+    found = find_entity_by_entry_id(eid, vault)
+    if found is not None:
+        return eid
+    front: Dict[str, Any] = {
+        "entry_id": eid,
+        "schema_version": 7,
+        "kind": "entity",
+        "type": "Concept",
+        "created_at": _now_iso(),
+        "pref_label": pref_label,
+        "alt_label": [],
+        "in_scheme": [in_scheme],
+        "sensitivity": sensitivity,
+        "links": [],
+    }
+    front["content_hash"] = _content_hash(front)
+    out = (vault / _structure.atomic_entity_dir()
+           / f"{_slugify(pref_label)}-{eid[:8]}.md")
+    _atomic_write(out, _emit(front, f"# {pref_label}\n"))
+    return eid
+
+
+def find_entity_by_entry_id(entry_id: str, vault: Path) -> Optional[Path]:
+    base = vault / _structure.atomic_entity_dir()
+    if not base.exists():
+        return None
+    for p in sorted(base.rglob("*.md")):
+        if p.name == "INDEX.md":
+            continue
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:                       # pragma: no cover
+            continue
+        if isinstance(fm, dict) and str(fm.get("entry_id")) == str(entry_id):
+            return p
+    return None
+
+
+def mint_session_source(*, statement: str,
+                        session_id: Optional[str] = None,
+                        working_dir: Optional[str] = None,
+                        agent_kind: str = "claude-code",
+                        hook: str = "manual",
+                        captured_at: Optional[str] = None,
+                        sensitivity: str = "public",
+                        learning_entry_id: Optional[str] = None,
+                        vault: Optional[Path] = None,
+                        ) -> Dict[str, Any]:
+    """Mint a thin v7 Source node carrying the capture's session metadata
+    (RFC 0005 §7.1 — the claim is born WITH a Source it derives_from, so the
+    PROV chain is never empty).
+
+    `domain: inbox` (a capture is domain-undetermined at the door, §12.6). The
+    `session:` block holds session_id/working_dir/agent_kind/hook/captured_at.
+    The Source's entry_id is content-addressed on (created_at | session
+    discriminator) so two captures in the same session get distinct ids only
+    when their statement differs.
+
+    Returns {path, entry_id}.
+    """
+    vault = vault if vault is not None else vault_root()
+    now = captured_at or _now_iso()
+    discriminator = "|".join(str(x) for x in
+                             (session_id or "", working_dir or "",
+                              hook or "", _slugify(statement)))
+    eid = _structure.entry_id("source", created_at=now,
+                              discriminator=discriminator)
+    session: Dict[str, Any] = {
+        "agent_kind": agent_kind or "unknown",
+        "hook": hook or "manual",
+        "captured_at": now,
+    }
+    if session_id:
+        session["session_id"] = session_id
+    if working_dir:
+        session["working_dir"] = working_dir
+    if learning_entry_id:
+        session["learning_entry_id"] = learning_entry_id
+    front: Dict[str, Any] = {
+        "entry_id": eid,
+        "schema_version": 7,
+        "kind": "source",
+        "created_at": now,
+        "domain": "inbox",
+        "sensitivity": sensitivity,
+        "attributed_to": agent_kind or "unknown",
+        "title": f"Session metadata — {statement[:80]}",
+        "session": session,
+    }
+    front["content_hash"] = _content_hash(front)
+    body = (f"Thin session-metadata Source for an operational learning "
+            f"(RFC 0005 §7.1). The lesson itself lives in the derived Claim; "
+            f"this node carries only how/when it was captured.\n")
+    out = (vault / _structure.atomic_source_dir()
+           / f"session-{eid[:12]}.md")
+    _atomic_write(out, _emit(front, body))
+    return {"path": str(out), "entry_id": eid}
+
+
+def write_operational_claim(*, statement: str,
+                            source_entry_id: str,
+                            body: str,
+                            generated_by: str,
+                            attributed_to: str = "claude-code",
+                            agent_kind: str = "claude-code",
+                            hook: str = "manual",
+                            observation_kind: str = "feedback",
+                            why_status: str = "present",
+                            project: Optional[str] = None,
+                            is_about: Optional[List[str]] = None,
+                            sensitivity: str = "public",
+                            surfacing: str = TIER_QUERY,
+                            ac_status: str = "pending",
+                            captured_at: Optional[str] = None,
+                            extra: Optional[Dict[str, Any]] = None,
+                            vault: Optional[Path] = None,
+                            ) -> Dict[str, Any]:
+    """Write a v7 operational Claim born at `surfacing:query, ac_status:pending`
+    (RFC 0005 §7.1 — an operational learning is BORN AS A CLAIM, never a
+    candidate file).
+
+    - `domain: operational`, `derived_from: [source_entry_id]` (the thin session
+      Source minted alongside it).
+    - entry_id is content-addressed (`norm(statement) | derived_from`, §5) so a
+      re-capture of the same lesson from the same source is idempotent.
+    - `is_about` points at resolved Entity ids; `project` is kept as a flat field
+      AND mirrored to `project_hint` so the existing acceptance criteria
+      (`has_project_tag`) and recall project filter keep working unchanged.
+    - the body preserves the `## Observation / ## Why this matters /
+      ## Applicable rule` sections the acceptance criteria heuristics read.
+
+    Returns {path, entry_id, slug}.
+    """
+    vault = vault if vault is not None else vault_root()
+    statement = " ".join(str(statement).split())
+    if not statement:
+        raise ValueError("operational claim requires a statement")
+    now = captured_at or _now_iso()
+    eid = _structure.entry_id("claim", statement=statement,
+                              derived_from=source_entry_id)
+    front: Dict[str, Any] = {
+        "entry_id": eid,
+        "schema_version": 7,
+        "kind": "claim",
+        "created_at": now,
+        "statement": statement,
+        "domain": "operational",
+        "sensitivity": sensitivity,
+        "surfacing": surfacing,
+        "ac_status": ac_status,
+        "derived_from": [source_entry_id],
+        "is_about": list(dict.fromkeys(is_about or [])),
+        "attributed_to": attributed_to or "unknown",
+        "agent_kind": agent_kind or "unknown",
+        "generated_by": generated_by,
+        "hook": hook or "manual",
+        "observation_kind": observation_kind,
+        "why_status": why_status,
+        "links": [],
+    }
+    if project:
+        front["project"] = project
+        front["project_hint"] = project       # criteria/recall read this name
+    if captured_at:
+        front["captured_at"] = captured_at
+    if extra:
+        front.update(extra)
+    front["content_hash"] = _content_hash(front)
+    out = claims_dir(vault) / f"{_slugify(statement)}-{eid[:8]}.md"
+    # Collision-avoid: a distinct lesson that slugifies the same keeps its own id.
+    n = 1
+    while out.exists() and str(_safe_eid(out)) != eid:
+        out = claims_dir(vault) / f"{_slugify(statement)}-{eid[:8]}-{n}.md"
+        n += 1
+    _atomic_write(out, _emit(front, body))
+    return {"path": str(out), "entry_id": eid, "slug": out.stem}
+
+
+def _safe_eid(path: Path) -> Optional[str]:
+    got = read_claim(path)
+    return got[0].get("entry_id") if got else None
+
+
+def set_ac_status(path: Path, fm: Dict[str, Any], body: str, *,
+                  new_status: str,
+                  archive_reason: Optional[str] = None,
+                  links: Optional[List[str]] = None,
+                  ac_results: Optional[Dict[str, Any]] = None,
+                  ) -> Dict[str, Any]:
+    """Transition a claim's acceptance state IN PLACE (RFC 0005 §7.1 — accept /
+    archive / retract are FIELD transitions on the claim, not directory moves).
+
+    - `entry_id` PRESERVED; `content_hash` re-derived.
+    - `passed` (accept) stamps `accepted_at`; `failed`/`retracted` stamp
+      `archived_at` + `archive_reason`.
+    - the file does NOT move; the same `path` is rewritten atomically.
+
+    Returns the new frontmatter dict.
+    """
+    new_fm = dict(fm)
+    new_fm["ac_status"] = new_status
+    if new_status == "passed":
+        new_fm["accepted_at"] = _now_iso()
+    if new_status in ("failed", "retracted"):
+        new_fm["archived_at"] = _now_iso()
+        if archive_reason:
+            new_fm["archive_reason"] = archive_reason
+    if links:
+        new_fm["links"] = list(dict.fromkeys(
+            list(new_fm.get("links") or []) + list(links)))
+    if ac_results is not None:
+        new_fm["ac_results"] = ac_results
+    new_fm.pop("content_hash", None)
+    new_fm["content_hash"] = _content_hash(new_fm)
+    _atomic_write(path, _emit(new_fm, body))
+    return new_fm
+
+
 # ── field transition (the core of promote/dream) ──────────────────────────────
 
 

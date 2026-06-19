@@ -24,11 +24,26 @@ from ...util import config as _config
 from ...util import db as _db
 
 
+# RFC 0005 §7.1 — an operational learning is now a v7 `claim` page (its status is
+# the `ac_status` field). Every status scope therefore also fetches `claim`
+# pages; the ac_status post-filter (`_AC_FOR_STATUS`) narrows the claim pool to
+# the requested lifecycle state. Legacy learning_* page_types stay in scope for a
+# vault that predates the migration.
 _STATUS_TO_TYPES = {
-    "candidate": ("learning_candidate",),
-    "accepted":  ("learning_accepted",),
-    "archived":  ("learning_archived",),
-    "any":       ("learning_candidate", "learning_accepted", "learning_archived"),
+    "candidate": ("learning_candidate", "claim"),
+    "accepted":  ("learning_accepted", "claim"),
+    "archived":  ("learning_archived", "claim"),
+    "any":       ("learning_candidate", "learning_accepted", "learning_archived",
+                  "claim"),
+}
+
+# Which claim ac_status values count as each search status. None = no ac_status
+# filter (the legacy pages carry the distinction in their page_type instead).
+_AC_FOR_STATUS = {
+    "candidate": ("pending",),
+    "accepted":  ("passed",),
+    "archived":  ("failed", "retracted"),
+    "any":       ("pending", "passed", "failed", "retracted"),
 }
 
 
@@ -74,15 +89,9 @@ def _grep_walk(root: Path, query: str,
     and identical to the DB / recall-fallback paths (no silent mismatch)."""
     from . import recall as _recall
     from . import store as _store
-    learnings_root = _store.learning_root(root)
-    if not learnings_root.exists():
-        return []
     rx = re.compile(re.escape(query), re.I) if query else None
     out: List[Dict[str, Any]] = []
-    for p in sorted(learnings_root.rglob("*.md")):
-        text = p.read_text(encoding="utf-8")
-        fm, body = _parse.split_frontmatter(text)
-        status = fm.get("status") or "candidate"
+    for p, fm, body, status in _walk_searchable(root, _store):
         if not any(status == t.removeprefix("learning_") for t in types):
             continue
         if project and not _recall._fm_has_facet(fm, "project", project):
@@ -108,6 +117,41 @@ def _grep_walk(root: Path, query: str,
     return out
 
 
+def _walk_searchable(root: Path, _store):
+    """Yield (path, fm, body, status) for every searchable learning — RFC 0005
+    §7.1 operational CLAIMS (status derived from ac_status) plus any legacy
+    notes/candidates files still on disk (back-compat). One generator so the
+    grep fallback sees the same pool the DB path indexes."""
+    from . import claims_io as _claims
+    seen: set = set()
+    # v7 claims: ac_status passed → accepted, pending → candidate.
+    _AC_TO_STATUS = {"passed": "accepted", "pending": "candidate"}
+    for p in _claims.iter_claim_files(root):
+        got = _claims.read_claim(p)
+        if got is None:
+            continue
+        fm, body = got
+        if str(fm.get("domain") or "") != "operational":
+            continue
+        status = _AC_TO_STATUS.get(str(fm.get("ac_status") or ""))
+        if status is None:                       # archived/retracted: not listed
+            continue
+        seen.add(p.resolve())
+        yield p, fm, body, status
+    # legacy notes/candidates files (a vault that predates the claim migration).
+    learnings_root = _store.learning_root(root)
+    if not learnings_root.exists():
+        return
+    for p in sorted(learnings_root.rglob("*.md")):
+        if p.resolve() in seen or p.name == "INDEX.md":
+            continue
+        try:
+            fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:                        # pragma: no cover
+            continue
+        yield p, fm, body, (fm.get("status") or "candidate")
+
+
 def _hit_from_row(row) -> Dict[str, Any]:
     """One result row (slug, page_type, space, frontmatter) → the search hit
     shape. Shared by the resolver path and the facet-only listing so the two
@@ -125,9 +169,26 @@ def _hit_from_row(row) -> Dict[str, Any]:
     }
 
 
+def _claim_ac_ok(frontmatter: str, allowed: Optional[tuple]) -> bool:
+    """A claim page passes the status filter only when its ac_status is in the
+    allowed set. Non-claim (legacy learning_*) pages are unaffected — their
+    page_type already encodes the status, so they always pass here."""
+    if allowed is None:
+        return True
+    import json as _json
+    try:
+        fm = _json.loads(frontmatter or "{}")
+    except (TypeError, ValueError):              # pragma: no cover
+        return True
+    if fm.get("kind") != "claim":
+        return True
+    return str(fm.get("ac_status") or "") in allowed
+
+
 def _resolve_search(query: str, types: tuple, *, project: Optional[str],
                     topic: Optional[str], aspect: Optional[str],
-                    limit: int) -> List[Dict[str, Any]]:
+                    limit: int,
+                    ac_allowed: Optional[tuple] = None) -> List[Dict[str, Any]]:
     """Text-query search via the hybrid resolver (RFC 0002 P3).
 
     The resolver fuses lexical + (when available) semantic by RRF, scoped to the
@@ -167,6 +228,8 @@ def _resolve_search(query: str, types: tuple, *, project: Optional[str],
             r = rows.get(c.page_id)
             if r is None:                   # dropped by a facet filter
                 continue
+            if not _claim_ac_ok(r["frontmatter"], ac_allowed):
+                continue                    # claim in the wrong lifecycle state
             out.append(_hit_from_row(r))
             if len(out) >= limit:
                 break
@@ -176,7 +239,8 @@ def _resolve_search(query: str, types: tuple, *, project: Optional[str],
 
 
 def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
-                  limit: int) -> List[Dict[str, Any]]:
+                  limit: int,
+                  ac_allowed: Optional[tuple] = None) -> List[Dict[str, Any]]:
     """Facet-only listing (no text query): a straight `pages` scan filtered by
     page_type + facets. NOT routed through the resolver — there is no query to
     fuse on. This is the 'list every accepted learning in project X' path."""
@@ -193,6 +257,8 @@ def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
         out: List[Dict[str, Any]] = []
         for row in conn.execute(sql, [*types, *facet_params, limit * 3]):
             if row["slug"] in seen:
+                continue
+            if not _claim_ac_ok(row["frontmatter"], ac_allowed):
                 continue
             seen.add(row["slug"])
             out.append(_hit_from_row(row))
@@ -212,6 +278,7 @@ def search(*, query: str = "",
     from ...search import fts as _fts
     vault = _vault_root()
     types = _STATUS_TO_TYPES.get(status, _STATUS_TO_TYPES["accepted"])
+    ac_allowed = _AC_FOR_STATUS.get(status, _AC_FOR_STATUS["accepted"])
     # Sanitize to decide text-vs-listing: a raw prompt with punctuation that
     # reduces to empty is a facet-only listing, not a broken MATCH.
     match = _fts.sanitize_match(query) if query else ""
@@ -220,11 +287,13 @@ def search(*, query: str = "",
         if match:
             # Text query → hybrid resolver (RFC 0002 P3), facets post-filtered.
             hits = _resolve_search(query, types, project=project, topic=topic,
-                                   aspect=aspect, limit=limit)
+                                   aspect=aspect, limit=limit,
+                                   ac_allowed=ac_allowed)
         else:
             # No text query → facet-only listing scan (untouched by P3).
             facet_sql, facet_params = _facet_clause(project, topic, aspect)
-            hits = _listing_scan(types, facet_sql, facet_params, limit)
+            hits = _listing_scan(types, facet_sql, facet_params, limit,
+                                 ac_allowed=ac_allowed)
     except Exception:
         # Schema not initialized or pages table empty — fall through to grep.
         hits = []

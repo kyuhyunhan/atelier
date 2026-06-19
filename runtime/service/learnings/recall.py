@@ -98,15 +98,19 @@ def _resolve_hits(query: str, types: List[str], limit: int,
     except Exception:                       # pragma: no cover
         return []
     ctx = None
+    ac_allowed = _claim_ac_allowed(types)
+    # Fetch v7 claims alongside the legacy learning_* pages, then narrow them by
+    # ac_status to the requested lifecycle state (RFC 0005 §7.1).
+    scope_types = tuple(types) + (("claim",) if ac_allowed else ())
     try:
         ctx = _resolver.build_context(conn)
         cands = _resolver.resolve(
             query, engine=ctx.engine,
-            scope=Scope(page_types=tuple(types)),
+            scope=Scope(page_types=scope_types),
             gateway=ctx.gateway, k=limit)
         if not cands:
             return []
-        return _rehydrate(conn, cands, facets)
+        return _rehydrate(conn, cands, facets, ac_allowed=ac_allowed)
     except Exception:
         # A resolver/sidecar failure (e.g. a corrupt vectors.db) must degrade to
         # rank_hits' fs-scan fallback, never crash the per-prompt recall hook.
@@ -118,7 +122,8 @@ def _resolve_hits(query: str, types: List[str], limit: int,
         conn.close()
 
 
-def _rehydrate(conn, cands, facets: Optional[List[tuple]]) -> List[Dict[str, Any]]:
+def _rehydrate(conn, cands, facets: Optional[List[tuple]],
+               ac_allowed: Optional[set] = None) -> List[Dict[str, Any]]:
     """Attach frontmatter to fused candidates, applying the facet post-filter.
 
     One `WHERE id IN (...)` over `pages` (frontmatter is `NOT NULL`), optionally
@@ -139,14 +144,54 @@ def _rehydrate(conn, cands, facets: Optional[List[tuple]]) -> List[Dict[str, Any
         r = rows.get(c.page_id)
         if r is None:                       # dropped by a facet filter
             continue
+        fm = json.loads(r["frontmatter"] or "{}")
+        if ac_allowed is not None and not _claim_passes(fm, ac_allowed):
+            continue                        # claim in the wrong lifecycle state
         out.append({
             "slug": c.slug,
-            "page_type": c.page_type,
-            "fm": json.loads(r["frontmatter"] or "{}"),
+            "page_type": (_claim_page_type(fm) if fm.get("kind") == "claim"
+                          else c.page_type),
+            "fm": fm,
             "score": float(c.score),
             "snippet": c.snippet or "",
         })
     return out
+
+
+# RFC 0005 §7.1 — an accepted/candidate operational learning is a v7 `claim`
+# page whose lifecycle is its `ac_status`. Recall scopes by the legacy
+# learning_* page_types; this maps them to the claim ac_status values that count.
+_TYPE_TO_AC = {
+    "learning_accepted":  "passed",
+    "learning_candidate": "pending",
+    "learning_principle": "passed",   # principles ≈ high-tier accepted claims
+}
+
+
+def _claim_ac_allowed(types: List[str]) -> set:
+    return {_TYPE_TO_AC[t] for t in types if t in _TYPE_TO_AC}
+
+
+def _claim_page_type(fm: Dict[str, Any]) -> str:
+    """Classify a v7 claim into the legacy learning_* page_type recall renders.
+
+    RFC 0005 §7.1 — a principle is a claim carrying the ethos marker
+    (`principle_tier`, or the legacy coverage+priority shape); everything else is
+    an ordinary accepted/candidate operational claim. The principle label drives
+    the `[principle]` render + the recall principle boost."""
+    if fm.get("principle_tier") or (fm.get("coverage") and fm.get("priority")):
+        return "learning_principle"
+    return "learning_accepted"
+
+
+def _claim_passes(fm: Dict[str, Any], ac_allowed: set) -> bool:
+    """A claim row is in scope only when operational AND its ac_status is one the
+    requested types allow. Non-claim rows are unaffected."""
+    if fm.get("kind") != "claim":
+        return True
+    if str(fm.get("domain") or "") != "operational":
+        return False
+    return str(fm.get("ac_status") or "") in ac_allowed
 
 
 def _fm_has_facet(fm: Dict[str, Any], kind: str, value: str) -> bool:
@@ -218,9 +263,17 @@ def _fs_scan(query: str, vault: Path, types: List[str],
             hits_in_doc = sum(1 for t in tokens if t in haystack)
             if hits_in_doc == 0:
                 continue
+            # RFC 0005 §7.1 — a principle is a claim carrying the ethos marker;
+            # it surfaces through the accepted-claim iterator, so re-classify it
+            # here (the FS path can't pre-split it into a principles/ dir scan).
+            eff_ptype = ptype
+            if fm.get("kind") == "claim":
+                eff_ptype = _claim_page_type(fm)
+                if eff_ptype not in types:
+                    continue
             out.append({
                 "slug": p.stem,
-                "page_type": ptype,
+                "page_type": eff_ptype,
                 "fm": fm,
                 # Larger = better. More token hits → higher score.
                 "score": float(hits_in_doc),

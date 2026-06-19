@@ -75,8 +75,15 @@ page_types:
       pref_label:  { type: string }                      # skos:prefLabel
       alt_label:   { type: array, items: { type: string } }  # skos:altLabel
       type:
+        # SKOS-aligned subject taxonomy. Extended (RFC 0005 P4 FINALIZE) with
+        # Organization / Project / Emotion / Role — semantic categories that the
+        # P4 atomization surfaced in real content and that the original closed
+        # list omitted. The enum is a validation constraint only; `type` is also
+        # part of the entity entry_id discriminator (uuid5(NS, type|pref_label)),
+        # so this is purely additive — it does not alter any existing id.
         type: string
-        enum: [Person, Concept, Work, Place, Tool, Event, Domain]
+        enum: [Person, Concept, Work, Place, Tool, Event, Domain,
+               Organization, Project, Emotion, Role]
       in_scheme:                                          # skos:inScheme [domain]
         type: array
         items: { type: string, enum: [personal, knowledge, inbox, workshop] }

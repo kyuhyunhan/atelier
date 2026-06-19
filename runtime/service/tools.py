@@ -487,19 +487,39 @@ async def _h_recall(query: str,
                      max_chars: int = 1500,
                      include_candidates: bool = False,
                      relevance_threshold: Optional[float] = None,
+                     tier: str = "proactive",
                      ) -> Dict[str, Any]:
-    """Per-turn signal-detector retrieval over the learnings domain."""
+    """Per-turn signal-detector retrieval.
+
+    RFC 0005 §6: over v7 CLAIM nodes this applies the surfacing/sensitivity/
+    domain-prior ladder (`tier` = query | proactive | always). `proactive` (T1)
+    is the per-turn default; `query` (T2) is the universal on-query path; `always`
+    (T0) is the hard-capped unconditional budget. The legacy `learning_*` recall
+    runs alongside during the migration and its hits are merged in."""
     from .learnings import recall as _rc
+    from .learnings import recall_v7 as _rv
     sess = current_session()
     if project is None and sess.working_dir:
         # Route through the shared accessor so recall's project key matches
         # the one capture wrote and bootstrap injects (learning `1446`).
         from .learnings import project as _proj
         project = _proj.resolve_project(sess.working_dir).slug
-    return _rc.recall(query=query, project=project, top_k=top_k,
-                       max_chars=max_chars,
-                       include_candidates=include_candidates,
-                       relevance_threshold=relevance_threshold)
+
+    legacy = _rc.recall(query=query, project=project, top_k=top_k,
+                        max_chars=max_chars,
+                        include_candidates=include_candidates,
+                        relevance_threshold=relevance_threshold)
+    claims = _rv.recall_claims(query=query, project=project, tier=tier,
+                              top_k=top_k, max_chars=max_chars)
+    if not claims["items"]:
+        return legacy
+    # Merge: v7 claims first (the target model), then legacy learnings, capped to
+    # top_k. The renderer is re-run over the merged item set so both render
+    # consistently. Item shapes are identical (both go through a _summarize_*).
+    merged = (claims["items"] + legacy["items"])[:top_k]
+    markdown = _rc._render(merged, project, max_chars)
+    return {"query": query, "project": project, "tier": tier,
+            "count": len(merged), "items": merged, "markdown": markdown}
 
 
 async def _h_think(query: str,
@@ -843,9 +863,12 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_recall",
-        "Per-turn signal-detector retrieval over the learnings domain. "
-        "Returns top-K learnings ranked by hybrid retrieval (lexical BM25 + "
-        "semantic vectors, fused by reciprocal rank), with a project-match boost.",
+        "Per-turn signal-detector retrieval. Over v7 claim nodes it applies the "
+        "RFC 0005 §6 surfacing ladder (tier = query|proactive|always): "
+        "gate(surfacing) × domain_prior(context) × vector_relevance × "
+        "sensitivity_gate. private claims are never pushed proactively (T1/T0), "
+        "reachable only by explicit on-query (T2); T0 is hard-capped. Legacy "
+        "learning recall (hybrid BM25 + vectors, project boost) runs alongside.",
         _h_recall,
     ))
     # NOTE: this description paraphrases think.SYNTHESIS_CONTRACT for the caller's

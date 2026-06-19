@@ -135,7 +135,10 @@ entity_thresholds:
 
 inbox:
   # `{content_root}` expanded by the overlay loader (single root constant).
-  path: "{content_root}/personal/inbox/"
+  # RFC 0005: inbox is a first-class intake sibling (raw/inbox), not under personal/;
+  # matches resolver.inbox_dir() so the (Phase-9-dormant) inbox-status pass scans
+  # where capture actually lands.
+  path: "{content_root}/inbox/"
   status_field: inbox_status
   pending_value: pending
   note: "Mobile inbox target. Directory created in Phase 9 operational soak."

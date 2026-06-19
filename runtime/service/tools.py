@@ -215,8 +215,9 @@ async def _h_new_doc(template: str, name: str,
                       role: str = "librarian-territory",
                       fields: Optional[Dict[str, Any]] = None
                       ) -> Dict[str, Any]:
-    """Scaffold a new document under raw/, workshop/products, workshop/notes,
-    or provenance/learning/candidates/."""
+    """Scaffold a new document under raw/, workshop/products, or workshop/notes.
+    (The 'learning' template is retired — operational learnings are born as a
+    Claim via atelier_learning_capture; RFC 0005 §7.1.)"""
     from .jobs import new_doc as _jnd
     return _jnd.new_doc(template=template, name=name, role=role,
                          fields=fields)

@@ -11,9 +11,11 @@
 # uuid5 namespace is Python stock uuid.NAMESPACE_DNS, for ALL nodes.
 
 # --- Roots ---------------------------------------------------------------
-# P1 keeps content_root = provenance (today's on-disk tree). P2 will flip it
-# to `raw`. graph_root holds entities/themes/sources (post-RFC-0003 rename of
-# wiki/).
+# content_root is THE one constant for the content tree (P2 flipped it from
+# `provenance` to `raw`). Homes, intake dirs, and overlay path_patterns compose
+# their prefix from it via `{content_root}` / the resolver, so flipping the root
+# is a single edit here. graph_root holds entities/themes/sources (post-RFC-0003
+# rename of wiki/).
 roots:
   content_root: raw
   graph_root: graph
@@ -55,10 +57,13 @@ homes:
   atomic_source: graph/atomic/sources
   atomic_entity: graph/atomic/entities
   atomic_claim: graph/atomic/claims
-  learning_candidate: raw/learning/candidates
-  learning_note: raw/learning/notes
-  learning_principle: raw/learning/principles
-  learning_archived: raw/learning/archived
+  # learning_* are content-root-RELATIVE: `{content_root}` is expanded by the
+  # resolver (home()) from roots.content_root, so the whole learning tree moves
+  # with a single root flip — never re-hardcode the prefix.
+  learning_candidate: "{content_root}/learning/candidates"
+  learning_note: "{content_root}/learning/notes"
+  learning_principle: "{content_root}/learning/principles"
+  learning_archived: "{content_root}/learning/archived"
   product: workshop/products
 
 # --- Prefix aliasing ------------------------------------------------------

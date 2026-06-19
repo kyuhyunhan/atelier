@@ -20,6 +20,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import yaml
 
+from .. import structure as _structure
 from ..index import parse as _parse
 from ..util import config as _config
 from .runner import Finding
@@ -28,11 +29,29 @@ from .runner import Finding
 _SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema" / "data"
 
 
+def _expand_content_root(obj: Any) -> Any:
+    """Recursively expand `{content_root}` placeholders in overlay string values.
+
+    Overlay path data (raw_source.path_patterns, inbox.path) carries the
+    `{content_root}` placeholder so the content-root prefix is single-sourced
+    from the structure resolver — flipping roots.content_root is the ONLY edit
+    needed. Strings without the placeholder pass through unchanged.
+    """
+    if isinstance(obj, str):
+        return _structure.expand_content_root(obj)
+    if isinstance(obj, list):
+        return [_expand_content_root(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: _expand_content_root(v) for k, v in obj.items()}
+    return obj
+
+
 def _load_overlay(name: str) -> Dict[str, Any]:
     path = _SCHEMA_DIR / f"{name}.overlay.yaml"
     if not path.exists():
         return {}
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return _expand_content_root(raw)
 
 
 def _all_overlays() -> List[Dict[str, Any]]:

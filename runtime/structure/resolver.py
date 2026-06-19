@@ -32,15 +32,21 @@ def _data() -> Dict[str, Any]:
 
 # --- Roots ---------------------------------------------------------------
 def content_root() -> str:
-    """Top dir holding ingested/provenance content (today: `provenance`)."""
+    """Top dir holding ingested content (today: `raw`, post-P2 flip).
+
+    This is THE one constant for the content tree: homes (learning_*), intake
+    dirs, and overlay path patterns all compose their prefix from this value
+    via `{content_root}` / `home()` / `intake_dir()`, so flipping the root is a
+    single edit in structure.yaml.
+    """
     return _data()["roots"]["content_root"]
 
 
 def legacy_content_root() -> str:
-    """Pre-rename name of the content root (today: `raw`).
+    """Pre-flip name of the content root (today: `provenance`).
 
     Writers resolve to `content_root()` but fall back to this name when only the
-    un-renamed tree is on disk (the RFC 0003 raw/->provenance/ transition). The
+    un-renamed tree is on disk (the RFC 0003 provenance/<-raw/ transition). The
     name is derived from `prefix_aliases` so the legacy constant lives in ONE
     place, never re-hardcoded at a call site.
     """
@@ -53,6 +59,50 @@ def legacy_content_root() -> str:
 def graph_root() -> str:
     """Top dir holding the knowledge graph (entities/themes/sources)."""
     return _data()["roots"]["graph_root"]
+
+
+def legacy_graph_root() -> str:
+    """Pre-rename name of the graph root (today: `wiki`), from prefix_aliases.
+
+    Mirrors `legacy_content_root()` for the RFC 0003 wiki/->graph/ rename, so the
+    legacy graph prefix lives in ONE place and is never re-hardcoded.
+    """
+    alias = _data()["prefix_aliases"].get(f"{graph_root()}/")
+    if not alias:
+        raise KeyError("no legacy alias for graph_root in prefix_aliases")
+    return alias.rstrip("/")
+
+
+def expand_content_root(value: str) -> str:
+    """Expand a `{content_root}` placeholder in a structural path string.
+
+    The ONE composition point for content-rooted schema data (homes,
+    overlay path_patterns, inbox.path). Strings without the placeholder pass
+    through unchanged, so callers may pass already-absolute structural paths.
+    """
+    return value.replace("{content_root}", content_root())
+
+
+# --- Structural prefixes (for SQL LIKE sets, lint L1/L5) ------------------
+def content_prefixes() -> Tuple[str, ...]:
+    """Top-level content-tree slug prefixes — new + legacy — as `dir/` strings.
+
+    The single source for "is this slug/link in the content tree?" matching
+    (lint L1). Carries both the live `content_root()/` and the retired
+    `legacy_content_root()/` form so legacy vaults still match. NO call site
+    should hardcode `raw/` / `provenance/`.
+    """
+    return (f"{content_root()}/", f"{legacy_content_root()}/")
+
+
+def graph_prefixes() -> Tuple[str, ...]:
+    """Top-level graph-tree slug prefixes — new + legacy — as `dir/` strings.
+
+    The single source for "is this page in the graph tree?" matching (lint
+    L1/L5). Carries both `graph_root()/` and the retired `legacy_graph_root()/`
+    (`wiki/`). NO call site should hardcode `graph/` / `wiki/`.
+    """
+    return (f"{graph_root()}/", f"{legacy_graph_root()}/")
 
 
 # --- Intake ---------------------------------------------------------------
@@ -101,11 +151,17 @@ def inbox_dir() -> str:
 
 # --- Homes ----------------------------------------------------------------
 def home(page_type: str) -> str:
-    """Vault-relative write dir for a node `page_type`."""
+    """Vault-relative write dir for a node `page_type`.
+
+    A home value may carry a `{content_root}` placeholder; it is expanded from
+    `content_root()` so the learning_* trees (and any future content-rooted
+    home) compose their prefix from the ONE root constant. Flipping
+    roots.content_root moves the whole content tree with a single edit.
+    """
     homes = _data()["homes"]
     if page_type not in homes:
         raise KeyError(f"no home for page_type: {page_type!r}")
-    return homes[page_type]
+    return expand_content_root(homes[page_type])
 
 
 # --- Atomic v7 node trees (RFC 0005 §7.2 atomize nudge) -------------------

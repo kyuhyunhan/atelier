@@ -17,9 +17,11 @@ page_types:
     # and (b) excludes `raw/learning/**` wholesale (RFC 0003 P6 / RFC 0005 P2) —
     # including flat files like archived/<id>.md that match no learning_* glob and
     # would otherwise fall through to this catch-all and be mislabeled raw_source.
-    # The legacy `provenance/...` forms are kept so pages predating the P2 rename
-    # still classify; new content lives under `raw/`.
-    path_patterns: ["raw/personal/*.md", "raw/knowledge/*.md",
+    # `{content_root}` is expanded by the overlay loader from the resolver's
+    # roots.content_root, so a future root flip is one constant — never a literal
+    # prefix here. The legacy `provenance/...` forms are kept so pages predating
+    # the P2 rename still classify; new content lives under the content root.
+    path_patterns: ["{content_root}/personal/*.md", "{content_root}/knowledge/*.md",
                     "provenance/personal/*.md", "provenance/knowledge/*.md"]
     writer: human
     required_fields:
@@ -132,7 +134,8 @@ entity_thresholds:
   concept_domain:     2
 
 inbox:
-  path: "raw/personal/inbox/"
+  # `{content_root}` expanded by the overlay loader (single root constant).
+  path: "{content_root}/personal/inbox/"
   status_field: inbox_status
   pending_value: pending
   note: "Mobile inbox target. Directory created in Phase 9 operational soak."

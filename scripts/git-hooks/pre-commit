@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
-# atelier pre-commit PII guard.
+# atelier pre-commit guard — two layers:
 #
-# Reads regex patterns from ~/.atelier/pii_patterns.txt (one per line,
-# blank lines and # comments ignored) and rejects the commit if any
-# staged addition matches.
+#   1. STRUCTURAL (built-in, always runs, no config): reject large staged files
+#      — the bulk content/data-export leak vector (e.g. a multi-MB graph extract
+#      full of personal vault content landing in a public repo). This layer needs
+#      no user patterns, so it protects even a fresh checkout whose pattern file
+#      is absent.
+#   2. PII PATTERNS (user-private): reject staged additions matching regexes in
+#      ~/.atelier/pii_patterns.txt (names/places personal to each user). The file
+#      is out of tree; this script ships in the repo so the guard is inherited.
 #
-# The patterns file itself is out of tree (user-private). This hook
-# script is in the repo so anyone installing atelier inherits the
-# guard, but the patterns are personal to each user.
-
+# Override a known-safe commit with: git commit --no-verify
 set -u
 
 PATTERN_FILE="$HOME/.atelier/pii_patterns.txt"
-
-if [ ! -f "$PATTERN_FILE" ]; then
-  echo "atelier pre-commit: $PATTERN_FILE not found; skipping PII scan." >&2
-  exit 0
-fi
+MAX_BYTES="${ATELIER_MAX_STAGED_BYTES:-524288}"   # 512 KB; raise via env if a large file is genuinely intended
 
 files=$(git diff --cached --name-only --diff-filter=ACM)
 if [ -z "$files" ]; then
@@ -24,26 +22,53 @@ if [ -z "$files" ]; then
 fi
 
 violations=0
-while IFS= read -r pattern || [ -n "$pattern" ]; do
-  [ -z "$pattern" ] && continue
-  case "$pattern" in \#*) continue ;; esac
 
-  # Scan only the *added* lines in the staged diff.
-  matches=$(git diff --cached -U0 -- $files \
-            | grep -E '^\+' \
-            | grep -E "$pattern" \
-            | head -5 || true)
-  if [ -n "$matches" ]; then
-    echo "atelier pre-commit: PII pattern matched: $pattern" >&2
-    echo "$matches" | sed 's/^/  | /' >&2
-    violations=$((violations + 1))
+# ── Layer 1: large staged file guard (structural, always on) ───────────────
+big=""
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  sz=$(wc -c < "$f" 2>/dev/null | tr -d ' ' || echo 0)
+  if [ "${sz:-0}" -gt "$MAX_BYTES" ]; then
+    big="${big}  | ${f} (${sz} bytes)
+"
   fi
-done < "$PATTERN_FILE"
+done <<EOF
+$files
+EOF
+if [ -n "$big" ]; then
+  echo "atelier pre-commit: staged file(s) exceed ${MAX_BYTES} bytes — likely a bulk" >&2
+  echo "content/data export (PII risk in a public repo). Migration intermediates and" >&2
+  echo "generated dumps must NOT be committed:" >&2
+  printf '%s' "$big" >&2
+  violations=$((violations + 1))
+fi
+
+# ── Layer 2: user PII patterns (fail-closed messaging if absent) ───────────
+if [ ! -f "$PATTERN_FILE" ]; then
+  echo "atelier pre-commit: $PATTERN_FILE not found — PII-pattern scan SKIPPED" >&2
+  echo "(structural large-file guard still applied). Create the file to enable it." >&2
+else
+  while IFS= read -r pattern || [ -n "$pattern" ]; do
+    [ -z "$pattern" ] && continue
+    case "$pattern" in \#*) continue ;; esac
+    # Scan the whole staged diff (no `-- $files` pathspec: unquoted expansion
+    # word-splits space-named files and would fail OPEN, defeating the guard).
+    matches=$(git diff --cached -U0 \
+              | grep -E '^\+' \
+              | grep -E "$pattern" \
+              | head -5 || true)
+    if [ -n "$matches" ]; then
+      echo "atelier pre-commit: PII pattern matched: $pattern" >&2
+      echo "$matches" | sed 's/^/  | /' >&2
+      violations=$((violations + 1))
+    fi
+  done < "$PATTERN_FILE"
+fi
 
 if [ "$violations" -gt 0 ]; then
   echo "" >&2
-  echo "Commit blocked. Remove the PII, or update $PATTERN_FILE" >&2
-  echo "if the match is intentional." >&2
+  echo "Commit blocked. Remove the offending content, or (if genuinely safe)" >&2
+  echo "re-run with: git commit --no-verify" >&2
   exit 1
 fi
 

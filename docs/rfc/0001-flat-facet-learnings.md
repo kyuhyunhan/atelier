@@ -241,7 +241,7 @@ P9 personas        9a rename (behavior-preserving) · 9b delete persona artifact
 
 For each damaged `entry_id` from the P0 census: move the flattened value
 `target_topic → aspect[]` (primary), restore `also_in → aspect[]` (secondary) by reading
-the **live** workshop note at `~/Documents/gorae/workshop/products/lexio/memory/`, and
+the **live** workshop note at `~/<vault>/workshop/products/lexio/memory/`, and
 clear `target_topic` unless the value is genuinely a global topic. In place, idempotent,
 keyed on `entry_id` (no id churn). This is why P6 must run **before** workshop is frozen
 or deleted — the `also_in` source lives only in the workshop copy.

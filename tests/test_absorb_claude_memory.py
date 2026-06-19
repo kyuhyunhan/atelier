@@ -58,10 +58,21 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
     out = _ac.absorb(dry_run=False, source_root=src_root)
     assert len(out["accepted"]) == 2
     assert len(out["candidates"]) == 0
-    # RFC 0001: both land as flat notes under notes/<YYYY-MM>/, no mirror.
+    # RFC 0005 §7.1: absorbed memories are born as v7 claims (generated_by
+    # absorbed), accepted ones at ac_status passed — NOT legacy notes/ files.
+    from runtime.index.parse import split_frontmatter
     for item in out["accepted"]:
-        assert "/learnings/notes/" in item["path"]
-        assert "by-topic" not in item["path"] and "by-project" not in item["path"]
+        assert "/graph/atomic/claims/" in item["path"]
+        assert "/learnings/notes/" not in item["path"]
+        fm, _ = split_frontmatter(Path(item["path"]).read_text())
+        assert fm["kind"] == "claim"
+        assert fm["domain"] == "operational"
+        # generated_by is the PROV activity (enum); the absorbed provenance is on
+        # agent_kind/attributed_to (matches the v7 migration shape).
+        assert fm["generated_by"] == "ingest"
+        assert fm["agent_kind"] == "absorbed"
+        assert fm["attributed_to"] == "absorbed"
+        assert fm["ac_status"] == "passed"
 
 
 def test_absorb_routes_user_project_to_candidates(atelier_env: Dict,

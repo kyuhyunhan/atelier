@@ -10,13 +10,14 @@ The encoded-cwd folds the absolute working directory by replacing every
 "/" with "-". `decode_cwd_dirname()` reverses this to recover the
 original project path (and basename → `project_hint`).
 
-Each memory file's frontmatter declares its semantic type. We map:
+Each absorbed memory is BORN AS A v7 CLAIM (RFC 0005 §7.1 —
+`generated_by: absorbed`), derived_from a thin session Source. There is no
+candidate FILE step; the lifecycle is the `ac_status` field:
 
-    type ∈ {feedback, reference} → atelier `accepted` (Claude has
-                                    already curated these — they
-                                    survive cross-session).
-    type ∈ {user, project}       → atelier `candidate` (still worth a
-                                    human review before promoting).
+    type ∈ {feedback, reference} → ac_status `passed` (Claude already curated
+                                    these — they survive cross-session).
+    type ∈ {user, project}       → ac_status `pending` (still worth a human
+                                    review before promoting).
 
 Deduplication is by sha256(body) recorded in
 `<vault>/provenance/learning/.absorbed-from-claude/<hash>.json`. Re-runs are no-ops
@@ -37,17 +38,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import yaml
-
 from ...index import parse as _parse
-from ...structure import resolver as _structure
 from ...util import config as _config
+from . import claims_io as _claims
 from . import store as _store
 
 
@@ -170,60 +168,20 @@ def _record_dedup(vault: Path, mem: ClaudeMemory, dest: Path) -> None:
     }, indent=2))
 
 
-def _topic_from(mem: ClaudeMemory) -> str:
-    """Best-effort topic. Prefer name (slugified) over fallback 'misc'."""
-    return _slugify(mem.name, fallback="misc")
-
-
 _AUTO_ACCEPT = {"feedback", "reference"}
 
 
-def _build_frontmatter(mem: ClaudeMemory, *, status: str,
-                       target_topic: Optional[str]) -> Dict[str, Any]:
-    """v4 frontmatter common to both accepted and candidate."""
-    entry_id = _structure.entry_id("claude", body_sha=mem.body_sha)
-    fm: Dict[str, Any] = {
-        "schema_version": 4,
-        "entry_id": entry_id,
-        "captured_at": _now_iso(),
-        "agent_kind": "claude-code",
-        "hook": "manual",                        # absorbed offline; not a hook
-        "status": status,
-        "ac_status": "passed" if status == "accepted" else "pending",
-        "observation_kind": _map_type(mem.type),
-        "links": [],
-        "ac_results": {"absorbed_from": "claude-code-memory"},
-        "source": "claude-memory",
-        "source_path": str(mem.src),
-        "claude_memory_type": mem.type,
-        "project_hint": mem.project,
-    }
-    if mem.description:
-        fm["title"] = mem.name
-        fm["description"] = mem.description
-    if status == "accepted" and target_topic:
-        fm["accepted_at"] = _now_iso()
-        fm["target_topic"] = target_topic
-        fm["target_project"] = mem.project
-    return fm
-
-
 def _map_type(claude_type: str) -> str:
-    if claude_type == "feedback":
-        return "feedback"
-    if claude_type == "project":
-        return "project"
-    if claude_type == "reference":
-        return "reference"
-    if claude_type == "user":
-        return "user"
+    if claude_type in ("feedback", "project", "reference", "user"):
+        return claude_type
     return "feedback"
 
 
-def _write_md(path: Path, fm: Dict[str, Any], body: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
-    path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
+def _statement_of(mem: ClaudeMemory) -> str:
+    """The absorbed memory's claim `statement` — prefer its description (the
+    curated one-liner), else its title/name, whitespace-collapsed."""
+    text = (mem.description or "").strip() or (mem.name or "").strip() or "(absorbed memory)"
+    return " ".join(text.split())[:400]
 
 
 def absorb(*, dry_run: bool = False,
@@ -252,37 +210,52 @@ def absorb(*, dry_run: bool = False,
             continue
 
         is_accepted = mem.type in accept_kinds
-        if is_accepted:
-            topic = _topic_from(mem)
-            base = f"claude-{mem.project}-{_slugify(mem.name)}-{mem.body_sha[:10]}.md"
-            fm = _build_frontmatter(mem, status="accepted",
-                                     target_topic=topic)
-            # Flat store (RFC 0001): one note under notes/<YYYY-MM>/, no mirror.
-            dest = _store.flat_dest(vault, fm.get("captured_at"), base)
-            if not dry_run:
-                _write_md(dest, fm, mem.body)
-                _record_dedup(vault, mem, dest)
-            absorbed_accepted.append({
-                "src": str(mem.src),
-                "path": str(dest),
-                "type": mem.type,
-                "project": mem.project,
-            })
+        ac_status = "passed" if is_accepted else "pending"
+        statement = _statement_of(mem)
+        now = _now_iso()
+
+        # Born as a v7 claim derived_from a thin session Source (the absorbed
+        # memory's origin file). NO candidate/note file lifecycle.
+        if dry_run:
+            dest_repr = f"<claim:{statement[:40]}>"
         else:
-            day = datetime.now(timezone.utc).date().isoformat()
-            base = (f"{datetime.now().strftime('%H%M')}-claude-"
-                    f"{_slugify(mem.name)}-{mem.body_sha[:10]}.md")
-            cand_path = (_store.learning_root(vault) / "candidates" / day / base)
-            fm = _build_frontmatter(mem, status="candidate", target_topic=None)
-            if not dry_run:
-                _write_md(cand_path, fm, mem.body)
-                _record_dedup(vault, mem, cand_path)
-            absorbed_candidates.append({
-                "src": str(mem.src),
-                "path": str(cand_path),
-                "type": mem.type,
-                "project": mem.project,
-            })
+            src = _claims.mint_session_source(
+                statement=statement, session_id=None,
+                working_dir=None, agent_kind="absorbed", hook="manual",
+                captured_at=now, vault=vault,
+            )
+            is_about = []
+            if mem.project:
+                is_about.append(_claims._resolve_entity_id(
+                    mem.project, sensitivity="public",
+                    in_scheme="inbox", vault=vault))
+            # generated_by is the PROV activity (enum ingest|atomize|promote|
+            # dream) — an absorbed memory is ingested. The `absorbed` provenance
+            # is carried on agent_kind/attributed_to (the v7 migration shape).
+            claim = _claims.write_operational_claim(
+                statement=statement, source_entry_id=src["entry_id"],
+                body=mem.body, generated_by="ingest",
+                attributed_to="absorbed", agent_kind="absorbed", hook="manual",
+                observation_kind=_map_type(mem.type),
+                why_status="present", project=mem.project or None,
+                is_about=is_about, ac_status=ac_status, captured_at=now,
+                extra={
+                    "source": "claude-memory",
+                    "source_path": str(mem.src),
+                    "claude_memory_type": mem.type,
+                    "ac_results": {"absorbed_from": "claude-code-memory"},
+                    **({"accepted_at": now} if is_accepted else {}),
+                    **({"title": mem.name, "description": mem.description}
+                       if mem.description else {}),
+                },
+                vault=vault,
+            )
+            dest_repr = claim["path"]
+            _record_dedup(vault, mem, Path(claim["path"]))
+
+        record = {"src": str(mem.src), "path": str(dest_repr),
+                  "type": mem.type, "project": mem.project}
+        (absorbed_accepted if is_accepted else absorbed_candidates).append(record)
 
     return {
         "vault": str(vault),

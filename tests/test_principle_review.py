@@ -70,9 +70,10 @@ def test_approve_promotes_to_accepted(atelier_env: Dict) -> None:
     out = _pr.approve(slug="p-app", priority="always-inject")
     assert out["status"] == "accepted"
     fm = _read_fm(Path(out["path"]))
-    assert fm["status"] == "accepted"
+    # RFC 0005 §7.1 — approve is ac_status pending → passed (a field transition).
     assert fm["ac_status"] == "passed"
     assert fm["priority"] == "always-inject"
+    assert fm["surfacing"] == "always"          # priority drives the tier
     assert "accepted_at" in fm
     assert "proposed_at" not in fm
 
@@ -103,12 +104,15 @@ def test_approve_rejects_bad_priority(atelier_env: Dict) -> None:
 # ── reject ──────────────────────────────────────────────────────────────────
 
 
-def test_reject_moves_to_archived(atelier_env: Dict) -> None:
-    _draft("p-rej")
+def test_reject_is_retracted_field_not_a_move(atelier_env: Dict) -> None:
+    # RFC 0005 §7.1 — reject is ac_status → retracted IN PLACE, not a dir move.
+    d = _draft("p-rej")
     out = _pr.reject(slug="p-rej", reason="not general enough")
     assert out["status"] == "archived"
-    assert not (Path(out["path"]).parent.parent / "principles" / "p-rej.md").exists()
-    assert "archived/" in out["path"]
+    assert out["path"] == d["path"]                     # same file, not moved
+    assert "archived/" not in out["path"]
+    fm = _read_fm(Path(out["path"]))
+    assert fm["ac_status"] == "retracted"
 
 
 def test_rejected_not_reproposed(atelier_env: Dict) -> None:

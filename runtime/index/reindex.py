@@ -199,7 +199,12 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
         # Concept edges — a learning becomes a node in the *concept* graph so
         # cross-project learnings that share an idea connect (index by idea, not
         # folder). Deterministic: derived from frontmatter, never an LLM.
-        if (p["page_type"] or "").startswith("learning_"):
+        # RFC 0005 §7.1 — an operational CLAIM is the v7 form of an accepted
+        # learning, so it earns the same concept-edge + facet projection the
+        # legacy learning_* pages got (so recall/search filter it by facet).
+        _is_op_claim = (p["page_type"] == "claim"
+                        and _claim_is_operational(p["frontmatter"]))
+        if (p["page_type"] or "").startswith("learning_") or _is_op_claim:
             try:
                 fm = json.loads(p["frontmatter"] or "{}")
             except (TypeError, ValueError):      # pragma: no cover
@@ -222,6 +227,16 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
                     (p["id"], kind, value),
                 )
     return n
+
+
+def _claim_is_operational(frontmatter_json) -> bool:
+    """True for a v7 claim whose domain is operational (the accepted-learning
+    form). Tolerant of a malformed frontmatter blob."""
+    try:
+        fm = json.loads(frontmatter_json or "{}")
+    except (TypeError, ValueError):              # pragma: no cover
+        return False
+    return isinstance(fm, dict) and str(fm.get("domain") or "") == "operational"
 
 
 def _concept_targets(fm: dict) -> list[str]:

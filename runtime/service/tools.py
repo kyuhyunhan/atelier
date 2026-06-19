@@ -215,8 +215,9 @@ async def _h_new_doc(template: str, name: str,
                       role: str = "librarian-territory",
                       fields: Optional[Dict[str, Any]] = None
                       ) -> Dict[str, Any]:
-    """Scaffold a new document under raw/, workshop/products, workshop/notes,
-    or provenance/learning/candidates/."""
+    """Scaffold a new document under raw/, workshop/products, or workshop/notes.
+    (The 'learning' template is retired — operational learnings are born as a
+    Claim via atelier_learning_capture; RFC 0005 §7.1.)"""
     from .jobs import new_doc as _jnd
     return _jnd.new_doc(template=template, name=name, role=role,
                          fields=fields)
@@ -259,6 +260,7 @@ async def _h_learning_capture(observation: str = "",
                               excerpt: Optional[str] = None,
                               working_dir: Optional[str] = None,
                               project_hint: Optional[str] = None,
+                              touches: Optional[List[str]] = None,
                               session_id: Optional[str] = None,
                               transcript_path: Optional[str] = None,
                               agent_kind: str = "claude-code",
@@ -266,14 +268,16 @@ async def _h_learning_capture(observation: str = "",
                               observation_kind: str = "feedback",
                               require_why: bool = True
                               ) -> Dict[str, Any]:
-    """Append a candidate learning to provenance/learning/candidates/.
+    """Capture a learning — born directly as a v7 Claim (RFC 0005 §7.1:
+    domain:operational, surfacing:query, ac_status:pending, generated_by:<hook>)
+    that derives_from a thin session Source. No legacy candidates/ file.
 
-    A substance gate rejects content-free captures (empty/stub
-    observation + no why → `no-substance`; and, with require_why=True,
-    an empty why → `empty-why`). "Why this matters" is an LLM judgement a
-    bash hook cannot supply, so the agent must fill it. Promotion-time
-    acceptance criteria still apply later. Returns {skipped, reason} when
-    the gate rejects.
+    A substance gate rejects content-free captures (empty/stub observation +
+    no why → `no-substance`). "Why this matters" is an LLM judgement a bash
+    hook cannot supply, so the agent should fill it; with require_why=True an
+    empty why is written but flagged (`why_missing`). Acceptance criteria still
+    apply at the accept gate later. `touches`/`project_hint` resolve into the
+    claim's `is_about` entities. Returns {skipped, reason} when the gate rejects.
     """
     from .learnings import capture as _cap
     sess = current_session()
@@ -287,6 +291,7 @@ async def _h_learning_capture(observation: str = "",
         excerpt=excerpt or (transcript_path or None),
         working_dir=working_dir or sess.working_dir,
         project_hint=project_hint,
+        touches=touches,
         session_id=session_id or sess.session_id,
         agent_kind=agent_kind or sess.agent_kind,
         hook=hook,
@@ -371,9 +376,11 @@ async def _h_learning_accept(candidate_slug: str,
                              override_unknown: bool = False,
                              override_must: bool = False
                              ) -> Dict[str, Any]:
-    """Promote a candidate to provenance/learning/notes/. Refuses on must-fail
-    unless override_must (a reviewed curator decision); forbidden
-    criteria (pii/pure-meta) are never overridable."""
+    """Accept a pending learning claim: ac_status pending → passed in place
+    (RFC 0005 §7.1 field transition, no file move). Refuses on must-fail unless
+    override_must (a reviewed curator decision); forbidden criteria
+    (pii/pure-meta) are never overridable. `candidate_slug` is the claim's
+    entry_id or file stem."""
     from .learnings import review as _rev
     return _rev.accept(
         candidate_slug=candidate_slug,
@@ -386,14 +393,15 @@ async def _h_learning_accept(candidate_slug: str,
 
 
 async def _h_learning_archive(candidate_slug: str, reason: str) -> Dict[str, Any]:
-    """Move a candidate to provenance/learning/archived/."""
+    """Archive a learning claim: ac_status → failed in place (field transition)."""
     from .learnings import review as _rev
     return _rev.archive(candidate_slug=candidate_slug, reason=reason)
 
 
 async def _h_learning_retract(slug: str, reason: str = "retracted"
                               ) -> Dict[str, Any]:
-    """Retract a candidate or an accepted learning into archived/."""
+    """Retract a pending or accepted learning claim: ac_status → retracted in
+    place (field transition)."""
     from .learnings import review as _rev
     return _rev.retract(slug=slug, reason=reason)
 
@@ -458,7 +466,8 @@ async def _h_principle_list(priority: Optional[str] = None,
 
 
 async def _h_principle_archive(slug: str, reason: str) -> Dict[str, Any]:
-    """Move a principle to provenance/learning/archived/ with ac_status=retracted."""
+    """Archive a principle: ac_status → retracted IN PLACE (field transition, no
+    file move; RFC 0005 §7.1)."""
     from .learnings import principles as _pr
     return _pr.archive(slug=slug, reason=reason)
 
@@ -789,35 +798,40 @@ def _register_v01_tools() -> None:
                      lock_role=_claims.WriterRole.LEARNINGS))
     register(ToolDef(
         "atelier_learning_capture",
-        "Append a candidate learning to provenance/learning/candidates/. "
-        "Permissive — acceptance criteria are checked at promotion time.",
+        "Capture a learning — born directly as a v7 Claim (operational, "
+        "surfacing:query, ac_status:pending) with a thin session Source. "
+        "Permissive — acceptance criteria are checked at the accept gate.",
         _h_learning_capture,
         claim=_claims.Claim.CAPTOR_WRITE,
         lock_role=_claims.WriterRole.CAPTOR,
     ))
     register(ToolDef(
         "atelier_learning_review_pending",
-        "List candidate learnings with acceptance-criteria self-check results.",
+        "List pending learning claims (ac_status:pending) with "
+        "acceptance-criteria self-check results.",
         _h_learning_review_pending,
     ))
     register(ToolDef(
         "atelier_learning_accept",
-        "Promote a candidate to provenance/learning/notes/. Refuses unless every "
-        "must-criterion passes (override_unknown=True to bypass unknown).",
+        "Accept a pending learning claim: ac_status pending → passed in place "
+        "(field transition, no file move). Refuses unless every must-criterion "
+        "passes (override_unknown=True to bypass unknown).",
         _h_learning_accept,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))
     register(ToolDef(
         "atelier_learning_archive",
-        "Move a candidate to provenance/learning/archived/ with an archive_reason.",
+        "Archive a learning claim: ac_status → failed in place "
+        "(field transition) with an archive_reason.",
         _h_learning_archive,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))
     register(ToolDef(
         "atelier_learning_retract",
-        "Retract a candidate or accepted learning into provenance/learning/archived/.",
+        "Retract a pending or accepted learning claim: ac_status → retracted in "
+        "place (field transition) with an archive_reason.",
         _h_learning_retract,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
@@ -868,7 +882,7 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_principle_archive",
-        "Retire a principle into provenance/learning/archived/.",
+        "Retire a principle: ac_status → retracted (field transition, no move).",
         _h_principle_archive,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
@@ -889,7 +903,7 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_principle_reject",
-        "Reject a proposed principle into archived/ (never re-proposed).",
+        "Reject a proposed principle: ac_status → retracted (never re-proposed).",
         _h_principle_reject,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,

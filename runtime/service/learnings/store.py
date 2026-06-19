@@ -55,12 +55,52 @@ def accepted_roots(vault: Path) -> List[Path]:
 
 
 def iter_accepted_files(vault: Path) -> Iterator[Path]:
-    """Every accepted-learning markdown file in the flat notes/ store."""
+    """Every accepted-learning markdown file.
+
+    RFC 0005 §7.1 — an accepted operational learning is now a v7 Claim at
+    `ac_status: passed` (a FIELD, not a notes/ file). This iterator is the single
+    chokepoint every accepted-pool reader (recall / search / bootstrap /
+    project / principles / surfacing / eval / cluster) goes through, so yielding
+    accepted operational claims HERE migrates them all at once, with no edit at
+    the dozen call sites.
+
+    For back-compat it still yields any legacy `notes/<YYYY-MM>/*.md` on disk —
+    a vault that predates the claim migration, or a fixture that seeds notes/,
+    keeps resolving."""
+    seen: set = set()
     root = notes_root(vault)
-    if not root.exists():
+    if root.exists():
+        for p in sorted(root.rglob("*.md")):
+            seen.add(p.resolve())
+            yield p
+    yield from _iter_accepted_claims(vault, seen)
+
+
+def _iter_accepted_claims(vault: Path, seen: set) -> Iterator[Path]:
+    """Accepted operational claims (domain:operational, ac_status:passed).
+
+    Read lazily and tolerantly: a claim that fails to parse is skipped, never
+    crashing a reader. Imported locally to avoid a module import cycle
+    (store ← claims_io ← structure ← … ); the readers only ever call the
+    public iterator."""
+    from ...index import parse as _parse
+    from ...structure import resolver as _structure
+    base = vault / _structure.atomic_claim_dir()
+    if not base.exists():
         return
-    for p in sorted(root.rglob("*.md")):
-        yield p
+    for p in sorted(base.rglob("*.md")):
+        if p.name == "INDEX.md" or p.resolve() in seen:
+            continue
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:                       # pragma: no cover
+            continue
+        if not isinstance(fm, dict):
+            continue
+        if (fm.get("kind") == "claim"
+                and str(fm.get("domain") or "") == "operational"
+                and str(fm.get("ac_status") or "") == "passed"):
+            yield p
 
 
 _MONTH_RX = re.compile(r"(\d{4})-(\d{2})")

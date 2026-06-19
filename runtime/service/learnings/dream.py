@@ -298,8 +298,9 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
     - pending review: proposed drafts exist (interrupted/unreviewed dream)
 
     The cadence (count + time) is shared infrastructure unchanged by the §7.1
-    field-transition rework; the pending-review trigger remains until the legacy
-    principle pipeline is retired in P7."""
+    field-transition rework; the pending-review trigger counts proposed principle
+    *claims* (ac_status:pending) — the principle file pipeline is retired (P7), so
+    `review_proposed` is now a tier/field query over claims, not a dir scan."""
     from . import principles as _principles
 
     cfg = _config.load()
@@ -375,7 +376,7 @@ def complete(*, when: str) -> Dict[str, Any]:
     timestamp from the caller (engine keeps no clock for determinism)."""
     from . import principles as _principles
     out = _cluster.mark_dream_complete(when=when)
-    # Report any still-pending legacy proposals (kept until P7 retires them) so
+    # Report any still-pending proposed principle claims (ac_status:pending) so
     # the CLI summary line stays informative.
     try:
         out["proposed_awaiting_review"] = _principles.review_proposed(

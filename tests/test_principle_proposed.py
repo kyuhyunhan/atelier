@@ -42,8 +42,8 @@ def test_synthesize_defaults_to_proposed(atelier_env: Dict) -> None:
                          source_entry_ids=[e1, e2])
     assert out["skipped"] is False
     assert out["status"] == "proposed"
+    # RFC 0005 §7.1 — status is the ac_status field now, not a `status` key.
     fm = _read_fm(Path(out["path"]))
-    assert fm["status"] == "proposed"
     assert fm["ac_status"] == "pending"
     assert "proposed_at" in fm
     assert "accepted_at" not in fm
@@ -53,7 +53,6 @@ def test_synthesize_defaults_to_proposed(atelier_env: Dict) -> None:
 def test_add_accepted_still_default(atelier_env: Dict) -> None:
     out = _pr.add(title="manual one", rule="r", why="w")
     fm = _read_fm(Path(out["path"]))
-    assert fm["status"] == "accepted"
     assert fm["ac_status"] == "passed"
     assert "accepted_at" in fm
 

@@ -11,6 +11,12 @@ from runtime.service.learnings import capture as _cap
 from runtime.service.learnings import review as _rev
 
 
+def _read_fm(path: Path) -> dict:
+    from runtime.index.parse import split_frontmatter
+    fm, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+    return fm
+
+
 # ── helpers ────────────────────────────────────────────────────────────────
 
 
@@ -60,19 +66,31 @@ def test_review_pending_filters_by_project(atelier_env: Dict) -> None:
 # ── accept ─────────────────────────────────────────────────────────────────
 
 
-def test_accept_promotes_to_flat_notes_store(atelier_env: Dict) -> None:
+def test_accept_is_an_ac_status_field_transition(atelier_env: Dict) -> None:
+    """RFC 0005 §7.1: accept is a FIELD transition (ac_status pending → passed)
+    on the SAME claim file — no directory move to notes/. surfacing stays query
+    (the separate promote step elevates it query → proactive)."""
+    from runtime.index.parse import split_frontmatter
     good = _make_good_candidate()
+    before = Path(good["path"])
+    fm_before, _ = split_frontmatter(before.read_text())
+    assert fm_before["ac_status"] == "pending"
+
     result = _rev.accept(candidate_slug=good["entry_id"],
                          target_topic="search-fallback",
                          target_project="lexio")
     accepted = Path(result["path"])
+    # SAME file (no move); entry_id preserved.
+    assert accepted == before
     assert accepted.exists()
-    # RFC 0001: one flat file under notes/<YYYY-MM>/, no by-topic/by-project.
-    assert "/learnings/notes/" in str(accepted)
-    assert "by-topic" not in str(accepted) and "by-project" not in str(accepted)
+    assert "/learnings/notes/" not in str(accepted)
     assert result["by_project_path"] is None
-    # Source candidate must be gone (single source of truth move).
-    assert not Path(good["path"]).exists()
+    assert result["entry_id"] == good["entry_id"]
+    fm = _read_fm(accepted)
+    assert fm["ac_status"] == "passed"
+    assert fm["surfacing"] == "query"          # promote, not accept, elevates
+    assert fm["target_topic"] == "search-fallback"
+    assert fm["target_project"] == "lexio"
 
 
 def test_accept_refuses_when_must_fails(atelier_env: Dict) -> None:
@@ -95,20 +113,26 @@ def test_accept_writes_log_entry(atelier_env: Dict) -> None:
 # ── archive ────────────────────────────────────────────────────────────────
 
 
-def test_archive_moves_to_archived(atelier_env: Dict) -> None:
+def test_archive_sets_failed_ac_status_in_place(atelier_env: Dict) -> None:
+    """RFC 0005 §7.1: archive is ac_status → failed on the SAME claim file
+    (+ archive_reason), not a move to archived/."""
     thin = _make_thin_candidate()
+    before = Path(thin["path"])
     result = _rev.archive(candidate_slug=thin["entry_id"],
                           reason="pure-meta-comment")
-    moved = Path(result["path"])
-    assert moved.exists()
-    assert "archived/" in str(moved)
-    assert not Path(thin["path"]).exists()
+    assert Path(result["path"]) == before
+    assert before.exists()
+    assert "archived/" not in str(result["path"])
+    fm = _read_fm(before)
+    assert fm["ac_status"] == "failed"
+    assert fm["archive_reason"] == "pure-meta-comment"
 
 
 # ── retract ────────────────────────────────────────────────────────────────
 
 
-def test_retract_from_accepted_moves_flat_note(atelier_env: Dict) -> None:
+def test_retract_from_accepted_sets_retracted(atelier_env: Dict) -> None:
+    """Retract an accepted claim: ac_status passed → retracted, in place."""
     good = _make_good_candidate()
     accepted = _rev.accept(candidate_slug=good["entry_id"],
                            target_topic="search-fallback",
@@ -116,15 +140,20 @@ def test_retract_from_accepted_moves_flat_note(atelier_env: Dict) -> None:
     assert accepted["by_project_path"] is None       # no mirror (RFC 0001)
     out = _rev.retract(slug=Path(accepted["path"]).stem,
                        reason="user-said-no")
-    assert not Path(accepted["path"]).exists()        # moved out of notes/
-    assert "archived/" in out["path"]
+    assert Path(out["path"]) == Path(accepted["path"])   # same file, not moved
+    assert out["from"] == "accepted"
+    fm = _read_fm(Path(out["path"]))
+    assert fm["ac_status"] == "retracted"
+    assert fm["archive_reason"] == "user-said-no"
 
 
 def test_retract_from_candidate(atelier_env: Dict) -> None:
+    """Retract a still-pending claim: ac_status pending → retracted, in place."""
     thin = _make_thin_candidate()
     out = _rev.retract(slug=thin["entry_id"], reason="too-thin")
-    assert "archived/" in out["path"]
+    assert Path(out["path"]) == Path(thin["path"])
     assert out["from"] == "candidate"
+    assert _read_fm(Path(out["path"]))["ac_status"] == "retracted"
 
 
 # ── MCP dispatch parity ────────────────────────────────────────────────────
@@ -166,9 +195,8 @@ def test_override_must_accepts_despite_heuristic_miss(atelier_env: Dict) -> None
     # with override → accepted, and the override is recorded for audit
     out = _rev.accept(candidate_slug=thin["entry_id"], target_topic="misc",
                       target_project="lexio", override_must=True)
-    from runtime.index.parse import split_frontmatter
-    fm, _ = split_frontmatter(Path(out["path"]).read_text())
-    assert fm["status"] == "accepted"
+    fm = _read_fm(Path(out["path"]))
+    assert fm["ac_status"] == "passed"
     assert "override_must" in fm["ac_results"]
 
 
@@ -185,33 +213,29 @@ def test_override_must_cannot_bypass_forbidden(atelier_env: Dict) -> None:
     assert ei.value.args[0]["forbidden_triggered"]
 
 
-# ── empty-folder pruning (PR-40) ─────────────────────────────────────────────
+# ── no directory churn (RFC 0005 §7.1 — fields, not folders) ─────────────────
+#
+# The PR-40 empty-candidate-date-folder pruning tests are obsolete: in the field
+# model there is no candidates/ date-folder lifecycle to prune (a learning is one
+# claim file whose state is a field). These replacements assert the lifecycle
+# operations never move or delete the claim file — only its fields change.
 
 
-def test_accept_prunes_empty_candidate_date_folder(atelier_env: Dict) -> None:
+def test_accept_does_not_move_or_delete_the_claim_file(atelier_env: Dict) -> None:
     good = _make_good_candidate()
-    date_dir = Path(good["path"]).parent
-    assert date_dir.exists()
+    path = Path(good["path"])
     _rev.accept(candidate_slug=good["entry_id"], target_topic="t",
                 target_project="lexio")
-    # the now-empty YYYY-MM-DD folder is gone; candidates/ root remains
-    assert not date_dir.exists()
-    assert (atelier_env["gorae"] / "learnings" / "candidates").exists()
+    assert path.exists()                  # same file stays put
+    # no legacy candidates/ tree was ever created
+    assert not (atelier_env["gorae"] / "learnings" / "candidates").exists()
 
 
-def test_archive_prunes_empty_candidate_date_folder(atelier_env: Dict) -> None:
-    thin = _make_thin_candidate()
-    date_dir = Path(thin["path"]).parent
-    _rev.archive(candidate_slug=thin["entry_id"], reason="noise")
-    assert not date_dir.exists()
-
-
-def test_prune_keeps_folder_with_remaining_candidates(atelier_env: Dict) -> None:
+def test_lifecycle_ops_leave_other_claims_untouched(atelier_env: Dict) -> None:
     a = _make_good_candidate()
-    b = _make_good_candidate()           # same date folder
-    date_dir = Path(a["path"]).parent
+    b = _make_good_candidate(working_dir="/Users/me/workspaces/bht")
     _rev.accept(candidate_slug=a["entry_id"], target_topic="t",
                 target_project="lexio")
-    # b is still there → folder must survive
-    assert date_dir.exists()
+    # b is a different lesson → its own claim, untouched by accepting a.
     assert Path(b["path"]).exists()
+    assert _read_fm(Path(b["path"]))["ac_status"] == "pending"

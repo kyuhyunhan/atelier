@@ -146,12 +146,12 @@ def test_new_doc_note(atelier_env: Dict) -> None:
     assert p.exists()
 
 
-def test_new_doc_learning(atelier_env: Dict) -> None:
-    out = _nd.new_doc(template="learning", name="manual-1",
-                      fields={"project_hint": "lexio"})
-    p = Path(out["path"])
-    assert p.exists()
-    assert "learnings/candidates/" in str(p)
+def test_new_doc_learning_retired(atelier_env: Dict) -> None:
+    # RFC 0005 §7.1: the learning candidate-file scaffold is retired; learnings are
+    # born as a Claim via atelier_learning_capture. new_doc redirects, never writes legacy.
+    with pytest.raises(ValueError, match="born as a Claim"):
+        _nd.new_doc(template="learning", name="manual-1",
+                    fields={"project_hint": "lexio"})
 
 
 def test_new_doc_refuses_collision(atelier_env: Dict) -> None:

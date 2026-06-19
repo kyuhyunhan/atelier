@@ -136,8 +136,8 @@ def _call(url: str, token: str, tool: str, params: Dict[str, Any],
 # this set equals that handler's signature, so the two cannot silently drift.
 _CAPTURE_FIELDS = frozenset({
     "observation", "why", "rule", "excerpt", "working_dir", "project_hint",
-    "session_id", "transcript_path", "agent_kind", "hook", "observation_kind",
-    "require_why",
+    "touches", "session_id", "transcript_path", "agent_kind", "hook",
+    "observation_kind", "require_why",
 })
 
 

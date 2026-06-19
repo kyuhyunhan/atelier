@@ -33,25 +33,36 @@ def _accept(project: str, topic: str = "general", body_seed: str = "x") -> str:
 # its graceful-absence behavior is still asserted (below).
 
 
-# ── principles INDEX.md ──────────────────────────────────────────────────
+# ── principles INDEX.md — RETIRED (RFC 0005 §7.1) ──────────────────────────
+#
+# In the v7 field model a learning's tier is the `surfacing` field, not a
+# directory, so the generated principles/INDEX.md folder listing described a tree
+# that no longer exists. The two old tests asserting that INDEX.md is generated /
+# regenerated on add/archive are therefore obsolete and removed. Their behavior
+# is replaced by the contract below: the generator is a documented no-op that
+# writes NOTHING into any legacy directory.
 
 
-def test_principle_add_creates_principles_index(atelier_env: Dict) -> None:
+def test_principles_index_generator_is_retired_noop(atelier_env: Dict) -> None:
+    """regen_principles() is retired: it returns the legacy result shape with
+    written=False and never writes a legacy learnings/principles/INDEX.md."""
+    out = _idx.regen_principles()
+    assert out["written"] is False
+    assert out["count"] == 0
+    assert "retired" in str(out.get("reason", "")).lower()
+    # safe wrapper is callable and silent
+    assert _idx.safe_regen_principles() is None
+
+
+def test_principle_lifecycle_writes_no_legacy_index(atelier_env: Dict) -> None:
+    """Adding/archiving a principle must not resurrect the legacy generated
+    INDEX.md in any learnings/principles/ tree (field model has no such folder
+    index)."""
     _pr.add(title="rule one", rule="r", why="w",
-             priority="always-inject", slug="rule-one")
-    idx = (atelier_env["gorae"] / "learnings" / "principles" / "INDEX.md")
-    assert idx.exists()
-    text = idx.read_text()
-    assert "## always-inject" in text
-    assert "rule one" in text
-
-
-def test_principle_archive_regens_index(atelier_env: Dict) -> None:
-    _pr.add(title="a", rule="r", why="w",
-             priority="always-inject", slug="a")
-    _pr.add(title="b", rule="r2", why="w2",
-             priority="always-inject", slug="b")
-    idx = (atelier_env["gorae"] / "learnings" / "principles" / "INDEX.md")
-    assert "entry_count: 2" in idx.read_text()
-    _pr.archive(slug="a", reason="x")
-    assert "entry_count: 1" in idx.read_text()
+            priority="always-inject", slug="rule-one")
+    _pr.archive(slug="rule-one", reason="x")
+    legacy = atelier_env["gorae"] / "learnings" / "principles" / "INDEX.md"
+    canonical = (atelier_env["gorae"] / "provenance" / "learning"
+                 / "principles" / "INDEX.md")
+    assert not legacy.exists()
+    assert not canonical.exists()

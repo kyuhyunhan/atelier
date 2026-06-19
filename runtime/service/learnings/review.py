@@ -1,39 +1,37 @@
-"""Review / accept / archive / retract for the learnings domain.
+"""Review / accept / archive / retract for the learnings domain (RFC 0005 §7.1).
 
-The 4 operations form the lifecycle:
+The candidate/note/principle DIRECTORIES are gone. A learning is one v7 Claim
+whose lifecycle is two FIELDS, not a path:
 
-    candidates/<date>/<slug>.md
-            │
-            ├──→  notes/<YYYY-MM>/<slug>.md   (flat store, RFC 0001 — one file,
-            │                                   classification lives in facets)
-            │
-            ├──→  archived/<slug>.md  (with archive_reason)
-            │
-            └──→  archived/<slug>.md  (retracted=True)
+    ac_status:  pending → passed   (accept)   |  failed/retracted (archive/retract)
+    surfacing:  query   → proactive (promote) → always (dream)
+
+So the four operations are FIELD transitions on the claim, performed in place
+via `claims_io` (entry_id preserved, content_hash re-derived, file never moved):
+
+- review_pending — list query/pending operational claims with their self-check.
+- accept        — ac_status pending → passed (the acceptance GATE). surfacing
+                  stays `query`; the separate promote step (RFC 0005 §7.1, behind
+                  this same gate) is what elevates a passed claim query→proactive.
+- archive       — ac_status → failed   (+ archive_reason).
+- retract       — ac_status → retracted (+ archive_reason), from pending OR passed.
 
 `accept` enforces the criteria `must` checks; `should` is informational.
-`retract` works on candidates and on already-accepted entries.
-
 A single-line entry per operation is appended to `provenance/learning/log.md`.
 """
 from __future__ import annotations
 
-import re
-import shutil
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
-import yaml
-
-from ...index import parse as _parse
 from ...util import config as _config
+from . import claims_io as _claims
 from . import criteria as _crit
 from . import store as _store
 
 
-# ── Filesystem helpers ───────────────────────────────────────────────────────
+# ── filesystem helpers ───────────────────────────────────────────────────────
 
 
 def _vault_root() -> Path:
@@ -43,99 +41,43 @@ def _vault_root() -> Path:
     return cfg.space_by_role("librarian-territory").local
 
 
-def _iter_candidates(vault: Path) -> Iterable[Path]:
-    root = _store.learning_root(vault) / "candidates"
-    if not root.exists():
-        return
-    for p in sorted(root.rglob("*.md")):
-        yield p
+def _is_operational(fm: Dict[str, Any]) -> bool:
+    return str(fm.get("domain") or "") == "operational"
 
 
-def _iter_accepted(vault: Path) -> Iterable[Path]:
-    # RFC 0001: the flat notes/ store. Single source of truth in
-    # store.iter_accepted_files (the legacy by-topic/by-project trees are gone).
-    yield from _store.iter_accepted_files(vault)
+def _iter_pending(vault: Path) -> Iterable[tuple]:
+    """(path, fm, body) for every operational claim still awaiting acceptance
+    (ac_status pending). These are what review surfaces — the old candidates/."""
+    for p in _claims.iter_claim_files(vault):
+        got = _claims.read_claim(p)
+        if got is None:
+            continue
+        fm, body = got
+        if _is_operational(fm) and str(fm.get("ac_status") or "") == "pending":
+            yield p, fm, body
 
 
 def _accepted_entry_ids(vault: Path) -> List[str]:
+    """entry_ids of operational claims that already passed the gate — the
+    novelty index (don't re-accept an id already accepted)."""
     ids: List[str] = []
-    for p in _iter_accepted(vault):
-        fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
-        eid = fm.get("entry_id")
-        if eid:
-            ids.append(str(eid))
+    for p in _claims.iter_claim_files(vault):
+        got = _claims.read_claim(p)
+        if got is None:
+            continue
+        fm, _ = got
+        if _is_operational(fm) and str(fm.get("ac_status") or "") == "passed":
+            eid = fm.get("entry_id")
+            if eid:
+                ids.append(str(eid))
     return ids
 
 
-_SLUG_RX = re.compile(r"[^a-z0-9-]+")
-
-
-def _slugify(value: str, *, fallback: str = "x") -> str:
-    text = (value or fallback).strip().lower()
-    text = _SLUG_RX.sub("-", text).strip("-")
-    return text[:60] or fallback
-
-
-def _find_candidate(vault: Path, slug: str) -> Path:
-    """Locate a candidate by either its filename slug or its entry_id.
-
-    The `slug` argument may be:
-    - the bare filename (e.g. "1432-foo-bar.md" or "1432-foo-bar")
-    - a relative path under candidates/ (e.g. "2026-05-28/1432-foo-bar.md")
-    - an entry_id (uuid)
-    """
-    candidates = list(_iter_candidates(vault))
-    needle = slug.removesuffix(".md")
-
-    # 1) exact filename or relative-path match
-    for p in candidates:
-        rel = p.relative_to(_store.learning_root(vault) / "candidates").as_posix()
-        if rel == needle or rel == slug:
-            return p
-        if p.stem == needle:
-            return p
-
-    # 2) entry_id match
-    for p in candidates:
-        fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
-        if str(fm.get("entry_id")) == slug:
-            return p
-
-    raise FileNotFoundError(f"no candidate matches {slug!r}")
-
-
-def _find_accepted(vault: Path, slug: str) -> Path:
-    needle = slug.removesuffix(".md")
-    for p in _iter_accepted(vault):
-        if p.stem == needle:
-            return p
-        fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
-        if str(fm.get("entry_id")) == slug:
-            return p
-    raise FileNotFoundError(f"no accepted learning matches {slug!r}")
-
-
-def _prune_empty_dirs(start: Path, *, stop: Path) -> None:
-    """After a candidate is moved out, remove the date folder it left
-    behind if now empty — walking up until (but never removing) `stop`
-    (the candidates/ root). git ignores empty dirs, but they clutter the
-    working tree and review_pending walks."""
-    try:
-        stop = stop.resolve()
-        d = start.resolve()
-    except OSError:                          # pragma: no cover
-        return
-    while d != stop and stop in d.parents:
-        try:
-            next(d.iterdir())
-            return                           # not empty → stop pruning
-        except StopIteration:
-            parent = d.parent
-            try:
-                d.rmdir()
-            except OSError:                  # pragma: no cover
-                return
-            d = parent
+def _find(vault: Path, needle: str):
+    found = _claims.find_claim_by_slug_or_id(needle, vault)
+    if found is None:
+        raise FileNotFoundError(f"no claim matches {needle!r}")
+    return found
 
 
 def _append_log(vault: Path, line: str) -> None:
@@ -149,18 +91,6 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
-def _rewrite_frontmatter(path: Path, updates: Dict[str, Any], removes: Iterable[str] = ()) -> None:
-    text = path.read_text(encoding="utf-8")
-    fm, body = _parse.split_frontmatter(text)
-    fm = dict(fm)
-    for k in removes:
-        fm.pop(k, None)
-    for k, v in updates.items():
-        fm[k] = v
-    serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
-    path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
-
-
 # ── review_pending ──────────────────────────────────────────────────────────
 
 
@@ -171,8 +101,7 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
     criteria = _crit.load(vault)
 
     items: List[Dict[str, Any]] = []
-    for p in _iter_candidates(vault):
-        fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+    for p, fm, body in _iter_pending(vault):
         if project and fm.get("project_hint") != project:
             continue
         if since and str(fm.get("captured_at", "")) < since:
@@ -194,14 +123,10 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
         })
         if len(items) >= limit:
             break
-    return {
-        "count": len(items),
-        "items": items,
-        "vault": str(vault),
-    }
+    return {"count": len(items), "items": items, "vault": str(vault)}
 
 
-# ── accept ─────────────────────────────────────────────────────────────────
+# ── accept (the acceptance gate: ac_status pending → passed) ──────────────────
 
 
 def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
@@ -210,22 +135,15 @@ def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
            override_unknown: bool = False,
            override_must: bool = False) -> Dict[str, Any]:
     vault = _vault_root()
-    src = _find_candidate(vault, candidate_slug)
+    path, fm, body = _find(vault, candidate_slug)
 
-    fm, body = _parse.split_frontmatter(src.read_text(encoding="utf-8"))
     accepted_ids = _accepted_entry_ids(vault)
-    check = _crit.check(fm, body, accepted_index=accepted_ids,
-                        vault_root=vault)
+    check = _crit.check(fm, body, accepted_index=accepted_ids, vault_root=vault)
 
-    # `must` must pass — any explicit False blocks; unknown (None) blocks
-    # unless override_unknown is set.
-    #
-    # override_must lets a *curator* (human, or a trusted review pass) accept
-    # despite must-failures: the rule-based check is a safety net against
-    # un-reviewed auto-accepts, and human review is exactly the judgement
-    # that may override it (e.g. free-form prose carrying a real "why" that
-    # the section-header heuristic misses). forbidden (pii/pure-meta) is
-    # NEVER overridable.
+    # `must` must pass — any explicit False blocks; unknown (None) blocks unless
+    # override_unknown is set. override_must lets a curator accept despite a
+    # must-heuristic miss (e.g. free-form prose carrying a real why). forbidden
+    # (pii/pure-meta) is NEVER overridable.
     failures = [k for k, v in check.must.items() if v is False]
     unknowns = [k for k, v in check.must.items() if v is None]
     forbidden = [k for k, v in check.forbidden.items() if v is True]
@@ -245,120 +163,81 @@ def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
                      "despite a must heuristic miss"),
         })
 
-    # Flat store (RFC 0001): notes/<YYYY-MM>/<slug>.md, sharded by immutable
-    # creation month. Classification (topic/project/aspect) lives in facets, not
-    # the path — so there is one file, no by-topic/by-project trees.
-    topic = _slugify(target_topic, fallback="") if target_topic else ""
-    dest_dir = _store.flat_dest(vault, fm.get("captured_at"), src.name).parent
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / src.name
-    # Collision avoidance — two captures with the same slug in one month shard.
-    n = 1
-    while dest.exists():
-        stem = Path(src.name).stem
-        dest = dest_dir / f"{stem}-{n}{Path(src.name).suffix}"
-        n += 1
-
-    fm = dict(fm)
-    fm["status"] = "accepted"
-    fm["ac_status"] = "passed"
-    fm["accepted_at"] = _now_iso()
-    if topic:
-        fm["target_topic"] = topic           # optional under v5 (RFC 0001)
-    if target_project:
-        fm["target_project"] = target_project
-    if links:
-        fm["links"] = list(dict.fromkeys(list(fm.get("links") or []) + links))
-    fm["ac_results"] = {
+    ac_results: Dict[str, Any] = {
         "must": check.must,
         "should": check.should,
         "forbidden": check.forbidden,
     }
     if override_must and failures:
-        fm["ac_results"]["override_must"] = failures   # audit: curator override
+        ac_results["override_must"] = failures        # audit: curator override
 
-    serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
-    dest.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
-    src.unlink()
-    _prune_empty_dirs(src.parent, stop=_store.learning_root(vault) / "candidates")
+    new_links = list(links or [])
+    new_fm = _claims.set_ac_status(path, fm, body, new_status="passed",
+                                   links=new_links or None,
+                                   ac_results=ac_results)
+    # target_topic/target_project are optional facet hints (RFC 0001): record
+    # them on the claim, but they do NOT move the file (one node, facets only).
+    if target_topic or target_project:
+        if target_topic:
+            new_fm["target_topic"] = target_topic
+        if target_project:
+            new_fm["target_project"] = target_project
+        _rewrite(path, new_fm, body)
 
     _append_log(vault,
-                f"- {fm['accepted_at']}  accept  {topic or '-'}/{src.stem}  "
+                f"- {_now_iso()}  accept  {target_topic or '-'}/{path.stem}  "
                 f"project={target_project or '-'}")
 
     return {
-        "path": str(dest),
+        "path": str(path),
         "by_project_path": None,             # mirror retired (RFC 0001)
-        "topic": topic,
+        "topic": target_topic or "",
         "project": target_project,
-        "entry_id": fm.get("entry_id"),
+        "entry_id": new_fm.get("entry_id"),
+        "ac_status": "passed",
+        "surfacing": _claims.surfacing_of(new_fm),   # stays query until promote
     }
 
 
-# ── archive ────────────────────────────────────────────────────────────────
+# ── archive ──────────────────────────────────────────────────────────────────
 
 
 def archive(*, candidate_slug: str, reason: str) -> Dict[str, Any]:
     vault = _vault_root()
-    src = _find_candidate(vault, candidate_slug)
-    dest_dir = _store.learning_root(vault) / "archived"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / src.name
-
-    _rewrite_frontmatter(src, {
-        "status": "archived",
-        "ac_status": "failed",
-        "archived_at": _now_iso(),
-        "archive_reason": reason,
-    })
-    src_parent = src.parent
-    shutil.move(str(src), str(dest))
-    _prune_empty_dirs(src_parent, stop=_store.learning_root(vault) / "candidates")
-
-    _append_log(vault,
-                f"- {_now_iso()}  archive  {src.stem}  reason={reason!r}")
-    return {"path": str(dest), "slug": src.stem}
+    path, fm, body = _find(vault, candidate_slug)
+    new_fm = _claims.set_ac_status(path, fm, body, new_status="failed",
+                                   archive_reason=reason)
+    _append_log(vault, f"- {_now_iso()}  archive  {path.stem}  reason={reason!r}")
+    return {"path": str(path), "slug": path.stem,
+            "entry_id": new_fm.get("entry_id"), "ac_status": "failed"}
 
 
-# ── retract ────────────────────────────────────────────────────────────────
+# ── retract ──────────────────────────────────────────────────────────────────
 
 
 def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
     vault = _vault_root()
-    try:
-        src = _find_accepted(vault, slug)
-        from_state = "accepted"
-    except FileNotFoundError:
-        src = _find_candidate(vault, slug)
-        from_state = "candidate"
-
-    dest_dir = _store.learning_root(vault) / "archived"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / src.name
-
-    _rewrite_frontmatter(src, {
-        "status": "archived",
-        "ac_status": "retracted",
-        "archived_at": _now_iso(),
-        "archive_reason": reason,
-    })
-    src_parent = src.parent
-    shutil.move(str(src), str(dest))
-    # prune only if the source lived under candidates/ (retract can also
-    # come from accepted/, whose dirs we keep)
-    _prune_empty_dirs(src_parent, stop=_store.learning_root(vault) / "candidates")
-
-    # Defensive: drop any LEGACY by-project mirror copy left over from before
-    # the flat-store migration (RFC 0001 retired the mirror; P7 deletes the
-    # tree). No-op once the tree is gone.
-    if from_state == "accepted":
-        legacy_mirror = _store.learning_root(vault) / "accepted" / "by-project"
-        if legacy_mirror.exists():
-            for p in legacy_mirror.rglob(src.name):
-                p.unlink(missing_ok=True)
-
+    path, fm, body = _find(vault, slug)
+    from_state = "accepted" if str(fm.get("ac_status")) == "passed" else "candidate"
+    new_fm = _claims.set_ac_status(path, fm, body, new_status="retracted",
+                                   archive_reason=reason)
     _append_log(vault,
-                f"- {_now_iso()}  retract  {src.stem}  from={from_state} "
+                f"- {_now_iso()}  retract  {path.stem}  from={from_state} "
                 f"reason={reason!r}")
+    return {"path": str(path), "slug": path.stem, "from": from_state,
+            "entry_id": new_fm.get("entry_id"), "ac_status": "retracted"}
 
-    return {"path": str(dest), "slug": src.stem, "from": from_state}
+
+# ── helper ────────────────────────────────────────────────────────────────────
+
+
+def _rewrite(path: Path, fm: Dict[str, Any], body: str) -> None:
+    """Re-emit a claim file with re-derived content_hash (facet hint update)."""
+    fm = dict(fm)
+    fm.pop("content_hash", None)
+    fm.pop("_prev_surfacing", None)
+    fm["content_hash"] = _claims._content_hash(fm)
+    import yaml
+    serialized = yaml.safe_dump(fm, sort_keys=True, allow_unicode=True,
+                                default_flow_style=False)
+    path.write_text(f"---\n{serialized}---\n\n{body.strip()}\n", encoding="utf-8")

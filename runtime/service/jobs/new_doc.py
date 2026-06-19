@@ -5,8 +5,8 @@ Templates:
   `new-product` command)
 - `raw`      → raw/personal/inbox/<name>.md
 - `note`     → workshop/notes/<name>.md
-- `learning` → manual learnings/candidates/<date>/<name>.md (rare; the
-  hook path is the preferred capture route)
+- `learning` → RETIRED (RFC 0005 §7.1): operational learnings are born as a
+  Claim via atelier_learning_capture; this template now redirects there.
 """
 from __future__ import annotations
 
@@ -143,28 +143,15 @@ def new_doc(*, template: str, name: str,
         return {"path": str(target), "template": template}
 
     if template == "learning":
-        vault = _vault_root()
-        day = _now_iso_day()
-        target = _store.learning_root(vault) / "candidates" / day / f"{name}.md"
-        captured = _now_iso()
-        fm = {
-            "schema_version": 4,
-            "entry_id": _entry_id(created_at=captured, discriminator=name),
-            "captured_at": captured,
-            "agent_kind": "manual",
-            "hook": "manual",
-            "status": "candidate",
-            "ac_status": "pending",
-            "observation_kind": fields.get("observation_kind", "feedback"),
-            "ac_results": {},
-            "links": [],
-        }
-        if fields.get("project_hint"):
-            fm["project_hint"] = fields["project_hint"]
-        body = fields.get("body",
-                          "## Observation\n\n## Why this matters\n\n")
-        _write(target, fm, body)
-        return {"path": str(target), "template": template}
+        # RFC 0005 §7.1: operational learnings are BORN AS A CLAIM, not scaffolded
+        # as empty candidate files. The legacy candidate-file lifecycle is retired;
+        # there is no "empty learning to fill in later" in the claim model. Route to
+        # the canonical born-as-claim path instead of writing raw/learning/candidates/.
+        raise ValueError(
+            "new_doc template 'learning' is retired (RFC 0005 §7.1): operational "
+            "learnings are born as a Claim. Use atelier_learning_capture(observation=, "
+            "why=) — it mints a v7 claim (domain:operational, surfacing:query, "
+            "ac_status:pending) + a thin session source.")
 
     # unreachable due to early validation, but keep mypy happy.
     raise RuntimeError("unknown template")

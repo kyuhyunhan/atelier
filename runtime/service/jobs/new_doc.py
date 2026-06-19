@@ -5,8 +5,8 @@ Templates:
   `new-product` command)
 - `raw`      → raw/personal/inbox/<name>.md
 - `note`     → workshop/notes/<name>.md
-- `learning` → manual learnings/candidates/<date>/<name>.md (rare; the
-  hook path is the preferred capture route)
+- `learning` → RETIRED (RFC 0005 §7.1): operational learnings are born as a
+  Claim via atelier_learning_capture; this template now redirects there.
 """
 from __future__ import annotations
 

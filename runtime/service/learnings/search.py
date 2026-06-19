@@ -341,6 +341,12 @@ def relink(*, slug: str, links: List[str],
     new_links = list(dict.fromkeys((existing if mode == "merge" else []) + links))
     fm = dict(fm)
     fm["links"] = new_links
+    # v7 nodes carry a content_hash over their frontmatter — re-derive it on
+    # mutation so the relink doesn't drift the projection's self-consistency.
+    if "content_hash" in fm:
+        from . import claims_io as _cio
+        fm.pop("content_hash", None)
+        fm["content_hash"] = _cio._content_hash(fm)
 
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     target.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")

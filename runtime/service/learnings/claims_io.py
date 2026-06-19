@@ -232,9 +232,11 @@ def mint_session_source(*, statement: str,
 
     `domain: inbox` (a capture is domain-undetermined at the door, §12.6). The
     `session:` block holds session_id/working_dir/agent_kind/hook/captured_at.
-    The Source's entry_id is content-addressed on (created_at | session
-    discriminator) so two captures in the same session get distinct ids only
-    when their statement differs.
+    The Source's entry_id is content-addressed on the session discriminator
+    (session_id | working_dir | hook | statement); within a session it does NOT
+    depend on the wall-clock second, so two identical captures are idempotent
+    (same id) regardless of timing. Sessionless manual captures fall back to
+    created_at in the basis.
 
     Returns {path, entry_id}.
     """
@@ -243,7 +245,13 @@ def mint_session_source(*, statement: str,
     discriminator = "|".join(str(x) for x in
                              (session_id or "", working_dir or "",
                               hook or "", _slugify(statement)))
-    eid = _structure.entry_id("source", created_at=now,
+    # Idempotency: when a stable session discriminator exists, the id must NOT
+    # depend on the wall-clock second — two identical captures straddling a second
+    # boundary would otherwise mint distinct sources → distinct claims. Drop
+    # created_at from the id basis when session_id is present; fall back to it only
+    # for sessionless manual captures. (created_at is still recorded on the node.)
+    id_created = "" if session_id else now
+    eid = _structure.entry_id("source", created_at=id_created,
                               discriminator=discriminator)
     session: Dict[str, Any] = {
         "agent_kind": agent_kind or "unknown",

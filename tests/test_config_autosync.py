@@ -27,6 +27,7 @@ def test_autosync_defaults_when_no_block(vault_env) -> None:
     assert a.on_conflict == "surface"
     assert a.require_stable is True
     assert a.message_prefix == "chore(vault):"
+    assert a.reindex_on_commit is True       # RFC 0005 §7.2 — on by default
 
 
 def test_autosync_parses_explicit_values(vault_env) -> None:
@@ -37,6 +38,7 @@ def test_autosync_parses_explicit_values(vault_env) -> None:
         "on_conflict": "surface",
         "require_stable": False,
         "message_prefix": "data(vault):",
+        "reindex_on_commit": False,
     })
     a = cfg.auto_sync
     assert a.enabled is True
@@ -44,6 +46,7 @@ def test_autosync_parses_explicit_values(vault_env) -> None:
     assert a.push is False
     assert a.require_stable is False
     assert a.message_prefix == "data(vault):"
+    assert a.reindex_on_commit is False      # explicitly opted out
 
 
 def test_autosync_partial_block_keeps_defaults(vault_env) -> None:

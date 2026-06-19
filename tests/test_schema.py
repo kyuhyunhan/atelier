@@ -8,12 +8,15 @@ import yaml
 SCHEMA = Path(__file__).resolve().parents[1] / "schema" / "data"
 
 
-def test_base_yaml_loads_and_versions_5():
+def test_base_yaml_loads_and_versions_7():
     data = yaml.safe_load((SCHEMA / "base.yaml").read_text())
-    assert data["version"] == 5
+    # RFC 0005: v7 is current (atomic graph). v4/v5 still accepted (migration
+    # coexists). The v7 common base adds kind/content_hash/links.
+    assert data["version"] == 7
     assert "schema_version" in data["fields"]
-    # v5 is current; v4 accepted during the flat-facet migration (RFC 0001).
-    assert data["fields"]["schema_version"]["enum"] == [4, 5]
+    assert data["fields"]["schema_version"]["enum"] == [4, 5, 7]
+    for f in ("kind", "content_hash", "links"):
+        assert f in data["fields"], f"missing v7 common-base field {f}"
 
 
 def test_gorae_overlay_has_5_wiki_page_types():

@@ -11,14 +11,18 @@ page_types:
   # ── Raw sources (human-owned, engine READ-ONLY) ───────────────────────────
   raw_source:
     # Scoped to the two genres raw_source owns, by SECOND path segment. fnmatch's
-    # single `*` crosses `/`, so `provenance/personal/*.md` matches personal pages
+    # single `*` crosses `/`, so `raw/personal/*.md` matches personal pages
     # at ANY depth (single- AND multi-level) — unlike `**/*.md`, whose literal `/`
     # requires an intermediate dir. This (a) keeps single-depth pages classified
-    # and (b) excludes `provenance/learning/**` wholesale (RFC 0003 P6) — including
-    # flat files like archived/<id>.md that match no learning_* glob and would
-    # otherwise fall through to this catch-all and be mislabeled raw_source.
-    path_patterns: ["provenance/personal/*.md", "provenance/knowledge/*.md",
-                    "raw/**/*.md"]
+    # and (b) excludes `raw/learning/**` wholesale (RFC 0003 P6 / RFC 0005 P2) —
+    # including flat files like archived/<id>.md that match no learning_* glob and
+    # would otherwise fall through to this catch-all and be mislabeled raw_source.
+    # `{content_root}` is expanded by the overlay loader from the resolver's
+    # roots.content_root, so a future root flip is one constant — never a literal
+    # prefix here. The legacy `provenance/...` forms are kept so pages predating
+    # the P2 rename still classify; new content lives under the content root.
+    path_patterns: ["{content_root}/personal/*.md", "{content_root}/knowledge/*.md",
+                    "provenance/personal/*.md", "provenance/knowledge/*.md"]
     writer: human
     required_fields:
       [schema_version, entry_id, sensitivity, created_at]
@@ -130,7 +134,11 @@ entity_thresholds:
   concept_domain:     2
 
 inbox:
-  path: "provenance/personal/inbox/"
+  # `{content_root}` expanded by the overlay loader (single root constant).
+  # RFC 0005: inbox is a first-class intake sibling (raw/inbox), not under personal/;
+  # matches resolver.inbox_dir() so the (Phase-9-dormant) inbox-status pass scans
+  # where capture actually lands.
+  path: "{content_root}/inbox/"
   status_field: inbox_status
   pending_value: pending
   note: "Mobile inbox target. Directory created in Phase 9 operational soak."

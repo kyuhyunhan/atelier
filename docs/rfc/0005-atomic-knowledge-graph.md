@@ -116,7 +116,7 @@ personal:     (none)
 ```yaml
 entry_id; schema_version; kind: entity; created_at; content_hash; sensitivity
 pref_label; alt_label[]             # skos:prefLabel / skos:altLabel
-type(Person|Concept|Work|Place|Tool|Event|Domain)
+type(Person|Concept|Work|Place|Tool|Event|Domain|Organization|Project|Emotion|Role)
 in_scheme[domain]                   # skos:inScheme
 gloss?
 links: [ {to, rel, why} ]           # rel ∈ broader|narrower|related (SKOS)

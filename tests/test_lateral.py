@@ -28,7 +28,7 @@ def _accepted(vault, topic, entry_id, body, *, touches=None, project=None):
         fm["touches"] = touches
     if project:
         fm["target_project"] = project
-    write_page(vault / "provenance" / "learning" / "notes" / "2026-01" /
+    write_page(vault / "raw" / "learning" / "notes" / "2026-01" /
                f"{entry_id}.md", fm, body)
 
 
@@ -60,7 +60,7 @@ def test_plan_tags_suggests_body_echoing_terms(vault_env: Dict) -> None:
 def test_plan_tags_skips_views_and_flags_inert_tags(vault_env: Dict) -> None:
     vault = vault_env["vault"]
     # a navigational view (noise) must not be teed up for tagging
-    write_page(vault / "provenance" / "learning" / "notes" / "2026-01" /
+    write_page(vault / "raw" / "learning" / "notes" / "2026-01" /
                "TAXONOMY.md", {**_BASE, "entry_id": "tax",
                                "target_topic": "general"}, "vocabulary\n")
     # tags with zero body echo are inert — flag for attention
@@ -85,7 +85,7 @@ def test_apply_tags_inserts_snapshot_wrapped(vault_env: Dict) -> None:
 
     out = _lat.apply_tags({"aaa": ["keychain", "sensitive-data"]})
     assert out["applied"] == 1
-    text = (vault / "provenance" / "learning" / "notes" / "2026-01" /
+    text = (vault / "raw" / "learning" / "notes" / "2026-01" /
             "aaa.md").read_text()
     assert "touches:" in text and "- keychain" in text
     # snapshot-wrapped: the omission guard is part of the result contract
@@ -108,7 +108,7 @@ def test_apply_rejects_tags_without_body_echo(vault_env: Dict) -> None:
     assert out["applied"] == 1
     rejected = out["rejected"]["bbb"]
     assert rejected == ["quantum-flux"]
-    text = (vault / "provenance" / "learning" / "notes" / "2026-01" /
+    text = (vault / "raw" / "learning" / "notes" / "2026-01" /
             "bbb.md").read_text()
     assert "- pasteboard" in text
     assert "quantum-flux" not in text
@@ -165,7 +165,7 @@ def test_insert_touches_idempotent_on_long_frontmatter(vault_env: Dict) -> None:
     line window — touches sitting past line 80 must still block a re-insert
     (the bug double-inserted a second touches block)."""
     vault = vault_env["vault"]
-    p = vault / "provenance" / "learning" / "notes" / "2026-01" / "long.md"
+    p = vault / "raw" / "learning" / "notes" / "2026-01" / "long.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     fm = (["---"] + [f"field_{i}: {i}" for i in range(85)]
           + ["entry_id: long", "target_topic: client",
@@ -198,7 +198,7 @@ def test_apply_tags_writes_the_flat_note(vault_env: Dict) -> None:
     _accepted(vault, "client", "mm",
               "## Observation\n\nkeychain sensitive token body\n",
               project="lexio")
-    canonical = (vault / "provenance" / "learning" / "notes" / "2026-01" /
+    canonical = (vault / "raw" / "learning" / "notes" / "2026-01" /
                  "mm.md")
     api.reindex(full=True)
 
@@ -212,7 +212,7 @@ def test_insert_touches_refuses_empty_tags(vault_env: Dict) -> None:
     """NEW-1: never write a bare `touches:` header."""
     vault = vault_env["vault"]
     _accepted(vault, "client", "zz", "## Observation\n\nbody words here\n")
-    p = vault / "provenance" / "learning" / "notes" / "2026-01" / "zz.md"
+    p = vault / "raw" / "learning" / "notes" / "2026-01" / "zz.md"
     assert _lat._insert_touches(p, []) is False
     assert "touches:" not in p.read_text()
 

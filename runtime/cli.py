@@ -151,7 +151,8 @@ def _cmd_sync(args: argparse.Namespace) -> int:
 
 
 def _cmd_capture(args: argparse.Namespace) -> int:
-    out = api.capture_text(args.text, source=args.source, title=args.title)
+    out = api.capture_text(args.text, source=args.source, title=args.title,
+                           domain=args.domain)
     print(out["path"])
     return 0
 
@@ -167,9 +168,9 @@ def _cmd_new_product(args: argparse.Namespace) -> int:
         return 1
     product_dir.mkdir(parents=True)
     from datetime import datetime, timezone
-    import uuid as _uuid
+    from .structure import resolver as _structure
     now = datetime.now(timezone.utc).date().isoformat()
-    eid = _uuid.uuid5(_uuid.NAMESPACE_DNS, f"workshop:products/{args.name}")
+    eid = _structure.entry_id("product", name=args.name)
     (product_dir / "README.md").write_text(
         f"---\n"
         f"schema_version: 4\n"
@@ -191,10 +192,10 @@ def _cmd_new_product(args: argparse.Namespace) -> int:
 
 
 def _cmd_dream(args: argparse.Namespace) -> int:
-    """Dream cycle convenience. `atelier dream` prints the plan (clusters
-    worth synthesizing); the actual generalization is done by an agent
-    calling atelier_principle_synthesize. `atelier dream --complete`
-    advances the cadence after a finished pass."""
+    """Dream cycle convenience. `atelier dream` prints the plan (clusters of
+    proactive claims worth generalizing); the actual generalization is done by
+    an agent calling atelier_dream_synthesize. `atelier dream --complete`
+    advances the cadence after a finished pass (RFC 0005 §7.1)."""
     from .service.learnings import dream as _dr
     import json as _json
     if args.status:
@@ -218,18 +219,18 @@ def _cmd_dream(args: argparse.Namespace) -> int:
     if args.json:
         print(_json.dumps(plan, ensure_ascii=False, indent=2))
         return 0
-    print(f"accepted scanned: {plan['accepted_scanned']}")
+    print(f"proactive claims scanned: {plan['proactive_scanned']}")
     print(f"clusters to synthesize: {plan['candidate_count']}  "
-          f"(skipped already-covered: {plan['skipped_already_covered']})")
+          f"(skipped already-synthesized: {plan['skipped_already_covered']})")
     for c in plan["clusters"]:
-        print(f"\n● [{c['size']}n {len(c['projects'])}proj] "
-              f"{c['projects']}  terms={c['shared_terms'][:5]}")
+        print(f"\n● [{c['size']}n {len(c['domains'])}dom] "
+              f"{c['domains']}  terms={c['shared_terms'][:5]}")
         for m in c["members"][:6]:
-            print(f"    - {m['title']}  ({m.get('project') or '-'})")
+            print(f"    - {m['statement']}  ({m.get('domain') or '-'})")
         if len(c["members"]) > 6:
             print(f"    … +{len(c['members']) - 6} more")
-    print("\nNext: an agent reads these and calls atelier_principle_synthesize "
-          "per cluster, then `atelier dream --complete`.")
+    print("\nNext: an agent reads these and calls atelier_dream_synthesize "
+          "per cluster (and atelier_dream_distill), then `atelier dream --complete`.")
     return 0
 
 
@@ -336,6 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("capture")
     s.add_argument("--text", required=True); s.add_argument("--source", default="manual")
     s.add_argument("--title")
+    s.add_argument("--domain", default="inbox/undetermined")
     s.set_defaults(func=_cmd_capture)
 
     s = sub.add_parser("new-product")
@@ -350,7 +352,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--status", action="store_true",
                    help="print a compact one-line dream status (for statusline / "
                         "SessionStart hook); empty when nothing is due")
-    s.add_argument("--min-projects", type=int, default=2)
+    s.add_argument("--min-projects", type=int, default=1)
     s.add_argument("--limit", type=int, default=20)
     s.add_argument("--json", action="store_true",
                    help="emit the full machine-readable plan")

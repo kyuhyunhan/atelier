@@ -1,0 +1,139 @@
+# Canonical vault STRUCTURE — single source of truth (RFC 0005 P1).
+#
+# Every consumer (capture, jobs, learnings, reindex, classify) derives vault
+# paths and entry_ids from THIS file via runtime/structure/resolver.py — never
+# from inline literals. Hard rule #3: schema is DATA, not prose; structural
+# facts live here, not hardcoded in code.
+#
+# entry_id stability: the discriminator TEMPLATES below reproduce the CURRENT
+# stored strings BYTE-FOR-BYTE for existing kinds. entry_id is the R2 asset-key
+# prefix ({entry_id}/file) AND the link target — it MUST stay stable. The only
+# uuid5 namespace is Python stock uuid.NAMESPACE_DNS, for ALL nodes.
+
+# --- Roots ---------------------------------------------------------------
+# content_root is THE one constant for the content tree (P2 flipped it from
+# `provenance` to `raw`). Homes, intake dirs, and overlay path_patterns compose
+# their prefix from it via `{content_root}` / the resolver, so flipping the root
+# is a single edit here. graph_root holds entities/themes/sources (post-RFC-0003
+# rename of wiki/).
+roots:
+  content_root: raw
+  graph_root: graph
+
+# --- Intake ---------------------------------------------------------------
+# domain -> write dir RELATIVE TO content_root (personal, knowledge, inbox) or
+# to the vault root (workshop, which lives outside content_root). The four
+# intakes (personal · knowledge · inbox · workshop, RFC 0005 §3) are cosmetic
+# landing dirs; ALL classification is a frontmatter field, never the path.
+#
+# `inbox` is a FIRST-CLASS intake sibling of personal/knowledge — NOT a leaf
+# under personal. RFC 0005 §2/§3: a manual capture is domain-*undetermined*; the
+# old `personal/inbox/` path decreed every captured note "personal" by channel
+# accident. A capture now lands in `raw/inbox/` carrying an explicit `domain`
+# field (default `inbox/undetermined`); classification is field-based.
+#
+# inbox_subpath is retained as the legacy leaf name only for the un-migrated
+# new_doc `raw` template; new captures use the `inbox` domain above.
+intake:
+  personal: personal           # under content_root  -> raw/personal
+  knowledge: knowledge         # under content_root  -> raw/knowledge
+  inbox: inbox                 # under content_root  -> raw/inbox
+  workshop: workshop           # under vault root     -> workshop
+  inbox_subpath: inbox         # legacy leaf under personal intake (new_doc raw)
+
+# --- Homes ----------------------------------------------------------------
+# page_type -> write dir for that kind of node. graph_* are relative to
+# graph_root; learning_* and products map to their canonical trees. These
+# mirror the current writers: store.learning_root() == content_root/learning,
+# principles/_dir, _archived_dir, candidates, notes.
+homes:
+  graph_source: graph/sources
+  graph_entity: graph/entities
+  graph_theme: graph/themes
+  # RFC 0005 v7 atomic node trees — the flat source/entity/claim graph. `kind`
+  # is the discriminator (a FIELD, never the path); these dirs are cosmetic
+  # shard buckets under graph/. The atomize nudge (§7.2) reads atomic_source /
+  # atomic_claim to count un-atomized sources (a Source with no derived Claim).
+  atomic_source: graph/atomic/sources
+  atomic_entity: graph/atomic/entities
+  atomic_claim: graph/atomic/claims
+  # learning_* are content-root-RELATIVE: `{content_root}` is expanded by the
+  # resolver (home()) from roots.content_root, so the whole learning tree moves
+  # with a single root flip — never re-hardcode the prefix.
+  learning_candidate: "{content_root}/learning/candidates"
+  learning_note: "{content_root}/learning/notes"
+  learning_principle: "{content_root}/learning/principles"
+  learning_archived: "{content_root}/learning/archived"
+  product: workshop/products
+
+# --- Prefix aliasing ------------------------------------------------------
+# Legacy<->new prefix map — copied EXACTLY from reindex.py:_PREFIX_ALIASES so
+# the ~980 explicit [[raw/...]]/[[wiki/...]]/[[learnings/...]] body links never
+# dangle across the renames. Symmetric (old->new AND new->old).
+prefix_aliases:
+  "raw/": "provenance/"
+  "wiki/": "graph/"
+  "provenance/": "raw/"
+  "graph/": "wiki/"
+  "learnings/": "raw/learning/"
+  "raw/learning/": "learnings/"
+  "provenance/learning/": "learnings/"
+
+# Known top-level slug prefixes — a to_slug already starting with one of these
+# is a full path, not a bare shorthand. From reindex.py:_KNOWN_SLUG_PREFIXES.
+known_prefixes:
+  - "raw/"
+  - "provenance/"
+  - "wiki/"
+  - "graph/"
+  - "products/"
+  - "notes/"
+  - "logs/"
+  - "workshop/"
+  - "learnings/"
+
+# Bare-shorthand expansion bases, tried in order. From _SHORTHAND_BASES.
+shorthand_bases:
+  - "graph/"
+  - "wiki/"
+
+# --- entry_id derivation --------------------------------------------------
+# namespace: the ONLY uuid5 namespace, Python stock uuid.NAMESPACE_DNS. The
+# resolver references it by this marker. No other uuid5 namespace exists in this
+# repo and none must be introduced.
+#
+# templates: per-kind discriminator strings, str.format(**parts) -> uuid5 input.
+# EXISTING templates reproduce today's stored ids byte-for-byte (snapshot-locked
+# in tests/test_structure_resolver.py). NEW templates are the content-based
+# convention for fresh manual docs (replacing the dropped path-based
+# `atelier:{rel}` form) — flagged in `new_kinds` below.
+entry_id:
+  namespace: uuid.NAMESPACE_DNS
+  templates:
+    # --- EXISTING (byte-for-byte stable) ---
+    youtube: "atelier:youtube:{video_id}"
+    claude: "learnings:claude:{body_sha}"
+    principle: "learnings:principle:{slug}"
+    promote: "promote:{target_slug}"
+    product: "workshop:products/{name}"
+    learning_candidate: "learnings:candidate:{date}/{name}"
+    capture: "{iso}{slug}"
+    # --- NEW (content-based; replaces path-based atelier:{rel}) ---
+    # RFC 0005 §5 — the single content-addressed convention for v7 nodes.
+    #   source = uuid5(NS, created_at | discriminator)   discriminator: video_id|url|hash
+    #   entity = uuid5(NS, type | pref_label)            same subject -> same id = dedup
+    #   claim  = uuid5(NS, normalize(statement) | derived_from)
+    # pref_label and statement are normalized (strip().lower(), reusing
+    # reindex._norm semantics) by the resolver BEFORE format — see
+    # resolver.entry_id(); the {pref_label}/{statement} slots receive the
+    # already-normalized value.
+    source: "atelier:source:{created_at}|{discriminator}"
+    entity: "atelier:entity:{type}|{pref_label}"
+    claim: "atelier:claim:{statement}|{derived_from}"
+  # Templates introduced for NEW writes only — NOT applied to existing content.
+  # Their ids are free to be defined here; they have no legacy form. The v7
+  # node kinds (RFC 0005) are content-addressed and stable across move/shard.
+  new_kinds:
+    - source
+    - entity
+    - claim

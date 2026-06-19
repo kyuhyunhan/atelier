@@ -21,8 +21,9 @@ class Diagnosis:
 
 # The DB schema_version the engine writes (schema/db/sql/0001_initial.sql seed).
 # Bump in lockstep with that seed; D1 fails loudly on a mismatch so a stale DB is
-# caught. v6 = RFC 0003 (provenance column).
-EXPECTED_SCHEMA_VERSION = "6"
+# caught. v6 = RFC 0003 (provenance column). v7 = RFC 0005 (atomic knowledge
+# graph — claim/entity/source nodes projected by `kind`, claim-granular embed).
+EXPECTED_SCHEMA_VERSION = "7"
 
 
 def D1_db_present(cfg: config.Config) -> Diagnosis:

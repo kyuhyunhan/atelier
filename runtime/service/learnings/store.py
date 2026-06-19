@@ -16,6 +16,8 @@ import re
 from pathlib import Path
 from typing import Iterator, List, Optional
 
+from ...structure import resolver as _structure
+
 
 def learning_root(vault: Path) -> Path:
     """Base of the learnings subtree — the ONE place that knows where it lives.
@@ -32,10 +34,15 @@ def learning_root(vault: Path) -> Path:
     or a fixture that seeds `learnings/`, still resolves correctly. The gorae vault
     is migrated; this resolver is what made the `git mv` a non-event to every
     reader and writer."""
-    new = vault / "provenance" / "learning"
+    # Canonical home (content_root/learning) and its pre-P6 top-level alias
+    # (learnings/) are both single-sourced from structure.yaml (RFC 0005 P1):
+    # the alias is the reverse of the prefix_aliases learnings/ mapping.
+    canonical_rel = f"{_structure.content_root()}/learning"
+    legacy_rel = _structure.prefix_aliases()[f"{canonical_rel}/"].rstrip("/")
+    new = vault / canonical_rel
     if new.exists():
         return new
-    return vault / "learnings"
+    return vault / legacy_rel
 
 
 def notes_root(vault: Path) -> Path:

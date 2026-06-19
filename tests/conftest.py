@@ -22,11 +22,11 @@ def workspace(tmp_path: Path) -> Path:
     """A throwaway directory with gorae + workshop subspaces seeded."""
     gorae = tmp_path / "gorae"
     workshop = tmp_path / "workshop"
-    # Canonical post-RFC-0003 structure (provenance/ + graph/). Tests that
-    # specifically exercise the legacy wiki//raw//learnings/ trees or the rename
-    # aliasing create those dirs themselves.
-    (gorae / "provenance" / "personal" / "diary" / "2026" / "05").mkdir(parents=True)
-    (gorae / "provenance" / "knowledge").mkdir(parents=True)
+    # Canonical post-RFC-0005-P2 structure (raw/ + graph/). Tests that
+    # specifically exercise the legacy wiki//provenance//learnings/ trees or the
+    # rename aliasing create those dirs themselves.
+    (gorae / "raw" / "personal" / "diary" / "2026" / "05").mkdir(parents=True)
+    (gorae / "raw" / "knowledge").mkdir(parents=True)
     (gorae / "graph" / "entities").mkdir(parents=True)
     (gorae / "graph" / "sources").mkdir(parents=True)
     (workshop / "products" / "demo").mkdir(parents=True)
@@ -82,12 +82,12 @@ def vault_env(atelier_env: Dict[str, Path], monkeypatch: pytest.MonkeyPatch
     overwrites config.yaml with a vault block."""
     home = atelier_env["home"]
     vault = atelier_env["gorae"].parent / "vault"
-    # Note: provenance/learning/notes is intentionally NOT pre-seeded — the flat
+    # Note: raw/learning/notes is intentionally NOT pre-seeded — the flat
     # accepted store is created on demand by writers; pre-creating it would break
     # "nothing moved" dry-run assertions (mirrors the pre-migration fixture).
-    for sub in ("provenance/personal", "provenance/knowledge",
-                "provenance/learning/candidates",
-                "provenance/learning/principles", "provenance/learning/archived",
+    for sub in ("raw/personal", "raw/knowledge",
+                "raw/learning/candidates",
+                "raw/learning/principles", "raw/learning/archived",
                 "graph/entities", "graph/sources", "workshop/products"):
         (vault / sub).mkdir(parents=True, exist_ok=True)
 
@@ -96,13 +96,13 @@ def vault_env(atelier_env: Dict[str, Path], monkeypatch: pytest.MonkeyPatch
                   "remote": {"type": "github",
                              "url": "github.com/test/vault", "branch": "main"}},
         "subtrees": {
-            "provenance": {"writer": "human-only"},
+            "raw": {"writer": "human-only"},
             "graph": {"writer": "librarian-write"},
             "workshop": {"writer": "builder-write"},
-            # candidates is append-only/captor-write; the broader provenance/learning
+            # candidates is append-only/captor-write; the broader raw/learning
             # key covers notes/principles/archived under curator-write.
-            "provenance/learning/candidates": {"writer": "captor-write", "append_only": True},
-            "provenance/learning":            {"writer": "curator-write"},
+            "raw/learning/candidates": {"writer": "captor-write", "append_only": True},
+            "raw/learning":            {"writer": "curator-write"},
         },
     }))
     return {"home": home, "vault": vault, "cache": atelier_env["cache"]}

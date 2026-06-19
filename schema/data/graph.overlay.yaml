@@ -1,0 +1,136 @@
+# atelier schema v7 — graph overlay (RFC 0005 atomic knowledge graph)
+#
+# The three v7 node classes — source / entity / claim — live FLAT under
+# graph/ (kind is a FIELD, never a directory: RFC 0005 §3 invariant). They are
+# therefore dispatched by the `kind` frontmatter field, NOT by path glob. The
+# `path_pattern: graph/*.md` below is documentation of the flat layout; the
+# validator selects the spec by `kind` when schema_version >= 7 (see
+# validate_v4._validate_one), so source-vs-entity-vs-claim never depends on a
+# subdirectory.
+#
+# Each spec extends the common v7 base in base.yaml (entry_id, schema_version,
+# kind, created_at, content_hash, sensitivity, links[]) with its kind-specific
+# fields — the same base + typed-extension discipline as the legacy overlays.
+
+inherits: base
+spaces: [gorae]
+
+page_types:
+
+  # ── L1 source — prov:Entity, the immutable origin anchor (RFC 0005 §4.1) ──
+  # CORE (every raw doc) + COMMON-OPTIONAL (preserved when present, incl. the
+  # R2 asset keys) + per-source_type extension (youtube / web_clipper / personal).
+  source:
+    kind: source
+    path_pattern: "graph/*.md"
+    writer: ingest
+    required_fields:
+      [entry_id, schema_version, kind, created_at, content_hash,
+       title, sensitivity, domain, attributed_to]
+    optional_fields:
+      # COMMON-OPTIONAL — preserved when present. embedded_assets are R2 keys
+      # and MUST be preserved (RFC 0005 §4.1).
+      [summary, collected_at, edited_at, word_count, embedded_assets, links,
+       # per-source_type extension fields (youtube / web_clipper):
+       source_url, source_type, channel, channel_url, duration_sec, language,
+       transcript_source]
+    field_specs:
+      kind:        { const: source }
+      title:       { type: string }
+      sensitivity: { type: string, enum: [private, public] }
+      # legacy 'provenance' field -> domain (RFC 0005 §4.1).
+      domain:      { type: string, enum: [personal, knowledge, inbox, workshop] }
+      attributed_to: { type: string }   # PROV-O wasAttributedTo: authoring channel
+      content_hash:  { type: string }
+      summary:       { type: string }
+      word_count:    { type: integer, minimum: 0 }
+      embedded_assets: { type: array }
+      collected_at:  { type: array }
+      edited_at:     { type: array }
+      links:         { type: array }
+      source_url:    { type: string }
+      source_type:   { type: string }
+      channel:       { type: string }
+      channel_url:   { type: string }
+      duration_sec:  { type: integer, minimum: 0 }
+      language:      { type: string }
+      transcript_source: { type: string }
+    notes: >
+      Flat under graph/. body = original artifact, immutable. youtube ext:
+      source_url/source_type/channel/channel_url/duration_sec/language/
+      transcript_source; web_clipper ext: source_url/source_type; personal: none.
+
+  # ── L2 entity — skos:Concept-aligned canonical subject (RFC 0005 §4.2) ──
+  entity:
+    kind: entity
+    path_pattern: "graph/*.md"
+    writer: atomize
+    required_fields:
+      [entry_id, schema_version, kind, created_at, content_hash, sensitivity,
+       pref_label, type, in_scheme]
+    optional_fields: [alt_label, gloss, links]
+    field_specs:
+      kind:        { const: entity }
+      sensitivity: { type: string, enum: [private, public] }
+      pref_label:  { type: string }                      # skos:prefLabel
+      alt_label:   { type: array, items: { type: string } }  # skos:altLabel
+      type:
+        # SKOS-aligned subject taxonomy. Extended (RFC 0005 P4 FINALIZE) with
+        # Organization / Project / Emotion / Role — semantic categories that the
+        # P4 atomization surfaced in real content and that the original closed
+        # list omitted. The enum is a validation constraint only; `type` is also
+        # part of the entity entry_id discriminator (uuid5(NS, type|pref_label)),
+        # so this is purely additive — it does not alter any existing id.
+        type: string
+        enum: [Person, Concept, Work, Place, Tool, Event, Domain,
+               Organization, Project, Emotion, Role]
+      in_scheme:                                          # skos:inScheme [domain]
+        type: array
+        items: { type: string, enum: [personal, knowledge, inbox, workshop] }
+      gloss:       { type: string }
+      content_hash: { type: string }
+      # links: [{to, rel, why}], rel in broader|narrower|related (SKOS).
+      links:       { type: array }
+
+  # ── L2 claim — nanopublication assertion (RFC 0005 §4.3) ──
+  # assertion + provenance (PROV-O) + recall policy + optional inbox/learning ext.
+  claim:
+    kind: claim
+    path_pattern: "graph/*.md"
+    writer: atomize
+    required_fields:
+      [entry_id, schema_version, kind, created_at, content_hash,
+       statement, is_about, derived_from, attributed_to, generated_by,
+       surfacing, domain, sensitivity]
+    optional_fields:
+      [links, context, project,
+       # optional inbox / learning-derived extension:
+       observation_kind, ac_status, agent_kind, hook, session_id,
+       working_dir, why_status]
+    field_specs:
+      kind:         { const: claim }
+      statement:    { type: string }                     # one atomic assertion
+      is_about:     { type: array, items: { type: string } }  # -> entity ids
+      derived_from: { type: array, items: { type: string } }  # -> source ids; PROV wasDerivedFrom
+      attributed_to: { type: string }                    # PROV wasAttributedTo
+      generated_by:
+        type: string
+        enum: [ingest, atomize, promote, dream]          # PROV wasGeneratedBy
+      surfacing:
+        type: string
+        enum: [query, proactive, always]                 # recall tier (RFC 0005 §6)
+      domain:       { type: string }
+      project:      { type: string }
+      sensitivity:  { type: string, enum: [private, public] }
+      content_hash: { type: string }
+      context:      { type: string }                     # anti-loss grounding
+      # links: [{to, rel, why}], rel in supports|refutes|refines.
+      links:        { type: array }
+      # --- optional inbox / learning extension ---
+      observation_kind: { type: string }
+      ac_status:    { type: string }
+      agent_kind:   { type: string }
+      hook:         { type: string }
+      session_id:   { type: string }
+      working_dir:  { type: string }
+      why_status:   { type: string }

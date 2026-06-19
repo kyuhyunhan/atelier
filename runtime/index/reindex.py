@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
+from ..structure import resolver as _structure
 from ..util import config, db, logging as log
 from . import classify, crawl, entities, linker, parse
 
@@ -289,27 +290,19 @@ def _norm(s: str) -> str:
     return s.strip().lower()
 
 
-# Known top-level slug prefixes — a `to_slug` already starting with one of these
-# is treated as a full path, not a bare shorthand. `provenance/` and `graph/` are
-# the RFC 0003 rename targets (raw/→provenance/, wiki/→graph/); both old and new
-# names are kept here so entity links resolve before AND after GP1's `git mv`.
-_KNOWN_SLUG_PREFIXES = ("raw/", "provenance/", "wiki/", "graph/", "products/",
-                        "notes/", "logs/", "workshop/", "learnings/")
-
-# Bare-shorthand expansion bases, tried in order. `graph/` first (the post-rename
-# home for entities/themes), `wiki/` second (legacy, pre-rename) — so during the
-# transition a bare `[[entities/foo]]` resolves to whichever tree exists.
-_SHORTHAND_BASES = ("graph/", "wiki/")
-
-# RFC 0003 GP1 rename aliasing: an explicit old-prefix link resolves to the
-# renamed tree (and vice-versa), so the wiki/->graph/, raw/->provenance/ move
-# never dangles the ~980 explicit [[raw/...]]/[[wiki/...]] body links.
-_PREFIX_ALIASES = {"raw/": "provenance/", "wiki/": "graph/",
-                   "provenance/": "raw/", "graph/": "wiki/",
-                   # RFC 0003 P6: body links [[learnings/...]] resolve to the
-                   # relocated tree (and vice-versa), symmetric with raw/wiki.
-                   "learnings/": "provenance/learning/",
-                   "provenance/learning/": "learnings/"}
+# Slug-resolution prefix data is single-sourced from schema/data/structure.yaml
+# via the resolver (RFC 0005 P1). These module names are kept (and re-exported)
+# so `_candidate_slugs` and the resolver-parity tests reference one in-process
+# copy of the canonical data, not a second hand-maintained literal.
+#
+# _KNOWN_SLUG_PREFIXES — top-level slug prefixes; a `to_slug` already starting
+# with one is a full path, not a bare shorthand. _SHORTHAND_BASES — bare-shorthand
+# expansion bases, tried in order. _PREFIX_ALIASES — RFC 0003 rename aliasing
+# (raw/<->provenance/, wiki/<->graph/, learnings/<->provenance/learning/) so the
+# `git mv` never dangles the ~980 explicit [[raw/...]]/[[wiki/...]] body links.
+_KNOWN_SLUG_PREFIXES = _structure.known_prefixes()
+_SHORTHAND_BASES = _structure.shorthand_bases()
+_PREFIX_ALIASES = _structure.prefix_aliases()
 
 
 def _candidate_slugs(to_slug: str) -> list[str]:

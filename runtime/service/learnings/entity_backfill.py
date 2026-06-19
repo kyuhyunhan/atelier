@@ -30,6 +30,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from ...index import reindex as _reindex   # reuse _norm so resolution can't drift
+from ...structure import resolver as _structure
 
 
 def _slugify(concept: str) -> str:
@@ -85,7 +86,7 @@ def plan_stubs(conn: sqlite3.Connection) -> List[StubPlan]:
             continue
         seen_slug.add(slug)
         plans.append(StubPlan(concept=c, slug=slug,
-                              rel_path=f"graph/entities/{slug}.md"))
+                              rel_path=f"{_structure.home('graph_entity')}/{slug}.md"))
     return plans
 
 

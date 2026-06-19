@@ -1,81 +1,94 @@
-"""Propose promotion of workshop content into the wiki.
+"""Propose claim promotions — RFC 0005 §7.1 (a FIELD transition, not a dir move).
+
+`promote` = elevate a Claim's `surfacing` from `query` → `proactive`, **behind the
+acceptance gate**: only claims that have passed acceptance (`ac_status: passed`)
+are eligible. This is the §7.1 transition
+
+    learnings/notes/ (accepted)  ==>  surfacing: proactive, ac_status: passed
+
+expressed as a frontmatter change on the same node — the claim never moves
+between directories (the old candidates/→notes/ move is retired).
 
 A *proposal* is a markdown document at
-~/.atelier/cache/promotions/{ts}-{slug}.md describing what would move where.
-The user reviews/edits it, then runs `atelier promote apply <path>`.
-
-v0.1 strategy: surface workshop pages that link into the wiki heavily (high
-cross-citation), as candidates whose insights deserve a synthesis page.
+~/.atelier/cache/promotions/{ts}-proposal.md listing each eligible claim by its
+stable `entry_id`. The user reviews it, flips `promote: true` on the ones to
+elevate, then runs `atelier promote apply <path>`. The engine performs no LLM
+judgement here — eligibility is the deterministic acceptance gate; the human
+curates which gated claims actually earn the proactive tier.
 """
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ..util import config, db
+from ..service.learnings import claims_io as _claims
+from ..util import config
 
-PROMOTIONS_DIR = config.CACHE_DIR / "promotions"
+
+def _promotions_dir() -> Path:
+    """Resolved lazily so a test's monkeypatched CACHE_DIR is honoured."""
+    return config.CACHE_DIR / "promotions"
 
 
-def _candidates(conn: sqlite3.Connection, limit: int = 10) -> List[Dict[str, Any]]:
-    """Workshop pages with the most outbound links into the wiki.
-
-    Space-agnostic (single-vault safe): builder-owned pages are identified by
-    page_type, wiki targets by their slug prefix — never by a space literal.
-    """
-    sql = """
-        SELECT  p.slug   AS workshop_slug,
-                p.title  AS title,
-                COUNT(l.id) AS wiki_links
-        FROM    pages p
-        JOIN    links l   ON l.from_page = p.id
-        JOIN    pages tgt ON tgt.id = l.to_page_id
-        WHERE   p.page_type IN ('product_readme','product_page','note','build_log')
-          AND   tgt.slug LIKE 'wiki/%'
-        GROUP   BY p.id
-        ORDER   BY wiki_links DESC
-        LIMIT   ?
-    """
-    return [dict(r) for r in conn.execute(sql, (limit,))]
+def _eligible(limit: int = 50) -> List[Dict[str, Any]]:
+    """Claims eligible for query→proactive promotion: surfacing == query AND
+    ac_status == passed (the acceptance gate). Returns compact rows keyed by the
+    stable entry_id (the link/ledger target), newest acceptance first by file
+    order (sorted path)."""
+    out: List[Dict[str, Any]] = []
+    for p in _claims.iter_claim_files():
+        got = _claims.read_claim(p)
+        if got is None:
+            continue
+        fm, _ = got
+        if _claims.surfacing_of(fm) != _claims.TIER_QUERY:
+            continue
+        if str(fm.get("ac_status") or "").lower() != "passed":
+            continue
+        out.append({
+            "entry_id": str(fm.get("entry_id")),
+            "statement": str(fm.get("statement") or "").strip(),
+            "domain": fm.get("domain") or "",
+            "project": fm.get("project") or "",
+            "path": str(p),
+        })
+        if len(out) >= limit:
+            break
+    return out
 
 
 def propose_all() -> Dict[str, Any]:
-    PROMOTIONS_DIR.mkdir(parents=True, exist_ok=True)
-    conn = db.connect()
-    try:
-        cands = _candidates(conn)
-    finally:
-        conn.close()
+    promotions_dir = _promotions_dir()
+    promotions_dir.mkdir(parents=True, exist_ok=True)
+    cands = _eligible()
 
     if not cands:
         return {"path": None, "candidates": 0,
-                "note": "no workshop→wiki citations found"}
+                "note": "no query+ac_status:passed claims await promotion"}
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-    path = PROMOTIONS_DIR / f"{ts}-proposal.md"
+    path = promotions_dir / f"{ts}-proposal.md"
 
     lines: List[str] = []
     lines.append(f"# Promotion proposal — {ts}")
     lines.append("")
-    lines.append("Workshop pages with the strongest wiki cross-citation,")
-    lines.append("which may warrant a `wiki/synthesis/*.md` page authored by")
-    lines.append("the Librarian.")
+    lines.append("Claims that PASSED acceptance (`ac_status: passed`) and are")
+    lines.append("still on-query-only (`surfacing: query`). Promoting elevates")
+    lines.append("them to `surfacing: proactive` (a FIELD transition, RFC 0005 §7.1).")
     lines.append("")
-    lines.append("Review each row. For each one to promote, leave the `promote:` line")
-    lines.append("as `true` and optionally edit `target_slug`. Run:")
+    lines.append("For each claim to promote, set `promote: true`. Then run:")
     lines.append("")
     lines.append("    atelier promote apply " + str(path))
     lines.append("")
     for c in cands:
-        slug_safe = c["workshop_slug"].replace("/", "-").replace(".md", "")
         lines.append("---")
-        lines.append(f"source: {c['workshop_slug']}")
-        lines.append(f"title: {c['title'] or '(untitled)'}")
-        lines.append(f"wiki_citations: {c['wiki_links']}")
-        lines.append(f"target_slug: wiki/synthesis/{slug_safe}.md")
-        lines.append(f"promote: false")
+        lines.append(f"entry_id: {c['entry_id']}")
+        lines.append(f"statement: {c['statement']}")
+        lines.append(f"domain: {c['domain']}")
+        if c["project"]:
+            lines.append(f"project: {c['project']}")
+        lines.append("promote: false")
         lines.append("")
 
     path.write_text("\n".join(lines), encoding="utf-8")

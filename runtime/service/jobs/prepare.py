@@ -2,7 +2,8 @@
 
 For each input markdown file:
 
-1. resolve `entry_id: PENDING` (UUID5 from vault-relative path)
+1. resolve `entry_id: PENDING` (content-based UUID5: the doc's own
+   creation timestamp + a stable discriminator, via the resolver)
 2. recalculate `word_count` from body
 3. re-detect `embedded_assets` (image / attachment URLs in body)
 4. append an `edited_at` entry when the body changed since the last
@@ -16,7 +17,6 @@ gateway is shaped. The mechanical fields land in atelier today.
 from __future__ import annotations
 
 import re
-import uuid as _uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -24,7 +24,9 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import yaml
 
 from ...index import parse as _parse
+from ...structure import resolver as _structure
 from ...util import config as _config
+from . import content_id as _content_id
 
 
 def _vault_root() -> Path:
@@ -32,10 +34,6 @@ def _vault_root() -> Path:
     if cfg.vault is not None:
         return cfg.vault.local
     return cfg.space_by_role("librarian-territory").local
-
-
-def _new_uuid(rel: str) -> str:
-    return str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"atelier:{rel}"))
 
 
 _WORD_RX = re.compile(r"\w+", re.UNICODE)
@@ -74,14 +72,15 @@ def _last_edited_value(fm: Dict[str, Any]) -> Optional[str]:
 
 
 def _process_file(path: Path, vault: Path) -> Tuple[bool, Dict[str, Any]]:
+    # `vault` is retained for call-site stability; the entry_id is now derived
+    # from the doc's own content, not its vault-relative path (RFC 0005 P1.3).
     text = path.read_text(encoding="utf-8")
     fm, body = _parse.split_frontmatter(text)
     original = dict(fm)
-    rel = path.resolve().relative_to(vault.resolve()).as_posix()
     changed = False
 
     if str(fm.get("entry_id", "")).strip().upper() == "PENDING":
-        fm["entry_id"] = _new_uuid(rel)
+        fm["entry_id"] = _content_id.entry_id_for(fm, path)
         changed = True
 
     new_wc = _word_count(body)
@@ -121,8 +120,11 @@ def prepare_commit(*, paths: Optional[List[str]] = None,
     if paths:
         targets = [Path(p) for p in paths]
     else:
-        # provenance/ post-RFC-0003; legacy raw/ only for an un-renamed vault
-        scan_root = (vault / "provenance") if (vault / "provenance").exists() else (vault / "raw")
+        # canonical content root (provenance) from the resolver; legacy raw/
+        # only for an un-renamed vault.
+        canonical = vault / _structure.content_root()
+        scan_root = canonical if canonical.exists() else (
+            vault / _structure.legacy_content_root())
         targets = sorted(scan_root.rglob("*.md")) if scan_root.exists() else []
 
     modified: List[Dict[str, Any]] = []

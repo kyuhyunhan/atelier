@@ -76,7 +76,9 @@ async def _poll_loop(sup: server.Supervisor, *,
                      sleep_fn: SleepFn,
                      require_stable: bool,
                      interval_seconds: float,
-                     message_prefix: str) -> None:
+                     message_prefix: str,
+                     reindex_fn: Optional[Callable[[str], object]] = None,
+                     ) -> None:
     prev: Optional[str] = None
     while not sup.shutdown.is_set():
         proceed = await sleep_fn(interval_seconds)
@@ -96,6 +98,21 @@ async def _poll_loop(sup: server.Supervisor, *,
             await asyncio.to_thread(commit_fn, _message(message_prefix, status))
         except Exception as e:                  # commit_push already catches push;
             log.warn("vault-autosync.commit-failed", err=str(e))
+            continue                            # no commit → nothing to reindex
+
+        # RFC 0005 §7.2 — reindex piggyback. We only get here AFTER a successful
+        # commit, which only fires when the tree was quiescent (require_stable:
+        # status unchanged across two ticks) and no writer lock was held. So the
+        # reindex runs on a settled tree, never mid-write — the quiescence gate
+        # is the commit gate. Reindex is deterministic + idempotent (content_hash
+        # dedups), so re-running over already-indexed files is a no-op; this is
+        # what structurally removes the manual-reindex drift class (D2). The
+        # changed-file set is `status` (the same porcelain the commit consumed).
+        if reindex_fn is not None:
+            try:
+                await asyncio.to_thread(reindex_fn, status)
+            except Exception as e:              # a reindex hiccup must not crash the loop
+                log.warn("vault-autosync.reindex-failed", err=str(e))
 
 
 # ── default interruptible sleep ──────────────────────────────────────────────
@@ -148,7 +165,27 @@ async def run(sup: server.Supervisor) -> None:
         require_stable=ac.require_stable,
         interval_seconds=ac.interval_seconds,
         message_prefix=ac.message_prefix,
+        reindex_fn=(_reindex_changed if ac.reindex_on_commit else None),
     )
+
+
+def _reindex_changed(_status: str) -> None:
+    """RFC 0005 §7.2 piggyback — reindex changed files after an autosync commit.
+
+    Runs an INCREMENTAL reindex across the canonical spaces: crawl already
+    skips files whose `content_hash` is unchanged, so this re-indexes exactly the
+    just-committed (changed) files and is a no-op for everything else —
+    deterministic and idempotent. `_status` (the committed porcelain) is accepted
+    for parity/logging; the incremental crawl is the changed-set selector. The
+    embed pass self-gates (ATELIER_EMBED / gateway reachability), so this is
+    cheap when no provider is configured."""
+    from ..index import reindex as _reindex
+    from ..util import config as _config
+    cfg = _config.load()
+    stats = _reindex.reindex_all(cfg, full=False)
+    changed = sum(s.pages_changed for s in stats)
+    log.info("vault-autosync.reindexed", pages_changed=changed,
+             spaces=len(stats))
 
 
 # Auto-register on import (cli's `serve` imports this module).

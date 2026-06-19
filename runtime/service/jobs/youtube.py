@@ -7,8 +7,9 @@ Mechanical port of the proto-engine's `gorae youtube` pipeline:
    parse the VTT into a timestamped markdown body.
 3. Otherwise, when `openai` + an API key are available, download the
    audio and transcribe via gpt-4o-transcribe.
-4. Write to `provenance/knowledge/_new/<slug>.md` with v4 frontmatter
-   (legacy `raw/knowledge/` for an un-renamed vault; see `_knowledge_root`).
+4. Write to `raw/knowledge/<slug>.md` with v4 frontmatter (RFC 0005 §3.2:
+   a raw Source lands DIRECTLY in its domain dir — there is no `_new/` staging.
+   "Awaiting atomization" is a derived state, not a place; see `_knowledge_root`).
 
 Steps (1)/(2)/(4) are pure stdlib + the optional `[youtube]` extras
 (yt-dlp). Step (3) is gated behind the `openai` package and the
@@ -23,13 +24,13 @@ import re
 import shutil
 import subprocess
 import sys
-import uuid as _uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import yaml
 
+from ...structure import resolver as _structure
 from ...util import config as _config
 
 
@@ -55,10 +56,11 @@ def _knowledge_root(vault: Path) -> Path:
     falling back to legacy `raw/knowledge` for an un-renamed vault. ONE resolver
     so the writer can't resurrect the old tree (the 1507 bug class: a writer
     whose path misses a rename re-creates it). Mirrors index_regen._graph_root."""
-    new = vault / "provenance" / "knowledge"
+    new = vault / _structure.intake_dir("knowledge")
     if new.exists():
         return new
-    legacy = vault / "raw" / "knowledge"
+    legacy = (vault / _structure.legacy_content_root()
+              / _structure.intake_subpath("knowledge"))
     if legacy.exists():
         return legacy
     return new  # fresh vault: default to the canonical tree
@@ -159,7 +161,7 @@ def youtube_ingest(*, url: str,
                    role: str = "librarian-territory",
                    lang: Optional[str] = None,
                    force_stt: bool = False,
-                   staging_subdir: str = "_new",
+                   staging_subdir: str = "",
                    metadata_runner: Optional[Any] = None,
                    text_fetcher: Optional[Any] = None
                    ) -> Dict[str, Any]:
@@ -203,14 +205,17 @@ def youtube_ingest(*, url: str,
         # The hook is here so PR-16-followup can add `_stt_transcribe()`.
         status = "needs-stt-stub"
 
-    target_dir = _knowledge_root(vault) / staging_subdir
+    # RFC 0005 §3.2 — no `_new/` staging: a Source lands directly in its domain
+    # dir. `staging_subdir` defaults to "" (the knowledge root itself); a caller
+    # may still pass a subdir for an explicit shard, but the Web Clipper / youtube
+    # default no longer assumes a staging tree.
+    target_dir = (_knowledge_root(vault) / staging_subdir
+                  if staging_subdir else _knowledge_root(vault))
     target_dir.mkdir(parents=True, exist_ok=True)
     slug = _slugify(title, fallback=video_id)
     target = target_dir / f"{day}-{slug}-{video_id}.md"
 
-    discriminator = video_id
-    entry_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS,
-                                f"atelier:youtube:{discriminator}"))
+    entry_id = _structure.entry_id("youtube", video_id=video_id)
 
     fm: Dict[str, Any] = {
         "schema_version": 4,

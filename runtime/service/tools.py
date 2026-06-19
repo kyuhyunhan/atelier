@@ -169,9 +169,14 @@ async def _h_reindex(space: Optional[str] = None, full: bool = False) -> Dict[st
 
 
 async def _h_capture(text: str, source: str = "manual",
-                     title: Optional[str] = None) -> Dict[str, Any]:
-    """Append a short note to raw/personal/inbox/."""
-    return _api.capture_text(text, source=source, title=title)
+                     title: Optional[str] = None,
+                     domain: str = "inbox/undetermined") -> Dict[str, Any]:
+    """Land a short note in the `inbox` intake domain (raw/inbox/).
+
+    `domain` is carried as an explicit field (default `inbox/undetermined`); the
+    capture is NOT decreed personal-by-channel.
+    """
+    return _api.capture_text(text, source=source, title=title, domain=domain)
 
 
 async def _h_promote_propose() -> Dict[str, Any]:
@@ -229,10 +234,11 @@ async def _h_prepare_commit(paths: Optional[List[str]] = None,
 async def _h_youtube(url: str, role: str = "librarian-territory",
                       lang: Optional[str] = None,
                       force_stt: bool = False,
-                      staging_subdir: str = "_new"
+                      staging_subdir: str = ""
                       ) -> Dict[str, Any]:
-    """Ingest a YouTube URL into provenance/knowledge/<staging_subdir>/. When
-    captions are unavailable and STT is not configured, returns
+    """Ingest a YouTube URL directly into raw/knowledge/ (RFC 0005 §3.2 — no
+    `_new/` staging; "awaiting atomization" is a derived state, not a place).
+    When captions are unavailable and STT is not configured, returns
     status=needs-stt for operator follow-up."""
     from .jobs import youtube as _jy
     return _jy.youtube_ingest(url=url, role=role, lang=lang,
@@ -487,19 +493,39 @@ async def _h_recall(query: str,
                      max_chars: int = 1500,
                      include_candidates: bool = False,
                      relevance_threshold: Optional[float] = None,
+                     tier: str = "proactive",
                      ) -> Dict[str, Any]:
-    """Per-turn signal-detector retrieval over the learnings domain."""
+    """Per-turn signal-detector retrieval.
+
+    RFC 0005 §6: over v7 CLAIM nodes this applies the surfacing/sensitivity/
+    domain-prior ladder (`tier` = query | proactive | always). `proactive` (T1)
+    is the per-turn default; `query` (T2) is the universal on-query path; `always`
+    (T0) is the hard-capped unconditional budget. The legacy `learning_*` recall
+    runs alongside during the migration and its hits are merged in."""
     from .learnings import recall as _rc
+    from .learnings import recall_v7 as _rv
     sess = current_session()
     if project is None and sess.working_dir:
         # Route through the shared accessor so recall's project key matches
         # the one capture wrote and bootstrap injects (learning `1446`).
         from .learnings import project as _proj
         project = _proj.resolve_project(sess.working_dir).slug
-    return _rc.recall(query=query, project=project, top_k=top_k,
-                       max_chars=max_chars,
-                       include_candidates=include_candidates,
-                       relevance_threshold=relevance_threshold)
+
+    legacy = _rc.recall(query=query, project=project, top_k=top_k,
+                        max_chars=max_chars,
+                        include_candidates=include_candidates,
+                        relevance_threshold=relevance_threshold)
+    claims = _rv.recall_claims(query=query, project=project, tier=tier,
+                              top_k=top_k, max_chars=max_chars)
+    if not claims["items"]:
+        return legacy
+    # Merge: v7 claims first (the target model), then legacy learnings, capped to
+    # top_k. The renderer is re-run over the merged item set so both render
+    # consistently. Item shapes are identical (both go through a _summarize_*).
+    merged = (claims["items"] + legacy["items"])[:top_k]
+    markdown = _rc._render(merged, project, max_chars)
+    return {"query": query, "project": project, "tier": tier,
+            "count": len(merged), "items": merged, "markdown": markdown}
 
 
 async def _h_think(query: str,
@@ -566,17 +592,50 @@ async def _h_dream_status() -> Dict[str, Any]:
 
 async def _h_dream_plan(min_shared_terms: int = 2,
                          min_size: int = 2,
-                         min_projects: int = 2,
+                         min_projects: int = 1,
                          overlap_threshold: float = 0.6,
                          limit: int = 20) -> Dict[str, Any]:
-    """Dream cycle phase 1 — return clusters worth synthesizing, each with
-    member previews + a ready-to-fill synthesize call. Already-covered
-    clusters are filtered out. The agent generalizes each and calls
-    atelier_principle_synthesize; then atelier_dream_complete."""
+    """Dream cycle phase 1 (RFC 0005 §7.1) — cluster PROACTIVE claims into
+    generalizable groups, each with member previews + a ready-to-fill
+    atelier_dream_synthesize call. Already-synthesized clusters are filtered out.
+    The agent generalizes each and calls atelier_dream_synthesize, may
+    atelier_dream_distill strong claims to the T0 budget, then
+    atelier_dream_complete."""
     from .learnings import dream as _dr
     return _dr.plan(min_shared_terms=min_shared_terms, min_size=min_size,
                     min_projects=min_projects,
                     overlap_threshold=overlap_threshold, limit=limit)
+
+
+async def _h_dream_synthesize(source_claim_ids: List[str],
+                              statement: str,
+                              why: str = "",
+                              rel: str = "refines",
+                              is_about: Optional[List[str]] = None,
+                              domain: str = "operational",
+                              sensitivity: str = "public",
+                              project: Optional[str] = None,
+                              cluster_key: Optional[str] = None,
+                              ) -> Dict[str, Any]:
+    """Dream cycle ② (RFC 0005 §7.1) — write ONE new synthesized claim that
+    generalizes `source_claim_ids`. The engine writes the node (generated_by:
+    dream, surfacing: always, linked `rel` ∈ supports|refines to each source);
+    the agent supplies statement/why. Idempotent: a cluster already synthesized
+    is skipped."""
+    from .learnings import dream as _dr
+    return _dr.synthesize(source_claim_ids=source_claim_ids,
+                          statement=statement, why=why, rel=rel,
+                          is_about=is_about, domain=domain,
+                          sensitivity=sensitivity, project=project,
+                          cluster_key=cluster_key)
+
+
+async def _h_dream_distill(claim_ids: List[str]) -> Dict[str, Any]:
+    """Dream cycle distill (RFC 0005 §7.1) — elevate named PROACTIVE claims to
+    `always` (the capped T0 budget) by a field transition in place. Only claims
+    currently at proactive are elevated; others are skipped."""
+    from .learnings import dream as _dr
+    return _dr.distill(claim_ids=claim_ids)
 
 
 async def _h_dream_complete() -> Dict[str, Any]:
@@ -624,9 +683,9 @@ async def _h_new_product(name: str) -> Dict[str, Any]:
         raise FileExistsError(f"product already exists: {product_dir}")
     product_dir.mkdir(parents=True)
     from datetime import datetime, timezone
-    import uuid as _uuid
+    from ..structure import resolver as _structure
     now = datetime.now(timezone.utc).date().isoformat()
-    eid = _uuid.uuid5(_uuid.NAMESPACE_DNS, f"workshop:products/{name}")
+    eid = _structure.entry_id("product", name=name)
     (product_dir / "README.md").write_text(
         f"---\nschema_version: 4\nentry_id: {eid}\ntitle: {name}\n"
         f"type: product\nstatus: active\nsensitivity: private\n"
@@ -713,7 +772,8 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_capture",
-                     "Append a short note to the librarian inbox.",
+                     "Land a short note in the inbox intake domain (raw/inbox/) "
+                     "with an explicit domain field (default inbox/undetermined).",
                      _h_capture,
                      claim=_claims.Claim.MOBILE_CLAIM,
                      lock_role=_claims.WriterRole.WIKI))
@@ -843,9 +903,12 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_recall",
-        "Per-turn signal-detector retrieval over the learnings domain. "
-        "Returns top-K learnings ranked by hybrid retrieval (lexical BM25 + "
-        "semantic vectors, fused by reciprocal rank), with a project-match boost.",
+        "Per-turn signal-detector retrieval. Over v7 claim nodes it applies the "
+        "RFC 0005 §6 surfacing ladder (tier = query|proactive|always): "
+        "gate(surfacing) × domain_prior(context) × vector_relevance × "
+        "sensitivity_gate. private claims are never pushed proactively (T1/T0), "
+        "reachable only by explicit on-query (T2); T0 is hard-capped. Legacy "
+        "learning recall (hybrid BM25 + vectors, project boost) runs alongside.",
         _h_recall,
     ))
     # NOTE: this description paraphrases think.SYNTHESIS_CONTRACT for the caller's
@@ -902,9 +965,27 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_dream_plan",
-        "Dream phase 1 — clusters worth synthesizing (member previews + "
-        "ready-to-fill synthesize calls; already-covered clusters filtered).",
+        "Dream phase 1 — cluster PROACTIVE claims into generalizable groups "
+        "(member previews + ready-to-fill synthesize calls; already-synthesized "
+        "clusters filtered).",
         _h_dream_plan,
+    ))
+    register(ToolDef(
+        "atelier_dream_synthesize",
+        "Dream ② — write ONE new synthesized always-claim generalizing the "
+        "given source claims (generated_by: dream, linked refines/supports). "
+        "Agent supplies statement/why; engine writes the node.",
+        _h_dream_synthesize,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_dream_distill",
+        "Dream distill — elevate named proactive claims to `always` (the capped "
+        "T0 budget) by a field transition in place.",
+        _h_dream_distill,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
     ))
     register(ToolDef(
         "atelier_dream_complete",

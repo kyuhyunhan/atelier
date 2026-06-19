@@ -67,6 +67,10 @@ class AutoSyncConfig:
     on_conflict: str = "surface"          # surface | commit-only
     require_stable: bool = True           # commit only if status is unchanged for 2 ticks
     message_prefix: str = "chore(vault):"
+    # RFC 0005 §7.2 — after a successful autosync commit, reindex the changed
+    # files (incremental, idempotent). Defaults ON: it structurally removes the
+    # manual-reindex drift class (D2). Quiescence-gated by the commit itself.
+    reindex_on_commit: bool = True
 
 
 @dataclass
@@ -233,6 +237,8 @@ def load(path: Optional[Path] = None) -> Config:
         on_conflict=ac.get("on_conflict", defaults.on_conflict),
         require_stable=bool(ac.get("require_stable", defaults.require_stable)),
         message_prefix=ac.get("message_prefix", defaults.message_prefix),
+        reindex_on_commit=bool(ac.get("reindex_on_commit",
+                                      defaults.reindex_on_commit)),
     )
 
     lg = data.get("logging") or {}

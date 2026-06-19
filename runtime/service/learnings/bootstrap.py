@@ -176,6 +176,14 @@ def _dream_nudge(*, now: str) -> str:
     return _dream.nudge_info(now=now)["long"]
 
 
+def _atomize_nudge(*, now: str) -> str:
+    """The model-context atomize-backlog nudge line (RFC 0005 §7.2). Single
+    source of truth lives in atomize.nudge_info(), mirroring the dream nudge —
+    it surfaces 'N un-atomized sources' so the human runs vault-ingest."""
+    from . import atomize as _atomize
+    return _atomize.nudge_info(now=now)["long"]
+
+
 def bootstrap(*, working_dir: Optional[str] = None,
               max_chars: int = 6000,
               now: Optional[str] = None) -> Dict[str, Any]:
@@ -191,6 +199,7 @@ def bootstrap(*, working_dir: Optional[str] = None,
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     nudge = _dream_nudge(now=now)
+    atomize_nudge = _atomize_nudge(now=now)
 
     # Content and the unknown-project banner are assembled separately: the
     # banner must not make an otherwise-empty vault look non-empty (else the
@@ -199,6 +208,8 @@ def bootstrap(*, working_dir: Optional[str] = None,
     content_parts: List[str] = []
     if nudge:
         content_parts.append(nudge)
+    if atomize_nudge:
+        content_parts.append(atomize_nudge)
     principles_md = _render_principles(items)
     if principles_md:
         content_parts.append(principles_md)
@@ -227,6 +238,7 @@ def bootstrap(*, working_dir: Optional[str] = None,
         "project_known": resolution.known,
         "principles_count": len(items),
         "nudge": bool(nudge),
+        "atomize_nudge": bool(atomize_nudge),
         "char_count": len(block),
         "markdown": block,
     }

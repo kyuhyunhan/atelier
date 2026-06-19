@@ -40,6 +40,10 @@ vault:
     on_conflict: surface        # surface | commit-only  (never pull/merge/force)
     require_stable: true        # commit only after the dirty set settles
     message_prefix: "chore(vault):"
+    reindex_on_commit: true     # RFC 0005 §7.2 — after each autosync commit,
+                                # reindex changed files (incremental, idempotent).
+                                # Removes manual-reindex drift; gated by the commit's
+                                # own quiescence (never reindexes mid-write).
 
 # ── Subtree writer roles ─────────────────────────────────────────────────────
 # Each subtree under the vault root binds to exactly one writer role, keyed by

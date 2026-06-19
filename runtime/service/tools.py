@@ -234,10 +234,11 @@ async def _h_prepare_commit(paths: Optional[List[str]] = None,
 async def _h_youtube(url: str, role: str = "librarian-territory",
                       lang: Optional[str] = None,
                       force_stt: bool = False,
-                      staging_subdir: str = "_new"
+                      staging_subdir: str = ""
                       ) -> Dict[str, Any]:
-    """Ingest a YouTube URL into provenance/knowledge/<staging_subdir>/. When
-    captions are unavailable and STT is not configured, returns
+    """Ingest a YouTube URL directly into raw/knowledge/ (RFC 0005 §3.2 — no
+    `_new/` staging; "awaiting atomization" is a derived state, not a place).
+    When captions are unavailable and STT is not configured, returns
     status=needs-stt for operator follow-up."""
     from .jobs import youtube as _jy
     return _jy.youtube_ingest(url=url, role=role, lang=lang,

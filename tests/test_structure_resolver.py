@@ -49,6 +49,13 @@ def test_homes():
     assert resolver.home("product") == "workshop/products"
 
 
+def test_atomic_dirs():
+    # RFC 0005 §7.2 — the v7 atomic node trees, single-sourced from structure.yaml.
+    assert resolver.atomic_source_dir() == "graph/atomic/sources"
+    assert resolver.atomic_claim_dir() == "graph/atomic/claims"
+    assert resolver.atomic_entity_dir() == "graph/atomic/entities"
+
+
 def test_home_rejects_unknown():
     with pytest.raises(KeyError):
         resolver.home("nope")

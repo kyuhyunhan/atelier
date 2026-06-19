@@ -48,6 +48,13 @@ homes:
   graph_source: graph/sources
   graph_entity: graph/entities
   graph_theme: graph/themes
+  # RFC 0005 v7 atomic node trees — the flat source/entity/claim graph. `kind`
+  # is the discriminator (a FIELD, never the path); these dirs are cosmetic
+  # shard buckets under graph/. The atomize nudge (§7.2) reads atomic_source /
+  # atomic_claim to count un-atomized sources (a Source with no derived Claim).
+  atomic_source: graph/atomic/sources
+  atomic_entity: graph/atomic/entities
+  atomic_claim: graph/atomic/claims
   learning_candidate: raw/learning/candidates
   learning_note: raw/learning/notes
   learning_principle: raw/learning/principles

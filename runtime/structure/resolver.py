@@ -108,6 +108,22 @@ def home(page_type: str) -> str:
     return homes[page_type]
 
 
+# --- Atomic v7 node trees (RFC 0005 §7.2 atomize nudge) -------------------
+def atomic_source_dir() -> str:
+    """Vault-relative dir holding v7 Source nodes (today: graph/atomic/sources)."""
+    return home("atomic_source")
+
+
+def atomic_claim_dir() -> str:
+    """Vault-relative dir holding v7 Claim nodes (today: graph/atomic/claims)."""
+    return home("atomic_claim")
+
+
+def atomic_entity_dir() -> str:
+    """Vault-relative dir holding v7 Entity nodes (today: graph/atomic/entities)."""
+    return home("atomic_entity")
+
+
 # --- Prefix aliasing ------------------------------------------------------
 def prefix_aliases() -> Dict[str, str]:
     return dict(_data()["prefix_aliases"])

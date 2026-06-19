@@ -108,6 +108,10 @@ def test_youtube_writes_md_with_captions(atelier_env: Dict) -> None:
     fm, _ = _read(p)
     assert fm["youtube_video_id"] == "abc123"
     assert fm["source"] == "youtube"
+    # RFC 0005 §3.2 — the Source lands DIRECTLY in raw/knowledge/, not a `_new/`
+    # staging tree. The Web-Clipper/youtube default no longer assumes staging.
+    assert "_new" not in p.parts
+    assert p.parent.name == "knowledge"
 
 
 def test_youtube_marks_needs_stt_when_no_captions(atelier_env: Dict,

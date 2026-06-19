@@ -78,7 +78,8 @@ def _sleeper(n_ticks: int):
     return sleep_fn
 
 
-def _drive(*, statuses: List[str], require_stable: bool, lock_busy: bool = False):
+def _drive(*, statuses: List[str], require_stable: bool, lock_busy: bool = False,
+           reindex_fn=None):
     sup = _FakeSup()
     commits: List[str] = []
     seq = iter(statuses)
@@ -99,6 +100,7 @@ def _drive(*, statuses: List[str], require_stable: bool, lock_busy: bool = False
             require_stable=require_stable,
             interval_seconds=0.0,
             message_prefix="chore(vault):",
+            reindex_fn=reindex_fn,
         )
 
     asyncio.run(go())
@@ -120,6 +122,70 @@ def test_loop_skips_while_dirty_set_keeps_changing() -> None:
 def test_loop_skips_while_writer_lock_held() -> None:
     commits = _drive(statuses=["M a", "M a", "M a"], require_stable=True, lock_busy=True)
     assert commits == []
+
+
+# ── RFC 0005 §7.2 — reindex piggyback (after a successful commit) ─────────────
+
+
+def test_loop_reindexes_changed_files_after_commit() -> None:
+    """On a settled-dirty tick the loop commits, THEN reindexes — passing the
+    committed porcelain (the changed-file set) to the reindex callable."""
+    seen: List[str] = []
+    commits = _drive(
+        statuses=["M a", "M a", "", ""], require_stable=True,
+        reindex_fn=lambda status: seen.append(status),
+    )
+    assert len(commits) == 1
+    assert seen == ["M a"]                 # reindexed exactly once, the changed set
+
+
+def test_loop_does_not_reindex_when_no_commit() -> None:
+    """No commit (tree never settles) → no reindex. The quiescence gate that
+    gates the commit also gates the reindex — never mid-write."""
+    seen: List[str] = []
+    commits = _drive(
+        statuses=["M a", "M b", "M c"], require_stable=True,
+        reindex_fn=lambda status: seen.append(status),
+    )
+    assert commits == []
+    assert seen == []
+
+
+def test_loop_skips_reindex_when_commit_fails() -> None:
+    """A failed commit must not trigger a reindex (nothing was committed) and
+    must not crash the loop."""
+    sup = _FakeSup()
+    seen: List[str] = []
+    seq = iter(["M a", "M a", "", ""])
+
+    def status_fn() -> str:
+        try:
+            return next(seq)
+        except StopIteration:
+            return ""
+
+    def commit_fn(_msg: str) -> None:
+        raise RuntimeError("commit boom")
+
+    async def go() -> None:
+        await vas._poll_loop(
+            sup, status_fn=status_fn, commit_fn=commit_fn,
+            lock_busy_fn=lambda: False, sleep_fn=_sleeper(4),
+            require_stable=True, interval_seconds=0.0,
+            message_prefix="x:", reindex_fn=lambda s: seen.append(s))
+
+    asyncio.run(go())                      # does not raise
+    assert seen == []                      # commit failed → no reindex
+
+
+def test_loop_reindex_error_does_not_crash_loop() -> None:
+    """A reindex hiccup is swallowed (logged) — the poll loop survives and the
+    commit still counts."""
+    commits = _drive(
+        statuses=["M a", "M a", "", ""], require_stable=True,
+        reindex_fn=lambda status: (_ for _ in ()).throw(RuntimeError("idx boom")),
+    )
+    assert len(commits) == 1               # committed; reindex error swallowed
 
 
 def test_loop_exits_promptly_on_shutdown() -> None:

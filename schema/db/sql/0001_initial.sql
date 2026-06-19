@@ -68,9 +68,13 @@ CREATE TABLE IF NOT EXISTS meta (
 
 -- Seed meta
 -- DB schema_version jumps 4→6: '5' was the RFC 0001 frontmatter schema bump
--- (no DB-level change), '6' is RFC 0003's provenance column. Keep in lockstep
--- with diagnostics.EXPECTED_SCHEMA_VERSION.
-INSERT OR IGNORE INTO meta VALUES ('schema_version',   '6');
+-- (no DB-level change), '6' is RFC 0003's provenance column. '7' is RFC 0005's
+-- atomic knowledge graph (claim/entity/source nodes projected by `kind`,
+-- claim-granular embedding). Keep in lockstep with
+-- diagnostics.EXPECTED_SCHEMA_VERSION. On a *fresh* DB this seed sets the value;
+-- on an *existing* DB the dedicated migration 0003 forces it forward (INSERT OR
+-- IGNORE here is a no-op once the row exists).
+INSERT OR IGNORE INTO meta VALUES ('schema_version',   '7');
 INSERT OR IGNORE INTO meta VALUES ('atelier_db_version', '1');
 INSERT OR IGNORE INTO meta VALUES ('created_at',       (SELECT datetime('now')));
 

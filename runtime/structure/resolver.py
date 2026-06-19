@@ -81,13 +81,22 @@ def intake_subpath(domain: str) -> str:
 
 
 def inbox_subpath() -> str:
-    """Leaf name under the personal intake dir for ad-hoc captures (today: `inbox`)."""
+    """Legacy leaf name under the personal intake dir (today: `inbox`).
+
+    Retained only for the un-migrated new_doc `raw` template. New captures land
+    in the first-class `inbox` intake domain via `inbox_dir()` / `intake_dir`.
+    """
     return _data()["intake"]["inbox_subpath"]
 
 
 def inbox_dir() -> str:
-    """Ad-hoc capture leaf, under the personal intake dir."""
-    return f"{intake_dir('personal')}/{inbox_subpath()}"
+    """Ad-hoc capture landing dir — the first-class `inbox` intake domain.
+
+    RFC 0005 §3: `inbox` is a sibling of personal/knowledge (today: `raw/inbox`),
+    NOT a leaf under personal. A manual capture is domain-*undetermined*; its
+    domain is an explicit frontmatter field, never decreed by the landing path.
+    """
+    return intake_dir("inbox")
 
 
 # --- Homes ----------------------------------------------------------------

@@ -99,10 +99,12 @@ def sync(action: str, space: Optional[str] = None,
 # ── Write-side ───────────────────────────────────────────────────────────────
 
 def capture_text(text: str, source: str = "manual", title: Optional[str] = None,
+                 domain: str = "inbox/undetermined", sensitivity: str = "private",
                  token: Optional[str] = None) -> Dict[str, Any]:
     ctx = auth.authenticate(token)
     from . import capture as _capture
-    path = _capture.capture(text=text, source=source, title=title, ctx=ctx)
+    path = _capture.capture(text=text, source=source, title=title,
+                            domain=domain, sensitivity=sensitivity, ctx=ctx)
     return {"path": str(path)}
 
 

@@ -169,9 +169,14 @@ async def _h_reindex(space: Optional[str] = None, full: bool = False) -> Dict[st
 
 
 async def _h_capture(text: str, source: str = "manual",
-                     title: Optional[str] = None) -> Dict[str, Any]:
-    """Append a short note to raw/personal/inbox/."""
-    return _api.capture_text(text, source=source, title=title)
+                     title: Optional[str] = None,
+                     domain: str = "inbox/undetermined") -> Dict[str, Any]:
+    """Land a short note in the `inbox` intake domain (raw/inbox/).
+
+    `domain` is carried as an explicit field (default `inbox/undetermined`); the
+    capture is NOT decreed personal-by-channel.
+    """
+    return _api.capture_text(text, source=source, title=title, domain=domain)
 
 
 async def _h_promote_propose() -> Dict[str, Any]:
@@ -733,7 +738,8 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_capture",
-                     "Append a short note to the librarian inbox.",
+                     "Land a short note in the inbox intake domain (raw/inbox/) "
+                     "with an explicit domain field (default inbox/undetermined).",
                      _h_capture,
                      claim=_claims.Claim.MOBILE_CLAIM,
                      lock_role=_claims.WriterRole.WIKI))

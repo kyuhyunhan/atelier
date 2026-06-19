@@ -24,8 +24,11 @@ def test_roots():
 def test_intake_dirs():
     assert resolver.intake_dir("personal") == "raw/personal"
     assert resolver.intake_dir("knowledge") == "raw/knowledge"
+    assert resolver.intake_dir("inbox") == "raw/inbox"
     assert resolver.intake_dir("workshop") == "workshop"
-    assert resolver.inbox_dir() == "raw/personal/inbox"
+    # `inbox` is a first-class intake sibling of personal/knowledge (RFC 0005
+    # §3), NOT a leaf under personal — captures are not personal-by-channel.
+    assert resolver.inbox_dir() == "raw/inbox"
 
 
 def test_intake_rejects_unknown():

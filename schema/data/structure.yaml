@@ -19,14 +19,25 @@ roots:
   graph_root: graph
 
 # --- Intake ---------------------------------------------------------------
-# domain -> write dir RELATIVE TO content_root (personal, knowledge) or to the
-# vault root (workshop, which lives outside content_root). inbox_subpath is the
-# leaf under the personal intake dir where ad-hoc captures land.
+# domain -> write dir RELATIVE TO content_root (personal, knowledge, inbox) or
+# to the vault root (workshop, which lives outside content_root). The four
+# intakes (personal · knowledge · inbox · workshop, RFC 0005 §3) are cosmetic
+# landing dirs; ALL classification is a frontmatter field, never the path.
+#
+# `inbox` is a FIRST-CLASS intake sibling of personal/knowledge — NOT a leaf
+# under personal. RFC 0005 §2/§3: a manual capture is domain-*undetermined*; the
+# old `personal/inbox/` path decreed every captured note "personal" by channel
+# accident. A capture now lands in `raw/inbox/` carrying an explicit `domain`
+# field (default `inbox/undetermined`); classification is field-based.
+#
+# inbox_subpath is retained as the legacy leaf name only for the un-migrated
+# new_doc `raw` template; new captures use the `inbox` domain above.
 intake:
-  personal: personal           # under content_root  -> provenance/personal
-  knowledge: knowledge         # under content_root  -> provenance/knowledge
+  personal: personal           # under content_root  -> raw/personal
+  knowledge: knowledge         # under content_root  -> raw/knowledge
+  inbox: inbox                 # under content_root  -> raw/inbox
   workshop: workshop           # under vault root     -> workshop
-  inbox_subpath: inbox         # under personal intake -> provenance/personal/inbox
+  inbox_subpath: inbox         # legacy leaf under personal intake (new_doc raw)
 
 # --- Homes ----------------------------------------------------------------
 # page_type -> write dir for that kind of node. graph_* are relative to

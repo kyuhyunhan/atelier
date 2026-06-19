@@ -151,7 +151,8 @@ def _cmd_sync(args: argparse.Namespace) -> int:
 
 
 def _cmd_capture(args: argparse.Namespace) -> int:
-    out = api.capture_text(args.text, source=args.source, title=args.title)
+    out = api.capture_text(args.text, source=args.source, title=args.title,
+                           domain=args.domain)
     print(out["path"])
     return 0
 
@@ -336,6 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("capture")
     s.add_argument("--text", required=True); s.add_argument("--source", default="manual")
     s.add_argument("--title")
+    s.add_argument("--domain", default="inbox/undetermined")
     s.set_defaults(func=_cmd_capture)
 
     s = sub.add_parser("new-product")

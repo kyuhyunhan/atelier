@@ -36,12 +36,12 @@ def _seed_index(root: Path, project_dir: str) -> None:
 
 def test_decode_cwd_dirname_round_trip() -> None:
     assert _ac.decode_cwd_dirname(
-        "-Users-kyuhyunhan-workspaces-lexio"
-    ) == "/Users/kyuhyunhan/workspaces/lexio"
+        "-Users-user-workspaces-project"
+    ) == "/Users/user/workspaces/project"
 
 
 def test_derive_project_takes_basename() -> None:
-    assert _ac.derive_project("-Users-kyuhyunhan-workspaces-lexio") == "lexio"
+    assert _ac.derive_project("-Users-user-workspaces-project") == "project"
 
 
 # ── absorb ────────────────────────────────────────────────────────────────

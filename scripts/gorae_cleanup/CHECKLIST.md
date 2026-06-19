@@ -37,7 +37,7 @@ file in the gorae repo:
 | `scripts/utils.py`                          | (deleted last — no callers) |
 
 ```bash
-cd ~/Documents/gorae
+cd ~/<vault>
 
 # DELETE in one go:
 rm -f scripts/{validate_metadata,fix_pending_entries,update_wiki_index, \

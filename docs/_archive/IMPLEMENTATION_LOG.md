@@ -20,7 +20,7 @@ adopter의 명명일 뿐입니다. Engine 자체는 공간 이름에 대해 agno
 | 프로젝트 이름 | `atelier` |
 | 페르소나 | **Librarian + Builder** (2 stewards) |
 | Layer 모델 | 3 layers — methodology / content / local |
-| `gorae` 위치 | `~/Documents/gorae/` 그대로 (SCHEMA v3→v4 minor bump) |
+| `gorae` 위치 | `~/<vault>/` 그대로 (SCHEMA v3→v4 minor bump) |
 | `atelier` 거주 | `~/workspaces/atelier/` (private start, public 검토 후속) |
 | `atelier-workshop` 거주 | `~/workspaces/atelier-workshop/` (ta-set/private 후신) |
 | ta-set 관련 repos | archive (tas, taa, taf, ta-set, ta-set-private) |
@@ -49,7 +49,7 @@ adopter의 명명일 뿐입니다. Engine 자체는 공간 이름에 대해 agno
 
 ```
 ~/workspaces/atelier/           # atelier code working copy
-~/Documents/gorae/              # gorae content working copy (unchanged)
+~/<vault>/              # gorae content working copy (unchanged)
 ~/workspaces/atelier-workshop/  # workshop content working copy (new)
 ~/.atelier/                     # per-machine config + derived cache
   ├── config.yaml
@@ -152,7 +152,7 @@ atelier migrate-from-ta-set
 | 자리 | 처리 |
 |---|---|
 | base.yaml `source`, `collected_at`, `inbox_status` 필드 | Phase 1 정의 |
-| `~/Documents/gorae/raw/personal/inbox/` 디렉토리 | Phase 9 운영 시 생성 |
+| `~/<vault>/raw/personal/inbox/` 디렉토리 | Phase 9 운영 시 생성 |
 | `runtime/service/capture.py` | Phase 7 — CLI-callable, MCP-compatible 시그니처 |
 | `runtime/service/claims.py`의 `mobile-claim` enum | Phase 7 정의, 검증은 placeholder |
 | `config/example.config.yaml`의 `channels.mobile` 주석 | Phase 0 (이미 작성됨) |

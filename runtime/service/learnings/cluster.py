@@ -191,6 +191,80 @@ def cluster(*, min_shared_terms: int = 2,
     """
     vault = _vault_root()
     items = load_accepted(vault)
+    return _cluster_items(
+        items, vault=vault,
+        min_shared_terms=min_shared_terms, min_size=min_size,
+        min_projects=min_projects, max_doc_frequency=max_doc_frequency,
+        dedup_jaccard=dedup_jaccard, limit=limit,
+    )
+
+
+def load_proactive_claims(vault: Path) -> List[Learning]:
+    """Load v7 Claims at `surfacing: proactive` as `Learning`-shaped items so the
+    dream clusterer (RFC 0005 §7.1) operates on the proactive tier — the pool
+    that dream distills into `always` (T0) and generalizes into new claims.
+
+    Markdown is truth (the dream pass runs infrequently): read the claim tree
+    directly via claims_io rather than the lagging DB projection. The statement +
+    body feed the salient-term set; `project`/`domain` carry the prior context;
+    the stable entry_id is the cluster member id and link target."""
+    from . import claims_io as _claims
+    out: List[Learning] = []
+    for p in _claims.iter_claim_files(vault):
+        got = _claims.read_claim(p)
+        if got is None:
+            continue
+        fm, body = got
+        if _claims.surfacing_of(fm) != _claims.TIER_PROACTIVE:
+            continue
+        statement = str(fm.get("statement") or "")
+        terms = salient_terms(statement + " " + body)
+        raw_about = fm.get("is_about")
+        touches = [t for t in raw_about if isinstance(t, str)] \
+            if isinstance(raw_about, list) else []
+        out.append(Learning(
+            slug=p.stem,
+            project=str(fm.get("project") or ""),
+            topic=str(fm.get("domain") or ""),
+            entry_id=str(fm.get("entry_id") or p.stem),
+            terms=terms,
+            touches=touches,
+            path=p,
+        ))
+    return out
+
+
+def cluster_claims(*, min_shared_terms: int = 2,
+                   min_size: int = 2,
+                   min_projects: int = 1,
+                   max_doc_frequency: float = 0.6,
+                   dedup_jaccard: float = 0.7,
+                   limit: int = 50) -> Dict[str, Any]:
+    """Cluster v7 proactive Claims for a dream pass (RFC 0005 §7.1).
+
+    Same deterministic term-anchoring as `cluster()`, but over the proactive
+    claim tier. `min_projects` defaults to 1 (claims are domain-grouped, not
+    necessarily multi-project) — a cross-domain generalization is still valuable
+    when the claims share a concept, not a project."""
+    vault = _vault_root()
+    items = load_proactive_claims(vault)
+    out = _cluster_items(
+        items, vault=vault,
+        min_shared_terms=min_shared_terms, min_size=min_size,
+        min_projects=min_projects, max_doc_frequency=max_doc_frequency,
+        dedup_jaccard=dedup_jaccard, limit=limit,
+    )
+    out["proactive_scanned"] = out.pop("accepted_scanned")
+    return out
+
+
+def _cluster_items(items: List[Learning], *, vault: Path,
+                   min_shared_terms: int,
+                   min_size: int,
+                   min_projects: int,
+                   max_doc_frequency: float,
+                   dedup_jaccard: float,
+                   limit: int) -> Dict[str, Any]:
     n = len(items)
 
     # term → indices of learnings containing it
@@ -205,13 +279,17 @@ def cluster(*, min_shared_terms: int = 2,
     df_cap = max(min_size, int(n * max_doc_frequency))
 
     # Seed terms: not too common, span enough projects + members.
+    # When min_projects <= 1 the project axis is OFF (claim clustering groups by
+    # concept, not project — claims often carry no project at all), so a term
+    # that meets the size cap anchors a cluster regardless of project spread.
     seeds: List[Tuple[str, frozenset]] = []
     for term, idxs in term_to_idx.items():
         if len(idxs) < min_size or len(idxs) > df_cap:
             continue
-        projects = {items[i].project for i in idxs if items[i].project}
-        if len(projects) < min_projects:
-            continue
+        if min_projects > 1:
+            projects = {items[i].project for i in idxs if items[i].project}
+            if len(projects) < min_projects:
+                continue
         seeds.append((term, frozenset(idxs)))
 
     # Deterministic seed order: widest project spread, then most members,

@@ -592,17 +592,50 @@ async def _h_dream_status() -> Dict[str, Any]:
 
 async def _h_dream_plan(min_shared_terms: int = 2,
                          min_size: int = 2,
-                         min_projects: int = 2,
+                         min_projects: int = 1,
                          overlap_threshold: float = 0.6,
                          limit: int = 20) -> Dict[str, Any]:
-    """Dream cycle phase 1 — return clusters worth synthesizing, each with
-    member previews + a ready-to-fill synthesize call. Already-covered
-    clusters are filtered out. The agent generalizes each and calls
-    atelier_principle_synthesize; then atelier_dream_complete."""
+    """Dream cycle phase 1 (RFC 0005 §7.1) — cluster PROACTIVE claims into
+    generalizable groups, each with member previews + a ready-to-fill
+    atelier_dream_synthesize call. Already-synthesized clusters are filtered out.
+    The agent generalizes each and calls atelier_dream_synthesize, may
+    atelier_dream_distill strong claims to the T0 budget, then
+    atelier_dream_complete."""
     from .learnings import dream as _dr
     return _dr.plan(min_shared_terms=min_shared_terms, min_size=min_size,
                     min_projects=min_projects,
                     overlap_threshold=overlap_threshold, limit=limit)
+
+
+async def _h_dream_synthesize(source_claim_ids: List[str],
+                              statement: str,
+                              why: str = "",
+                              rel: str = "refines",
+                              is_about: Optional[List[str]] = None,
+                              domain: str = "operational",
+                              sensitivity: str = "public",
+                              project: Optional[str] = None,
+                              cluster_key: Optional[str] = None,
+                              ) -> Dict[str, Any]:
+    """Dream cycle ② (RFC 0005 §7.1) — write ONE new synthesized claim that
+    generalizes `source_claim_ids`. The engine writes the node (generated_by:
+    dream, surfacing: always, linked `rel` ∈ supports|refines to each source);
+    the agent supplies statement/why. Idempotent: a cluster already synthesized
+    is skipped."""
+    from .learnings import dream as _dr
+    return _dr.synthesize(source_claim_ids=source_claim_ids,
+                          statement=statement, why=why, rel=rel,
+                          is_about=is_about, domain=domain,
+                          sensitivity=sensitivity, project=project,
+                          cluster_key=cluster_key)
+
+
+async def _h_dream_distill(claim_ids: List[str]) -> Dict[str, Any]:
+    """Dream cycle distill (RFC 0005 §7.1) — elevate named PROACTIVE claims to
+    `always` (the capped T0 budget) by a field transition in place. Only claims
+    currently at proactive are elevated; others are skipped."""
+    from .learnings import dream as _dr
+    return _dr.distill(claim_ids=claim_ids)
 
 
 async def _h_dream_complete() -> Dict[str, Any]:
@@ -932,9 +965,27 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_dream_plan",
-        "Dream phase 1 — clusters worth synthesizing (member previews + "
-        "ready-to-fill synthesize calls; already-covered clusters filtered).",
+        "Dream phase 1 — cluster PROACTIVE claims into generalizable groups "
+        "(member previews + ready-to-fill synthesize calls; already-synthesized "
+        "clusters filtered).",
         _h_dream_plan,
+    ))
+    register(ToolDef(
+        "atelier_dream_synthesize",
+        "Dream ② — write ONE new synthesized always-claim generalizing the "
+        "given source claims (generated_by: dream, linked refines/supports). "
+        "Agent supplies statement/why; engine writes the node.",
+        _h_dream_synthesize,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_dream_distill",
+        "Dream distill — elevate named proactive claims to `always` (the capped "
+        "T0 budget) by a field transition in place.",
+        _h_dream_distill,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
     ))
     register(ToolDef(
         "atelier_dream_complete",

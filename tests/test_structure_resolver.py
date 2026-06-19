@@ -107,7 +107,9 @@ def test_entry_id_principle():
 
 
 def test_entry_id_promote():
-    # promote/apply.py:57 -> "promote:" + b["target_slug"]
+    # Legacy template, retained as a snapshot. RFC 0005 §7.1 promote is now a
+    # field transition (claim query→proactive, entry_id PRESERVED), so it no
+    # longer mints an id; this only pins the template's byte-for-byte value.
     assert resolver.entry_id("promote", target_slug="some/target") == _expect(
         "promote:some/target"
     )

@@ -235,9 +235,11 @@ session in any project.
 Two visibility channels carry the injection: `additionalContext`
 (session_bootstrap, signal_recall) is *model-only* — the agent sees it,
 the user does not — while a `SessionStart` `systemMessage` hook
-(`scripts/hooks/session-nudge.sh`) and the statusline wrapper
-(`scripts/hooks/statusline-atelier.sh`, backed by `atelier dream --status`)
-surface the dream nudge to the *user*.
+(`scripts/hooks/session-nudge.sh`) surfaces the dream nudge to the *user*
+once per session. (The statusline wrapper, `scripts/hooks/statusline-atelier.sh`,
+deliberately does *not* call `atelier dream --status`: that per-render walk of
+the whole vault stacked into a multi-core CPU melt, and the nudge is already
+covered by the once-per-session `systemMessage`.)
 
 ### Surfacing audit — retrieval observability (the omission instrument)
 

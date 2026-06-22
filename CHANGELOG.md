@@ -4,6 +4,22 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Fixed — statusline no longer melts the CPU
+
+- **The statusline stopped calling `atelier dream --status` on every render.**
+  Each render booted the full Python app and walked the whole vault
+  (`dream_status()` → `_count_accepted()` is O(accepted claims)); renders
+  re-fire faster than that completes, so the processes stacked and pinned
+  multiple cores. The dream segment is removed from
+  `scripts/hooks/statusline-atelier.sh`; the statusline now appends only the
+  activity heartbeat.
+- **No user-visible loss.** The dream nudge already surfaces once per session
+  as a `SessionStart` `systemMessage` (`scripts/hooks/session-nudge.sh` →
+  `atelier nudges --json`). The `atelier dream --status` CLI command is
+  retained for tests and manual checks; only the per-render caller is gone.
+  (Supersedes the "fast, filesystem-backed" framing below — the walk was never
+  cheap at vault scale.)
+
 ### Changed — generous capture + project identity (RFC 0004 phase 2)
 
 - **Empty `why` no longer rejects a capture.** A genuine observation with no

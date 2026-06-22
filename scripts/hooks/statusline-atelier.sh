@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# statusline-atelier.sh — statusLine wrapper that appends two USER-VISIBLE
-# atelier segments to the base statusline (bottom of the Claude Code UI):
+# statusline-atelier.sh — statusLine wrapper that appends one USER-VISIBLE
+# atelier segment to the base statusline (bottom of the Claude Code UI):
 #   1. an activity heartbeat — the most recent atelier engine action, parsed
 #      from the unified log, so the otherwise-invisible hook-driven loop
 #      (recall / bootstrap / capture / reindex) is observable WITHOUT engaging
 #      with it. Renders e.g. "⟲ recall · 4s"; an error call gets a "!" suffix.
-#   2. a dream indicator — empty unless a dream pass is due.
+#
+# The dream nudge is NOT rendered here. It already surfaces once per session as
+# a SessionStart `systemMessage` (scripts/hooks/session-nudge.sh). Calling
+# `atelier dream --status` on every statusline render booted the full Python
+# app and walked the whole vault (O(accepted claims)); the renders re-fire
+# faster than the call completes, so the processes stacked and pinned multiple
+# CPU cores. One cheap per-session surface beats a costly per-render one.
 #
 # Installed to: ~/.atelier/bin/statusline-atelier.sh
 # Registered in: ~/.claude/settings.json statusLine.command
@@ -83,16 +89,10 @@ atelier_activity() {
 
 extra_activity="$(atelier_activity 2>/dev/null)"
 
-# 3) dream segment (fast, filesystem-backed; empty when nothing due)
-extra_dream=""
-if command -v atelier >/dev/null 2>&1; then
-    extra_dream="$(atelier dream --status 2>/dev/null)"
-fi
-
 # Join non-empty segments with " | " — never emit a leading separator when the
 # base statusline is empty (e.g. ccstatusline absent).
 out="$base"
-for seg in "$extra_activity" "$extra_dream"; do
+for seg in "$extra_activity"; do
     [ -n "$seg" ] || continue
     if [ -n "$out" ]; then out="$out | $seg"; else out="$seg"; fi
 done

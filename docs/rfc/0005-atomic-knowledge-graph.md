@@ -211,7 +211,7 @@ silently backs up.**
 | capture (operational learning) | **hook** (SessionEnd/Stop), automatic | cheap, additive; acceptance-gated downstream |
 | intake (web-clipper / youtube) | **event** — raw Source lands directly in `raw/knowledge/` (no staging; "un-atomized" = a Source with no derived Claim) | — |
 | reindex / projection (L2→L3) | **automatic** — the autosync poller (already running, 30 s, quiescence-gated) reindexes changed files alongside the git commit | deterministic, idempotent (`content_hash`), no judgment; **removes the drift class structurally** (manual reindex was the root of the D2 / space-label drift) |
-| atomize (L1→L2) | **nudge-driven** — a cadence surfaces "N un-atomized sources" (like the dream nudge); the human runs `vault-ingest` | LLM judgment + cost + privacy (personal) ⇒ no blind cron; the nudge prevents backlog without surrendering the quality/privacy gate |
+| atomize (L1→L2) | **nudge-driven** — a cadence surfaces "N un-atomized sources" (like the dream nudge); the human runs `atelier-atomize` | LLM judgment + cost + privacy (personal) ⇒ no blind cron; the nudge prevents backlog without surrendering the quality/privacy gate |
 | dream (proactive→always) | **cadence nudge**, manual | what earns always-inject is high judgment → human-gated |
 | autosync (git) | 30 s poller | unchanged |
 
@@ -261,7 +261,7 @@ P5  Surfacing + recall: surfacing field; domain/project prior; T0 cap;
     Web Clipper repointed to raw/knowledge/ (no _new/).               [gate: recall + promote/dream per §6/§7.1; reindex auto-fires on change]
 P6  Projection: reindex --full; embed at claim granularity; doctor.   [gate: doctor green; retrieval parity↑]
 P7  Retire legacy: old source/entity pages, learnings/* dirs, path-based
-    derivation; rewrite TAS skills (vault-ingest → new Source→atomize→
+    derivation; rewrite TAS skills (atelier-atomize → new Source→atomize→
     Entity/Claim flow; atelier-consolidate → tier-transition model).   [gate: 0 dangling refs; skills route]
 ```
 Each phase: own commit(s), green boundary, no next phase before its gate passes.

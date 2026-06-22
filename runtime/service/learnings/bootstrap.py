@@ -179,7 +179,7 @@ def _dream_nudge(*, now: str) -> str:
 def _atomize_nudge(*, now: str) -> str:
     """The model-context atomize-backlog nudge line (RFC 0005 §7.2). Single
     source of truth lives in atomize.nudge_info(), mirroring the dream nudge —
-    it surfaces 'N un-atomized sources' so the human runs vault-ingest."""
+    it surfaces 'N un-atomized sources' so the human runs atelier-atomize."""
     from . import atomize as _atomize
     return _atomize.nudge_info(now=now)["long"]
 

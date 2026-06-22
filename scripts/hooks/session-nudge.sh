@@ -2,16 +2,20 @@
 # session-nudge.sh — Claude Code SessionStart hook adapter (USER-VISIBLE).
 #
 # Installed to: ~/.atelier/bin/session-nudge.sh
+#   (re-synced from this repo source by ./scripts/setup — edit HERE, then setup)
 # Registered in: ~/.claude/settings.json under hooks.SessionStart
 #
 # Unlike session-bootstrap.sh (whose stdout is injected into the MODEL's
 # context and is invisible to the human), this hook emits a JSON
-# `systemMessage` — which Claude Code DISPLAYS TO THE USER — when the
-# dream cycle wants attention. Fires once per session start (startup /
-# resume / clear).
+# `systemMessage` — which Claude Code DISPLAYS TO THE USER — when any
+# GATED edge (atomize / promote / dream) wants attention. Fires once per
+# session start (startup / resume / clear).
 #
-# Reads dream status via the local CLI (no running server required, fast,
-# filesystem-backed). Always exits 0 so it never blocks session start.
+# Surfaces the UNIFIED nudge surface (RFC 0005 §7): all three edges
+# normalized to one shape by `atelier nudges --json`. We join every DUE
+# nudge's `long` message into a single systemMessage. Reads via the local
+# CLI (no running server required, fast, filesystem-backed). Always exits 0
+# so it never blocks session start.
 
 set -u
 
@@ -19,16 +23,19 @@ export PATH="$HOME/.atelier/bin:$PATH"
 
 command -v atelier >/dev/null 2>&1 || exit 0
 
-INFO="$(atelier dream --status --json 2>/dev/null)"
+INFO="$(atelier nudges --json 2>/dev/null)"
 [ -z "$INFO" ] && exit 0
 
 printf '%s' "$INFO" | python3 -c "
 import json, sys
 try:
     d = json.loads(sys.stdin.read() or '{}')
-    if d.get('due') and d.get('long'):
+    due = [n for n in d.get('nudges', [])
+           if n.get('due') and n.get('long')]
+    if due:
+        msg = '\n\n'.join(n['long'] for n in due)
         # systemMessage is rendered to the user by Claude Code.
-        print(json.dumps({'systemMessage': d['long']}))
+        print(json.dumps({'systemMessage': msg}))
 except Exception:
     pass
 "

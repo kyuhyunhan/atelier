@@ -32,7 +32,8 @@ def test_capture_is_born_as_a_query_pending_claim(atelier_env: Dict) -> None:
     )
     path = Path(result["path"])
     assert path.exists()
-    assert "graph/atomic/claims/" in str(path)
+    assert "graph/atomic/" in str(path)   # flat L2 graph (RFC 0005 P9.4)
+    assert "graph/atomic/claims/" not in str(path)   # kind subdir is gone
     assert "learnings/candidates/" not in str(path)
     fm = _read_fm(path)
     assert fm["schema_version"] == 7
@@ -61,8 +62,10 @@ def test_capture_mints_thin_session_source(atelier_env: Dict) -> None:
         working_dir="/Users/me/workspaces/lexio", session_id="sess-1",
         hook="manual",
     )
-    src = (atelier_env["gorae"] / "graph" / "atomic" / "sources")
-    matches = [p for p in src.rglob("*.md")
+    vault = atelier_env["gorae"]
+    # RFC 0005 §3/P9: the L1 Source is born in the content tree (raw/inbox),
+    # NOT in graph/. Find it anywhere by its stable entry_id.
+    matches = [p for p in vault.rglob("*.md")
                if _read_fm(p).get("entry_id") == result["source_entry_id"]]
     assert len(matches) == 1
     sfm = _read_fm(matches[0])
@@ -72,6 +75,35 @@ def test_capture_mints_thin_session_source(atelier_env: Dict) -> None:
     assert sfm["session"]["working_dir"] == "/Users/me/workspaces/lexio"
     assert sfm["session"]["hook"] == "manual"
     assert sfm["session"]["learning_entry_id"] == result["entry_id"]
+
+
+def test_capture_source_lands_in_raw_not_graph(atelier_env: Dict) -> None:
+    """RFC 0005 §3 / P9 round-trip: a Source is an L1 node in the content tree.
+    The thin session Source a capture is born with MUST land under raw/inbox/
+    (the inbox intake) — NEVER under graph/. This is the corrected source layer:
+    no parallel graph source digest is recreated by capture."""
+    result = _cap.capture(
+        observation="capture writes its source to raw, not graph",
+        why="P9 collapsed the graph source digest back onto the content tree",
+        working_dir="/Users/me/workspaces/lexio", session_id="sess-raw",
+        hook="manual",
+    )
+    vault = atelier_env["gorae"]
+    matches = [p for p in vault.rglob("*.md")
+               if _read_fm(p).get("entry_id") == result["source_entry_id"]]
+    assert len(matches) == 1
+    src_path = matches[0]
+    rel = src_path.relative_to(vault).as_posix()
+    # born under the inbox intake (raw/inbox), in the content tree …
+    assert rel.startswith("raw/inbox/"), rel
+    # … and decidedly NOT in the graph tree (no recreated source digest layer).
+    assert "graph/" not in rel
+    assert "graph/atomic/sources" not in rel
+    # the claim it derives_from still resolves the source by id (stable handle).
+    claim_fm = _read_fm(Path(result["path"]))
+    assert claim_fm["derived_from"] == [result["source_entry_id"]]
+    assert "graph/atomic/" in result["path"]   # L2 claim stays flat in graph/
+    assert "graph/atomic/claims/" not in result["path"]   # kind subdir gone (P9.4)
 
 
 def test_capture_resolves_project_to_is_about_entity(atelier_env: Dict) -> None:
@@ -84,8 +116,15 @@ def test_capture_resolves_project_to_is_about_entity(atelier_env: Dict) -> None:
     )
     fm = _read_fm(Path(result["path"]))
     assert len(fm["is_about"]) == 2          # project + one touched concept
-    ents = (atelier_env["gorae"] / "graph" / "atomic" / "entities")
-    ent_ids = {_read_fm(p).get("entry_id") for p in ents.rglob("*.md")}
+    # Entity nodes live FLAT under graph/atomic/ (P9.4), keyed by the `kind`
+    # field — so filter on kind, not on a kind subdir.
+    from runtime.structure import resolver as _structure
+    ents = atelier_env["gorae"] / _structure.atomic_entity_dir()
+    ent_ids = {
+        _read_fm(p).get("entry_id")
+        for p in ents.rglob("*.md")
+        if _read_fm(p).get("kind") == "entity"
+    }
     assert set(fm["is_about"]) <= ent_ids    # every is_about points at a real node
 
 

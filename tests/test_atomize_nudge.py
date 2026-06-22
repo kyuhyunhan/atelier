@@ -28,8 +28,11 @@ def _write_node(vault: Path, dirpath: str, name: str, fm: Dict) -> None:
                                   encoding="utf-8")
 
 
-def _source(vault: Path, eid: str) -> None:
-    _write_node(vault, _structure.atomic_source_dir(), eid, {
+def _source(vault: Path, eid: str, subdir: str = "inbox") -> None:
+    # RFC 0005 §3: an L1 Source lives in the content tree (raw/…), classified by
+    # the `kind` FIELD, not the path. Default raw/inbox (thin session source);
+    # pass subdir="knowledge" to mimic an artifact-backed source under raw/<domain>/.
+    _write_node(vault, f"{_structure.source_scan_root()}/{subdir}", eid, {
         "entry_id": eid, "schema_version": 7, "kind": "source",
         "title": eid, "sensitivity": "private", "domain": "knowledge",
     })

@@ -230,6 +230,11 @@ def mint_session_source(*, statement: str,
     (RFC 0005 §7.1 — the claim is born WITH a Source it derives_from, so the
     PROV chain is never empty).
 
+    The Source is an L1 node and lands in the content tree (raw/inbox via
+    session_source_dir(), NOT graph/) — RFC 0005 §3: a Source IS an ingested
+    artifact, and a capture is domain-undetermined at the door so it lands in
+    the inbox intake.
+
     `domain: inbox` (a capture is domain-undetermined at the door, §12.6). The
     `session:` block holds session_id/working_dir/agent_kind/hook/captured_at.
     The Source's entry_id is content-addressed on the session discriminator
@@ -279,7 +284,7 @@ def mint_session_source(*, statement: str,
     body = (f"Thin session-metadata Source for an operational learning "
             f"(RFC 0005 §7.1). The lesson itself lives in the derived Claim; "
             f"this node carries only how/when it was captured.\n")
-    out = (vault / _structure.atomic_source_dir()
+    out = (vault / _structure.session_source_dir()
            / f"session-{eid[:12]}.md")
     _atomic_write(out, _emit(front, body))
     return {"path": str(out), "entry_id": eid}

@@ -62,7 +62,8 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
     # absorbed), accepted ones at ac_status passed — NOT legacy notes/ files.
     from runtime.index.parse import split_frontmatter
     for item in out["accepted"]:
-        assert "/graph/atomic/claims/" in item["path"]
+        assert "/graph/atomic/" in item["path"]   # flat L2 graph (P9.4)
+        assert "/graph/atomic/claims/" not in item["path"]   # kind subdir gone
         assert "/learnings/notes/" not in item["path"]
         fm, _ = split_frontmatter(Path(item["path"]).read_text())
         assert fm["kind"] == "claim"

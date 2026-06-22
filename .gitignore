@@ -33,3 +33,5 @@ dist/
 build/
 *.whl
 *.tar.gz
+# one-time migration tooling — never commit (PII/private paths)
+scripts/rfc_0005/

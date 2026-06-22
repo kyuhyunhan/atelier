@@ -50,13 +50,25 @@ homes:
   graph_source: graph/sources
   graph_entity: graph/entities
   graph_theme: graph/themes
-  # RFC 0005 v7 atomic node trees — the flat source/entity/claim graph. `kind`
-  # is the discriminator (a FIELD, never the path); these dirs are cosmetic
-  # shard buckets under graph/. The atomize nudge (§7.2) reads atomic_source /
-  # atomic_claim to count un-atomized sources (a Source with no derived Claim).
-  atomic_source: graph/atomic/sources
-  atomic_entity: graph/atomic/entities
-  atomic_claim: graph/atomic/claims
+  # RFC 0005 §3 v7 atomic node LAYERS. `kind` is the discriminator (a FIELD,
+  # never the path), so a node classifies by `kind` regardless of where it sits.
+  #
+  #   L1 SOURCE — lives in the content tree (`raw/…`), NOT in graph/. A Source
+  #   IS the ingested artifact upgraded to a node (artifact-backed sources sit
+  #   under raw/<domain>/; the thin session Source a capture is born with lands
+  #   under raw/inbox/ via inbox_dir()). There is NO `atomic_source` home: the
+  #   graph/atomic/sources tree was the legacy DIGEST layer (RFC 0005 P9) and is
+  #   gone. The atomize nudge (§7.2) enumerates L1 Source nodes by scanning the
+  #   whole content tree (source_scan_root, = content_root) for kind:source.
+  #
+  #   L2 ENTITY / CLAIM — the derived graph. These live FLAT under
+  #   graph/atomic/ (RFC 0005 §3: "graph/ one flat space, NEVER by kind").
+  #   Both homes point at the SAME flat dir; `kind` is the sole discriminator,
+  #   so readers (store/atomize/claims_io) rglob the shared dir and filter on
+  #   the `kind` field. The legacy entities/ and claims/ kind subdirs are gone
+  #   (RFC 0005 P9.4 flatten).
+  atomic_entity: graph/atomic
+  atomic_claim: graph/atomic
   # learning_* are content-root-RELATIVE: `{content_root}` is expanded by the
   # resolver (home()) from roots.content_root, so the whole learning tree moves
   # with a single root flip — never re-hardcode the prefix.

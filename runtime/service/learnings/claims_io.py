@@ -269,9 +269,10 @@ def ensure_operational_source(vault: Optional[Path] = None) -> Dict[str, Any]:
     vault = vault if vault is not None else vault_root()
     eid = operational_source_id()
     out = vault / _structure.session_source_dir() / "operational-capture.md"
-    existing = find_source_by_entry_id(eid, vault)
-    if existing is not None:
-        return {"path": str(existing), "entry_id": eid}
+    # The shared source lives at a deterministic path, so an O(1) existence check
+    # avoids an O(tree) rglob on every capture/absorb/principle write.
+    if out.exists():
+        return {"path": str(out), "entry_id": eid}
     now = _now_iso()
     front: Dict[str, Any] = {
         "entry_id": eid,

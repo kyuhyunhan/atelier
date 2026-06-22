@@ -4,7 +4,7 @@ Atomization (L1 Source → L2 Claims/Entities) is the one ongoing trigger the RF
 keeps *human-gated*: it needs LLM judgement, costs tokens, and touches private
 material, so there is no blind cron. Instead — exactly like the dream nudge
 (`dream.nudge_info`) — a cadence *surfaces* the backlog so nothing silently
-backs up, and the human runs `vault-ingest`.
+backs up, and the human runs `atelier-atomize`.
 
 "Un-atomized" is not a directory or a flag; it is a **derived state** (RFC 0005
 §3.2 / §7.2): a Source node with **no Claim `derived_from` it**. We compute it by
@@ -127,7 +127,7 @@ def nudge_info(*, now: Optional[str] = None,
         noun = "source" if count == 1 else "sources"
         long = (
             f"🧩 **atelier atomize** — {count} un-atomized {noun} "
-            f"(a Source with no derived Claim). Ask me to run `vault-ingest` "
+            f"(a Source with no derived Claim). Ask me to run `atelier-atomize` "
             f"to extract claims + entities."
         )
         short = f"🧩 atelier: {count} to atomize"

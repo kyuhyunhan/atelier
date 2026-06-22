@@ -70,7 +70,7 @@ intake → atomize → project → recall
 - **intake** — a Source lands in `raw/<domain>/`. "Un-atomized" is not a place
   but a derived state: a Source with no Claim derived from it.
 - **atomize** — Source → Claims + Entities. Deterministic-bound (content-addressed
-  dedup); the LLM writes the claims. Human-ratified, run via `vault-ingest`.
+  dedup); the LLM writes the claims. Human-ratified, run via `atelier-atomize`.
 - **project** — `reindex` rebuilds L3 with claim-granular embeddings.
 - **recall** — ranked by
   `gate(surfacing) × domain_prior × relevance × sensitivity`. `private` nodes are
@@ -95,7 +95,7 @@ nudge so nothing silently backs up.** There is no system cron.
     as a `surfacing: query`, pending Claim.
   - **recall** — fires on UserPromptSubmit.
 - **Human-ratified / gated**
-  - **atomize** — Source → Claims + Entities, run via `vault-ingest`.
+  - **atomize** — Source → Claims + Entities, run via `atelier-atomize`.
   - **promote** — `query → proactive` behind the acceptance gate, via
     `atelier-consolidate`.
   - **dream** — `proactive → always`: distill into the capped always-tier and

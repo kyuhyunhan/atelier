@@ -3,7 +3,7 @@
 An un-atomized source is a DERIVED state: a Source node with no Claim
 `derived_from` it. The nudge mirrors the dream nudge (single source of truth in
 `atomize.nudge_info`, surfaced at session bootstrap), so the human runs
-`vault-ingest` — no blind cron.
+`atelier-atomize` — no blind cron.
 """
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ def test_nudge_due_with_backlog(atelier_env: Dict) -> None:
     assert info["due"] is True
     assert info["count"] == 2
     assert "2 un-atomized sources" in info["long"]
-    assert "vault-ingest" in info["long"]
+    assert "atelier-atomize" in info["long"]
     assert "2 to atomize" in info["short"]
 
 

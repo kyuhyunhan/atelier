@@ -234,6 +234,26 @@ def _cmd_dream(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_nudges(args: argparse.Namespace) -> int:
+    """Unified nudge surface (RFC 0005 §7) for the SessionStart hook / statusline.
+    Prints all due nudges' `long` messages (one per line) by default, or the full
+    machine-readable list with --json. Filesystem-backed, no running server."""
+    from datetime import datetime, timezone
+    from .service import nudges as _nudges
+    import json as _json
+    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    if args.json:
+        from dataclasses import asdict
+        print(_json.dumps(
+            {"nudges": [asdict(n) for n in _nudges.all_nudges(now=now)]},
+            ensure_ascii=False))
+        return 0
+    for n in _nudges.due_nudges(now=now):
+        if n.long:
+            print(n.long)
+    return 0
+
+
 def _cmd_inject_preview(args: argparse.Namespace) -> int:
     """Print exactly what atelier would inject for a session whose working
     directory is `--cwd`: the session-start bootstrap block, and (with
@@ -357,6 +377,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", action="store_true",
                    help="emit the full machine-readable plan")
     s.set_defaults(func=_cmd_dream)
+
+    s = sub.add_parser("nudges",
+                       help="unified nudge surface (atomize/promote/dream): print "
+                            "all due nudges for SessionStart, or --json for the "
+                            "full machine-readable list")
+    s.add_argument("--json", action="store_true",
+                   help="emit the full {nudges:[...]} list (all edges, not just due)")
+    s.set_defaults(func=_cmd_nudges)
 
     s = sub.add_parser("inject-preview",
                        help="preview the context atelier would inject for a "

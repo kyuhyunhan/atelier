@@ -657,6 +657,19 @@ async def _h_dream_complete() -> Dict[str, Any]:
     return _dr.complete(when=now)
 
 
+async def _h_nudges() -> Dict[str, Any]:
+    """THE unified nudge surface (RFC 0005 §7) — every gated edge (atomize /
+    promote / dream) normalized to one {kind,due,count,short,long} shape. The
+    abstract surface callers (SessionStart hook, statusline) consume instead of
+    three bespoke probes. Each edge is tolerant: a failing probe is reported
+    not-due, never crashing the surface."""
+    from dataclasses import asdict
+    from datetime import datetime, timezone
+    from . import nudges as _nudges
+    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return {"nudges": [asdict(n) for n in _nudges.all_nudges(now=now)]}
+
+
 async def _h_session_bootstrap(working_dir: Optional[str] = None,
                                 max_chars: int = 6000
                                 ) -> Dict[str, Any]:
@@ -907,6 +920,14 @@ def _register_v01_tools() -> None:
         _h_principle_reject,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_nudges",
+        "Unified nudge surface — every gated edge (atomize / promote / dream) "
+        "normalized to one {kind,due,count,short,long} shape. Returns "
+        "{'nudges': [...]}. The abstract surface for SessionStart / statusline; "
+        "each edge is tolerant (a failing probe is not-due, never crashes).",
+        _h_nudges,
     ))
     register(ToolDef(
         "atelier_session_bootstrap",

@@ -58,6 +58,16 @@ def _eligible(limit: int = 50) -> List[Dict[str, Any]]:
     return out
 
 
+def eligible_count(limit: int = 50) -> int:
+    """Number of promotion-eligible claims (surfacing:query AND ac_status:passed).
+
+    Public, read-only wrapper over `_eligible()` so callers (e.g. the unified
+    nudge surface in `runtime/service/nudges.py`) get the salient count without
+    reaching into a private function. `limit` caps the scan, matching
+    `_eligible`/`propose_all` (a nudge only needs "≥1", not the exact tail)."""
+    return len(_eligible(limit=limit))
+
+
 def propose_all() -> Dict[str, Any]:
     promotions_dir = _promotions_dir()
     promotions_dir.mkdir(parents=True, exist_ok=True)

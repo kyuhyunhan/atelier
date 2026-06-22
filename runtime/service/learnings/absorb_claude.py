@@ -11,8 +11,9 @@ The encoded-cwd folds the absolute working directory by replacing every
 original project path (and basename → `project_hint`).
 
 Each absorbed memory is BORN AS A v7 CLAIM (RFC 0005 §7.1 —
-`generated_by: absorbed`), derived_from a thin session Source. There is no
-candidate FILE step; the lifecycle is the `ac_status` field:
+`generated_by: absorbed`), derived_from the single shared operational-capture
+Source (RFC 0005 P10 — one canonical L1 node, not a per-memory session stub).
+There is no candidate FILE step; the lifecycle is the `ac_status` field:
 
     type ∈ {feedback, reference} → ac_status `passed` (Claude already curated
                                     these — they survive cross-session).
@@ -214,16 +215,13 @@ def absorb(*, dry_run: bool = False,
         statement = _statement_of(mem)
         now = _now_iso()
 
-        # Born as a v7 claim derived_from a thin session Source (the absorbed
-        # memory's origin file). NO candidate/note file lifecycle.
+        # Born as a v7 claim derived_from the single shared operational-capture
+        # Source (RFC 0005 P10 — one canonical L1 node, not a per-memory session
+        # stub). NO candidate/note file lifecycle.
         if dry_run:
             dest_repr = f"<claim:{statement[:40]}>"
         else:
-            src = _claims.mint_session_source(
-                statement=statement, session_id=None,
-                working_dir=None, agent_kind="absorbed", hook="manual",
-                captured_at=now, vault=vault,
-            )
+            src = _claims.ensure_operational_source(vault=vault)
             is_about = []
             if mem.project:
                 is_about.append(_claims._resolve_entity_id(

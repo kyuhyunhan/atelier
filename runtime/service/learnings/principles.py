@@ -228,13 +228,11 @@ def add(*, title: str, rule: str, why: str,
         extra["target_topic"] = _slugify(target_topic)
 
     # derived_from: the source claims when given (the synthesis evidence), else
-    # a thin manual session Source so the PROV chain is never empty. We always
-    # mint a thin Source as the id-discriminating anchor; when source claims are
-    # given, `derived_from` is overridden (via extra) to point at them.
-    src = _claims.mint_session_source(
-        statement=statement, hook="principle-add",
-        agent_kind="curator", vault=vault,
-    )
+    # the single shared operational-capture Source so the PROV chain is never
+    # empty (RFC 0005 P10 — one canonical L1 node, not a per-principle session
+    # stub). The shared source is the id-discriminating anchor; when source
+    # claims are given, `derived_from` is overridden (via extra) to point at them.
+    src = _claims.ensure_operational_source(vault=vault)
     source_eid = src["entry_id"]
     if source_entry_ids:
         extra["derived_from"] = list(dict.fromkeys(source_entry_ids))

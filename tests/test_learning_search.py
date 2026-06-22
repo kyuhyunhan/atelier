@@ -14,10 +14,14 @@ from runtime.service.learnings import search as _ls
 
 def _accept_one(project: str = "lexio",
                 topic: str = "search-fallback") -> Path:
+    # RFC 0005 P10: all operational claims derive_from the ONE shared source, so
+    # the claim id is content-addressed on `statement` alone. Two learnings that
+    # must stay distinct (e.g. the same lesson seen in two projects) need
+    # distinct statements — the project no longer discriminates the id.
     cap = _cap.capture(
-        observation="search returns nothing for tilde queries",
+        observation=f"search returns nothing for tilde queries in {project}",
         why="fts5 ignores tilde tokens; need fallback",
-        rule="enable fallback for punctuation in queries",
+        rule=f"enable fallback for punctuation in queries ({project})",
         working_dir=f"/Users/me/workspaces/{project}",
         session_id="abc",
         hook="Stop",
@@ -79,9 +83,10 @@ def test_search_filters_by_project(atelier_env: Dict) -> None:
 def test_text_query_with_facet_post_filters_fused_set(atelier_env: Dict) -> None:
     """RFC 0002 P3: a text query routes through the resolver, and project/topic/
     aspect facets are applied as a post-fusion filter on the fused candidate set
-    (not in the resolver's Scope). Two projects share the same body text; the
-    facet must keep only the matching project's hit. Reindex first so the FTS/
-    resolver path is live (not the grep fallback, which needs a verbatim match)."""
+    (not in the resolver's Scope). Two projects share the same query terms
+    ("tilde queries … fallback"); the facet must keep only the matching
+    project's hit. Reindex first so the FTS/resolver path is live (not the grep
+    fallback, which needs a verbatim match)."""
     from runtime.service import api
     _accept_one(project="lexio")
     _accept_one(project="bht")

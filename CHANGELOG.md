@@ -17,8 +17,10 @@ All notable changes to atelier.
   as a `SessionStart` `systemMessage` (`scripts/hooks/session-nudge.sh` →
   `atelier nudges --json`). The `atelier dream --status` CLI command is
   retained for tests and manual checks; only the per-render caller is gone.
-  (Supersedes the "fast, filesystem-backed" framing below — the walk was never
-  cheap at vault scale.)
+  (Supersedes the [0.2.3] "User-visible dream surfaces" notes below: the
+  statusline is no longer a dream-nudge surface — the `SessionStart`
+  `systemMessage` is — and `atelier dream --status` was never "fast,
+  filesystem-backed" at vault scale.)
 
 ### Changed — generous capture + project identity (RFC 0004 phase 2)
 

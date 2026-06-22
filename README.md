@@ -41,6 +41,69 @@ A single SQLite database at `~/.atelier/cache/atelier.db` projects the markdown
 content for fast queries; it is derived, gitignored, and rebuildable from
 source at any time.
 
+## Content model — the atomic knowledge graph
+
+The content layer is an atomic property graph in three layers. **Markdown is
+truth; the DB is a projection.** See
+[`docs/rfc/0005-atomic-knowledge-graph.md`](docs/rfc/0005-atomic-knowledge-graph.md)
+for the full design and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the system contract.
+
+**Layers**
+
+- **`raw/` (L1)** — immutable **Source** nodes: the original artifact plus full
+  provenance. A Source lands directly in its domain dir (`raw/<domain>/`); there
+  is no staging area.
+- **`graph/` (L2)** — flat **Entity + Claim** nodes, content-addressed. Claims
+  are atomic assertions; Entities are canonical subjects shared across sources.
+  `entry_id` is identity-based (never path-based), so nodes are rename- and
+  shard-safe.
+- **`~/.atelier/cache` (L3)** — a SQLite + vector projection. Derived,
+  gitignored, rebuildable from L1/L2 at any time.
+
+**Flow**
+
+```
+intake → atomize → project → recall
+```
+
+- **intake** — a Source lands in `raw/<domain>/`. "Un-atomized" is not a place
+  but a derived state: a Source with no Claim derived from it.
+- **atomize** — Source → Claims + Entities. Deterministic-bound (content-addressed
+  dedup); the LLM writes the claims. Human-ratified, run via `vault-ingest`.
+- **project** — `reindex` rebuilds L3 with claim-granular embeddings.
+- **recall** — ranked by
+  `gate(surfacing) × domain_prior × relevance × sensitivity`. `private` nodes are
+  never pushed; the always-tier is capped by a hard budget.
+
+**Surfacing ladder.** Recall eligibility is a static ladder where each transition
+is a gate:
+
+```
+query (born, pending) ⊂ proactive (accepted) ⊂ always (dream-distilled)
+```
+
+### Triggers
+
+Steady-state principle: **automate the deterministic, gate the generative, and
+nudge so nothing silently backs up.** There is no system cron.
+
+- **Automatic / deterministic**
+  - **autosync poller** — 30 s, quiescence-gated; commits, pushes, and reindexes
+    changed files.
+  - **hook-capture** — SessionEnd / PreCompact; an operational learning is born
+    as a `surfacing: query`, pending Claim.
+  - **recall** — fires on UserPromptSubmit.
+- **Human-ratified / gated**
+  - **atomize** — Source → Claims + Entities, run via `vault-ingest`.
+  - **promote** — `query → proactive` behind the acceptance gate, via
+    `atelier-consolidate`.
+  - **dream** — `proactive → always`: distill into the capped always-tier and
+    synthesize cross-claim generalizations, via `atelier-consolidate`.
+- **Nudges** — the unified `atelier_nudges` surface shows un-atomized,
+  eligible-to-promote, and dream-due work at SessionStart, so the gated edges
+  never silently back up.
+
 ## Engine contract — what atelier MUST NOT know
 
 A strict invariant enforced by config validation and code review:

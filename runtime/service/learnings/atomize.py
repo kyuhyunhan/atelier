@@ -51,9 +51,15 @@ def _iter_fm(directory: Path):
 
 
 def _source_ids(vault: Path) -> Set[str]:
-    """entry_id of every v7 Source node."""
+    """entry_id of every v7 Source node.
+
+    RFC 0005 §3/§7.2: Source is an L1 node living in the content tree (raw/…),
+    not a graph digest dir. We scan source_scan_root() (= content_root)
+    recursively and keep only kind:source — so artifact-backed sources under
+    raw/<domain>/ AND thin session sources under raw/inbox/ both count,
+    classified by the `kind` FIELD regardless of subdir."""
     out: Set[str] = set()
-    base = vault / _structure.atomic_source_dir()
+    base = vault / _structure.source_scan_root()
     for fm in _iter_fm(base):
         if fm.get("kind") != "source":
             continue

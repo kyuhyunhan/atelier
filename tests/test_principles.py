@@ -47,8 +47,9 @@ def test_add_writes_principle(atelier_env: Dict) -> None:
     )
     p = Path(out["path"])
     assert p.exists()
-    # No legacy directory: the node lives under the atomic claims tree.
-    assert "graph/atomic/claims/" in str(p)
+    # No legacy directory: the node lives FLAT under the atomic graph (P9.4).
+    assert "graph/atomic/" in str(p)
+    assert "graph/atomic/claims/" not in str(p)   # kind subdir gone
     assert "learnings/principles/" not in str(p)
     fm = _read_fm(p)
     assert fm["schema_version"] == 7
@@ -101,9 +102,11 @@ def test_synthesize_from_two_accepted_learnings(atelier_env: Dict) -> None:
     assert fm["priority"] == "always-inject"
     # Two evidence backlinks resolved to vault-relative paths. RFC 0005 §7.1:
     # an accepted learning is now a v7 claim node, so evidence resolves under
-    # the atomic claims tree (was the legacy learnings/notes/ store).
+    # the flat atomic graph (was the legacy learnings/notes/ store). RFC 0005
+    # P9.4 dropped the claims/ kind subdir, so evidence is graph/atomic/<id>.md.
     assert len(fm["evidence"]) == 2
-    assert all(e.startswith("graph/atomic/claims/") for e in fm["evidence"])
+    assert all(e.startswith("graph/atomic/") for e in fm["evidence"])
+    assert all("graph/atomic/claims/" not in e for e in fm["evidence"])
     body = p.read_text()
     for e in fm["evidence"]:
         assert f"[[{e}]]" in body

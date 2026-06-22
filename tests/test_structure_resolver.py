@@ -50,10 +50,17 @@ def test_homes():
 
 
 def test_atomic_dirs():
-    # RFC 0005 §7.2 — the v7 atomic node trees, single-sourced from structure.yaml.
-    assert resolver.atomic_source_dir() == "graph/atomic/sources"
-    assert resolver.atomic_claim_dir() == "graph/atomic/claims"
-    assert resolver.atomic_entity_dir() == "graph/atomic/entities"
+    # RFC 0005 §3/§7.2 — the v7 atomic node layers, single-sourced from
+    # structure.yaml. L1 Source lives in the content tree (raw/…), NOT graph/:
+    # there is no graph source home. L2 Entity/Claim live FLAT under
+    # graph/atomic/ (RFC 0005 §3/P9.4: "graph/ one flat space, NEVER by kind"),
+    # both homes pointing at the same dir, discriminated by the `kind` field.
+    assert resolver.source_scan_root() == "raw"        # L1 scan root (content)
+    assert resolver.session_source_dir() == "raw/inbox"  # thin session Source
+    assert resolver.atomic_claim_dir() == "graph/atomic"
+    assert resolver.atomic_entity_dir() == "graph/atomic"
+    # The legacy graph source home is gone (RFC 0005 P9 collapsed the digest layer).
+    assert not hasattr(resolver, "atomic_source_dir")
 
 
 def test_home_rejects_unknown():

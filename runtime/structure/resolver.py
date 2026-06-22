@@ -164,19 +164,37 @@ def home(page_type: str) -> str:
     return expand_content_root(homes[page_type])
 
 
-# --- Atomic v7 node trees (RFC 0005 §7.2 atomize nudge) -------------------
-def atomic_source_dir() -> str:
-    """Vault-relative dir holding v7 Source nodes (today: graph/atomic/sources)."""
-    return home("atomic_source")
+# --- Atomic v7 node trees (RFC 0005 §3 layers / §7.2 atomize nudge) -------
+def source_scan_root() -> str:
+    """Vault-relative root under which v7 Source (L1) nodes live (= content_root).
+
+    RFC 0005 §3: a Source IS the ingested artifact upgraded to an L1 node, so it
+    lives in the content tree (`raw/…`) — artifact-backed sources under
+    raw/<domain>/, the thin session Source under raw/inbox/. There is no graph
+    source home. The atomize nudge (§7.2) enumerates Source nodes by scanning
+    THIS root recursively and filtering on `kind: source` (the discriminator is
+    a FIELD, never the path), so any raw/ source counts regardless of subdir.
+    """
+    return content_root()
+
+
+def session_source_dir() -> str:
+    """Vault-relative dir where a capture's thin SESSION Source is born.
+
+    RFC 0005 §3/§7.1: a manual/operational capture is domain-undetermined at the
+    door, so its thin session Source lands in the inbox intake (today raw/inbox),
+    NOT in graph/. Single-sourced from inbox_dir() so a root/intake flip moves it.
+    """
+    return inbox_dir()
 
 
 def atomic_claim_dir() -> str:
-    """Vault-relative dir holding v7 Claim nodes (today: graph/atomic/claims)."""
+    """Vault-relative dir holding v7 Claim nodes (flat: graph/atomic)."""
     return home("atomic_claim")
 
 
 def atomic_entity_dir() -> str:
-    """Vault-relative dir holding v7 Entity nodes (today: graph/atomic/entities)."""
+    """Vault-relative dir holding v7 Entity nodes (flat: graph/atomic)."""
     return home("atomic_entity")
 
 

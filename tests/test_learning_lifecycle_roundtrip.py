@@ -117,9 +117,13 @@ def test_born_nodes_pass_the_v7_schema_validator(atelier_env: Dict) -> None:
         working_dir="/Users/me/workspaces/lexio", touches=["react-rendering"],
         session_id="s", hook="Stop")
     vault = atelier_env["gorae"]
-    paths = [Path(out["path"])]
-    paths += list((vault / "graph" / "atomic" / "sources").rglob("*.md"))
-    paths += list((vault / "graph" / "atomic" / "entities").rglob("*.md"))
+    # L2 Entity/Claim nodes live FLAT under graph/atomic/ (RFC 0005 P9.4); this
+    # one rglob picks up both kinds (source nodes live in raw/, not graph/), and
+    # already includes the captured claim at out["path"], so dedup on resolve().
+    paths = sorted(
+        {p.resolve() for p in (vault / "graph" / "atomic").rglob("*.md")}
+        | {Path(out["path"]).resolve()}
+    )
     findings = validate_paths(paths, vault_root=vault)
     assert findings == [], [f"{f.page_slug}: {f.message}" for f in findings]
 

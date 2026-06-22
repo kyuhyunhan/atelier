@@ -21,11 +21,17 @@ def _read_fm(path: Path) -> dict:
 
 
 def _make_good_candidate(working_dir: str = "/Users/me/workspaces/lexio") -> Dict:
-    """A candidate that satisfies every auto-evaluable must check."""
+    """A candidate that satisfies every auto-evaluable must check.
+
+    RFC 0005 P10: all operational claims derive_from the ONE shared source, so a
+    claim's id is content-addressed on `statement` alone. The project no longer
+    discriminates the id — so we fold the project basename into the statement to
+    keep candidates from different projects distinct."""
+    proj = Path(working_dir).name
     return _cap.capture(
-        observation="search returns nothing for tilde queries",
+        observation=f"search returns nothing for tilde queries in {proj}",
         why="fts5 ignores tilde tokens; need fallback path",
-        rule="enable fallback for punctuation in queries",
+        rule=f"enable fallback for punctuation in queries ({proj})",
         working_dir=working_dir,
         session_id="abc",
         hook="Stop",

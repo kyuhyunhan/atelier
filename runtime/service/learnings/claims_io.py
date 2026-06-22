@@ -216,78 +216,104 @@ def find_entity_by_entry_id(entry_id: str, vault: Path) -> Optional[Path]:
     return None
 
 
-def mint_session_source(*, statement: str,
-                        session_id: Optional[str] = None,
-                        working_dir: Optional[str] = None,
-                        agent_kind: str = "claude-code",
-                        hook: str = "manual",
-                        captured_at: Optional[str] = None,
-                        sensitivity: str = "public",
-                        learning_entry_id: Optional[str] = None,
-                        vault: Optional[Path] = None,
-                        ) -> Dict[str, Any]:
-    """Mint a thin v7 Source node carrying the capture's session metadata
-    (RFC 0005 §7.1 — the claim is born WITH a Source it derives_from, so the
-    PROV chain is never empty).
+# NOTE (RFC 0005 P10): the per-learning `mint_session_source` writer is GONE.
+# Operational learnings no longer mint a thin session-metadata Source stub each;
+# they all derive_from the single shared operational-capture Source below, and
+# the per-capture session metadata lives ON the claim (§4.3 extension fields).
 
-    The Source is an L1 node and lands in the content tree (raw/inbox via
-    session_source_dir(), NOT graph/) — RFC 0005 §3: a Source IS an ingested
-    artifact, and a capture is domain-undetermined at the door so it lands in
-    the inbox intake.
 
-    `domain: inbox` (a capture is domain-undetermined at the door, §12.6). The
-    `session:` block holds session_id/working_dir/agent_kind/hook/captured_at.
-    The Source's entry_id is content-addressed on the session discriminator
-    (session_id | working_dir | hook | statement); within a session it does NOT
-    depend on the wall-clock second, so two identical captures are idempotent
-    (same id) regardless of timing. Sessionless manual captures fall back to
-    created_at in the basis.
+# ── the single shared operational-capture Source (RFC 0005 P10) ───────────────
+#
+# RFC 0005 P10 simplifies operational-learning provenance: instead of minting a
+# per-learning thin session-metadata Source (one stub per claim, cluttering the
+# inbox and redundant with the §4.3 claim extension fields), every operational
+# claim derives_from ONE shared canonical L1 Source. The session metadata that
+# used to live on that per-learning stub (agent_kind/hook/session_id/working_dir/
+# captured_at) now lives ON the claim as §4.3 extension fields.
+#
+# The shared source has a FIXED, resolver-derived entry_id that does NOT depend
+# on any session discriminator or the wall-clock — it is the same node for every
+# capture, forever. `ensure_operational_source()` creates it once (idempotent)
+# and returns its id.
+
+# The fixed basis for the shared source's id. created_at is held empty so the id
+# never depends on wall-clock; the discriminator is the canonical literal — the
+# id is uuid5(NS, "atelier:source:|atelier:operational-capture"), stable forever.
+_OPERATIONAL_SOURCE_DISCRIMINATOR = "atelier:operational-capture"
+
+
+def operational_source_id() -> str:
+    """The fixed entry_id of the single shared operational-capture Source
+    (RFC 0005 P10). Resolver-derived from a stable basis (no created_at, no
+    session discriminator), so it is the SAME id for every capture, forever."""
+    return _structure.entry_id(
+        "source", created_at="",
+        discriminator=_OPERATIONAL_SOURCE_DISCRIMINATOR,
+    )
+
+
+def ensure_operational_source(vault: Optional[Path] = None) -> Dict[str, Any]:
+    """Create-once the single shared operational-capture Source and return its
+    id (RFC 0005 P10). Idempotent: if the node already exists by its fixed
+    entry_id, this is a no-op read and the same id is returned.
+
+    The Source is a canonical L1 node (kind:source, domain:inbox,
+    sensitivity:public) living in the content tree under the inbox intake
+    (session_source_dir(), = raw/inbox) — RFC 0005 §3: a Source IS an ingested
+    artifact. Every operational Claim born by capture/absorb derives_from THIS
+    one node; the per-capture session metadata lives on the Claim (§4.3), not
+    on a per-learning source stub.
 
     Returns {path, entry_id}.
     """
     vault = vault if vault is not None else vault_root()
-    now = captured_at or _now_iso()
-    discriminator = "|".join(str(x) for x in
-                             (session_id or "", working_dir or "",
-                              hook or "", _slugify(statement)))
-    # Idempotency: when a stable session discriminator exists, the id must NOT
-    # depend on the wall-clock second — two identical captures straddling a second
-    # boundary would otherwise mint distinct sources → distinct claims. Drop
-    # created_at from the id basis when session_id is present; fall back to it only
-    # for sessionless manual captures. (created_at is still recorded on the node.)
-    id_created = "" if session_id else now
-    eid = _structure.entry_id("source", created_at=id_created,
-                              discriminator=discriminator)
-    session: Dict[str, Any] = {
-        "agent_kind": agent_kind or "unknown",
-        "hook": hook or "manual",
-        "captured_at": now,
-    }
-    if session_id:
-        session["session_id"] = session_id
-    if working_dir:
-        session["working_dir"] = working_dir
-    if learning_entry_id:
-        session["learning_entry_id"] = learning_entry_id
+    eid = operational_source_id()
+    out = vault / _structure.session_source_dir() / "operational-capture.md"
+    # The shared source lives at a deterministic path, so an O(1) existence check
+    # avoids an O(tree) rglob on every capture/absorb/principle write.
+    if out.exists():
+        return {"path": str(out), "entry_id": eid}
+    now = _now_iso()
     front: Dict[str, Any] = {
         "entry_id": eid,
         "schema_version": 7,
         "kind": "source",
         "created_at": now,
         "domain": "inbox",
-        "sensitivity": sensitivity,
-        "attributed_to": agent_kind or "unknown",
-        "title": f"Session metadata — {statement[:80]}",
-        "session": session,
+        "sensitivity": "public",
+        "attributed_to": "atelier",
+        "title": "Operational capture",
     }
     front["content_hash"] = _content_hash(front)
-    body = (f"Thin session-metadata Source for an operational learning "
-            f"(RFC 0005 §7.1). The lesson itself lives in the derived Claim; "
-            f"this node carries only how/when it was captured.\n")
-    out = (vault / _structure.session_source_dir()
-           / f"session-{eid[:12]}.md")
+    body = (
+        "Shared L1 Source for operational learnings (RFC 0005 P10).\n\n"
+        "Every operational Claim (a capture or an absorbed Claude memory) "
+        "derives_from this single canonical Source. The per-capture session "
+        "metadata (agent_kind / hook / session_id / working_dir / captured_at) "
+        "lives ON each Claim as §4.3 extension fields — not on a per-learning "
+        "source stub.\n"
+    )
     _atomic_write(out, _emit(front, body))
     return {"path": str(out), "entry_id": eid}
+
+
+def find_source_by_entry_id(entry_id: str, vault: Path) -> Optional[Path]:
+    """Locate a v7 Source node file by its stable entry_id, scanning the content
+    tree (a Source is an L1 node in raw/, §3). Returns the path or None."""
+    base = vault / _structure.source_scan_root()
+    if not base.exists():
+        return None
+    for p in sorted(base.rglob("*.md")):
+        if p.name == "INDEX.md":
+            continue
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:                       # pragma: no cover
+            continue
+        if (isinstance(fm, dict) and fm.get("kind") == "source"
+                and str(fm.get("entry_id")) == str(entry_id)):
+            return p
+    return None
 
 
 def write_operational_claim(*, statement: str,
@@ -312,8 +338,11 @@ def write_operational_claim(*, statement: str,
     (RFC 0005 §7.1 — an operational learning is BORN AS A CLAIM, never a
     candidate file).
 
-    - `domain: operational`, `derived_from: [source_entry_id]` (the thin session
-      Source minted alongside it).
+    - `domain: operational`, `derived_from: [source_entry_id]` (the single
+      shared operational-capture Source, RFC 0005 P10 — NOT a per-learning
+      session stub). The per-capture session metadata (agent_kind / hook /
+      session_id / working_dir / captured_at) is carried ON this claim as §4.3
+      extension fields.
     - entry_id is content-addressed (`norm(statement) | derived_from`, §5) so a
       re-capture of the same lesson from the same source is idempotent.
     - `is_about` points at resolved Entity ids; `project` is kept as a flat field

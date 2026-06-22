@@ -3,11 +3,14 @@
 An operational learning is **born directly as a v7 Claim** — there is no
 candidate FILE lifecycle any more. `capture()`:
 
-1. mints a thin v7 Source node carrying the session metadata
-   (session_id / working_dir / agent_kind / hook / captured_at), then
+1. ensures the single shared operational-capture Source exists
+   (RFC 0005 P10 — one canonical L1 node, created once, not a per-learning
+   session stub), then
 2. writes a v7 Claim (`domain:operational`, `surfacing:query`,
-   `ac_status:pending`, `generated_by:<hook-or-caller>`) that
-   `derived_from` that Source.
+   `ac_status:pending`, `generated_by:<hook-or-caller>`) that `derived_from`
+   that shared Source, carrying the session metadata (session_id /
+   working_dir / agent_kind / hook / captured_at) ON the claim as §4.3
+   extension fields.
 
 The candidate/note/principle DIRECTORIES collapse to the `surfacing` +
 `ac_status` FIELDS: promote (query→proactive) and dream (proactive→always)
@@ -143,11 +146,10 @@ def capture(*, observation: str,
     statement = _claim_statement(observation, rule)
     body = _build_body(observation or "", why, rule, excerpt)
 
-    # 1) thin session Source the claim will derive_from (PROV chain at birth).
-    src = _claims.mint_session_source(
-        statement=statement, session_id=session_id, working_dir=working_dir,
-        agent_kind=agent_kind, hook=hook, captured_at=now, vault=vault_root,
-    )
+    # 1) the single shared operational-capture Source the claim derives_from
+    #    (RFC 0005 P10 — one canonical L1 node, created once, not a per-learning
+    #    session stub). The session metadata lives on the claim (§4.3), below.
+    src = _claims.ensure_operational_source(vault=vault_root)
 
     # 2) resolve-or-create is_about entities for project + touched subjects.
     is_about: List[str] = []
@@ -159,9 +161,11 @@ def capture(*, observation: str,
             label, sensitivity="public", in_scheme="inbox",
             vault=vault_root))
 
-    # 3) the operational Claim, born at query/pending. session fields are
-    #    mirrored onto the claim so the acceptance criteria heuristics
-    #    (tied_to_event, has_project_tag) keep working unchanged.
+    # 3) the operational Claim, born at query/pending. The session metadata
+    #    (agent_kind / hook / session_id / working_dir / captured_at) lives ON
+    #    the claim as §4.3 extension fields (RFC 0005 P10) — this is also what
+    #    the acceptance criteria heuristics (tied_to_event, has_project_tag)
+    #    read, so they keep working unchanged.
     extra: Dict[str, Any] = {"captured_at": now, "ac_results": {}}
     if session_id:
         extra["session_id"] = session_id
@@ -182,9 +186,6 @@ def capture(*, observation: str,
         captured_at=now, extra=extra, vault=vault_root,
     )
 
-    # Back-fill the Source's learning_entry_id link now the claim id is known.
-    _link_source_to_claim(src["path"], claim["entry_id"])
-
     result: Dict[str, Any] = {
         "path": claim["path"],
         "entry_id": claim["entry_id"],
@@ -200,25 +201,3 @@ def capture(*, observation: str,
         result["detail"] = ("captured, but flagged why_status=missing; "
                             "consider re-capturing with a 'why this matters'")
     return result
-
-
-def _link_source_to_claim(source_path: str, claim_entry_id: str) -> None:
-    """Record the derived claim's id back on the session Source's session block
-    (mirrors the migration shape; keeps the Source self-describing)."""
-    import yaml
-    from ...index import parse as _parse
-    p = Path(source_path)
-    try:
-        fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
-    except Exception:                            # pragma: no cover
-        return
-    if not isinstance(fm, dict):
-        return
-    session = dict(fm.get("session") or {})
-    session["learning_entry_id"] = claim_entry_id
-    fm["session"] = session
-    fm.pop("content_hash", None)
-    fm["content_hash"] = _claims._content_hash(fm)
-    serialized = yaml.safe_dump(fm, sort_keys=True, allow_unicode=True,
-                                default_flow_style=False)
-    p.write_text(f"---\n{serialized}---\n\n{body.strip()}\n", encoding="utf-8")

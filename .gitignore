@@ -33,4 +33,5 @@ dist/
 build/
 *.whl
 *.tar.gz
-scripts/rfc_0005/   # one-time migration tooling — never commit (PII/private paths)
+# one-time migration tooling — never commit (PII/private paths)
+scripts/rfc_0005/

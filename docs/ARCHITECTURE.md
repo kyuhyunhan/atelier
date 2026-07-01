@@ -110,7 +110,7 @@ Single-writer per space is the integrity invariant. Promotion from workshop
 ### Ingest (gorae)
 
 ```
-human writes provenance/personal/diary/2026/05/15.md
+human writes raw/personal/diary/2026/05/15.md
         │
         ▼
 "ingest this diary"  ──▶  Librarian agent
@@ -161,18 +161,19 @@ atelier new-product foo
 
 ## Learnings domain & dream cycle
 
-The learnings subtree (added v0.2.1; relocated to `provenance/learning/` in
-RFC 0003 P6) is the **developer-self memory**: lessons accumulated across
-*every* project the user touches through an agent, then distilled into
+The learnings subtree (added v0.2.1; relocated to `raw/learning/` — RFC 0003 P6
+named it `provenance/learning/`, then the P2 flip renamed the content root
+`provenance/`→`raw/`) is the **developer-self memory**: lessons accumulated
+across *every* project the user touches through an agent, then distilled into
 universal principles. It is the bidirectional counterpart to the rest of the
-vault — where `provenance/`+`graph/` capture *knowledge* and `workshop/`
+vault — where `raw/`+`graph/` capture *knowledge* and `workshop/`
 captures *product work*, the learning subtree
 captures *how the developer works*.
 
 ### Three tiers
 
 ```
-learnings/
+raw/learning/
 ├── candidates/<date>/<slug>.md     tier 1 — aggressive capture, append-only
 │      ↓  (review: accept / archive)
 ├── notes/<YYYY-MM>/<slug>.md       tier 2 — curated, FLAT store (RFC 0001),
@@ -188,6 +189,15 @@ learnings/
 > + a duplicated `accepted/by-project/<project>/` mirror. Both trees are retired:
 > classification lives in frontmatter facets, not the path. See
 > `docs/rfc/0001-flat-facet-learnings.md`.
+
+> **⚠️ RFC 0005 §7.1 (v7 atomic graph).** The "tiers" are no longer directory
+> moves. A learning is one v7 Claim whose lifecycle is two **fields**:
+> `ac_status` (pending → passed = accept; failed/retracted = archive/retract)
+> and `surfacing` (query → proactive = promote; → always = dream-distill).
+> Accept/promote/dream are field transitions performed **in place** — the file
+> does not migrate between `candidates/`/`notes/`/`principles/`. The directories
+> above remain as homes, but the *state* a reader cares about is in frontmatter.
+> See `docs/rfc/0005-*` and `runtime/service/learnings/review.py`.
 
 - **tier 1 (candidates)** — captured by an *agent*, not a blind hook. A
   bash hook cannot judge what was learned or *why it matters*, so the
@@ -454,14 +464,17 @@ in v0.2 without restructuring.
 
 ```
 <vault>/                              single vault (path from config.yaml)
-├── provenance/                       L0 "what came in" — human-written, immutable from agents
-│   ├── personal/{diary,writings,...}
-│   ├── knowledge/{...domains...}
-│   ├── personal/inbox/               (mobile inbox landing; v0.3)
-│   └── learning/                     captured lessons (RFC 0003 P6)
-│       └── candidates/, notes/, principles/, archived/
-├── graph/                            entity backbone — Librarian-written
-│   ├── entities/, sources/           (entities incl. category:domain = folded themes)
+├── raw/                              L0/L1 "what came in" — human-written, read-only to the engine
+│   │                                 (content_root; renamed from `provenance/` in the P2 flip — RFC 0005.
+│   │                                  `provenance/` survives only as a prefix_alias for un-migrated pages)
+│   ├── personal/                     domain: personal — diary/writings; NEVER atomized (human-only)
+│   ├── knowledge/                    domain: knowledge — atomized into graph/atomic/
+│   ├── inbox/                        domain: inbox — first-class capture intake (was personal/inbox)
+│   └── learning/                     dev-self lessons (relocated here from top-level learnings/, RFC 0003 P6)
+│       └── candidates/, notes/<YYYY-MM>/, principles/, archived/
+├── graph/                            knowledge graph — engine-written (graph_root; renamed from `wiki/`)
+│   ├── atomic/                       v7 Claim + Entity nodes — flat, discriminated by `kind` (RFC 0005)
+│   ├── entities/, sources/           legacy pre-v7 entity/source pages (where present)
 │   ├── index.md                      auto-regenerated
 │   └── log.md                        append-only
                                       # digests/, synthesis/, themes/ retired (RFC 0003
@@ -605,7 +618,7 @@ five named entry points:
 | Reservation | Where | Active in |
 |---|---|---|
 | `base.yaml.source` and `inbox_status` | schema/data/base.yaml | Phase 1 (defined, nullable) |
-| `provenance/personal/inbox/` directory | gorae | Phase 9 (created on first capture) |
+| `raw/inbox/` directory | gorae | Phase 9 (created on first capture) |
 | `runtime/service/capture.py` | runtime | Phase 7 (function, no HTTP) |
 | `claims.py` `mobile-claim` enum | runtime/service | Phase 7 (placeholder) |
 | `config.channels.mobile` | example.config.yaml | Phase 0 (commented) |

@@ -236,7 +236,7 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     # store (RFC 0001) via store.iter_accepted_files.
     from . import store as _store
     roots: List[tuple[str, Any]] = []
-    lroot = _store.learning_root(vault)   # provenance/learning/ post-P6, else legacy
+    lroot = _store.learning_root(vault)   # raw/learning/ (content_root/learning) post-P6, else legacy
     if "learning_principle" in types:
         roots.append(("learning_principle",
                       sorted((lroot / "principles").rglob("*.md"))

@@ -17,7 +17,8 @@ via `claims_io` (entry_id preserved, content_hash re-derived, file never moved):
 - retract       — ac_status → retracted (+ archive_reason), from pending OR passed.
 
 `accept` enforces the criteria `must` checks; `should` is informational.
-A single-line entry per operation is appended to `provenance/learning/log.md`.
+A single-line entry per operation is appended to `<content_root>/learning/log.md`
+(`raw/learning/log.md` today).
 """
 from __future__ import annotations
 

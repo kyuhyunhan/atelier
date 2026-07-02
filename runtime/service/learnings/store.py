@@ -3,7 +3,7 @@
 Classification lives in frontmatter facets, not the path. Accepted learnings are
 a FLAT store sharded only by immutable creation month:
 
-    provenance/learning/notes/<YYYY-MM>/<slug>.md   (RFC 0003 P6; legacy: learnings/)
+    raw/learning/notes/<YYYY-MM>/<slug>.md   (content_root/learning; legacy: learnings/)
 
 This module is the single place that knows that layout. Every enumerator reads
 through `iter_accepted_files`, so the layout is defined once, not at a dozen call
@@ -23,14 +23,16 @@ def learning_root(vault: Path) -> Path:
     """Base of the learnings subtree — the ONE place that knows where it lives.
 
     RFC 0003 P6 relocates the tree from top-level `learnings/` to
-    `provenance/learning/` (finishing the §4 directory vision P1/GP1 left undone).
-    During the transition we resolve to whichever tree is on disk, so the vault
-    `git mv` (V1) flips every reader and writer atomically with no dangling — the
-    same dual-path discipline that kept GP1 safe.
+    `<content_root>/learning/` (finishing the §4 directory vision P1/GP1 left
+    undone). `content_root` is `raw/` today (RFC 0005 P2 flip; `provenance/`
+    survives only as a prefix_alias). During the transition we resolve to
+    whichever tree is on disk, so the vault `git mv` (V1) flips every reader and
+    writer atomically with no dangling — the same dual-path discipline that kept
+    GP1 safe.
 
-    Resolves to `provenance/learning/` when it exists on disk (the canonical home
-    after the P6 move), else falls back to the legacy top-level `learnings/`. The
-    fallback is kept as permanent backward-compat: a vault that predates the move,
+    Resolves to `<content_root>/learning/` when it exists on disk (the canonical
+    home after the P6 move), else falls back to the legacy top-level `learnings/`.
+    The fallback is kept as permanent backward-compat: a vault that predates the move,
     or a fixture that seeds `learnings/`, still resolves correctly. The gorae vault
     is migrated; this resolver is what made the `git mv` a non-event to every
     reader and writer."""

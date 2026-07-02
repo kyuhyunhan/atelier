@@ -392,7 +392,13 @@ def dream_status() -> Dict[str, Any]:
         pass
     finally:
         conn.close()
-    total = _count_accepted(vault)
+    # Read the accepted total from the DB projection (one indexed query, no
+    # markdown I/O); fall back to the filesystem scan on a cold/empty DB. Same
+    # predicate either way (`store.is_accepted_operational_claim`).
+    from . import projection_counts as _pc
+    total = _pc.accepted_operational()
+    if total is None:
+        total = _count_accepted(vault)
     baseline = int(baseline_raw) if (baseline_raw or "").isdigit() else 0
     return {
         "last_dream_at": last,

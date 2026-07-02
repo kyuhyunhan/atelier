@@ -69,6 +69,21 @@ def _source_ids(vault: Path) -> Set[str]:
     return out
 
 
+def _derived_ids(fm: Dict[str, Any]) -> Set[str]:
+    """The source ids a single Claim's `derived_from` points at (normalizing the
+    str-or-list shape). SINGLE definition, shared by the filesystem scan and the
+    DB-projection count so the two can't disagree."""
+    out: Set[str] = set()
+    df = fm.get("derived_from")
+    if isinstance(df, str):
+        df = [df]
+    if isinstance(df, list):
+        for sid in df:
+            if isinstance(sid, str) and sid:
+                out.add(sid)
+    return out
+
+
 def _atomized_source_ids(vault: Path) -> Set[str]:
     """Every source id that at least one Claim is `derived_from`."""
     out: Set[str] = set()
@@ -76,14 +91,24 @@ def _atomized_source_ids(vault: Path) -> Set[str]:
     for fm in _iter_fm(base):
         if fm.get("kind") != "claim":
             continue
-        df = fm.get("derived_from")
-        if isinstance(df, str):
-            df = [df]
-        if isinstance(df, list):
-            for sid in df:
-                if isinstance(sid, str) and sid:
-                    out.add(sid)
+        out |= _derived_ids(fm)
     return out
+
+
+def unatomized_from_nodes(source_fms: list, claim_fms: list) -> int:
+    """The un-atomized backlog computed from already-loaded frontmatter dicts
+    (the DB-projection path). Same set math as `unatomized_count`, factored out
+    so the filesystem scan and the projection share ONE definition."""
+    sources = {fm.get("entry_id") for fm in source_fms
+               if fm.get("kind") == "source"
+               and isinstance(fm.get("entry_id"), str) and fm.get("entry_id")}
+    if not sources:
+        return 0
+    atomized: Set[str] = set()
+    for fm in claim_fms:
+        if fm.get("kind") == "claim":
+            atomized |= _derived_ids(fm)
+    return len(sources - (atomized & sources))
 
 
 def unatomized_count(*, vault: Optional[Path] = None) -> int:
@@ -92,7 +117,15 @@ def unatomized_count(*, vault: Optional[Path] = None) -> int:
     = |sources| − |sources that ≥1 claim is derived_from|. Read-only,
     deterministic; the dangling-claim case (a claim derived_from a missing
     source) cannot lower the count because we intersect with the real source
-    set."""
+    set.
+
+    Reads the DB projection first (one indexed query, no markdown I/O); falls
+    back to the filesystem scan when the projection can't answer (cold/empty DB
+    or query error)."""
+    from . import projection_counts as _pc
+    projected = _pc.unatomized_sources()
+    if projected is not None:
+        return projected
     vault = vault if vault is not None else _vault_root()
     sources = _source_ids(vault)
     if not sources:

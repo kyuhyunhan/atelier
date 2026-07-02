@@ -504,6 +504,22 @@ def review_proposed(*, limit: int = 50) -> Dict[str, Any]:
     return {"count": len(items), "items": items, "vault": str(vault)}
 
 
+def proposed_count() -> int:
+    """Number of proposed principle claims (ac_status:pending) — the count-only
+    fast path for the dream nudge, so it need not build the full review listing.
+
+    Reads the DB projection first (one indexed query, no markdown I/O); falls
+    back to the filesystem scan on a cold/empty DB. Same predicate either way
+    (`_is_principle` + `_status_of == "proposed"`)."""
+    from . import projection_counts as _pc
+    projected = _pc.proposed_principles()
+    if projected is not None:
+        return projected
+    vault = _vault_root()
+    return sum(1 for _, fm, _ in _iter_principle_claims(vault)
+               if _status_of(fm) == "proposed")
+
+
 def approve(*, slug: str,
             priority: Optional[str] = None,
             coverage: Optional[str] = None) -> Dict[str, Any]:

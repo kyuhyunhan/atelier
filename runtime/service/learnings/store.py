@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from ...structure import resolver as _structure
 
@@ -76,6 +76,16 @@ def iter_accepted_files(vault: Path) -> Iterator[Path]:
     yield from _iter_accepted_claims(vault, seen)
 
 
+def is_accepted_operational_claim(fm: Dict[str, Any]) -> bool:
+    """The predicate for the accepted-learning pool: a v7 operational Claim that
+    passed the acceptance gate. SINGLE definition, shared by the filesystem scan
+    (`_iter_accepted_claims`) and the DB-projection count (`projection_counts`),
+    so the two can never disagree on what "accepted" means."""
+    return (fm.get("kind") == "claim"
+            and str(fm.get("domain") or "") == "operational"
+            and str(fm.get("ac_status") or "") == "passed")
+
+
 def _iter_accepted_claims(vault: Path, seen: set) -> Iterator[Path]:
     """Accepted operational claims (domain:operational, ac_status:passed).
 
@@ -97,9 +107,7 @@ def _iter_accepted_claims(vault: Path, seen: set) -> Iterator[Path]:
             continue
         if not isinstance(fm, dict):
             continue
-        if (fm.get("kind") == "claim"
-                and str(fm.get("domain") or "") == "operational"
-                and str(fm.get("ac_status") or "") == "passed"):
+        if is_accepted_operational_claim(fm):
             yield p
 
 

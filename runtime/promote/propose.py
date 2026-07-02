@@ -65,6 +65,12 @@ def eligible_count(limit: int = 50) -> int:
     nudge surface in `runtime/service/nudges.py`) get the salient count without
     reaching into a private function. `limit` caps the scan, matching
     `_eligible`/`propose_all` (a nudge only needs "≥1", not the exact tail)."""
+    # Read from the DB projection (one indexed query, no markdown I/O); fall
+    # back to the filesystem scan on a cold/empty DB. Same predicate either way.
+    from ..service.learnings import projection_counts as _pc
+    projected = _pc.promote_eligible(limit=limit)
+    if projected is not None:
+        return projected
     return len(_eligible(limit=limit))
 
 

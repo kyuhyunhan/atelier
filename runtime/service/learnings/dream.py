@@ -317,7 +317,7 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
     days = _days_between(last, now)
 
     try:
-        pending = _principles.review_proposed(limit=500).get("count", 0)
+        pending = _principles.proposed_count()
     except Exception:                       # pragma: no cover
         pending = 0
 

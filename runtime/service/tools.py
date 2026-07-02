@@ -687,8 +687,10 @@ async def _h_absorb_claude_memory(dry_run: bool = False,
                                    source_root: Optional[str] = None,
                                    auto_accept_kinds: Optional[List[str]] = None
                                    ) -> Dict[str, Any]:
-    """Walk ~/.claude/projects/*/memory/*.md and import into
-    learnings/{accepted,candidates}/. Dedup by content hash."""
+    """Walk ~/.claude/projects/*/memory/*.md and import each as a v7 claim in
+    graph/atomic/ (RFC 0005 §7.1 — accept/pending is the `ac_status` field, not
+    a directory). Dedup by body hash via the vault-root ledger
+    `.absorbed-from-claude.json`."""
     from pathlib import Path as _Path
     from .learnings import absorb_claude as _ac
     sr = _Path(source_root).expanduser() if source_root else None

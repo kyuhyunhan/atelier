@@ -132,6 +132,50 @@ def test_memory_md_index_is_skipped(atelier_env: Dict, tmp_path: Path) -> None:
     assert len(out["accepted"]) == 1     # MEMORY.md not absorbed
 
 
+def test_ledger_is_single_vault_root_json_file(atelier_env: Dict,
+                                                tmp_path: Path) -> None:
+    """The dedup ledger is ONE JSON file at the vault root (keyed by body sha),
+    not a directory of per-hash files, and not under a content lane."""
+    import json
+    src_root = tmp_path / "claude"
+    _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
+    vault = Path(_ac._vault_root())
+    _ac.absorb(dry_run=False, source_root=src_root)
+
+    ledger = vault / ".absorbed-from-claude.json"
+    assert ledger.is_file()                                   # single file …
+    assert not (vault / "raw" / "learning").exists()          # … no legacy dir
+    data = json.loads(ledger.read_text(encoding="utf-8"))
+    assert isinstance(data, dict) and len(data) == 1          # keyed by body sha
+    (_sha, rec), = data.items()
+    # the stale, unused `dest` field is dropped
+    assert set(rec) == {"source_path", "absorbed_at", "project", "type"}
+
+
+def test_dry_run_writes_no_ledger(atelier_env: Dict, tmp_path: Path) -> None:
+    src_root = tmp_path / "claude"
+    _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
+    vault = Path(_ac._vault_root())
+    _ac.absorb(dry_run=True, source_root=src_root)
+    assert not (vault / ".absorbed-from-claude.json").exists()
+
+
+def test_corrupt_ledger_is_tolerated(atelier_env: Dict, tmp_path: Path) -> None:
+    """A present-but-corrupt ledger must not crash absorb; it is treated as empty
+    (and warned — see _load_ledger), the memory is imported, and the ledger is
+    rewritten as a valid dict."""
+    import json
+    src_root = tmp_path / "claude"
+    _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
+    vault = Path(_ac._vault_root())
+    (vault / ".absorbed-from-claude.json").write_text("{ not json",
+                                                       encoding="utf-8")
+    out = _ac.absorb(dry_run=False, source_root=src_root)
+    assert len(out["accepted"]) == 1                          # tolerated, imported
+    data = json.loads((vault / ".absorbed-from-claude.json").read_text())
+    assert isinstance(data, dict) and len(data) == 1          # rewritten valid
+
+
 def test_mcp_dispatch_absorb_claude_memory(atelier_env: Dict, tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")

@@ -20,11 +20,13 @@ There is no candidate FILE step; the lifecycle is the `ac_status` field:
     type ∈ {user, project}       → ac_status `pending` (still worth a human
                                     review before promoting).
 
-Deduplication is by sha256(body) recorded in
-`<vault>/provenance/learning/.absorbed-from-claude/<hash>.json`. Re-runs are no-ops
-for hashes already seen; a file whose body changes upstream becomes a
-new hash and lands as a fresh entry — the curator decides whether the
-old one is now stale.
+Deduplication is by sha256(body) recorded in a single vault-level ledger
+`<vault>/.absorbed-from-claude.json` (a JSON object keyed by body hash). It is
+git-tracked so dedup is consistent across machines, but lives at the vault root
+— NOT inside a content lane (`raw/`/`graph/`) — because it is engine ingestion
+metadata, not a node the crawler should index. Re-runs are no-ops for hashes
+already seen; a memory whose body changes upstream becomes a new hash and lands
+as a fresh entry — the curator decides whether the old one is now stale.
 
 INVARIANT (CLAUDE.md hard rule #7): this is a *copy*, never a move.
 Claude Code's memory under ~/.claude/projects/*/memory/** is the source
@@ -46,12 +48,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ...index import parse as _parse
 from ...util import config as _config
+from ...util import logging as _log
 from . import claims_io as _claims
-from . import store as _store
 
 
 _CLAUDE_PROJECTS = Path.home() / ".claude" / "projects"
-_DEDUP_DIRNAME = ".absorbed-from-claude"
+_LEDGER_FILENAME = ".absorbed-from-claude.json"
 
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
 
@@ -149,24 +151,51 @@ def _iter_memories(source_root: Path) -> Iterable[Path]:
             yield p
 
 
-def _dedup_dir(vault: Path) -> Path:
-    return _store.learning_root(vault) / _DEDUP_DIRNAME
+def _ledger_path(vault: Path) -> Path:
+    """The single vault-level dedup ledger (git-tracked, NOT a content lane —
+    see module docstring). A JSON object keyed by body sha256."""
+    return vault / _LEDGER_FILENAME
 
 
-def _already_absorbed(vault: Path, body_sha: str) -> bool:
-    return (_dedup_dir(vault) / f"{body_sha}.json").exists()
+def _load_ledger(vault: Path) -> Dict[str, Any]:
+    """The dedup ledger as a dict; empty on an absent file (the normal cold
+    start). A ledger that EXISTS but is unreadable/non-dict is treated as empty
+    too so a manual absorb never crashes — but that is WARNED, not swallowed:
+    proceeding blind would re-import every memory as a duplicate and then
+    overwrite the (git-tracked) ledger with only the new entries. The warning
+    tells the operator to restore it from git instead of re-running."""
+    p = _ledger_path(vault)
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as exc:
+        _log.warn("absorb.ledger-unreadable", path=str(p), error=repr(exc),
+                  hint="restore from git; re-running absorb would re-import "
+                       "duplicates and overwrite the ledger")
+        return {}
+    if not isinstance(data, dict):
+        _log.warn("absorb.ledger-not-dict", path=str(p),
+                  hint="restore from git; re-running absorb would re-import "
+                       "duplicates and overwrite the ledger")
+        return {}
+    return data
 
 
-def _record_dedup(vault: Path, mem: ClaudeMemory, dest: Path) -> None:
-    d = _dedup_dir(vault)
-    d.mkdir(parents=True, exist_ok=True)
-    (d / f"{mem.body_sha}.json").write_text(json.dumps({
+def _save_ledger(vault: Path, ledger: Dict[str, Any]) -> None:
+    _ledger_path(vault).write_text(
+        json.dumps(ledger, indent=2, sort_keys=True, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _ledger_entry(mem: ClaudeMemory) -> Dict[str, Any]:
+    return {
         "source_path": str(mem.src),
         "absorbed_at": _now_iso(),
-        "dest": str(dest),
         "project": mem.project,
         "type": mem.type,
-    }, indent=2))
+    }
 
 
 _AUTO_ACCEPT = {"feedback", "reference"}
@@ -192,6 +221,11 @@ def absorb(*, dry_run: bool = False,
     vault = _vault_root()
     accept_kinds = set(auto_accept_kinds or _AUTO_ACCEPT)
 
+    # One read of the dedup ledger up front; mutate in memory, persist once at
+    # the end (absorb is manual + single-writer, so read-modify-write is safe).
+    ledger = _load_ledger(vault)
+    ledger_dirty = False
+
     absorbed_accepted: List[Dict[str, str]] = []
     absorbed_candidates: List[Dict[str, str]] = []
     deduped: List[str] = []
@@ -206,7 +240,7 @@ def absorb(*, dry_run: bool = False,
         if mem is None:                 # pragma: no cover
             continue
 
-        if _already_absorbed(vault, mem.body_sha):
+        if mem.body_sha in ledger:
             deduped.append(str(mem.src))
             continue
 
@@ -249,11 +283,15 @@ def absorb(*, dry_run: bool = False,
                 vault=vault,
             )
             dest_repr = claim["path"]
-            _record_dedup(vault, mem, Path(claim["path"]))
+            ledger[mem.body_sha] = _ledger_entry(mem)
+            ledger_dirty = True
 
         record = {"src": str(mem.src), "path": str(dest_repr),
                   "type": mem.type, "project": mem.project}
         (absorbed_accepted if is_accepted else absorbed_candidates).append(record)
+
+    if not dry_run and ledger_dirty:
+        _save_ledger(vault, ledger)
 
     return {
         "vault": str(vault),

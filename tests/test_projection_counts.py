@@ -80,3 +80,22 @@ def test_cold_db_returns_none_and_caller_falls_back(atelier_env: Dict) -> None:
     assert _pc.accepted_operational() is None          # projection abstains
     # dream_status still returns the correct total via the filesystem fallback.
     assert _cl.dream_status()["accepted_total"] == 2
+
+
+def test_legacy_notes_present_abstains_and_stays_correct(atelier_env: Dict) -> None:
+    # A legacy RFC 0001 flat note (accepted-pool member the projection query
+    # can't represent) sits next to a v7 claim. The accepted count must NOT
+    # silently drop the note: the projection abstains and the filesystem
+    # fallback — which unions notes/ with graph/atomic — answers.
+    note = (atelier_env["gorae"] / "raw" / "learning" / "notes"
+            / "2026-05" / "legacy.md")
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text("---\ntitle: a legacy accepted note\n---\n\nbody\n",
+                    encoding="utf-8")
+    _capture_accept("a")
+    _reindex()
+    vault = _cl._vault_root()
+    # The note projects as page_type='learning_accepted' → accepted count abstains.
+    assert _pc.accepted_operational() is None
+    # dream_status (projection-first) still equals the filesystem union.
+    assert _cl.dream_status()["accepted_total"] == _cl._count_accepted(vault)

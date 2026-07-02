@@ -48,6 +48,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ...index import parse as _parse
 from ...util import config as _config
+from ...util import logging as _log
 from . import claims_io as _claims
 
 
@@ -157,16 +158,28 @@ def _ledger_path(vault: Path) -> Path:
 
 
 def _load_ledger(vault: Path) -> Dict[str, Any]:
-    """The dedup ledger as a dict; empty on an absent/unreadable file (tolerant
-    — a corrupt ledger must not crash a manual absorb)."""
+    """The dedup ledger as a dict; empty on an absent file (the normal cold
+    start). A ledger that EXISTS but is unreadable/non-dict is treated as empty
+    too so a manual absorb never crashes — but that is WARNED, not swallowed:
+    proceeding blind would re-import every memory as a duplicate and then
+    overwrite the (git-tracked) ledger with only the new entries. The warning
+    tells the operator to restore it from git instead of re-running."""
     p = _ledger_path(vault)
     if not p.exists():
         return {}
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-    except Exception:                       # pragma: no cover - tolerant
+    except Exception as exc:
+        _log.warn("absorb.ledger-unreadable", path=str(p), error=repr(exc),
+                  hint="restore from git; re-running absorb would re-import "
+                       "duplicates and overwrite the ledger")
         return {}
-    return data if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        _log.warn("absorb.ledger-not-dict", path=str(p),
+                  hint="restore from git; re-running absorb would re-import "
+                       "duplicates and overwrite the ledger")
+        return {}
+    return data
 
 
 def _save_ledger(vault: Path, ledger: Dict[str, Any]) -> None:

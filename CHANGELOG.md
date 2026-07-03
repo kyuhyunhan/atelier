@@ -4,6 +4,20 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — memory north-star RFC (RFC 0006 P0.1)
+
+- **`docs/rfc/0006-memory-north-star.md`** — the umbrella RFC for the memory
+  system's next arc. Records the 7-issue inventory (change feed, retrieval
+  misses, no forgetting, no consumer scoping, accreted topology, coarse cache,
+  multi-machine), the settled decisions (one vault; lenses over walls;
+  single-machine), four pillars (Grounded / Fresh / Scoped / Curated), a
+  rubric framework (global invariants INV-1..4 + per-pillar goal→metric→gate
+  reusing `eval.py`/`surfacing.py`), a **two-snapshot** safety+baseline
+  mechanism, and a **rubric-gated workflow harness** where an independent agent
+  verifies each pillar against a frozen baseline. Doc-only; no behavior change.
+  Foundation tooling (baseline generator, `atelier snapshot`, verifier) follows
+  in P0.2/P0.3.
+
 ### Fixed — statusline no longer melts the CPU
 
 - **The statusline stopped calling `atelier dream --status` on every render.**

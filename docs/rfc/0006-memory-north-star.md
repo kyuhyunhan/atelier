@@ -52,11 +52,13 @@ The complete issue inventory, mapped to the pillar and phase that addresses each
 | 7 | Multi-machine divergence | **non-goal** | single-machine assumption (see §9) |
 
 **On #2 — an honest correction.** Hybrid retrieval (semantic + lexical, RRF-fused)
-**already landed** under RFC 0002 P3/P4 (`engine='hybrid'`). The residual "misses"
-risk is not a missing feature but an **operational** one: under `ATELIER_EMBED=off`
-the engine silently degrades to `lexical-rrf`. The foundation baseline (§5) records
-the *live* engine label, turning "are embeddings on in production?" from an
-assumption into a measured fact.
+**already landed** under RFC 0002 P3 (`engine='hybrid'`), extended by RFC 0003 P4
+(the relational nudge — note `0002-baseline.json`'s key is `p4_relational_rfc0003`,
+so P4 is RFC 0003 work, not 0002). The residual "misses" risk is not a missing
+feature but an **operational** one: under `ATELIER_EMBED=off` the engine silently
+degrades to `lexical-rrf`. The foundation baseline (§5) records the *live* engine
+label, turning "are embeddings on in production?" from an assumption into a
+measured fact.
 
 ## 3. Target model — one graph, scoped lenses
 
@@ -105,9 +107,9 @@ existing tooling wherever possible), and a **gate** an independent verifier chec
 
 | Pillar | Goal | Metric (tool) | Gate |
 |---|---|---|---|
-| ① Grounded | vault self-describes; ONE lens vocabulary | manifest validates against schema; every `domain` value maps to exactly one lens; count of hardcoded lens lists in code | 0 hardcoded lens lists; resolver reads the lens map from `schema/data/` |
+| ① Grounded | vault self-describes; ONE lens vocabulary | manifest validates against schema; every `(kind, domain)` pair maps to exactly one lens; count of hardcoded lens lists in code | 0 hardcoded lens lists; resolver reads the lens map from `schema/data/` |
 | ② Fresh | projection reflects a write without a manual reindex | staleness window (write→queryable); files reprocessed per engine write; **incremental-vs-full DB parity** (`reindex --full` DB == incremental DB) | read reflects any engine write with 0 manual reindex; parity test green; routing fields (`kind/domain/ac_status/surfacing`) are indexed columns |
-| ③ Scoped | dev lens excludes personal; full lens still joins | dev-lens recall returns **0 `personal`-domain nodes**; `R@k(operational) ≥ frozen baseline` (`eval.py`); a cross-domain "no-wall" probe still returns a join | all three hold simultaneously |
+| ③ Scoped | dev lens excludes personal; full lens still joins | dev-lens recall returns **0 `personal`-domain source/entity nodes**; operational R@k ≥ frozen baseline (`eval.py`'s existing `self_probe`/`concept_grouped` blocks already run over accepted operational claims — that *is* the operational R@k); a cross-domain "no-wall" probe still returns a join | all three hold simultaneously |
 | ④a Forgetting | pool consolidates without omission | near-duplicate cluster count trend; `eval.gate` clean after any merge/retire | every merge/retire is human-gated **and** snapshot-diffed; `newly_dark == []` |
 | ④b Hybrid (RFC 0002, landed) | semantic recall ≥ lexical | `paraphrase_block` R@k + MRR with `engine=hybrid` | never below the frozen lexical baseline on any probe set (regression guard only — feature already shipped) |
 
@@ -123,10 +125,34 @@ yields a snapshot bad at both.
   is *state*, not methodology.
 
 - **Verification baseline — a comparison artifact, never restored.**
-  `eval.run()` + a `surfacing.snapshot()` summary + a node **census** (counts by
-  `domain/kind/ac_status/surfacing`), frozen as `docs/rfc/0006-baseline.json`
-  (mirrors `0002-baseline.json`). Committed and git-visible. The independent
-  verifier re-runs the after-state and diffs against it.
+  `eval.run()` + a `surfacing.snapshot()` **aggregate** (`total`/`visible`/
+  `dark_count` — not the full per-entry map, which is noisy and non-diffable) + a
+  node **census**, frozen as `docs/rfc/0006-baseline.json` (mirrors
+  `0002-baseline.json`). Committed and git-visible. The verifier re-runs the
+  after-state and diffs against it.
+
+  The census is **partitioned by `kind`**, not flat, because the routing fields
+  are class-specific: `ac_status`/`surfacing` exist only on claims
+  (`graph.overlay.yaml:120,131`); `domain` is an enum on sources/entities but a
+  free string on claims. A flat "counts by `domain/kind/ac_status/surfacing`"
+  would produce mostly-null buckets and make the §11.1 parity assertion
+  ill-defined. Skeleton:
+
+  ```json
+  {
+    "_about": "RFC 0006 P0 foundation baseline (read-only).",
+    "captured_date": "YYYY-MM-DD",
+    "engine": "hybrid | lexical-rrf",   // the LIVE label — records embeddings on/off
+    "eval": { "...": "verbatim eval.run() output" },
+    "surfacing": { "total": 0, "visible": 0, "dark_count": 0 },
+    "census": {
+      "claim":  { "domain": {"operational": 0}, "ac_status": {"passed": 0, "pending": 0},
+                  "surfacing": {"query": 0, "proactive": 0, "always": 0} },
+      "source": { "domain": {"personal": 0, "knowledge": 0, "inbox": 0, "workshop": 0} },
+      "entity": { "in_scheme": {"personal": 0, "knowledge": 0, "inbox": 0, "workshop": 0} }
+    }
+  }
+  ```
 
 ## 6. The workflow harness — independent verification
 
@@ -149,11 +175,15 @@ newer than the tag (guards against regenerating the "before" *after* the change)
 ## 7. The pillars (scope sketch — each ships under its own phase/RFC)
 
 - **① Grounded.** New `.atelier-vault.yaml` manifest (structure version, vault id,
-  declared lens→domain map). Define the **lens vocabulary** in `schema/data/`,
-  reconciling today's split: `domain` is an enforced enum
-  `{personal,knowledge,inbox,workshop}` on sources/entities but a free-string
-  `operational` on claims (`graph.overlay.yaml:42,87,122`). The lens map must cover
-  both without breaking `recall.py:192`'s `domain == "operational"` predicate.
+  declared lens map). Define the **lens vocabulary** in `schema/data/`, reconciling
+  today's split: `domain` is an enforced enum `{personal,knowledge,inbox,workshop}`
+  on sources (`graph.overlay.yaml:42`) and entities (`in_scheme`, `:89`) but a
+  free-string `operational` on claims (`:122`). Because the value spaces are
+  disjoint across node classes, **the lens map keys on `(kind, domain)`, not
+  `domain` alone** — e.g. the dev lens selects `(claim, operational)` **and**
+  `(source, knowledge)`, two different domain values on two classes. The map must
+  cover both without breaking `recall.py:192`'s `domain == "operational"` predicate
+  (a compat shim ships before ③ filters on it).
 - **② Fresh.** Add a `reindex_path`/`reindex_file` entry reusing `reindex_space`'s
   upsert pass; call it write-through from the engine write paths; wire the autosync
   poller (`vault_autosync.py`) as the backstop for human edits. Promote
@@ -162,7 +192,9 @@ newer than the tag (guards against regenerating the "before" *after* the change)
   per-space — a real design point, not a free lunch).
 - **③ Scoped.** Add an audience/lens parameter to the recall/search MCP surface;
   default the Claude Code tools to the dev lens; keep a full lens for cross-domain
-  work. Filter on the indexed `domain` column from ②.
+  work. Filter using the `(kind, domain)` lens map from ① against the indexed
+  `kind` + `domain` columns from ② — a join over both classes, not a single-column
+  `domain` filter (the split in ① makes a one-column filter incorrect).
 - **④ Curated.** ④a: graduate `lateral.py` merge-flagging to a gated, snapshot-diffed
   apply; add a demotion/forget signal (e.g. a learning dark N audits running gets
   teed up for archive). ④b: hybrid is live — this pillar only guards against
@@ -239,7 +271,9 @@ Foundation (P0) is accepted when:
    temp vault; cold-DB fallback returns identical numbers (mirrors
    `tests/test_projection_counts.py`).
 2. **Baseline reproducibility** — regenerating `0006-baseline.json` on an unchanged
-   vault yields identical metrics (deterministic, like `0002-baseline.json`).
+   vault yields identical metrics, **at a fixed embedding env** (the `engine` label
+   and paraphrase scores depend on `ATELIER_EMBED`; the guarantee holds per-engine,
+   as `0002-baseline.json` assumes live embeddings for its paraphrase block).
 3. **Verifier no-op PASS** — `verify_against(baseline, <any rubric>)` on the
    unchanged vault returns PASS: `newly_dark == []`, every INV green, no metric
    below baseline.

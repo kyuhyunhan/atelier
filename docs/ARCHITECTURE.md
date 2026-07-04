@@ -11,6 +11,12 @@ atelier is a **methodology layer for a sovereign personal memory system**:
 public-distributable code that operates on private, user-owned content
 repositories via a derived local index.
 
+> **Roadmap (proposed, not yet live):** `docs/rfc/0006-memory-north-star.md`
+> sets the next arc — a truth→projection change feed (always-fresh reads),
+> consumer-scoped **lenses** at the MCP boundary (one graph, no storage wall),
+> and rubric-gated, snapshot-verified delivery. This section describes the
+> *current* live state; 0006's pillars back-annotate here as they ship.
+
 ---
 
 ## Three Layers

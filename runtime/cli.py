@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 from typing import List, Optional
 
 from .service import api
@@ -300,6 +301,53 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return server.run()
 
 
+def _cmd_snapshot(args: argparse.Namespace) -> int:
+    """Data-safety rollback point (RFC 0006 §5): tag the vault + tar the
+    ~/.atelier durables. `create` is additive; `restore` is guarded (refuses a
+    dirty vault tree without --force)."""
+    from .service import snapshot as _snap
+    if args.action == "create":
+        m = _snap.create()
+        print(f"snapshot {m['ts']}  tag={m['tag'] or '(no git)'}  "
+              f"durables={len(m['durables'])}")
+        print(f"  restore: {m['restore_hint']}")
+        return 0
+    if args.action == "list":
+        rows = _snap.list_snapshots()
+        if not rows:
+            print("(no snapshots)")
+            return 0
+        for m in rows:
+            print(f"  {m['ts']}  tag={m['tag'] or '-'}  "
+                  f"sha={(m.get('vault_sha') or '-')[:9]}  "
+                  f"durables={len(m['durables'])}")
+        return 0
+    if args.action == "restore":
+        if not args.id:
+            log.error("snapshot restore needs an --id (see `atelier snapshot list`)")
+            return 1
+        out = _snap.restore(args.id, force=args.force)
+        print(f"restored {out['ts']}  vault={out['vault_restored']}  "
+              f"durables={len(out['durables_restored'])}")
+        return 0
+    return 0
+
+
+def _cmd_baseline(args: argparse.Namespace) -> int:
+    """Generate the RFC 0006 verification baseline (eval + surfacing aggregate +
+    census). Writes to --out, or prints to stdout. Regenerating an unchanged
+    vault at a fixed embedding env is byte-identical."""
+    from .service.learnings import baseline as _bl
+    import json as _json
+    if args.out:
+        bl = _bl.write(Path(args.out), k=args.k)
+        print(f"baseline written: {args.out}  engine={bl.get('engine')}")
+    else:
+        bl = _bl.generate(k=args.k)
+        print(_json.dumps(bl, indent=2, sort_keys=True, ensure_ascii=False))
+    return 0
+
+
 def _cmd_promote(args: argparse.Namespace) -> int:
     if args.action == "propose":
         out = api.promote_propose()
@@ -407,6 +455,20 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("action", choices=["propose", "apply"])
     s.add_argument("--proposal", help="path to a proposal file (for apply)")
     s.set_defaults(func=_cmd_promote)
+
+    s = sub.add_parser("snapshot",
+                       help="data-safety rollback point (RFC 0006): tag vault + tar durables")
+    s.add_argument("action", choices=["create", "list", "restore"])
+    s.add_argument("--id", help="snapshot id/ts (for restore)")
+    s.add_argument("--force", action="store_true",
+                   help="restore even if the vault tree is dirty (discards changes)")
+    s.set_defaults(func=_cmd_snapshot)
+
+    s = sub.add_parser("baseline",
+                       help="generate the RFC 0006 verification baseline (eval + surfacing + census)")
+    s.add_argument("--k", type=int, default=5, help="cutoff k for P@k/R@k (default 5)")
+    s.add_argument("--out", help="write baseline JSON here (default: stdout)")
+    s.set_defaults(func=_cmd_baseline)
 
     return p
 

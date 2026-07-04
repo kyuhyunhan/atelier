@@ -28,19 +28,43 @@ def test_reindex_path_matches_full_reindex(atelier_env: Dict) -> None:
     _api.reindex(space="gorae", full=True)
     from runtime.util import fs as _fs
     slug = _fs.slug_for(vault, claim)
+
+    def _snapshot(conn):
+        page = _db.fetchone(conn, "SELECT page_type, frontmatter FROM pages WHERE slug=?", slug)
+        chunks = [(r["position"], r["text"]) for r in conn.execute(
+            "SELECT c.position, c.text FROM chunks c JOIN pages p ON p.id=c.page_id "
+            "WHERE p.slug=? ORDER BY c.position", (slug,))]
+        return page, chunks
+
     conn = _db.connect()
-    full_row = _db.fetchone(conn, "SELECT page_type, frontmatter FROM pages WHERE slug=?", slug)
-    # Wipe the page, then reindex ONLY that file.
+    full_page, full_chunks = _snapshot(conn)
+    # Wipe the page (chunks cascade), then reindex ONLY that file.
     conn.execute("DELETE FROM pages WHERE slug=?", (slug,)); conn.commit(); conn.close()
 
     _reindex.reindex_path(cfg, claim)
 
     conn = _db.connect()
-    path_row = _db.fetchone(conn, "SELECT page_type, frontmatter FROM pages WHERE slug=?", slug)
+    path_page, path_chunks = _snapshot(conn)
     conn.close()
-    assert path_row is not None
-    assert path_row["page_type"] == full_row["page_type"]
-    assert json.loads(path_row["frontmatter"]) == json.loads(full_row["frontmatter"])
+    assert path_page is not None
+    assert path_page["page_type"] == full_page["page_type"]
+    assert json.loads(path_page["frontmatter"]) == json.loads(full_page["frontmatter"])
+    assert path_chunks == full_chunks            # chunks parity, not just the page row
+
+
+def test_reindex_path_ignores_non_indexable_file(atelier_env: Dict) -> None:
+    # A non-indexable file (wrong suffix) must NOT get a pages row — else the next
+    # full reindex would prune it (incremental != full). reindex_path no-ops it.
+    vault = Path(_cl._vault_root())
+    junk = vault / "raw" / "notes.txt"
+    junk.parent.mkdir(parents=True, exist_ok=True)
+    junk.write_text("not indexable\n")
+    cfg = _config.load()
+    _reindex.reindex_path(cfg, junk)
+    conn = _db.connect()
+    row = _db.fetchone(conn, "SELECT count(*) c FROM pages WHERE slug LIKE '%notes.txt'")
+    conn.close()
+    assert row["c"] == 0
 
 
 def test_reindex_path_is_the_change_feed(atelier_env: Dict) -> None:

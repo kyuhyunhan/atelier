@@ -128,6 +128,13 @@ def reindex_path(cfg: config.Config, path: Path,
     conn = db.connect()
     stats = ReindexStats(space=space_name)
     try:
+        # No-op for a path the full walk would never index (wrong suffix,
+        # skip/hidden dir, secrets/, *.local.*). Without this a phantom page gets
+        # a row that the next full reindex's crawl-prune deletes → incremental !=
+        # full. Single-sourced with walk_indexable via fs.is_indexable.
+        if path.exists() and not fs.is_indexable(root, path):
+            log.info("reindex.path.skip_non_indexable", path=str(path))
+            return stats
         with conn:
             slug = fs.slug_for(root, path)
             if not path.exists():

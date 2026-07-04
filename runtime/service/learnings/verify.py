@@ -129,13 +129,25 @@ def _check_dev_lens_no_personal(before: Dict, after: Dict) -> Tuple[bool, str]:
     check passes vacuously (nothing leaked) — this is a regression tripwire for
     the recall→lens wiring, not the primary proof."""
     from . import recall_v7 as _rv
-    q = "session error data file project api rule change test"
-    hits = _rv.rank_claims(q, None, tier="query", top_k=100, lens="dev")
-    leaked = [h for h in hits
-              if str((h.get("fm") or {}).get("domain") or "") == "personal"]
-    if leaked:
-        return False, f"{len(leaked)} personal claim(s) leaked into the dev lens"
-    return True, f"dev lens clean over {len(hits)} recalled claim(s)"
+    q = "session error data file project api rule change test note day"
+
+    def _personal(hits):
+        return [h for h in hits
+                if str((h.get("fm") or {}).get("domain") or "") == "personal"]
+
+    dev = _rv.rank_claims(q, None, tier="query", top_k=100, lens="dev")
+    full = _rv.rank_claims(q, None, tier="query", top_k=100, lens="full")
+    dev_personal = _personal(dev)
+    full_personal = _personal(full)
+    if dev_personal:
+        return False, f"{len(dev_personal)} personal claim(s) leaked into the dev lens"
+    # Non-vacuous when the corpus actually has personal claims for this query:
+    # full must surface some that dev dropped. If none exist, pass but say so.
+    if full_personal:
+        return True, (f"dev excluded {len(full_personal)} personal claim(s) that "
+                      f"full surfaced (dev {len(dev)} vs full {len(full)})")
+    return True, (f"dev lens clean over {len(dev)} claim(s); no personal in the "
+                  f"probe corpus (gate vacuous — unit tests are the guarantee)")
 
 
 # ── rubric registry ─────────────────────────────────────────────────────────

@@ -520,6 +520,9 @@ async def _h_recall(query: str,
     filter is applied to the v7 claim path where personal claims can appear."""
     from .learnings import recall as _rc
     from .learnings import recall_v7 as _rv
+    from ..structure import lenses as _lenses
+    if lens not in _lenses.lens_names():
+        raise ValueError(f"unknown lens {lens!r}; valid: {sorted(_lenses.lens_names())}")
     sess = current_session()
     if project is None and sess.working_dir:
         # Route through the shared accessor so recall's project key matches
@@ -952,7 +955,10 @@ def _register_v01_tools() -> None:
         "gate(surfacing) × domain_prior(context) × vector_relevance × "
         "sensitivity_gate. private claims are never pushed proactively (T1/T0), "
         "reachable only by explicit on-query (T2); T0 is hard-capped. Legacy "
-        "learning recall (hybrid BM25 + vectors, project boost) runs alongside.",
+        "learning recall (hybrid BM25 + vectors, project boost) runs alongside. "
+        "`lens` scopes CLAIM results (RFC 0006 ③): 'dev' (default) = operational + "
+        "knowledge, personal excluded; 'life' = personal + knowledge; 'full' = "
+        "everything (cross-domain, no wall).",
         _h_recall,
     ))
     # NOTE: this description paraphrases think.SYNTHESIS_CONTRACT for the caller's

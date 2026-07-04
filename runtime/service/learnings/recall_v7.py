@@ -160,7 +160,13 @@ def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
     hard count cap (`T0_CAP`) AFTER ranking, so the most relevant `always` claims
     fill the small budget."""
     vault = vault if vault is not None else _recall._vault_root()
-    hits = _recall._resolve_hits(query, _CLAIM_TYPES, limit=max(top_k * 4, T0_CAP * 4))
+    # Over-fetch: normally top_k*4, but when a lens will filter the pool, fetch
+    # far more so the admitted set (post-filter) can still fill top_k. Personal
+    # is ~80% of claims, so a dev lens can drop most candidates — a 4× pool would
+    # starve operational/knowledge results that sit deeper in the ranking.
+    fetch_mult = 24 if lens is not None else 4
+    hits = _recall._resolve_hits(query, _CLAIM_TYPES,
+                                 limit=max(top_k * fetch_mult, T0_CAP * 4))
     if not hits:
         hits = _fs_scan_claims(query, vault, limit=max(top_k * 4, T0_CAP * 4))
 

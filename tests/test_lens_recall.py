@@ -41,6 +41,13 @@ def test_lens_admits_fm_dispatch() -> None:
     # entity via in_scheme list (all-match)
     assert _lenses.lens_admits_fm("dev", {"kind": "entity", "in_scheme": ["knowledge"]})
     assert not _lenses.lens_admits_fm("dev", {"kind": "entity", "in_scheme": ["knowledge", "personal"]})
+    # entity in_scheme as a SCALAR (coerced) and MISSING (empty → only full)
+    assert _lenses.lens_admits_fm("dev", {"kind": "entity", "in_scheme": "knowledge"})
+    assert not _lenses.lens_admits_fm("dev", {"kind": "entity", "in_scheme": "personal"})
+    assert not _lenses.lens_admits_fm("dev", {"kind": "entity"})          # missing → not dev
+    assert _lenses.lens_admits_fm("full", {"kind": "entity"})             # … but full admits
+    # claim with MISSING domain is fail-closed under dev (leak-proof)
+    assert not _lenses.lens_admits_fm("dev", {"kind": "claim"})
     # unknown kind fails open
     assert _lenses.lens_admits_fm("dev", {"kind": "mystery"})
 

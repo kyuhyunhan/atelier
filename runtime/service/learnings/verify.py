@@ -90,6 +90,37 @@ def _check_engine_unchanged(before: Dict, after: Dict) -> Tuple[bool, str]:
     return True, f"engine unchanged ({be})"
 
 
+# ── Pillar ① (Grounded) checks — vocabulary/manifest, not baseline-diff ──────
+
+# Plausible (kind, domain) pairs the lens vocabulary must cover. Static (drawn
+# from the schema enums + the claim-level `operational` convention) so the gate
+# is a property of the vocabulary, not of the live census — it never entangles
+# the frozen baseline. Impossible pairs (e.g. source/operational) are harmless:
+# `full` covers them and the personal-leak check only inspects personal pairs.
+_LENS_KINDS = ("claim", "source", "entity")
+_LENS_DOMAINS = ("personal", "knowledge", "inbox", "workshop", "operational")
+
+
+def _check_lens_coverage(before: Dict, after: Dict) -> Tuple[bool, str]:
+    """Pillar ① gate: the lens vocabulary covers every plausible (kind, domain)
+    and the dev lens excludes personal (the whole point of scoping)."""
+    from ...structure import lenses as _lenses
+    pairs = [(k, d) for k in _LENS_KINDS for d in _LENS_DOMAINS]
+    v = _lenses.validate_coverage(pairs)
+    if not v["ok"]:
+        return False, (f"uncovered={v['uncovered']} "
+                       f"dev_personal_leaks={v['dev_personal_leaks']}")
+    return True, "lens vocabulary covers all pairs; dev excludes personal"
+
+
+def _check_manifest(before: Dict, after: Dict) -> Tuple[bool, str]:
+    """Pillar ① gate: the vault self-describes (a valid `.atelier-vault.yaml`)."""
+    from ...structure import manifest as _manifest
+    from . import cluster as _cl
+    v = _manifest.validate(Path(_cl._vault_root()))
+    return v["ok"], v["detail"]
+
+
 # ── rubric registry ─────────────────────────────────────────────────────────
 # Each entry: gate checks (a fail → overall FAIL) + warn checks (advisory only).
 # Global invariants apply to every rubric; a pillar rubric appends its own gate.
@@ -109,7 +140,13 @@ _WARNS: List[Tuple[str, Callable[[Dict, Dict], Tuple[bool, str]]]] = [
 _RUBRICS: Dict[str, Dict[str, Any]] = {
     "P0": {"description": "Foundation: no regression vs the frozen baseline.",
            "gates": [], "warns": []},
-    # Pillar rubrics extend the invariants with their §4.2 gate as it is built,
+    "P1_grounded": {
+        "description": "Pillar ①: lens vocabulary covers all pairs (dev excludes "
+                       "personal) + vault self-describes, and no regression.",
+        "gates": [("lens_coverage", _check_lens_coverage),
+                  ("manifest", _check_manifest)],
+        "warns": []},
+    # Later pillars extend the invariants with their §4.2 gate as built,
     # e.g. "P3_scoped": {"gates": [("dev_lens_no_personal", ...)]}.
 }
 

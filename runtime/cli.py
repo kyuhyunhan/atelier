@@ -26,6 +26,15 @@ def _cmd_setup(args: argparse.Namespace) -> int:
     for name, sp in cfg.spaces.items():
         marker = "✓" if sp.local.exists() else "✗ (missing)"
         print(f"  space: {name:10}  local={sp.local}  {marker}")
+
+    # Ground the vault: ensure it self-describes (RFC 0006 ①). Idempotent.
+    from .structure import manifest as _manifest
+    vault = cfg.vault.local if getattr(cfg, "vault", None) is not None \
+        else cfg.space_by_role("librarian-territory").local
+    if vault.exists():
+        m = _manifest.ensure(vault)
+        print(f"  manifest: {vault / _manifest.MANIFEST_FILENAME}  "
+              f"(structure_version={m['structure_version']})")
     return 0
 
 

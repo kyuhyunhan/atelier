@@ -4,6 +4,21 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — Pillar ① Grounded: lens vocabulary + vault manifest (RFC 0006 P1)
+
+- `schema/data/lenses.yaml` — the serving-lens vocabulary (data, not code),
+  keyed on `(kind, domain)`: `dev` (operational + knowledge, **personal
+  excluded**), `life` (personal + knowledge), `full` (everything; the no-wall
+  lens). Read via `runtime/structure/lenses.py` (`matches`, `validate_coverage`).
+  Grounds Pillar ③'s scoping: personal is ~80% of claims (3433/4262), so the dev
+  lens is the lever that removes coding-session noise.
+- `runtime/structure/manifest.py` — `.atelier-vault.yaml` (structure_version +
+  stable vault_id); `atelier setup` now grounds the vault idempotently, ending
+  the "infer the era from which dirs exist" archaeology.
+- `verify.py` gains the `P1_grounded` rubric (lens-coverage + manifest gates on
+  top of the invariants). Verified on the live vault: all gates green, no
+  regression.
+
 ### Added — independent verifier + workflow template (RFC 0006 P0.3)
 
 - `verify.py` (`verify_against`) recomputes the after-state and scores it against

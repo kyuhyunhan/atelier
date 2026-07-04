@@ -1,0 +1,44 @@
+# Serving lenses — RFC 0006 §7① (Pillar ① Grounded).
+#
+# A lens is a QUERY-TIME default filter over the one graph, NOT a storage
+# boundary. "One vault, lenses over walls": cross-domain joins stay possible
+# (the `full` lens), while a coding session defaults to `dev` and stops paying
+# the personal-content noise tax (personal is ~80% of claims — RFC 0006 §7).
+#
+# Hard rule #3: this is DATA, single-sourced here and read via
+# runtime/structure/resolver.py — never hardcoded in code.
+#
+# Selectors key on (kind, domain) because `domain` is class-specific:
+#   claim.domain           ∈ {operational, knowledge, personal}   (operational = learnings)
+#   source.domain          ∈ {personal, knowledge, inbox, workshop}
+#   entity.in_scheme (LIST) ∈ {personal, knowledge, inbox, ...}    (membership, not equality)
+# "*" matches any value on that axis.
+version: 1
+default_lens: full
+
+lenses:
+  dev:
+    description: >-
+      Coding-session view: operational learnings + knowledge, personal excluded.
+      This is the default lens for Claude Code tools (RFC 0006 ③).
+    selectors:
+      - {kind: claim,  domain: operational}
+      - {kind: claim,  domain: knowledge}
+      - {kind: source, domain: knowledge}
+      - {kind: source, domain: inbox}
+      - {kind: entity, domain: knowledge}
+      - {kind: entity, domain: inbox}
+
+  life:
+    description: >-
+      Personal-agent view: personal + knowledge across all node kinds.
+    selectors:
+      - {kind: "*", domain: personal}
+      - {kind: "*", domain: knowledge}
+
+  full:
+    description: >-
+      Everything; cross-domain joins. The "no wall" lens — a lens is a default,
+      not a boundary, so the full view always remains available.
+    selectors:
+      - {kind: "*", domain: "*"}

@@ -4,6 +4,25 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Fixed — surfacing audit was blind on v7 claims (RFC 0006 P0.2b)
+
+- `surfacing._concept_probe` built its query from pre-v7 fields
+  (`touches`/`target_topic`/`title`) that v7 accepted claims do not carry, so
+  every claim got an EMPTY probe and was marked dark-by-construction — the live
+  audit reported 167/167 accepted learnings dark, and `eval._self_probe_block`
+  counted 0 probes, silently disabling the omission gate (INV-4). Added a
+  `statement` fallback (the v7 self-signal) **in the audit only** — the shared
+  `recall.concept_tokens` that also drives live ranking is untouched. Live audit
+  now reports 167/167 visible, self-probe R@k 1.0. No data was lost; retrieval
+  was always healthy — only the measurement was broken.
+
+### Added — foundation tooling + frozen baseline (RFC 0006 P0.2)
+
+- `census` (node counts partitioned by kind), `baseline` generator, and a
+  data-safety `snapshot` (git tag + `~/.atelier` durables tar); CLI `atelier
+  snapshot`/`atelier baseline`. Froze `docs/rfc/0006-baseline.json` (the
+  verification baseline the independent verifier diffs against).
+
 ### Added — memory north-star RFC (RFC 0006 P0.1)
 
 - **`docs/rfc/0006-memory-north-star.md`** — the umbrella RFC for the memory

@@ -46,10 +46,21 @@ def _vault_root() -> Path:
 def _concept_probe(fm: Dict[str, Any]) -> str:
     """The query that asks 'can this learning be found by what it is about?' —
     its `touches` concepts plus `target_topic`. Reuses recall's shared tokenizer
-    so the split can't drift; falls back to the title when there are no tags."""
+    so the split can't drift.
+
+    Fallback chain for nodes without concept tags: `title`, then `statement`.
+    A v7 accepted claim (RFC 0005) carries neither `touches`/`target_topic` nor
+    `title` — its self-signal is `statement`. Without this fallback every v7
+    claim yields an EMPTY probe and is therefore dark-by-construction, which
+    silently breaks the omission gate (INV-4). We deliberately do NOT reach into
+    `is_about` here: it holds opaque entity UUIDs, useless as FTS query text.
+    Note the fallback lives in the AUDIT only — `recall.concept_tokens` also
+    drives the live ranking concept-boost (`recall.py`), so it stays untouched."""
     toks = _recall.concept_tokens(fm)
-    if not toks and isinstance(fm.get("title"), str):
-        toks = [w for w in _recall._CONCEPT_SPLIT.split(fm["title"].lower()) if w]
+    if not toks:
+        text = fm.get("title") or fm.get("statement")
+        if isinstance(text, str):
+            toks = [w for w in _recall._CONCEPT_SPLIT.split(text.lower()) if w]
     return " ".join(toks)
 
 
@@ -75,8 +86,11 @@ def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
             continue
         out.append({
             "entry_id": str(eid),
-            "title": str(fm.get("title") or p.stem),
-            "project": fm.get("target_project") or fm.get("project_hint"),
+            # v7 claims have no `title`; the `statement` is the human-readable
+            # label. Truncate so a long statement stays a readable row title.
+            "title": str(fm.get("title") or fm.get("statement") or p.stem)[:120],
+            "project": fm.get("target_project") or fm.get("project_hint")
+                       or fm.get("project"),
             "topic": fm.get("target_topic") or "",
             "probe": _concept_probe(fm),
         })

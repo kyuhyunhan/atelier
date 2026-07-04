@@ -66,6 +66,25 @@ def _excluded(rel_parts: tuple[str, ...]) -> bool:
     return False
 
 
+def is_indexable(root: Path, path: Path) -> bool:
+    """Whether a SINGLE file would be indexed by `walk_indexable` — the exact
+    same predicate, single-sourced so a per-file caller (reindex_path, RFC 0006 ②)
+    cannot diverge from the full walk and create a phantom page the next full
+    reindex would prune. Mirrors the tail filter below."""
+    suffix = path.suffix.lower()
+    if suffix not in _INDEXABLE_EXT:
+        return False
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return False
+    if _excluded(parts):
+        return False
+    if suffix != ".md" and _is_tooling_data(path.name):
+        return False
+    return True
+
+
 def walk_indexable(root: Path) -> Iterator[Path]:
     """Yield every indexable file under root — markdown plus structured
     `.yaml`/`.yml`/`.json` (RFC 0002 P1b) — applying the shared exclusions.
@@ -85,15 +104,12 @@ def walk_indexable(root: Path) -> Iterator[Path]:
         for name in filenames:
             if Path(name).suffix.lower() in _INDEXABLE_EXT:
                 candidates.append(Path(dirpath) / name)
+    # Single-sourced per-file predicate (also used by reindex_path). _excluded is
+    # redundant for dir exclusions (already pruned above) but is the SOLE guard
+    # for *.local.* filenames, which dir pruning cannot catch.
     for p in sorted(candidates):
-        suffix = p.suffix.lower()
-        # _excluded is redundant for dir exclusions (already pruned above) but is
-        # the SOLE guard for *.local.* filenames, which dir pruning cannot catch.
-        if _excluded(p.relative_to(root).parts):
-            continue
-        if suffix != ".md" and _is_tooling_data(p.name):
-            continue
-        yield p
+        if is_indexable(root, p):
+            yield p
 
 
 def slug_for(root: Path, path: Path) -> str:

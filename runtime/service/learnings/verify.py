@@ -121,6 +121,33 @@ def _check_manifest(before: Dict, after: Dict) -> Tuple[bool, str]:
     return v["ok"], v["detail"]
 
 
+def _check_forgets_flag_only(before: Dict, after: Dict) -> Tuple[bool, str]:
+    """Pillar 4a gate: plan_forgets() is genuinely flag-only -- it must NEVER
+    mutate ac_status itself (that stays a human decision via review.retract).
+    Content-based, not count-based: a same-count swap (retract one, re-accept
+    another) would slip past a bare count comparison, so this hashes each
+    accepted file's (path, mtime, content_hash) and requires the exact SET to be
+    unchanged -- not just its size."""
+    from . import lateral as _lat
+    from . import store as _store
+    from . import cluster as _cl
+    vault = Path(_cl._vault_root())
+
+    def _fingerprint():
+        return {str(p): (p.stat().st_mtime_ns, p.read_bytes())
+                for p in _store.iter_accepted_files(vault)}
+
+    before_fp = _fingerprint()
+    plan = _lat.plan_forgets()
+    after_fp = _fingerprint()
+    if after_fp != before_fp:
+        changed = sorted(set(before_fp) ^ set(after_fp)
+                         | {k for k in before_fp if before_fp.get(k) != after_fp.get(k)})
+        return False, f"plan_forgets mutated the accepted pool: {changed[:3]}"
+    return True, (f"flag-only ok: {plan['candidate_count']}/{plan['total']} "
+                  f"dark candidate(s) flagged, pool byte-identical")
+
+
 def _check_dev_lens_no_personal(before: Dict, after: Dict) -> Tuple[bool, str]:
     """Pillar ③ gate: a dev-lens recall surfaces ZERO personal-domain claims.
 
@@ -189,6 +216,13 @@ _RUBRICS: Dict[str, Dict[str, Any]] = {
         "description": "Pillar ③: a coding-session (dev-lens) recall excludes "
                        "personal, with no regression to operational recall.",
         "gates": [("dev_lens_no_personal", _check_dev_lens_no_personal)],
+        "warns": []},
+    "P4_curated": {
+        "description": "Pillar ④: ④a forgetting is genuinely flag-only (no "
+                       "auto-mutation); ④b hybrid retrieval (already live, RFC "
+                       "0002) must not regress — covered by the paraphrase_recall "
+                       "invariant already in every rubric.",
+        "gates": [("forgets_flag_only", _check_forgets_flag_only)],
         "warns": []},
 }
 

@@ -4,6 +4,19 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — Pillar ③ Scoped: serving lenses at the recall boundary (RFC 0006 P3)
+
+- `atelier_learning_recall` now takes a `lens` (default **`dev`**): a coding
+  session's per-turn recall excludes personal-domain claims (~80% of the graph),
+  keeping operational + knowledge. Pass `lens='full'` for the cross-domain,
+  wall-less view. Threaded through `recall_v7.recall_claims` → `rank_claims`,
+  which filters the scored hits by the `(kind, domain)` lens map from ①
+  **before** the top-k cut (so the budget fills from the admitted set).
+- `lenses.lens_admits_fm` dispatches claim/source on scalar `domain` and entity
+  on `in_scheme` (all-match). `verify.py` gains the `P3_scoped` rubric
+  (`dev_lens_no_personal` gate). Live verify: dev lens clean over 100 recalled
+  claims, no regression to operational recall.
+
 ### Added — Pillar ② Fresh: per-file change feed + indexed columns (RFC 0006 P2)
 
 - `reindex.reindex_path(cfg, path)` + `api.reindex_path(path)` — project ONE

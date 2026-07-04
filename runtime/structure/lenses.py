@@ -71,6 +71,23 @@ def admits_entity(name: str, in_scheme: Iterable[str]) -> bool:
     return all(matches(name, "entity", s) for s in schemes)
 
 
+def lens_admits_fm(name: str, fm: Dict[str, Any]) -> bool:
+    """Whether lens `name` admits a node given its frontmatter — the dispatch a
+    recall/search filter uses (RFC 0006 ③). Entities go through the all-match
+    `in_scheme` path; claims/sources match on the scalar `domain`. An unknown
+    kind is admitted (fail-open) so the lens never silently drops a node class it
+    doesn't model — scoping narrows the known noisy classes, it is not a
+    whitelist that hides everything unrecognized."""
+    kind = fm.get("kind")
+    if kind == "entity":
+        scheme = fm.get("in_scheme")
+        return admits_entity(name, scheme if isinstance(scheme, list) else
+                             ([scheme] if scheme else []))
+    if kind in ("claim", "source"):
+        return matches(name, kind, str(fm.get("domain") or ""))
+    return True
+
+
 def lenses_admitting(kind: str, domain: str) -> List[str]:
     """Every lens that admits (kind, domain) — used by the coverage validator."""
     return [n for n in lens_names() if matches(n, kind, domain)]

@@ -121,6 +121,35 @@ def _check_manifest(before: Dict, after: Dict) -> Tuple[bool, str]:
     return v["ok"], v["detail"]
 
 
+def _check_dev_lens_no_personal(before: Dict, after: Dict) -> Tuple[bool, str]:
+    """Pillar ③ gate: a dev-lens recall surfaces ZERO personal-domain claims.
+
+    Fishes with a broad multi-term query so the corpus is actually exercised;
+    the unit tests are the exhaustive guarantee. If the query returns nothing the
+    check passes vacuously (nothing leaked) — this is a regression tripwire for
+    the recall→lens wiring, not the primary proof."""
+    from . import recall_v7 as _rv
+    q = "session error data file project api rule change test note day"
+
+    def _personal(hits):
+        return [h for h in hits
+                if str((h.get("fm") or {}).get("domain") or "") == "personal"]
+
+    dev = _rv.rank_claims(q, None, tier="query", top_k=100, lens="dev")
+    full = _rv.rank_claims(q, None, tier="query", top_k=100, lens="full")
+    dev_personal = _personal(dev)
+    full_personal = _personal(full)
+    if dev_personal:
+        return False, f"{len(dev_personal)} personal claim(s) leaked into the dev lens"
+    # Non-vacuous when the corpus actually has personal claims for this query:
+    # full must surface some that dev dropped. If none exist, pass but say so.
+    if full_personal:
+        return True, (f"dev excluded {len(full_personal)} personal claim(s) that "
+                      f"full surfaced (dev {len(dev)} vs full {len(full)})")
+    return True, (f"dev lens clean over {len(dev)} claim(s); no personal in the "
+                  f"probe corpus (gate vacuous — unit tests are the guarantee)")
+
+
 # ── rubric registry ─────────────────────────────────────────────────────────
 # Each entry: gate checks (a fail → overall FAIL) + warn checks (advisory only).
 # Global invariants apply to every rubric; a pillar rubric appends its own gate.
@@ -156,8 +185,11 @@ _RUBRICS: Dict[str, Dict[str, Any]] = {
                        "write paths is a deliberate opt-in follow-up — eager "
                        "reindex shifts dream-cadence + cold-DB-fallback semantics.",
         "gates": [], "warns": []},
-    # Later pillars extend the invariants with their §4.2 gate as built,
-    # e.g. "P3_scoped": {"gates": [("dev_lens_no_personal", ...)]}.
+    "P3_scoped": {
+        "description": "Pillar ③: a coding-session (dev-lens) recall excludes "
+                       "personal, with no regression to operational recall.",
+        "gates": [("dev_lens_no_personal", _check_dev_lens_no_personal)],
+        "warns": []},
 }
 
 

@@ -503,6 +503,7 @@ async def _h_recall(query: str,
                      include_candidates: bool = False,
                      relevance_threshold: Optional[float] = None,
                      tier: str = "proactive",
+                     lens: str = "dev",
                      ) -> Dict[str, Any]:
     """Per-turn signal-detector retrieval.
 
@@ -510,9 +511,18 @@ async def _h_recall(query: str,
     domain-prior ladder (`tier` = query | proactive | always). `proactive` (T1)
     is the per-turn default; `query` (T2) is the universal on-query path; `always`
     (T0) is the hard-capped unconditional budget. The legacy `learning_*` recall
-    runs alongside during the migration and its hits are merged in."""
+    runs alongside during the migration and its hits are merged in.
+
+    RFC 0006 ③: `lens` scopes the CLAIM results to a serving view — default `dev`
+    (operational + knowledge, personal EXCLUDED), so a coding session stops
+    seeing personal-domain claims (~80% of the graph). Pass `lens='full'` for the
+    cross-domain view. Legacy learning_* hits are operational-only, so the lens
+    filter is applied to the v7 claim path where personal claims can appear."""
     from .learnings import recall as _rc
     from .learnings import recall_v7 as _rv
+    from ..structure import lenses as _lenses
+    if lens not in _lenses.lens_names():
+        raise ValueError(f"unknown lens {lens!r}; valid: {sorted(_lenses.lens_names())}")
     sess = current_session()
     if project is None and sess.working_dir:
         # Route through the shared accessor so recall's project key matches
@@ -525,7 +535,7 @@ async def _h_recall(query: str,
                         include_candidates=include_candidates,
                         relevance_threshold=relevance_threshold)
     claims = _rv.recall_claims(query=query, project=project, tier=tier,
-                              top_k=top_k, max_chars=max_chars)
+                              top_k=top_k, max_chars=max_chars, lens=lens)
     if not claims["items"]:
         return legacy
     # Merge: v7 claims first (the target model), then legacy learnings, capped to
@@ -945,7 +955,10 @@ def _register_v01_tools() -> None:
         "gate(surfacing) × domain_prior(context) × vector_relevance × "
         "sensitivity_gate. private claims are never pushed proactively (T1/T0), "
         "reachable only by explicit on-query (T2); T0 is hard-capped. Legacy "
-        "learning recall (hybrid BM25 + vectors, project boost) runs alongside.",
+        "learning recall (hybrid BM25 + vectors, project boost) runs alongside. "
+        "`lens` scopes CLAIM results (RFC 0006 ③): 'dev' (default) = operational + "
+        "knowledge, personal excluded; 'life' = personal + knowledge; 'full' = "
+        "everything (cross-domain, no wall).",
         _h_recall,
     ))
     # NOTE: this description paraphrases think.SYNTHESIS_CONTRACT for the caller's

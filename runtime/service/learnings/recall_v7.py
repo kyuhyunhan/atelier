@@ -150,7 +150,8 @@ _CLAIM_TYPES = ["claim"]
 
 
 def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
-                vault: Optional[Path] = None) -> List[Dict[str, Any]]:
+                vault: Optional[Path] = None,
+                lens: Optional[str] = None) -> List[Dict[str, Any]]:
     """Retrieve + score v7 claims for one turn at a surfacing `tier`.
 
     Pipeline: resolver fusion (lexical+vector) scoped to page_type `claim` →
@@ -159,7 +160,13 @@ def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
     hard count cap (`T0_CAP`) AFTER ranking, so the most relevant `always` claims
     fill the small budget."""
     vault = vault if vault is not None else _recall._vault_root()
-    hits = _recall._resolve_hits(query, _CLAIM_TYPES, limit=max(top_k * 4, T0_CAP * 4))
+    # Over-fetch: normally top_k*4, but when a lens will filter the pool, fetch
+    # far more so the admitted set (post-filter) can still fill top_k. Personal
+    # is ~80% of claims, so a dev lens can drop most candidates — a 4× pool would
+    # starve operational/knowledge results that sit deeper in the ranking.
+    fetch_mult = 24 if lens is not None else 4
+    hits = _recall._resolve_hits(query, _CLAIM_TYPES,
+                                 limit=max(top_k * fetch_mult, T0_CAP * 4))
     if not hits:
         hits = _fs_scan_claims(query, vault, limit=max(top_k * 4, T0_CAP * 4))
 
@@ -173,6 +180,14 @@ def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
 
     scored.sort(key=lambda h: h["score"], reverse=True)
     scored = _recall._dedup_by_entry_id(scored)
+
+    # Lens scoping (RFC 0006 ③): drop claims the lens does not admit BEFORE the
+    # budget cut, so the top-k is filled from the admitted set (not truncated
+    # then filtered). Applied only when a lens is named; the default caller path
+    # is unaffected.
+    if lens is not None:
+        from ...structure import lenses as _lenses
+        scored = [h for h in scored if _lenses.lens_admits_fm(lens, h.get("fm") or {})]
 
     budget = T0_CAP if tier == TIER_ALWAYS else top_k
     return scored[:budget]
@@ -251,7 +266,8 @@ def recall_claims(*, query: str,
                   project: Optional[str] = None,
                   tier: str = TIER_PROACTIVE,
                   top_k: int = 5,
-                  max_chars: int = 1500) -> Dict[str, Any]:
+                  max_chars: int = 1500,
+                  lens: Optional[str] = None) -> Dict[str, Any]:
     """RFC 0005 §6 recall over v7 claims at a surfacing `tier`.
 
     - `tier=query`   (T2): universal on-query; any claim, domain prior ignored,
@@ -266,7 +282,7 @@ def recall_claims(*, query: str,
         return {"query": query, "project": project, "tier": tier,
                 "count": 0, "items": [], "markdown": ""}
 
-    hits = rank_claims(query, project, tier=tier, top_k=top_k)
+    hits = rank_claims(query, project, tier=tier, top_k=top_k, lens=lens)
     summaries = [_summarize_claim(h) for h in hits]
     markdown = _recall._render(summaries, project, max_chars)
     return {

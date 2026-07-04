@@ -4,6 +4,18 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — independent verifier + workflow template (RFC 0006 P0.3)
+
+- `verify.py` (`verify_against`) recomputes the after-state and scores it against
+  the frozen baseline under a rubric; global invariants (INV-1 no-data-loss,
+  INV-4 no-omission-regression, self-probe/paraphrase no-regression) always
+  apply, pillar rubrics extend them. Guards: refuses a non-frozen baseline
+  (fails closed outside git); the builder never grades its own work.
+- CLI `atelier verify` (exit 0=PASS, 1=FAIL for CI/workflow gating).
+- `scripts/workflows/memory-pillar.mjs`: the reusable pillar runner —
+  snapshot → implement → INDEPENDENT verify (a distinct agent runs `atelier
+  verify`). Verified end-to-end: no-op PASS on the live vault.
+
 ### Fixed — surfacing audit was blind on v7 claims (RFC 0006 P0.2b)
 
 - `surfacing._concept_probe` built its query from pre-v7 fields

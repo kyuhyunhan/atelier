@@ -348,6 +348,21 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_verify(args: argparse.Namespace) -> int:
+    """Independent verifier (RFC 0006 §6): recompute the after-state and score it
+    against a FROZEN baseline under a rubric. Exit 0 = PASS, 1 = FAIL, so a
+    workflow/CI stage can gate on the exit code."""
+    from .service.learnings import verify as _verify
+    import json as _json
+    report = _verify.verify_against(Path(args.baseline), args.rubric,
+                                    require_committed=not args.allow_uncommitted)
+    print(_json.dumps(report, indent=2, ensure_ascii=False))
+    for c in report["checks"]:
+        if c["severity"] == "gate" and not c["ok"]:
+            log.error(f"FAIL [{c['name']}]: {c['detail']}")
+    return 0 if report["passed"] else 1
+
+
 def _cmd_promote(args: argparse.Namespace) -> int:
     if args.action == "propose":
         out = api.promote_propose()
@@ -469,6 +484,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--k", type=int, default=5, help="cutoff k for P@k/R@k (default 5)")
     s.add_argument("--out", help="write baseline JSON here (default: stdout)")
     s.set_defaults(func=_cmd_baseline)
+
+    s = sub.add_parser("verify",
+                       help="independent verifier (RFC 0006): score after-state vs a frozen baseline")
+    s.add_argument("--baseline", default="docs/rfc/0006-baseline.json",
+                   help="path to the frozen baseline JSON")
+    s.add_argument("--rubric", default="P0", help="rubric id (default P0)")
+    s.add_argument("--allow-uncommitted", action="store_true",
+                   help="skip the frozen-baseline guard (tests/dev only)")
+    s.set_defaults(func=_cmd_verify)
 
     return p
 

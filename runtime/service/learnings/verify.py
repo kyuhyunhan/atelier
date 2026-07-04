@@ -122,21 +122,30 @@ def _check_manifest(before: Dict, after: Dict) -> Tuple[bool, str]:
 
 
 def _check_forgets_flag_only(before: Dict, after: Dict) -> Tuple[bool, str]:
-    """Pillar ④a gate: plan_forgets() is genuinely flag-only — it must NEVER
+    """Pillar 4a gate: plan_forgets() is genuinely flag-only -- it must NEVER
     mutate ac_status itself (that stays a human decision via review.retract).
-    Runs plan_forgets and confirms the accepted-claim count is unchanged by the
-    call (i.e. it only read, never wrote)."""
+    Content-based, not count-based: a same-count swap (retract one, re-accept
+    another) would slip past a bare count comparison, so this hashes each
+    accepted file's (path, mtime, content_hash) and requires the exact SET to be
+    unchanged -- not just its size."""
     from . import lateral as _lat
     from . import store as _store
     from . import cluster as _cl
     vault = Path(_cl._vault_root())
-    before_n = sum(1 for _ in _store.iter_accepted_files(vault))
+
+    def _fingerprint():
+        return {str(p): (p.stat().st_mtime_ns, p.read_bytes())
+                for p in _store.iter_accepted_files(vault)}
+
+    before_fp = _fingerprint()
     plan = _lat.plan_forgets()
-    after_n = sum(1 for _ in _store.iter_accepted_files(vault))
-    if after_n != before_n:
-        return False, f"plan_forgets mutated the accepted pool ({before_n}→{after_n})"
+    after_fp = _fingerprint()
+    if after_fp != before_fp:
+        changed = sorted(set(before_fp) ^ set(after_fp)
+                         | {k for k in before_fp if before_fp.get(k) != after_fp.get(k)})
+        return False, f"plan_forgets mutated the accepted pool: {changed[:3]}"
     return True, (f"flag-only ok: {plan['candidate_count']}/{plan['total']} "
-                  f"dark candidate(s) flagged, pool unchanged")
+                  f"dark candidate(s) flagged, pool byte-identical")
 
 
 def _check_dev_lens_no_personal(before: Dict, after: Dict) -> Tuple[bool, str]:

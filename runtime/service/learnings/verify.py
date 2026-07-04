@@ -121,6 +121,23 @@ def _check_manifest(before: Dict, after: Dict) -> Tuple[bool, str]:
     return v["ok"], v["detail"]
 
 
+def _check_dev_lens_no_personal(before: Dict, after: Dict) -> Tuple[bool, str]:
+    """Pillar ③ gate: a dev-lens recall surfaces ZERO personal-domain claims.
+
+    Fishes with a broad multi-term query so the corpus is actually exercised;
+    the unit tests are the exhaustive guarantee. If the query returns nothing the
+    check passes vacuously (nothing leaked) — this is a regression tripwire for
+    the recall→lens wiring, not the primary proof."""
+    from . import recall_v7 as _rv
+    q = "session error data file project api rule change test"
+    hits = _rv.rank_claims(q, None, tier="query", top_k=100, lens="dev")
+    leaked = [h for h in hits
+              if str((h.get("fm") or {}).get("domain") or "") == "personal"]
+    if leaked:
+        return False, f"{len(leaked)} personal claim(s) leaked into the dev lens"
+    return True, f"dev lens clean over {len(hits)} recalled claim(s)"
+
+
 # ── rubric registry ─────────────────────────────────────────────────────────
 # Each entry: gate checks (a fail → overall FAIL) + warn checks (advisory only).
 # Global invariants apply to every rubric; a pillar rubric appends its own gate.
@@ -156,8 +173,11 @@ _RUBRICS: Dict[str, Dict[str, Any]] = {
                        "write paths is a deliberate opt-in follow-up — eager "
                        "reindex shifts dream-cadence + cold-DB-fallback semantics.",
         "gates": [], "warns": []},
-    # Later pillars extend the invariants with their §4.2 gate as built,
-    # e.g. "P3_scoped": {"gates": [("dev_lens_no_personal", ...)]}.
+    "P3_scoped": {
+        "description": "Pillar ③: a coding-session (dev-lens) recall excludes "
+                       "personal, with no regression to operational recall.",
+        "gates": [("dev_lens_no_personal", _check_dev_lens_no_personal)],
+        "warns": []},
 }
 
 

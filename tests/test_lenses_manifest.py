@@ -35,6 +35,19 @@ def test_life_and_full_lenses() -> None:
             assert _lenses.matches("full", k, d)
 
 
+def test_dev_lens_all_match_entity_semantics() -> None:
+    # all-match: a single-scheme knowledge entity is admitted …
+    assert _lenses.admits_entity("dev", ["knowledge"])
+    # … but a mixed entity carrying personal is NOT (no personal leak into dev)
+    assert not _lenses.admits_entity("dev", ["knowledge", "personal"])
+    assert not _lenses.admits_entity("dev", ["personal"])
+    # empty in_scheme: only the wildcard (full) lens admits
+    assert _lenses.admits_entity("full", [])
+    assert not _lenses.admits_entity("dev", [])
+    # full admits the mixed entity (no wall)
+    assert _lenses.admits_entity("full", ["knowledge", "personal"])
+
+
 def test_coverage_gate_holds() -> None:
     pairs = [(k, d) for k in ("claim", "source", "entity")
              for d in ("personal", "knowledge", "inbox", "workshop", "operational")]

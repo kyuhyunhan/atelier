@@ -6,7 +6,11 @@
 # the personal-content noise tax (personal is ~80% of claims — RFC 0006 §7).
 #
 # Hard rule #3: this is DATA, single-sourced here and read via
-# runtime/structure/resolver.py — never hardcoded in code.
+# runtime/structure/lenses.py — never hardcoded in code.
+#
+# NOTE: `workshop` (builder/product content) is reachable only via `full` —
+# intentional: neither the coding-learnings `dev` view nor the `life` view
+# includes product work. Widen a lens here if that changes.
 #
 # Selectors key on (kind, domain) because `domain` is class-specific:
 #   claim.domain           ∈ {operational, knowledge, personal}   (operational = learnings)

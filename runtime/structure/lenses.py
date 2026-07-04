@@ -55,6 +55,22 @@ def matches(name: str, kind: str, domain: str) -> bool:
     return False
 
 
+def admits_entity(name: str, in_scheme: Iterable[str]) -> bool:
+    """Whether lens `name` admits an ENTITY whose `in_scheme` is a list of domains.
+
+    Semantics are **all-match** (conservative/leak-proof): the entity is admitted
+    only if EVERY scheme value is admitted by the lens. This is what makes the
+    "dev excludes personal" guarantee total — an entity tagged
+    `[knowledge, personal]` is NOT admitted by `dev`, because `personal` is not
+    dev-admissible. Any-match would leak such mixed entities into a coding
+    session. An empty `in_scheme` is admitted only by lenses with a domain
+    wildcard (i.e. `full`). Pillar ③ MUST use this for entity filtering."""
+    schemes = list(in_scheme)
+    if not schemes:
+        return matches(name, "entity", "")     # only a "*" domain selector admits
+    return all(matches(name, "entity", s) for s in schemes)
+
+
 def lenses_admitting(kind: str, domain: str) -> List[str]:
     """Every lens that admits (kind, domain) — used by the coverage validator."""
     return [n for n in lens_names() if matches(n, kind, domain)]
@@ -74,6 +90,10 @@ def validate_coverage(observed_pairs: Iterable[Tuple[str, str]]) -> Dict[str, An
     pairs = sorted(set(observed_pairs))
     uncovered = [p for p in pairs if not lenses_admitting(*p)]
     dev_leaks = [p for p in pairs if p[1] == "personal" and matches("dev", *p)]
+    # Multi-scheme entity leak guard: an entity carrying personal alongside any
+    # other scheme must still be rejected by dev (all-match semantics).
+    if admits_entity("dev", ["knowledge", "personal"]):
+        dev_leaks.append(("entity", "[knowledge, personal] (multi-scheme)"))
     return {
         "ok": not uncovered and not dev_leaks,
         "uncovered": uncovered,

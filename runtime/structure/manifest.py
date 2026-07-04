@@ -54,9 +54,14 @@ def ensure(vault: Path, *, vault_id: Optional[str] = None) -> Dict[str, Any]:
         "vault_id": vault_id or str(uuid.uuid4()),
         "created": datetime.now(timezone.utc).date().isoformat(),
     }
-    manifest_path(vault).write_text(
-        yaml.safe_dump(data, sort_keys=True, default_flow_style=False),
-        encoding="utf-8")
+    # Atomic create ('x'): if a concurrent writer already minted the manifest
+    # between our read and here, don't clobber its (possibly different) vault_id
+    # — re-read and return theirs. vault_id, once minted, is stable.
+    try:
+        with open(manifest_path(vault), "x", encoding="utf-8") as fh:
+            fh.write(yaml.safe_dump(data, sort_keys=True, default_flow_style=False))
+    except FileExistsError:                      # pragma: no cover - race only
+        return read(vault) or data
     return data
 
 

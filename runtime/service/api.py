@@ -26,6 +26,19 @@ def reindex(space: Optional[str] = None, full: bool = False,
     return [vars(s) for s in statses]
 
 
+def reindex_path(path: str, *, embed: bool = False,
+                 token: Optional[str] = None) -> Dict[str, Any]:
+    """Change-feed entry (RFC 0006 ②): project a single file into the DB without
+    a full reindex, so a read reflects an engine write immediately. `embed=False`
+    (default) skips the vector pass for speed — the lexical projection goes fresh
+    now; embeddings catch up on the next full reindex."""
+    auth.authenticate(token)
+    from ..index import reindex as _reindex
+    cfg = config.load()
+    gw = _reindex._resolve_gateway(cfg) if embed else None
+    return vars(_reindex.reindex_path(cfg, Path(path), embed_gateway=gw))
+
+
 def search(query: str, space: Optional[str] = None, limit: int = 20,
            fallback: bool = False, token: Optional[str] = None) -> List[Dict[str, Any]]:
     from ..search import fts

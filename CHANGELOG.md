@@ -4,6 +4,23 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — Pillar ② Fresh: per-file change feed + indexed columns (RFC 0006 P2)
+
+- `reindex.reindex_path(cfg, path)` + `api.reindex_path(path)` — project ONE
+  file into the DB without a full reindex, reusing the exact reindex passes
+  (parse → classify → upsert → chunks → links → prune), embed-skipped by default
+  for speed. Parity with a full reindex is tested (incremental page == full).
+- `schema/db/sql/0004_routing_columns.sql` — indexed VIRTUAL generated columns
+  `kind`/`domain`/`ac_status`/`surfacing` on `pages` (+ indexes), so the lens
+  (③) filters without a JSON scan. VIRTUAL because SQLite can't ALTER-ADD a
+  STORED generated column; picked up on `rm cache && reindex` (rebuildable
+  projection). Correctness never depends on them — readers may still json_extract.
+- `verify.py` gains the `P2_fresh` rubric (invariants; structural checks in the
+  suite). **Deliberately NOT auto-wired:** eager write-through on capture shifts
+  dream-cadence + cold-DB-fallback semantics (12 tests proved the ripple), so
+  reindex_path is an opt-in change-feed mechanism; adopting it on write paths is
+  a scoped follow-up.
+
 ### Added — Pillar ① Grounded: lens vocabulary + vault manifest (RFC 0006 P1)
 
 - `schema/data/lenses.yaml` — the serving-lens vocabulary (data, not code),

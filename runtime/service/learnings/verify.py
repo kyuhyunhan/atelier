@@ -146,6 +146,16 @@ _RUBRICS: Dict[str, Dict[str, Any]] = {
         "gates": [("lens_coverage", _check_lens_coverage),
                   ("manifest", _check_manifest)],
         "warns": []},
+    "P2_fresh": {
+        "description": "Pillar ②: per-file change feed (reindex_path) + indexed "
+                       "columns. Live gate is no-regression (the invariants); "
+                       "change-feed parity, single-file freshness, and "
+                       "routing-column presence are structural and locked by the "
+                       "test suite (they need a fresh DB, so are not asserted "
+                       "against a live un-rebuilt cache). Auto write-through on "
+                       "write paths is a deliberate opt-in follow-up — eager "
+                       "reindex shifts dream-cadence + cold-DB-fallback semantics.",
+        "gates": [], "warns": []},
     # Later pillars extend the invariants with their §4.2 gate as built,
     # e.g. "P3_scoped": {"gates": [("dev_lens_no_personal", ...)]}.
 }

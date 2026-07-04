@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from ..structure import resolver as _structure
-from ..util import config, db, logging as log
+from ..util import config, db, fs, logging as log
 from . import classify, crawl, entities, linker, parse
 
 
@@ -91,6 +91,78 @@ def reindex_space(
                 log.info("reindex.embed_aborted", error=str(e))
 
         log.info("reindex.done", **vars(stats))
+        return stats
+    finally:
+        conn.close()
+
+
+def _owning_space(cfg: config.Config, path: Path) -> tuple[str, Path]:
+    """The canonical space whose root contains `path` (RFC 0006 ②). Uses
+    `canonical_spaces` so a single-vault's pseudo-spaces dedup to one — matching
+    exactly what a full `reindex_all` would touch, so parity holds."""
+    path = path.resolve()
+    for name in canonical_spaces(cfg):
+        root = cfg.space(name).local.resolve()
+        if path == root or root in path.parents:
+            return name, root
+    raise ValueError(f"{path} is not inside any indexed space")
+
+
+def reindex_path(cfg: config.Config, path: Path,
+                 embed_gateway=None) -> ReindexStats:
+    """Reindex a SINGLE file — the change-feed entry (RFC 0006 ② / issue #1).
+
+    Reuses the exact passes `reindex_space` runs (parse → classify → upsert →
+    chunks → links → prune), scoped to one page, so the projection reflects an
+    engine write with no manual full reindex. Links are rebuilt for the owning
+    space (a DB-only pass — it does NOT re-walk the filesystem), keeping
+    cross-file `[[...]]` resolution correct — this is what preserves parity with
+    a full reindex (INV: incremental page == full page).
+
+    Embeddings are SKIPPED by default (`embed_gateway=None`): a write-through
+    call must be cheap, so the lexical projection/counts go fresh immediately and
+    the vector sidecar catches up on the next full reindex. Pass a gateway to
+    embed inline."""
+    path = Path(path).resolve()
+    space_name, root = _owning_space(cfg, path)
+    conn = db.connect()
+    stats = ReindexStats(space=space_name)
+    try:
+        with conn:
+            slug = fs.slug_for(root, path)
+            if not path.exists():
+                # Deletion: drop the page (chunks/links cascade / rebuild below).
+                conn.execute("DELETE FROM pages WHERE space=? AND slug=?",
+                             (space_name, slug))
+            else:
+                stats.pages_seen += 1
+                if parse.is_data_path(path):
+                    parsed = parse.parse_data_file(path)
+                    ptype = "data"
+                else:
+                    parsed = parse.parse_file(path)
+                    ptype = classify.classify(space_name, slug, parsed.frontmatter)
+                page_id = _upsert_page(conn, space_name, slug, ptype,
+                                       parsed.frontmatter, fs.file_hash(path),
+                                       path.stat().st_mtime)
+                _replace_chunks(conn, page_id, parsed.chunks)
+                stats.pages_changed += 1
+                stats.chunks_written += len(parsed.chunks)
+                if ptype == "entity":
+                    entities.upsert_entity_from_page(conn, slug, parsed.frontmatter)
+                    stats.entities_upserted += 1
+
+            stats.links_written += _rebuild_links(conn, space_name, cfg)
+            entities.prune_orphan_entities(conn)
+            db.set_meta(conn, f"reindex.{space_name}.last_run", _now())
+
+        if embed_gateway is not None:
+            try:
+                _embed_pass(conn, embed_gateway, stats)
+            except Exception as e:               # pragma: no cover - provider flake
+                log.info("reindex.embed_aborted", error=str(e))
+        log.info("reindex.path.done", space=space_name, slug=slug,
+                 pages_changed=stats.pages_changed)
         return stats
     finally:
         conn.close()

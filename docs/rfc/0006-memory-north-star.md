@@ -211,6 +211,8 @@ P0  FOUNDATION (this RFC)
     P0.2  census + baseline gen + snapshot     [gate: 0006-baseline.json committed;
           tooling                                     `atelier snapshot` restorable;
                                                        census parity + cold-DB tests green]
+    P0.2b surfacing/eval v7-probe fix          [gate: live audit no longer all-dark
+          (discovered while freezing the baseline)     (167/167 visible); INV-4 meaningful]
     P0.3  independent-verifier harness +        [gate: verifier PASS on unchanged vault
           workflow template                            (baseline==after); suite green]
 

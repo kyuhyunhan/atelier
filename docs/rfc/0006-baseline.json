@@ -1,0 +1,66 @@
+{
+  "_about": "RFC 0006 P0 foundation baseline (read-only). Produced by runtime.service.learnings.baseline.generate(). The independent verifier re-runs the after-state and diffs against this; every later phase must not regress. engine records the live retrieval mode (embeddings on/off).",
+  "captured_date": "2026-07-04",
+  "census": {
+    "claim": {
+      "ac_status": {
+        "(absent)": 4067,
+        "archived": 14,
+        "passed": 167,
+        "pending": 14
+      },
+      "domain": {
+        "knowledge": 634,
+        "operational": 195,
+        "personal": 3433
+      },
+      "surfacing": {
+        "always": 9,
+        "proactive": 158,
+        "query": 4095
+      }
+    },
+    "entity": {
+      "in_scheme": {
+        "['inbox']": 19,
+        "['knowledge']": 564,
+        "['personal']": 1262
+      }
+    },
+    "source": {
+      "domain": {
+        "inbox": 1,
+        "knowledge": 86,
+        "personal": 600
+      }
+    }
+  },
+  "engine": "hybrid",
+  "eval": {
+    "concept_grouped": {
+      "precision_at_k": 0.0,
+      "probes": 0,
+      "recall_at_k": 0.0
+    },
+    "engine": "hybrid",
+    "k": 5,
+    "paraphrase": {
+      "mrr": 0.5833333333333333,
+      "probes": 22,
+      "recall_at_k": 0.6363636363636364,
+      "scored": 22,
+      "stale": []
+    },
+    "self_probe": {
+      "dark_count": 0,
+      "mrr": 0.9295409181636728,
+      "probes": 167,
+      "recall_at_k": 1.0
+    }
+  },
+  "surfacing": {
+    "dark_count": 0,
+    "total": 167,
+    "visible": 167
+  }
+}

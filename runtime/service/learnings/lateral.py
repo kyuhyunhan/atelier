@@ -282,3 +282,36 @@ def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> Dict[str, Any]:
         "params": {"overlap": overlap},
         "note": "flag-only: merge/retire decisions are human-gated",
     }
+
+
+# ── forgetting (RFC 0006 Pillar ④a — flag-only, mirrors plan_merges) ────────
+
+
+def plan_forgets(*, probe_k: int = _surfacing.DEFAULT_PROBE_K) -> Dict[str, Any]:
+    """Flag accepted learnings the surfacing audit reports DARK — unreachable by
+    their own concept right now — as retraction CANDIDATES.
+
+    FLAG-ONLY, same governance as `plan_merges`: this is the "does the pool ever
+    shrink?" half of RFC 0006 ④a. A learning going dark is not proof it should be
+    forgotten (a probe-vocabulary mismatch can also cause it — the exact failure
+    mode P0.2b fixed once already), so retraction is a human decision via
+    `review.retract(slug=...)`, never automatic here. `apply_tags` already proved
+    this snapshot-diff discipline for the tagging job; this reuses the SAME
+    `surfacing.audit` the omission gate (INV-4) is built on, so a learning this
+    flags is provably unreachable by the identical measure the verifier trusts —
+    not a second, drifting definition of "forgettable"."""
+    aud = _surfacing.audit(probe_k=probe_k)
+    candidates = [
+        {"entry_id": d["entry_id"], "slug": d["entry_id"], "title": d["title"],
+         "project": d["project"], "topic": d["topic"]}
+        for d in aud["dark"]
+    ]
+    return {
+        "total": aud["total"],
+        "candidates": candidates,
+        "candidate_count": len(candidates),
+        "probe_k": probe_k,
+        "note": ("flag-only: dark does not imply forget — a human reviews each "
+                "candidate and calls review.retract(slug=...) if it should be "
+                "removed from the accepted pool"),
+    }

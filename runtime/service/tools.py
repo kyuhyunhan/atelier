@@ -574,12 +574,14 @@ async def _h_surfacing_audit(probe_k: int = 10) -> Dict[str, Any]:
 async def _h_lateral_plan(suggest: int = 4,
                           overlap: float = 0.7) -> Dict[str, Any]:
     """Lateral mutator tee-up (read-only, deterministic): untagged learnings
-    with body-derived tag suggestions, inert existing tags, and flag-only
-    near-duplicate groups. The live agent refines; apply enforces the gates.
-    Returns {"tags": plan_tags() result, "merges": plan_merges() result}."""
+    with body-derived tag suggestions, inert existing tags, flag-only
+    near-duplicate groups, and (RFC 0006 ④a) dark-learning retraction candidates.
+    The live agent refines; apply/retract enforce the gates.
+    Returns {"tags": ..., "merges": ..., "forgets": plan_forgets() result}."""
     from .learnings import lateral as _lat
     return {"tags": _lat.plan_tags(suggest=suggest),
-            "merges": _lat.plan_merges(overlap=overlap)}
+            "merges": _lat.plan_merges(overlap=overlap),
+            "forgets": _lat.plan_forgets()}
 
 
 async def _h_lateral_apply(mapping: Dict[str, List[str]]) -> Dict[str, Any]:
@@ -987,8 +989,9 @@ def _register_v01_tools() -> None:
     register(ToolDef(
         "atelier_lateral_plan",
         "Lateral mutator ① (read-only) — tee up concept-tagging work: "
-        "untagged learnings with body-derived suggestions, inert tags, and "
-        "flag-only near-duplicate groups. The agent refines; apply gates.",
+        "untagged learnings with body-derived suggestions, inert tags, "
+        "flag-only near-duplicate groups, and (RFC 0006 ④a) dark-learning "
+        "retraction candidates. The agent refines; apply/retract gate.",
         _h_lateral_plan,
     ))
     register(ToolDef(

@@ -4,6 +4,26 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — Pillar ④ Curated: flag-only forgetting (RFC 0006 P4)
+
+- `lateral.plan_forgets()` — flags accepted learnings the surfacing audit
+  reports DARK as retraction *candidates*, mirroring `plan_merges`'s flag-only
+  governance: dark does not imply forget, a human calls `review.retract(slug=)`.
+  Reuses the SAME `surfacing.audit` the omission gate (INV-4) trusts, so a
+  flagged candidate is provably unreachable by the identical measure the
+  verifier uses — not a second, drifting definition of "forgettable." Folded
+  into `atelier_lateral_plan`'s response (`forgets` key).
+- ④b (hybrid retrieval) was already live (RFC 0002); this pillar adds no new
+  retrieval code, only the `P4_curated` rubric's regression guard (reuses the
+  existing `paraphrase_recall` invariant).
+- `verify.py` gains `P4_curated` (`forgets_flag_only` gate: the plan call must
+  never mutate the accepted pool). Live verify: 0/167 dark candidates on the
+  live vault (consistent with the healthy P0.2b state), pool unchanged.
+
+**RFC 0006 program complete** — all four pillars (Grounded, Fresh, Scoped,
+Curated) built, independently reviewed, and verified against the frozen
+baseline on the live vault.
+
 ### Added — Pillar ③ Scoped: serving lenses at the recall boundary (RFC 0006 P3)
 
 - `atelier_learning_recall` now takes a `lens` (default **`dev`**): a coding

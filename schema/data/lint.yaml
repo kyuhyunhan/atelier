@@ -136,9 +136,26 @@ rules:
     threshold: 3
     notes: "Automated detection deferred; requires NLP or heuristic name extraction."
 
+  L8:
+    id: L8
+    name: private-domain-claim-leak
+    severity: FAIL
+    automation: auto
+    spaces: []   # space-agnostic: rules filter by page_type / slug, not space
+    description: >
+      A claim derived_from a source in a private domain (structure.yaml
+      atomize.private_source_domains — e.g. personal) MUST carry
+      sensitivity: private. Policy 1 (2026-07): personal may be atomized under
+      the human gate, but derived claims must never leak — private sensitivity
+      keeps them behind the recall sensitivity_gate and outside the dev lens
+      (RFC 0006). This audit also catches sources re-domained to personal
+      AFTER their claims were minted, which no write-time check can see.
+    check: check_private_domain_claims
+    fix: null
+
 # ── Global settings ───────────────────────────────────────────────────────────
 defaults:
-  run_on_lint_command: [L1, L3, L5, L6]   # L4 retired (GP5); see its entry
+  run_on_lint_command: [L1, L3, L5, L6, L8]   # L4 retired (GP5); see its entry
   fixable_rules:       [L3]
   manual_rules:        [L2, L7]
   fail_on_severity:    [FAIL]

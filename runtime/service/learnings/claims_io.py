@@ -521,6 +521,26 @@ def write_synthesized_claim(*, statement: str,
     # source claim ids (so PROV-O wasDerivedFrom is never empty).
     derived_from = list(dict.fromkeys(source_entry_ids_for_id or source_claim_ids))
 
+    # The dream guard (personal invariant, Policy 1 / structure.yaml atomize:):
+    # dream is the ONE engine path that could launder private-domain content
+    # into an always-surfaced (T0) principle. If ANY upstream claim sits in a
+    # private domain or is itself sensitivity: private, the synthesis inherits
+    # `private` — the sensitivity_gate then keeps it out of proactive/always
+    # push, and the dev lens (RFC 0006 ③) out of coding sessions. Sensitivity
+    # only ever ESCALATES here, never relaxes. Abstain-on-miss: an unresolvable
+    # source id changes nothing (lint L8 is the audit backstop).
+    private_domains = set(_structure.atomize_private_source_domains())
+    if sensitivity != "private" and private_domains:
+        for sid in source_claim_ids:
+            found = find_claim_by_entry_id(sid, vault)
+            if found is None:
+                continue
+            src_fm, _src_body = found[1], found[2]
+            if (str(src_fm.get("domain") or "") in private_domains
+                    or str(src_fm.get("sensitivity") or "") == "private"):
+                sensitivity = "private"
+                break
+
     # content-addressed id (§5): normalize(statement) | derived_from.
     eid = _structure.entry_id(
         "claim", statement=statement,

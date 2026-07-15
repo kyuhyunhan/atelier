@@ -198,6 +198,15 @@ def atomic_entity_dir() -> str:
     return home("atomic_entity")
 
 
+# --- Atomize policy (RFC 0005 §7.2 gate + the personal invariant) ----------
+def atomize_private_source_domains() -> Tuple[str, ...]:
+    """Domains whose sources may be atomized only under the human gate AND whose
+    derived claims MUST stay `sensitivity: private` (structure.yaml `atomize:`).
+    The enforced invariant is "never leaks", not "never atomized" — consumers:
+    lint L8 (audit) and the dream-synthesis guard in claims_io."""
+    return tuple(_data().get("atomize", {}).get("private_source_domains", ()))
+
+
 # --- Prefix aliasing ------------------------------------------------------
 def prefix_aliases() -> Dict[str, str]:
     return dict(_data()["prefix_aliases"])

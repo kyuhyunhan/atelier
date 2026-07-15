@@ -66,7 +66,7 @@ def run(
     report = LintReport()
 
     # Import rule modules to register their check functions.
-    from . import L1, L3, L5, L6  # noqa: F401
+    from . import L1, L3, L5, L6, L8  # noqa: F401
 
     for rid in selected:
         rule = rules.get(rid)

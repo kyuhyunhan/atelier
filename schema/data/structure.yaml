@@ -41,6 +41,19 @@ intake:
   workshop: workshop           # under vault root     -> workshop
   inbox_subpath: inbox         # legacy leaf under personal intake (new_doc raw)
 
+# --- Atomize policy (the personal invariant, as DATA — hard rule #3) --------
+# Policy decided 2026-07 (reconciles ARCHITECTURE.md's old "NEVER atomized"
+# prose with RFC 0005 §7.2's human gate and the live corpus, where personal
+# sources ARE atomized): personal MAY be atomized — under the human gate like
+# everything else — but every claim derived from a private-domain source MUST
+# carry `sensitivity: private`, which the recall sensitivity_gate + the dev
+# lens (RFC 0006 ③) then keep out of every coding-session surface. The
+# enforced invariant is "personal never LEAKS", not "personal never atomized".
+# Consumers: lint L8 (audit) and claims_io.write_synthesized_claim (the dream
+# guard — the one engine path that could launder personal into T0 principles).
+atomize:
+  private_source_domains: [personal]
+
 # --- Homes ----------------------------------------------------------------
 # page_type -> write dir for that kind of node. graph_* are relative to
 # graph_root; learning_* and products map to their canonical trees. These

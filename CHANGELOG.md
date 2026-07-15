@@ -4,6 +4,30 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — the personal invariant, enforced (Policy 1)
+
+- **Policy decision (2026-07), resolving a live contradiction**: ARCHITECTURE.md
+  said personal is "NEVER atomized" while RFC 0005 §7.2 permits it under the
+  human gate — and the live corpus had already atomized 598/600 personal
+  sources into 3,433 claims (80.5% of the graph), every one of them
+  `sensitivity: private`. The invariant that actually holds (and now enforced):
+  **personal may be atomized under the human gate, but derived claims must
+  never LEAK** — `sensitivity: private` keeps them behind the recall
+  sensitivity_gate and outside the dev lens (RFC 0006 ③).
+- `schema/data/structure.yaml` `atomize.private_source_domains` (rule as DATA,
+  hard rule #3) + resolver accessor.
+- **Lint L8** (`private-domain-claim-leak`, severity FAIL): a claim
+  `derived_from` a private-domain source must be `sensitivity: private`. Ships
+  green on the live vault (0 violations / 3,433 personal claims). This is the
+  only layer that catches direct agent markdown writes (the atomize skill
+  bypasses engine APIs) and sources re-domained to personal after the fact.
+- **Dream guard** in `claims_io.write_synthesized_claim`: a synthesis with any
+  private-domain or private-sensitivity upstream inherits `private` (sensitivity
+  only escalates) — closing the one engine path that could launder personal
+  content into an always-surfaced (T0) principle. Abstain-on-miss; L8 is the
+  audit backstop.
+- ARCHITECTURE.md prose corrected to the decided policy.
+
 ### Added — Pillar ④ Curated: flag-only forgetting (RFC 0006 P4)
 
 - `lateral.plan_forgets()` — flags accepted learnings the surfacing audit

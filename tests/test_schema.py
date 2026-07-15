@@ -42,12 +42,15 @@ def test_linking_yaml_registers_both_schemes():
     assert data["backward_compat"]["v3_implicit_space"] == "gorae"
 
 
-def test_lint_yaml_defines_l1_through_l7():
+def test_lint_yaml_defines_l1_through_l8():
     data = yaml.safe_load((SCHEMA / "lint.yaml").read_text())
     ids = set(data["rules"])
-    assert ids == {"L1", "L2", "L3", "L4", "L5", "L6", "L7"}
+    assert ids == {"L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"}
     assert data["rules"]["L1"]["severity"] == "FAIL"
     assert data["rules"]["L3"]["fix"] is not None
+    # L8 — the personal invariant (Policy 1): private-domain claims never leak.
+    assert data["rules"]["L8"]["severity"] == "FAIL"
+    assert data["rules"]["L8"]["check"] == "check_private_domain_claims"
 
 
 def test_learnings_overlay_has_lifecycle_page_types():

@@ -71,6 +71,8 @@ def _is_non_fast_forward(text: str) -> bool:
 def commit_push(cfg: config.Config, message: str, *,
                 space: Optional[str] = None, push: bool = True,
                 on_conflict: str = "surface",
+                split_human_tree: Optional[str] = None,
+                split_prefixes: Tuple[str, str] = ("journal:", "chore(vault):"),
                 timeout: Optional[float] = github._DEFAULT_TIMEOUT,
                 ) -> Dict[str, Any]:
     """Commit the vault (or a space) and optionally push, with safety gates.
@@ -100,7 +102,18 @@ def commit_push(cfg: config.Config, message: str, *,
             continue
 
         try:
-            sha = github.commit(local, message, timeout=timeout)
+            if split_human_tree:
+                # Human/machine history separation: raw/ (the human tree) and
+                # the engine tree land as SEPARATE commits, each with a message
+                # built from its own staged paths. `message` is unused in this
+                # mode — commit_split derives both messages.
+                shas = github.commit_split(
+                    local, split_human_tree,
+                    human_prefix=split_prefixes[0],
+                    machine_prefix=split_prefixes[1], timeout=timeout)
+                sha = shas[-1] if shas else "nothing to commit"
+            else:
+                sha = github.commit(local, message, timeout=timeout)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             log.warn("sync.commit-failed", target=name, err=str(e))
             result["commit_error"] = str(e)
@@ -111,6 +124,8 @@ def commit_push(cfg: config.Config, message: str, *,
             continue
         result["committed"] = True
         result["sha"] = sha
+        if split_human_tree:
+            result["shas"] = shas
         log.info("sync.commit", target=name, sha=sha)
 
         if not push or remote_type != "github":

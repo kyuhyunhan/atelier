@@ -71,6 +71,11 @@ class AutoSyncConfig:
     # files (incremental, idempotent). Defaults ON: it structurally removes the
     # manual-reindex drift class (D2). Quiescence-gated by the commit itself.
     reindex_on_commit: bool = True
+    # Human/machine history separation (2026-07): commit raw/ (the human tree)
+    # and the engine tree (graph/, workshop/, manifests) as SEPARATE commits —
+    # "journal:" vs message_prefix — so the diary's git history stays human and
+    # the PII-review surface is clean. Same repo, same durability.
+    split_human_commits: bool = True
 
 
 @dataclass
@@ -239,6 +244,8 @@ def load(path: Optional[Path] = None) -> Config:
         message_prefix=ac.get("message_prefix", defaults.message_prefix),
         reindex_on_commit=bool(ac.get("reindex_on_commit",
                                       defaults.reindex_on_commit)),
+        split_human_commits=bool(ac.get("split_human_commits",
+                                        defaults.split_human_commits)),
     )
 
     lg = data.get("logging") or {}

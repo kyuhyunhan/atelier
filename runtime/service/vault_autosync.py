@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 from typing import Awaitable, Callable, Optional, Tuple
 
+from ..structure import resolver as _structure
 from ..sync import orchestrator
 from ..sync.adapters import github
 from ..util import logging as log
@@ -159,7 +160,13 @@ async def run(sup: server.Supervisor) -> None:
         sup,
         status_fn=lambda: github.dirty_porcelain(local),
         commit_fn=lambda msg: orchestrator.commit_push(
-            sup.cfg, message=msg, push=ac.push, on_conflict=ac.on_conflict),
+            sup.cfg, message=msg, push=ac.push, on_conflict=ac.on_conflict,
+            # Human/machine commit separation: raw/ (content_root, from the
+            # structure resolver — hard rule #3) lands as its own "journal:"
+            # commit; the engine tree keeps message_prefix. Off → legacy add -A.
+            split_human_tree=(_structure.content_root()
+                              if ac.split_human_commits else None),
+            split_prefixes=("journal:", ac.message_prefix)),
         lock_busy_fn=lambda: claims.registry().any_held(),
         sleep_fn=lambda interval: _interruptible_sleep(sup, interval),
         require_stable=ac.require_stable,

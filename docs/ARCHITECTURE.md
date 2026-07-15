@@ -473,7 +473,13 @@ in v0.2 without restructuring.
 ├── raw/                              L0/L1 "what came in" — human-written, read-only to the engine
 │   │                                 (content_root; renamed from `provenance/` in the P2 flip — RFC 0005.
 │   │                                  `provenance/` survives only as a prefix_alias for un-migrated pages)
-│   ├── personal/                     domain: personal — diary/writings; NEVER atomized (human-only)
+│   ├── personal/                     domain: personal — diary/writings. Atomizable under the human
+│   │                                 gate like everything else, but derived claims MUST be
+│   │                                 sensitivity: private (never surface unprompted; excluded from
+│   │                                 the dev lens). The invariant is "never LEAKS", not "never
+│   │                                 atomized" — see structure.yaml `atomize:` + lint L8 (Policy 1,
+│   │                                 2026-07; supersedes the old "NEVER atomized" prose, which the
+│   │                                 live corpus already contradicted)
 │   ├── knowledge/                    domain: knowledge — atomized into graph/atomic/
 │   ├── inbox/                        domain: inbox — first-class capture intake (was personal/inbox)
 │   └── learning/                     dev-self lessons (relocated here from top-level learnings/, RFC 0003 P6)

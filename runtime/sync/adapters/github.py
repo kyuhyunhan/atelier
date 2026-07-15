@@ -73,6 +73,42 @@ def commit(local: Path, message: str,
     return _git(local, "rev-parse", "HEAD", timeout=timeout).strip()
 
 
+def commit_split(local: Path, human_tree: str, *,
+                 human_prefix: str = "journal:",
+                 machine_prefix: str = "chore(vault):",
+                 timeout: Optional[float] = _DEFAULT_TIMEOUT) -> List[str]:
+    """Two path-scoped commits instead of one ``add -A``: the HUMAN tree
+    (``<human_tree>/`` — e.g. raw/, the content root) first, then everything
+    else (graph/, workshop/, manifests — the engine/machine tree).
+
+    Why: the vault interleaves human diary edits and machine claim writes; one
+    ``add -A`` commit fuses them, polluting the journal's git history and the
+    PII-review surface (you cannot diff what the machine extracted without also
+    diffing the diary). Splitting restores "raw/ is MINE, graph/ is the
+    MACHINE's" at the history level — same repo, same durability, zero new
+    machinery. Each commit's message is built from ITS OWN staged paths.
+
+    Skips either commit when its tree is clean (idempotent, like ``commit``).
+    Returns the new shas, oldest first (0, 1, or 2 entries).
+    """
+    shas: List[str] = []
+    passes = (
+        (human_prefix, [f"{human_tree.rstrip('/')}/"]),
+        (machine_prefix, ["."]),        # add -A of the remainder after pass 1
+    )
+    for prefix, pathspecs in passes:
+        _git(local, "add", "-A", "--", *pathspecs, timeout=timeout)
+        staged = _git(local, "diff", "--cached", "--name-only",
+                      timeout=timeout).strip()
+        if not staged:
+            continue
+        files = staged.splitlines()
+        msg = f"{prefix} sync {len(files)} change(s) [auto]\n\n" + "\n".join(files)
+        _git(local, "commit", "-m", msg, timeout=timeout)
+        shas.append(_git(local, "rev-parse", "HEAD", timeout=timeout).strip())
+    return shas
+
+
 def dirty_porcelain(local: Path,
                     timeout: Optional[float] = _DEFAULT_TIMEOUT) -> str:
     """Raw ``git status --porcelain`` output (empty string == clean tree).

@@ -4,6 +4,19 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — human/machine commit separation in vault autosync
+
+- `vault.auto_commit.split_human_commits` (default **true**): the autosync
+  poller now lands `raw/` (the human tree) and the engine tree (`graph/`,
+  `workshop/`, manifests) as **separate, path-scoped commits** — `journal:` vs
+  `message_prefix` — instead of one fused `add -A`. The diary's git history
+  stays human; the machine's extractions are reviewable in isolation (clean
+  PII-review surface). Same repo, same durability, quiescence gate unchanged.
+  New primitive `github.commit_split` (each commit's message lists its own
+  staged paths); threaded through `orchestrator.commit_push`
+  (`split_human_tree`, human tree = `content_root()` from the structure
+  resolver — hard rule #3). `false` restores the legacy single commit.
+
 ### Added — the personal invariant, enforced (Policy 1)
 
 - **Policy decision (2026-07), resolving a live contradiction**: ARCHITECTURE.md

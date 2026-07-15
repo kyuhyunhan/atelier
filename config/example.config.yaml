@@ -44,6 +44,12 @@ vault:
                                 # reindex changed files (incremental, idempotent).
                                 # Removes manual-reindex drift; gated by the commit's
                                 # own quiescence (never reindexes mid-write).
+    split_human_commits: true   # raw/ (the human tree) and the engine tree
+                                # (graph/, workshop/, manifests) land as SEPARATE
+                                # commits — "journal:" vs message_prefix — so the
+                                # diary's git history stays human and the machine's
+                                # extractions are reviewable in isolation.
+                                # false → legacy single add -A commit.
 
 # ── Subtree writer roles ─────────────────────────────────────────────────────
 # Each subtree under the vault root binds to exactly one writer role, keyed by

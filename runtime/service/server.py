@@ -44,16 +44,6 @@ def _pidfile_path() -> Path:
     return Path(_config.CACHE_DIR).parent / "serve.pid"   # ~/.atelier/serve.pid
 
 
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)               # signal 0 = liveness probe, no-op
-    except ProcessLookupError:
-        return False
-    except PermissionError:           # exists but owned by another user
-        return True
-    return True
-
-
 def is_locked() -> bool:
     """Is a live `serve` currently holding the pidfile's flock?
 

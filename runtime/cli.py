@@ -358,9 +358,23 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
 
 
 def _cmd_daemon(args: argparse.Namespace) -> int:
-    """launchd always-on serve: install (with guardrails), uninstall (kill
-    switch), status (visibility). See runtime/service/daemon.py."""
+    """Always-on serve. Default: ensure/stop (session-anchored, no manual
+    permission steps). Advanced/opt-in: install/uninstall/status (launchd —
+    fails on a TCC-protected vault without a manual Full Disk Access grant).
+    See runtime/service/daemon.py."""
     from .service import daemon as _daemon
+    if args.action == "ensure":
+        out = _daemon.ensure()
+        if out["already_running"]:
+            print(f"daemon already running (pid {out['pid']})")
+        else:
+            print(f"daemon started (pid {out['pid']})")
+        return 0
+    if args.action == "stop":
+        out = _daemon.stop()
+        print(f"daemon stopped (was pid {out['pid']})" if out["was_running"]
+              else "daemon was not running")
+        return 0
     if args.action == "install":
         out = _daemon.install()
         if out["loaded"]:
@@ -375,9 +389,11 @@ def _cmd_daemon(args: argparse.Namespace) -> int:
         print(f"daemon unloaded: {out['label']}  plist_removed={out['plist_removed']}")
         return 0
     out = _daemon.status()
-    running = out["pid"] is not None
-    print(f"  installed={out['installed']}  loaded={out['loaded']}  "
-          f"running={running}" + (f"  pid={out['pid']}" if running else ""))
+    print(f"  serve running: {out['running']}" +
+          (f"  (pid {out['session_pid']})" if out["running"] else ""))
+    print(f"  launchd (opt-in): installed={out['installed']}  "
+          f"loaded={out['loaded']}" +
+          (f"  pid={out['pid']}" if out["pid"] else ""))
     print(f"  plist: {out['plist']}")
     return 0
 
@@ -520,8 +536,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=_cmd_baseline)
 
     s = sub.add_parser("daemon",
-                       help="always-on serve via launchd: install | uninstall | status")
-    s.add_argument("action", choices=["install", "uninstall", "status"])
+                       help="always-on serve: ensure | stop (default, session-anchored) "
+                            "| install | uninstall | status (opt-in, launchd)")
+    s.add_argument("action",
+                   choices=["ensure", "stop", "install", "uninstall", "status"])
     s.set_defaults(func=_cmd_daemon)
 
     s = sub.add_parser("verify",

@@ -5,6 +5,7 @@ live in the plist this module renders, G5 in the autosync piggyback reindex.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Dict
 
@@ -84,3 +85,64 @@ def test_bulk_commit_skips_embeddings(atelier_env: Dict, monkeypatch) -> None:
     seen = _capture_reindex(monkeypatch)
     _autosync._reindex_changed(_fake_status(51))         # 51 > cap(50)
     assert seen["embed_gateway"] is None                 # G5: vectors deferred
+
+
+# ── session-anchored daemon (default: ensure/stop, no launchd) ──────────────
+
+
+def _pidfile(atelier_env: Dict) -> Path:
+    return atelier_env["cache"].parent / "serve.pid"
+
+
+def test_ensure_spawns_when_nothing_running(atelier_env: Dict, monkeypatch) -> None:
+    calls = []
+
+    class FakeProc:
+        pid = 4242
+
+    def fake_popen(*args, **kwargs):
+        calls.append((args, kwargs))
+        return FakeProc()
+
+    monkeypatch.setattr(_daemon.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(_daemon, "_log_dir", lambda: _pidfile(atelier_env).parent)
+
+    out = _daemon.ensure()
+    assert out == {"started": True, "already_running": False, "pid": 4242}
+    assert len(calls) == 1
+    args, kwargs = calls[0]
+    assert args[0][-2:] == ["serve", "--http"]           # G1: same entrypoint
+    assert kwargs["start_new_session"] is True            # G2: detached, no restart-on-crash
+
+
+def test_ensure_is_a_noop_when_already_running(atelier_env: Dict, monkeypatch) -> None:
+    pf = _pidfile(atelier_env)
+    pf.parent.mkdir(parents=True, exist_ok=True)
+    pf.write_text(str(os.getpid()))                       # our own pid: always alive
+
+    calls = []
+    monkeypatch.setattr(_daemon.subprocess, "Popen",
+                        lambda *a, **kw: calls.append((a, kw)))
+
+    out = _daemon.ensure()
+    assert out == {"started": False, "already_running": True, "pid": os.getpid()}
+    assert calls == []                                     # G1: no duplicate spawn
+
+
+def test_stop_signals_the_running_pid(atelier_env: Dict, monkeypatch) -> None:
+    pf = _pidfile(atelier_env)
+    pf.parent.mkdir(parents=True, exist_ok=True)
+    pf.write_text("9999")
+
+    monkeypatch.setattr(_daemon._server, "_pid_alive", lambda pid: pid == 9999)
+    killed = []
+    monkeypatch.setattr(_daemon.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+
+    out = _daemon.stop()
+    assert out == {"stopped": True, "was_running": True, "pid": 9999}
+    assert killed == [(9999, _daemon.signal.SIGTERM)]
+
+
+def test_stop_is_a_noop_when_nothing_running(atelier_env: Dict) -> None:
+    out = _daemon.stop()
+    assert out == {"stopped": False, "was_running": False}

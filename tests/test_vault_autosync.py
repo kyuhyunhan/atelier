@@ -232,6 +232,47 @@ def test_run_registered_as_background() -> None:
     assert vas.run in server._BACKGROUNDS
 
 
+# ── vault access diagnostics (distinguish TCC denial from a real misconfig) ──
+
+
+def test_access_reason_empty_for_a_real_repo(tmp_path) -> None:
+    import subprocess
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    assert vas._vault_access_reason(tmp_path) == ""
+
+
+def test_access_reason_flags_a_non_repo_dir(tmp_path) -> None:
+    assert vas._vault_access_reason(tmp_path) == "vault is not a git repo root"
+
+
+def test_access_reason_flags_missing_path(tmp_path) -> None:
+    assert vas._vault_access_reason(tmp_path / "nope") == "vault path does not exist"
+
+
+def test_access_reason_names_tcc_when_protected(tmp_path, monkeypatch) -> None:
+    def deny(_path):
+        raise PermissionError("Operation not permitted")
+    monkeypatch.setattr(vas.os, "listdir", deny)
+
+    from runtime.service import daemon as _daemon
+    monkeypatch.setattr(_daemon, "is_tcc_protected", lambda p: True)
+
+    reason = vas._vault_access_reason(tmp_path)
+    assert "TCC" in reason
+    assert "atelier daemon ensure" in reason
+
+
+def test_access_reason_generic_permission_denied_outside_tcc(tmp_path, monkeypatch) -> None:
+    def deny(_path):
+        raise PermissionError("Operation not permitted")
+    monkeypatch.setattr(vas.os, "listdir", deny)
+
+    from runtime.service import daemon as _daemon
+    monkeypatch.setattr(_daemon, "is_tcc_protected", lambda p: False)
+
+    assert vas._vault_access_reason(tmp_path) == "permission denied reading vault path"
+
+
 # ── integration: real git repo through the loop to a bare remote ─────────────
 
 

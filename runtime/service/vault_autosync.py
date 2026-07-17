@@ -23,6 +23,8 @@ can be unit-tested without async, threads, real git, or real time.
 from __future__ import annotations
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Awaitable, Callable, Optional, Tuple
 
 from ..structure import resolver as _structure
@@ -132,6 +134,33 @@ async def _interruptible_sleep(sup: server.Supervisor, interval: float) -> bool:
 # ── supervisor entrypoint ────────────────────────────────────────────────────
 
 
+def _vault_access_reason(local: Path) -> str:
+    """Empty string == vault is a usable git repo root. Otherwise a reason
+    string for the disabled-log — distinguishing a genuine misconfiguration
+    from a macOS TCC permission denial matters: the two need different fixes,
+    and "vault is not a git repo root" was actively misleading when the real
+    cause was launchd lacking Full Disk Access for a ~/Documents vault."""
+    try:
+        os.listdir(local)
+    except PermissionError:
+        from . import daemon as _daemon
+        if _daemon.is_tcc_protected(local):
+            return ("macOS blocked reading this vault path (TCC) — the "
+                     "process that started serve lacks Full Disk Access "
+                     "here. Use the default session-anchored daemon "
+                     "(`atelier daemon ensure`, wired into every Claude "
+                     "Code session start) instead of `atelier daemon "
+                     "install` (launchd) for this vault location.")
+        return "permission denied reading vault path"
+    except FileNotFoundError:
+        return "vault path does not exist"
+    except OSError as e:
+        return f"vault path unreadable ({e})"
+    if not (local / ".git").exists() or not github.is_repo_root(local):
+        return "vault is not a git repo root"
+    return ""
+
+
 async def run(sup: server.Supervisor) -> None:
     """Background task. Self-gates on config; idles if disabled or the vault
     is not a git repo root (graceful degradation, same as the sync path)."""
@@ -147,9 +176,9 @@ async def run(sup: server.Supervisor) -> None:
         await sup.shutdown.wait()
         return
     local = vault.local
-    if not (local / ".git").exists() or not github.is_repo_root(local):
-        log.warn("vault-autosync.disabled", reason="vault is not a git repo root",
-                 vault=str(local))
+    reason = _vault_access_reason(local)
+    if reason:
+        log.warn("vault-autosync.disabled", reason=reason, vault=str(local))
         await sup.shutdown.wait()
         return
 

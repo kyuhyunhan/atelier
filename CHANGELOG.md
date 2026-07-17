@@ -19,6 +19,39 @@ All notable changes to atelier.
   files, deferring bulk-edit vectors to a manual reindex.
   Kill switch: `atelier daemon uninstall`. Visibility: `atelier daemon status`.
 
+### Changed — session-anchored daemon is now the default; launchd demoted to opt-in
+
+- Root cause found (live reproduction, not guessed): a process launchd spawns
+  does **not** inherit the interactive user's macOS TCC grants, so
+  `atelier daemon install` silently fails to read a vault under
+  `~/Documents`/`~/Desktop`/`~/Downloads` — the exact same `git` command that
+  works from a Terminal shell fails with `Operation not permitted` when run
+  under `launchctl submit`. Fixing this by asking users to grant Full Disk
+  Access via System Settings is a manual, per-machine, GUI-only step —
+  unacceptable as the *default* for a project meant to be distributed to
+  machines its author never touches.
+- New default: `atelier daemon {ensure,stop}`. A Claude Code `SessionStart`
+  hook calls `atelier daemon ensure` on every session; it spawns
+  `serve --http` detached iff nothing already holds the existing pidfile
+  (G1 — idempotent, near-instant when already running). Because it runs as a
+  child of the interactive session's process tree, the spawned serve
+  **inherits the caller's TCC grants** — zero manual permission steps on any
+  machine. G2 (no crash-loop spin) becomes structural rather than a throttle:
+  there is no auto-restart-on-crash at all, so a crash loop is impossible by
+  construction; serve only restarts when a new session starts. G3 (low
+  priority) moves from the plist to `os.nice(10)` in the spawn itself.
+  `atelier daemon stop` is the manual kill switch (SIGTERM via the pidfile).
+- `atelier daemon {install,uninstall,status}` (launchd) is **kept** as an
+  opt-in/advanced path for machines that need serve alive with no Claude Code
+  session running (e.g. headless automation) — `install` now warns when the
+  configured vault sits under a TCC-protected folder. `status` reports serve
+  liveness for **either** mechanism.
+- `vault_autosync`'s startup diagnostic no longer reports the misleading
+  "vault is not a git repo root" when the real cause is a TCC permission
+  denial — it now names the cause and points at `atelier daemon ensure`.
+- `config/example.config.yaml` recommends a vault path outside
+  `~/Documents`/`~/Desktop`/`~/Downloads` (TCC, and iCloud/git version races).
+
 ### Added — human/machine commit separation in vault autosync
 
 - `vault.auto_commit.split_human_commits` (default **true**): the autosync

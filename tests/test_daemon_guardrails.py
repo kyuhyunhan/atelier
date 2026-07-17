@@ -116,31 +116,57 @@ def test_ensure_spawns_when_nothing_running(atelier_env: Dict, monkeypatch) -> N
 
 
 def test_ensure_is_a_noop_when_already_running(atelier_env: Dict, monkeypatch) -> None:
-    pf = _pidfile(atelier_env)
-    pf.parent.mkdir(parents=True, exist_ok=True)
-    pf.write_text(str(os.getpid()))                       # our own pid: always alive
-
+    # "Running" is decided by the flock, not the pidfile's content (a reused
+    # pid must never look alive) — so simulate it by actually holding the
+    # lock, the same way a real `serve` process would.
+    pf = _daemon._server._acquire_pidfile()
     calls = []
     monkeypatch.setattr(_daemon.subprocess, "Popen",
                         lambda *a, **kw: calls.append((a, kw)))
-
-    out = _daemon.ensure()
-    assert out == {"started": False, "already_running": True, "pid": os.getpid()}
-    assert calls == []                                     # G1: no duplicate spawn
+    try:
+        out = _daemon.ensure()
+        assert out == {"started": False, "already_running": True, "pid": os.getpid()}
+        assert calls == []                                 # G1: no duplicate spawn
+    finally:
+        _daemon._server._release_pidfile(pf)
 
 
 def test_stop_signals_the_running_pid(atelier_env: Dict, monkeypatch) -> None:
-    pf = _pidfile(atelier_env)
-    pf.parent.mkdir(parents=True, exist_ok=True)
-    pf.write_text("9999")
+    pf = _daemon._server._acquire_pidfile()
+    pf.write_text("9999")          # the pidfile's displayed pid (best-effort)
 
-    monkeypatch.setattr(_daemon._server, "_pid_alive", lambda pid: pid == 9999)
     killed = []
     monkeypatch.setattr(_daemon.os, "kill", lambda pid, sig: killed.append((pid, sig)))
 
-    out = _daemon.stop()
-    assert out == {"stopped": True, "was_running": True, "pid": 9999}
-    assert killed == [(9999, _daemon.signal.SIGTERM)]
+    try:
+        out = _daemon.stop()
+        assert out == {"stopped": True, "was_running": True, "pid": 9999}
+        assert killed == [(9999, _daemon.signal.SIGTERM)]
+    finally:
+        _daemon._server._release_pidfile(pf)
+
+
+def test_ensure_ignores_a_reused_stale_pid_in_the_file(atelier_env: Dict, monkeypatch) -> None:
+    """A clean stop leaves the pidfile's content stale on purpose (see
+    server._release_pidfile). If that stale pid gets reused by some
+    unrelated, currently-alive OS process, `ensure` must still spawn — it
+    asks the flock, never `kill(pid, 0)` on content it can't trust."""
+    pf = _pidfile(atelier_env)
+    pf.parent.mkdir(parents=True, exist_ok=True)
+    pf.write_text(str(os.getpid()))            # our own pid: definitely alive,
+                                                # but the lock is free — nobody holds it
+    calls = []
+
+    class FakeProc:
+        pid = 4242
+
+    monkeypatch.setattr(_daemon.subprocess, "Popen",
+                        lambda *a, **kw: (calls.append((a, kw)), FakeProc())[1])
+    monkeypatch.setattr(_daemon, "_log_dir", lambda: pf.parent)
+
+    out = _daemon.ensure()
+    assert out == {"started": True, "already_running": False, "pid": 4242}
+    assert len(calls) == 1
 
 
 def test_stop_is_a_noop_when_nothing_running(atelier_env: Dict) -> None:

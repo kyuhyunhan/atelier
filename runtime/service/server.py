@@ -54,6 +54,32 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def is_locked() -> bool:
+    """Is a live `serve` currently holding the pidfile's flock?
+
+    The pidfile's *content* is deliberately never authoritative (see
+    `_release_pidfile`'s docstring — it is left stale on purpose). Callers
+    that need to know "is serve actually running" (`daemon.ensure/status/
+    stop`) must ask the lock, not read the pid back and `kill(pid, 0)` it —
+    a reused pid would otherwise look alive despite serve being long gone.
+    Non-blocking: probes and immediately releases if free."""
+    pf = _pidfile_path()
+    if not pf.exists():
+        return False
+    fd = os.open(pf, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as e:
+        if e.errno in (errno.EACCES, errno.EAGAIN):
+            return True                # someone else holds it → running
+        raise
+    else:
+        fcntl.flock(fd, fcntl.LOCK_UN)  # we just grabbed it → not running
+        return False
+    finally:
+        os.close(fd)
+
+
 class AlreadyRunning(RuntimeError):
     """A live `atelier serve` already holds the pidfile."""
 

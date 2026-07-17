@@ -183,7 +183,7 @@ def uninstall() -> Dict[str, Any]:
 def status() -> Dict[str, Any]:
     """Combined visibility: is ANY serve alive (session-anchored, the default
     path), and is the opt-in launchd agent additionally installed/loaded?"""
-    session_pid, _pf = _pidfile_state()
+    session_running, session_pid, _pf = _pidfile_state()
 
     installed = plist_path().exists()
     r = _launchctl("print", f"{_gui_domain()}/{LABEL}")
@@ -200,7 +200,7 @@ def status() -> Dict[str, Any]:
                     pass
             elif ln.startswith("state ="):
                 state = ln.split("=", 1)[1].strip()
-    return {"label": LABEL, "running": session_pid is not None,
+    return {"label": LABEL, "running": session_running,
             "session_pid": session_pid,
             "installed": installed, "loaded": loaded,
             "pid": pid, "state": state, "plist": str(plist_path())}
@@ -216,18 +216,23 @@ def status() -> Dict[str, Any]:
 
 
 def _pidfile_state():
-    """(pid_or_None, pidfile_path) — reuses serve's own single-instance guard
-    so `ensure` and `serve`'s pidfile agree on what "running" means (G1)."""
+    """(running, pid_or_None, pidfile_path). "running" is decided by the
+    flock (`server.is_locked()`), never by the pidfile's content: the
+    content is left stale on a clean stop (see server._release_pidfile's
+    docstring), so a content+kill(pid,0) check would misread a reused pid
+    as "still running" indefinitely. `running` and `pid` are reported
+    separately on purpose — pid is best-effort display/signalling only
+    (can legitimately be None while running, in the rare window right
+    after acquire but before the write, or if content is unparsable) and
+    callers must never treat pid-is-None as "not running"."""
     pf = _server._pidfile_path()
-    if not pf.exists():
-        return None, pf
+    if not _server.is_locked():
+        return False, None, pf
     try:
-        pid = int(pf.read_text().strip() or "0")
+        pid = int(pf.read_text().strip() or "0") or None
     except (ValueError, OSError):
-        return None, pf
-    if pid and _server._pid_alive(pid):
-        return pid, pf
-    return None, pf
+        pid = None
+    return True, pid, pf
 
 
 def ensure() -> Dict[str, Any]:
@@ -240,8 +245,8 @@ def ensure() -> Dict[str, Any]:
     re-checking the same pidfile on startup, so a race between two `ensure`
     calls resolves the same way an `install`-based instance would.
     """
-    pid, pf = _pidfile_state()
-    if pid is not None:
+    running, pid, pf = _pidfile_state()
+    if running:
         return {"started": False, "already_running": True, "pid": pid}
 
     root = _engine_root()
@@ -276,9 +281,13 @@ def ensure() -> Dict[str, Any]:
 def stop() -> Dict[str, Any]:
     """Kill switch for the session-anchored daemon: SIGTERM the pidfile's
     owner (serve's own shutdown handler releases the pidfile on exit)."""
-    pid, pf = _pidfile_state()
-    if pid is None:
+    running, pid, pf = _pidfile_state()
+    if not running:
         return {"stopped": False, "was_running": False}
+    if pid is None:                    # locked, but content unavailable/racing
+        return {"stopped": False, "was_running": True, "pid": None,
+                "error": "serve is running but its pid could not be read "
+                         "from the pidfile; retry in a moment"}
     os.kill(pid, signal.SIGTERM)
     log.info("daemon.stop.signalled", pid=pid, pidfile=str(pf))
     return {"stopped": True, "was_running": True, "pid": pid}

@@ -372,8 +372,13 @@ def _cmd_daemon(args: argparse.Namespace) -> int:
         return 0
     if args.action == "stop":
         out = _daemon.stop()
-        print(f"daemon stopped (was pid {out['pid']})" if out["was_running"]
-              else "daemon was not running")
+        if not out["was_running"]:
+            print("daemon was not running")
+        elif out["stopped"]:
+            print(f"daemon stopped (was pid {out['pid']})")
+        else:
+            log.error(f"daemon stop failed: {out.get('error')}")
+            return 1
         return 0
     if args.action == "install":
         out = _daemon.install()

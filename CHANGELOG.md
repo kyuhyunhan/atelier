@@ -54,6 +54,11 @@ All notable changes to atelier.
   per-path, so unlinking would reopen a window for a third process to
   create-and-lock a fresh inode at the same path while a racing acquirer
   still held the old one; staleness is decided purely by lock availability.
+  Because content is now permanently stale, `daemon._pidfile_state()` (used
+  by `ensure`/`status`/`stop`) was changed to ask the same lock
+  (`server.is_locked()`) rather than reading the pid back and `kill(pid,
+  0)`-checking it — otherwise a reused pid would look "running" forever
+  after a clean stop.
 - `atelier daemon {install,uninstall,status}` (launchd) is **kept** as an
   opt-in/advanced path for machines that need serve alive with no Claude Code
   session running (e.g. headless automation) — `install` now warns when the

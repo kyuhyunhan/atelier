@@ -38,7 +38,13 @@ def test_acquire_then_release(atelier_env: Dict) -> None:
     assert pf.exists()
     assert pf.read_text().strip() == str(os.getpid())
     _server._release_pidfile(pf)
-    assert not pf.exists()
+    # Deliberately NOT unlinked (see _release_pidfile docstring — unlinking
+    # after unlock reopens a TOCTOU window). Freed-ness is the flock, not
+    # the path's existence: a fresh acquire must succeed immediately.
+    assert pf.exists()
+    reacquired = _server._acquire_pidfile()
+    assert reacquired.read_text().strip() == str(os.getpid())
+    _server._release_pidfile(reacquired)
 
 
 def test_concurrent_acquire_second_gets_already_running(atelier_env: Dict) -> None:
@@ -107,4 +113,7 @@ def test_run_releases_pidfile_on_clean_shutdown(atelier_env: Dict) -> None:
 
     rc = _server.run(transports=[stopper])
     assert rc == 0
-    assert not _server._pidfile_path().exists()
+    # Flock freed (not unlinked — see _release_pidfile) → a fresh run can
+    # acquire it right away.
+    rc2 = _server.run(transports=[stopper])
+    assert rc2 == 0

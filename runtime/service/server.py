@@ -58,9 +58,12 @@ class AlreadyRunning(RuntimeError):
     """A live `atelier serve` already holds the pidfile."""
 
     def __init__(self, pid: int) -> None:
+        detail = (f"kill {pid}" if pid else "wait a moment and retry — it may "
+                  f"still be writing its pid")
         super().__init__(
-            f"atelier serve is already running (pid {pid}). "
-            f"Stop it first (kill {pid}) or use the existing instance."
+            f"atelier serve is already running"
+            f"{f' (pid {pid})' if pid else ''}. "
+            f"Stop it first ({detail}) or use the existing instance."
         )
         self.pid = pid
 
@@ -97,6 +100,13 @@ def _acquire_pidfile() -> Path:
 
 
 def _release_pidfile(pf: Path) -> None:
+    """Drop the flock. Deliberately does NOT unlink the path: flock is a
+    per-inode lock, not a per-path one, so unlinking after unlocking would
+    reopen a TOCTOU window — a third process could create+lock a fresh
+    inode at the same path while a just-released-but-still-alive locker's
+    fd (from a raced-in acquirer) still points at the old one. Leaving
+    stale content behind is harmless — staleness is decided purely by
+    whether the flock is free, per _acquire_pidfile, never by content."""
     fd = _HELD_FDS.pop(pf, None)
     if fd is not None:
         try:
@@ -104,11 +114,6 @@ def _release_pidfile(pf: Path) -> None:
         except OSError:               # pragma: no cover
             pass
         os.close(fd)                  # closing drops the flock either way
-    try:
-        if pf.exists() and pf.read_text().strip() == str(os.getpid()):
-            pf.unlink()
-    except OSError:                   # pragma: no cover
-        pass
 
 
 @dataclass

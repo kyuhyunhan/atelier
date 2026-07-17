@@ -49,7 +49,11 @@ All notable changes to atelier.
   (two `serve` processes could both pass the liveness check before either
   wrote, one hitting a raw port-bind crash instead of a clean
   `AlreadyRunning`). The kernel now arbitrates: exactly one caller wins the
-  lock, every other gets `AlreadyRunning` / exit code 3.
+  lock, every other gets `AlreadyRunning` / exit code 3. The pidfile is no
+  longer unlinked on release (only unlocked) — flock is per-inode, not
+  per-path, so unlinking would reopen a window for a third process to
+  create-and-lock a fresh inode at the same path while a racing acquirer
+  still held the old one; staleness is decided purely by lock availability.
 - `atelier daemon {install,uninstall,status}` (launchd) is **kept** as an
   opt-in/advanced path for machines that need serve alive with no Claude Code
   session running (e.g. headless automation) — `install` now warns when the

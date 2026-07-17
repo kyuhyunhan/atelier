@@ -16,12 +16,22 @@
 # nudge's `long` message into a single systemMessage. Reads via the local
 # CLI (no running server required, fast, filesystem-backed). Always exits 0
 # so it never blocks session start.
+#
+# Also the session-anchored daemon's revival point: `atelier daemon ensure`
+# spawns `serve --http` iff nothing already holds its pidfile (idempotent,
+# <100ms when already running). Running here — as a child of the caller's
+# process tree — means the spawned serve inherits the caller's TCC grants,
+# so a vault under ~/Documents works with zero manual permission steps on
+# any machine. Backgrounded so a cold spawn never delays session start.
 
 set -u
 
 export PATH="$HOME/.atelier/bin:$PATH"
 
 command -v atelier >/dev/null 2>&1 || exit 0
+
+atelier daemon ensure >/dev/null 2>&1 &
+disown 2>/dev/null || true
 
 INFO="$(atelier nudges --json 2>/dev/null)"
 [ -z "$INFO" ] && exit 0

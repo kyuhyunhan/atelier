@@ -1,8 +1,14 @@
-"""PR-41: single-instance guard (pidfile) for `atelier serve`."""
+"""PR-41/PR-51: single-instance guard (pidfile) `atelier serve`.
+
+The guard is a kernel-arbitrated flock (LOCK_EX|LOCK_NB) on the pidfile, not
+a read-check-write on its contents. That's what makes concurrent callers
+(the session-anchored daemon can be started by several Claude Code sessions
+at once) resolve deterministically: exactly one wins the flock, everyone
+else gets a clean AlreadyRunning instead of racing into a port bind."""
 from __future__ import annotations
 
-import asyncio
 import os
+import signal
 from typing import Dict
 
 import pytest
@@ -10,34 +16,66 @@ import pytest
 from runtime.service import server as _server
 
 
+def _fork_holder(w: int):
+    """Fork a child that acquires the pidfile flock, writes b"ok"/b"no" to
+    the pipe, then blocks until killed. Returns the child pid."""
+    pid = os.fork()
+    if pid == 0:
+        try:
+            _server._acquire_pidfile()
+            os.write(w, b"ok")
+        except BaseException:
+            os.write(w, b"no")
+        finally:
+            os.close(w)
+        signal.pause()
+        os._exit(0)
+    return pid
+
+
 def test_acquire_then_release(atelier_env: Dict) -> None:
     pf = _server._acquire_pidfile()
     assert pf.exists()
     assert pf.read_text().strip() == str(os.getpid())
     _server._release_pidfile(pf)
-    assert not pf.exists()
+    # Deliberately NOT unlinked (see _release_pidfile docstring — unlinking
+    # after unlock reopens a TOCTOU window). Freed-ness is the flock, not
+    # the path's existence: a fresh acquire must succeed immediately.
+    assert pf.exists()
+    reacquired = _server._acquire_pidfile()
+    assert reacquired.read_text().strip() == str(os.getpid())
+    _server._release_pidfile(reacquired)
 
 
-def test_second_acquire_with_live_pid_raises(atelier_env: Dict) -> None:
+def test_concurrent_acquire_second_gets_already_running(atelier_env: Dict) -> None:
+    """A child process holds the flock; the parent's acquire must lose
+    cleanly (AlreadyRunning), never race into overwriting the pidfile."""
+    pf = _server._pidfile_path()
+    r, w = os.pipe()
+    child_pid = _fork_holder(w)
+    os.close(w)
+    ready = os.read(r, 2)
+    os.close(r)
+    try:
+        assert ready == b"ok"
+        with pytest.raises(_server.AlreadyRunning) as ei:
+            _server._acquire_pidfile()
+        assert ei.value.pid == child_pid
+    finally:
+        os.kill(child_pid, signal.SIGKILL)
+        os.waitpid(child_pid, 0)
+        if pf.exists():
+            pf.unlink()
+
+
+def test_leftover_pidfile_with_no_lock_is_reclaimed(atelier_env: Dict) -> None:
+    """A pidfile can outlive the process that wrote it (crash, kill -9) —
+    since no one holds the flock, acquiring it is always safe regardless of
+    what stale content is sitting in the file."""
     pf = _server._pidfile_path()
     pf.parent.mkdir(parents=True, exist_ok=True)
-    # our own pid is alive but != getpid()? use parent process which is alive.
-    # Simplest: write a definitely-alive pid that isn't ours → use os.getppid().
-    other = os.getppid()
-    pf.write_text(str(other))
-    if other == os.getpid():            # pragma: no cover - defensive
-        pytest.skip("ppid == pid")
-    with pytest.raises(_server.AlreadyRunning) as ei:
-        _server._acquire_pidfile()
-    assert ei.value.pid == other
-
-
-def test_stale_pidfile_is_reclaimed(atelier_env: Dict) -> None:
-    pf = _server._pidfile_path()
-    pf.parent.mkdir(parents=True, exist_ok=True)
-    # a pid that is essentially never alive
     pf.write_text("2147480000")
-    reclaimed = _server._acquire_pidfile()   # should NOT raise
+    reclaimed = _server._acquire_pidfile()
     assert reclaimed.read_text().strip() == str(os.getpid())
     _server._release_pidfile(reclaimed)
 
@@ -51,22 +89,31 @@ def test_unparsable_pidfile_is_reclaimed(atelier_env: Dict) -> None:
     _server._release_pidfile(reclaimed)
 
 
-def test_run_returns_3_when_already_running(atelier_env: Dict) -> None:
-    """run() surfaces a friendly exit code 3 instead of a stack trace when
-    a live instance holds the pidfile."""
+def test_run_returns_3_when_flock_held(atelier_env: Dict) -> None:
     pf = _server._pidfile_path()
     pf.parent.mkdir(parents=True, exist_ok=True)
-    pf.write_text(str(os.getppid()))         # a live, non-self pid
+    r, w = os.pipe()
+    child_pid = _fork_holder(w)
+    os.close(w)
+    ready = os.read(r, 2)
+    os.close(r)
+    try:
+        assert ready == b"ok"
+        assert _server.run(transports=[]) == 3
+    finally:
+        os.kill(child_pid, signal.SIGKILL)
+        os.waitpid(child_pid, 0)
+        if pf.exists():
+            pf.unlink()
 
-    rc = _server.run(transports=[])          # would idle; should bail early
-    assert rc == 3
 
-
-def test_run_releases_pidfile_on_clean_exit(atelier_env: Dict) -> None:
-    """A normal serve run acquires then releases the pidfile."""
+def test_run_releases_pidfile_on_clean_shutdown(atelier_env: Dict) -> None:
     async def stopper(sup: _server.Supervisor) -> None:
         sup.shutdown.set()
 
     rc = _server.run(transports=[stopper])
     assert rc == 0
-    assert not _server._pidfile_path().exists()
+    # Flock freed (not unlinked — see _release_pidfile) → a fresh run can
+    # acquire it right away.
+    rc2 = _server.run(transports=[stopper])
+    assert rc2 == 0

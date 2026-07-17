@@ -12,6 +12,8 @@ later PRs (PR-3 adds mcp_stdio, PR-4 adds mcp_http).
 from __future__ import annotations
 
 import asyncio
+import errno
+import fcntl
 import os
 import signal
 from dataclasses import dataclass
@@ -26,57 +28,108 @@ from ..util import logging as log
 TransportTask = Callable[["Supervisor"], Awaitable[None]]
 
 
-# ── single-instance guard (pidfile) ────────────────────────────────────────
+# ── single-instance guard (pidfile, kernel-arbitrated via flock) ───────────
+#
+# G1 (single instance) now has genuinely concurrent callers: the
+# session-anchored daemon (`daemon.ensure()`) can be invoked by several
+# Claude Code sessions starting at once, each backgrounding `atelier daemon
+# ensure` independently. A plain exists()→read→write pidfile is a TOCTOU
+# race under that concurrency — two callers can both pass the liveness
+# check before either writes, and both proceed into an uvicorn port bind.
+# flock(LOCK_EX|LOCK_NB) makes the claim atomic: the kernel serializes it,
+# so exactly one caller wins and every loser gets a clean AlreadyRunning.
 
 
 def _pidfile_path() -> Path:
     return Path(_config.CACHE_DIR).parent / "serve.pid"   # ~/.atelier/serve.pid
 
 
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)               # signal 0 = liveness probe, no-op
-    except ProcessLookupError:
+def is_locked() -> bool:
+    """Is a live `serve` currently holding the pidfile's flock?
+
+    The pidfile's *content* is deliberately never authoritative (see
+    `_release_pidfile`'s docstring — it is left stale on purpose). Callers
+    that need to know "is serve actually running" (`daemon.ensure/status/
+    stop`) must ask the lock, not read the pid back and `kill(pid, 0)` it —
+    a reused pid would otherwise look alive despite serve being long gone.
+    Non-blocking: probes and immediately releases if free."""
+    pf = _pidfile_path()
+    if not pf.exists():
         return False
-    except PermissionError:           # exists but owned by another user
-        return True
-    return True
+    fd = os.open(pf, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as e:
+        if e.errno in (errno.EACCES, errno.EAGAIN):
+            return True                # someone else holds it → running
+        raise
+    else:
+        fcntl.flock(fd, fcntl.LOCK_UN)  # we just grabbed it → not running
+        return False
+    finally:
+        os.close(fd)
 
 
 class AlreadyRunning(RuntimeError):
     """A live `atelier serve` already holds the pidfile."""
 
     def __init__(self, pid: int) -> None:
+        detail = (f"kill {pid}" if pid else "wait a moment and retry — it may "
+                  f"still be writing its pid")
         super().__init__(
-            f"atelier serve is already running (pid {pid}). "
-            f"Stop it first (kill {pid}) or use the existing instance."
+            f"atelier serve is already running"
+            f"{f' (pid {pid})' if pid else ''}. "
+            f"Stop it first ({detail}) or use the existing instance."
         )
         self.pid = pid
 
 
+_HELD_FDS: dict = {}
+
+
 def _acquire_pidfile() -> Path:
-    """Claim the single-instance pidfile. Raises AlreadyRunning if a live
-    process holds it; reclaims a stale pidfile (process gone)."""
+    """Claim the single-instance pidfile via an atomic, kernel-arbitrated
+    flock. Raises AlreadyRunning if a live process holds it; reclaims a
+    stale pidfile (lock free, whatever pid is written) automatically —
+    flock releases when a dead process's fd closes, no manual staleness
+    check needed."""
     pf = _pidfile_path()
-    if pf.exists():
+    pf.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(pf, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as e:
+        if e.errno not in (errno.EACCES, errno.EAGAIN):
+            os.close(fd)
+            raise
+        os.close(fd)
         try:
             existing = int(pf.read_text().strip() or "0")
         except (ValueError, OSError):
             existing = 0
-        if existing and existing != os.getpid() and _pid_alive(existing):
-            raise AlreadyRunning(existing)
-        # stale (dead pid / unparsable) → reclaim
-    pf.parent.mkdir(parents=True, exist_ok=True)
-    pf.write_text(str(os.getpid()))
+        raise AlreadyRunning(existing)
+    os.ftruncate(fd, 0)
+    os.write(fd, str(os.getpid()).encode())
+    os.fsync(fd)
+    _HELD_FDS[pf] = fd
     return pf
 
 
 def _release_pidfile(pf: Path) -> None:
-    try:
-        if pf.exists() and pf.read_text().strip() == str(os.getpid()):
-            pf.unlink()
-    except OSError:                   # pragma: no cover
-        pass
+    """Drop the flock. Deliberately does NOT unlink the path: flock is a
+    per-inode lock, not a per-path one, so unlinking after unlocking would
+    reopen a TOCTOU window — a third process could create+lock a fresh
+    inode at the same path while a just-released-but-still-alive locker's
+    fd (from a raced-in acquirer) still points at the old one. Leaving
+    stale content behind is harmless — staleness is decided purely by
+    whether the flock is free, per _acquire_pidfile, never by content."""
+    fd = _HELD_FDS.pop(pf, None)
+    if fd is not None:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:               # pragma: no cover
+            pass
+        os.close(fd)                  # closing drops the flock either way
 
 
 @dataclass

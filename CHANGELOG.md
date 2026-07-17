@@ -4,6 +4,21 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — always-on serve (launchd) with resource guardrails
+
+- `atelier daemon {install,uninstall,status}` — serve becomes a login-started,
+  crash-restarted launchd agent, ending the "engine silently off → every
+  automation becomes a manual chore" failure mode (the root cause of a month of
+  stale reindex and two months of stalled encoding). The guardrails are SPEC,
+  not prose (the statusline CPU-melt lesson):
+  G1 single instance (existing pidfile) · G2 no crash-loop spin
+  (ThrottleInterval 60) · G3 low priority (ProcessType Background + Nice 10) ·
+  G4 work-only-on-work (existing quiescence gates; zero LLM in-engine) ·
+  G5 embed cap — the autosync piggyback reindex skips the embedding pass when
+  a commit changed more than `auto_commit.embed_max_changed` (default 50)
+  files, deferring bulk-edit vectors to a manual reindex.
+  Kill switch: `atelier daemon uninstall`. Visibility: `atelier daemon status`.
+
 ### Added — human/machine commit separation in vault autosync
 
 - `vault.auto_commit.split_human_commits` (default **true**): the autosync

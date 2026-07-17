@@ -50,6 +50,11 @@ vault:
                                 # diary's git history stays human and the machine's
                                 # extractions are reviewable in isolation.
                                 # false → legacy single add -A commit.
+    embed_max_changed: 50       # guardrail G5 (daemon spec): the piggyback
+                                # reindex embeds only when the commit changed at
+                                # most this many files; a bulk edit defers its
+                                # vectors to a manual `atelier reindex` instead
+                                # of hammering the embedding provider unattended.
 
 # ── Subtree writer roles ─────────────────────────────────────────────────────
 # Each subtree under the vault root binds to exactly one writer role, keyed by

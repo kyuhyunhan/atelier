@@ -76,6 +76,11 @@ class AutoSyncConfig:
     # "journal:" vs message_prefix — so the diary's git history stays human and
     # the PII-review surface is clean. Same repo, same durability.
     split_human_commits: bool = True
+    # Guardrail G5 (daemon spec): the piggyback reindex after an autosync commit
+    # runs the EMBEDDING pass only when the commit changed at most this many
+    # files. A bulk edit (migration, mass import) defers vectors to a manual
+    # `atelier reindex` instead of hammering the embedding provider unattended.
+    embed_max_changed: int = 50
 
 
 @dataclass
@@ -246,6 +251,8 @@ def load(path: Optional[Path] = None) -> Config:
                                       defaults.reindex_on_commit)),
         split_human_commits=bool(ac.get("split_human_commits",
                                         defaults.split_human_commits)),
+        embed_max_changed=int(ac.get("embed_max_changed",
+                                     defaults.embed_max_changed)),
     )
 
     lg = data.get("logging") or {}

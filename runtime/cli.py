@@ -357,6 +357,31 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_daemon(args: argparse.Namespace) -> int:
+    """launchd always-on serve: install (with guardrails), uninstall (kill
+    switch), status (visibility). See runtime/service/daemon.py."""
+    from .service import daemon as _daemon
+    if args.action == "install":
+        out = _daemon.install()
+        if out["loaded"]:
+            print(f"daemon loaded: {out['label']}  plist={out['plist']}")
+            print("  guardrails: KeepAlive+Throttle60, Background+Nice10, embed-cap")
+        else:
+            log.error(f"daemon install failed: {out.get('error')}")
+            return 1
+        return 0
+    if args.action == "uninstall":
+        out = _daemon.uninstall()
+        print(f"daemon unloaded: {out['label']}  plist_removed={out['plist_removed']}")
+        return 0
+    out = _daemon.status()
+    running = out["pid"] is not None
+    print(f"  installed={out['installed']}  loaded={out['loaded']}  "
+          f"running={running}" + (f"  pid={out['pid']}" if running else ""))
+    print(f"  plist: {out['plist']}")
+    return 0
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
     """Independent verifier (RFC 0006 §6): recompute the after-state and score it
     against a FROZEN baseline under a rubric. Exit 0 = PASS, 1 = FAIL, so a
@@ -493,6 +518,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--k", type=int, default=5, help="cutoff k for P@k/R@k (default 5)")
     s.add_argument("--out", help="write baseline JSON here (default: stdout)")
     s.set_defaults(func=_cmd_baseline)
+
+    s = sub.add_parser("daemon",
+                       help="always-on serve via launchd: install | uninstall | status")
+    s.add_argument("action", choices=["install", "uninstall", "status"])
+    s.set_defaults(func=_cmd_daemon)
 
     s = sub.add_parser("verify",
                        help="independent verifier (RFC 0006): score after-state vs a frozen baseline")

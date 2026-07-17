@@ -176,20 +176,33 @@ async def run(sup: server.Supervisor) -> None:
     )
 
 
-def _reindex_changed(_status: str) -> None:
+def _reindex_changed(status: str) -> None:
     """RFC 0005 §7.2 piggyback — reindex changed files after an autosync commit.
 
     Runs an INCREMENTAL reindex across the canonical spaces: crawl already
     skips files whose `content_hash` is unchanged, so this re-indexes exactly the
     just-committed (changed) files and is a no-op for everything else —
-    deterministic and idempotent. `_status` (the committed porcelain) is accepted
-    for parity/logging; the incremental crawl is the changed-set selector. The
-    embed pass self-gates (ATELIER_EMBED / gateway reachability), so this is
-    cheap when no provider is configured."""
+    deterministic and idempotent. The embed pass self-gates (ATELIER_EMBED /
+    gateway reachability) AND is capped (guardrail G5, daemon spec): when the
+    commit changed more than `auto_commit.embed_max_changed` files, embeddings
+    are skipped — the lexical projection still goes fresh, while a bulk edit
+    defers its vectors to a manual `atelier reindex` instead of hammering the
+    embedding provider unattended."""
     from ..index import reindex as _reindex
     from ..util import config as _config
     cfg = _config.load()
-    stats = _reindex.reindex_all(cfg, full=False)
+    n_changed = len([ln for ln in status.splitlines() if ln.strip()])
+    cap = cfg.auto_sync.embed_max_changed
+    embed_ok = n_changed <= cap
+    if not embed_ok:
+        log.info("vault-autosync.embed-capped", changed=n_changed, cap=cap,
+                 hint="vectors deferred to a manual `atelier reindex`")
+    stats = [
+        _reindex.reindex_space(
+            cfg, name, full=False,
+            **({} if embed_ok else {"embed_gateway": None}))
+        for name in _reindex.canonical_spaces(cfg)
+    ]
     changed = sum(s.pages_changed for s in stats)
     log.info("vault-autosync.reindexed", pages_changed=changed,
              spaces=len(stats))

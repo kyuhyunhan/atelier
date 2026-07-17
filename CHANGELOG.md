@@ -41,6 +41,15 @@ All notable changes to atelier.
   construction; serve only restarts when a new session starts. G3 (low
   priority) moves from the plist to `os.nice(10)` in the spawn itself.
   `atelier daemon stop` is the manual kill switch (SIGTERM via the pidfile).
+- G1's pidfile guard (`server._acquire_pidfile`) is now an atomic
+  `flock(LOCK_EX|LOCK_NB)`, not a read-check-write on the file's contents.
+  Session-anchoring introduces genuinely concurrent callers — several Claude
+  Code sessions can each background `atelier daemon ensure` at once — and the
+  old exists()→read→write sequence was a TOCTOU race under that concurrency
+  (two `serve` processes could both pass the liveness check before either
+  wrote, one hitting a raw port-bind crash instead of a clean
+  `AlreadyRunning`). The kernel now arbitrates: exactly one caller wins the
+  lock, every other gets `AlreadyRunning` / exit code 3.
 - `atelier daemon {install,uninstall,status}` (launchd) is **kept** as an
   opt-in/advanced path for machines that need serve alive with no Claude Code
   session running (e.g. headless automation) — `install` now warns when the

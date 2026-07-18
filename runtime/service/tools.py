@@ -180,12 +180,13 @@ async def _h_capture(text: str, source: str = "manual",
 
 
 async def _h_promote_propose() -> Dict[str, Any]:
-    """Scan workshop for promote-worthy notes; emit a proposal document."""
+    """List accepted query-only claims awaiting promotion; emit a proposal doc."""
     return _api.promote_propose()
 
 
 async def _h_promote_apply(proposal: str) -> Dict[str, Any]:
-    """Apply a proposal — Librarian writes the wiki page + backlink."""
+    """Apply a proposal — flip reviewed claims' surfacing query→proactive
+    in place (a field transition, RFC 0005 §7.1 — no wiki page is written)."""
     return _api.promote_apply(proposal)
 
 
@@ -198,7 +199,7 @@ async def _h_fix_pending(dry_run: bool = False,
 
 async def _h_index_regen(role: str = "librarian-territory",
                           dry_run: bool = False) -> Dict[str, Any]:
-    """Regenerate wiki/index.md from current wiki/* contents."""
+    """Regenerate graph/index.md (wiki/ on un-renamed legacy vaults)."""
     from .jobs import index_regen as _jir
     return _jir.regen(role=role, dry_run=dry_run)
 
@@ -757,7 +758,8 @@ def _register_v01_tools() -> None:
                      "Git status / pull / push / commit / commit-push for the vault.",
                      _h_sync))
     register(ToolDef("atelier_promote_propose",
-                     "Scan workshop for promote-worthy notes.",
+                     "List accepted query-only claims awaiting promotion "
+                     "(surfacing query→proactive); emits a proposal doc.",
                      _h_promote_propose))
     register(ToolDef("atelier_validate",
                      "Validate frontmatter against schema v4. "
@@ -770,7 +772,7 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_index_regen",
-                     "Regenerate wiki/index.md from current wiki contents.",
+                     "Regenerate graph/index.md (wiki/ on legacy vaults).",
                      _h_index_regen,
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
@@ -794,7 +796,7 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_youtube",
-                     "Ingest a YouTube URL into provenance/knowledge/. Falls "
+                     "Ingest a YouTube URL into raw/knowledge/. Falls "
                      "back to status=needs-stt when neither captions "
                      "nor OpenAI STT are available.",
                      _h_youtube,
@@ -814,7 +816,8 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.MOBILE_CLAIM,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_promote_apply",
-                     "Apply a promotion proposal — writes wiki/.",
+                     "Apply a promotion proposal — flips reviewed claims' "
+                     "surfacing query→proactive in place (no wiki write).",
                      _h_promote_apply,
                      claim=_claims.Claim.PROMOTE_APPLY,
                      lock_role=_claims.WriterRole.WIKI))
@@ -878,9 +881,9 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_absorb_claude_memory",
-        "Import Claude Code's per-project auto-memory into "
-        "learnings/{accepted,candidates}/. Dedupes by content hash; "
-        "re-runs are safe.",
+        "Import Claude Code's per-project auto-memory as v7 claims in "
+        "graph/atomic/ (ac_status passed|pending). Dedupes by content "
+        "hash; re-runs are safe.",
         _h_absorb_claude_memory,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,

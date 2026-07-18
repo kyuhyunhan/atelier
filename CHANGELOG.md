@@ -4,6 +4,19 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Fixed — encode-pipeline drift: descriptions caught up to retired behavior
+
+- `atelier_promote_propose`/`atelier_promote_apply` MCP descriptions (and the
+  promote/ section of ARCHITECTURE.md's module map) claimed the retired
+  workshop→wiki page-writing flow; promotion has been a `surfacing:
+  query→proactive` field transition in place since RFC 0005 §7.1. The
+  `atelier_youtube` description's `provenance/knowledge/` is now
+  `raw/knowledge/` (the real destination).
+- `gorae.overlay.yaml`: the pre-v7 `digest`/`theme`/`synthesis` page types are
+  now explicitly marked RETIRED (legacy-compat only) instead of silently
+  outliving their writers — definitions stay so legacy vault pages keep
+  validating, but the comment forbids new pages of these types.
+
 ### Added — docs/USING.md: the three-verb daily contract
 
 - The ~19-subcommand CLI surface is now explicitly split into a

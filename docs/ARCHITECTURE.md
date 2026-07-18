@@ -431,9 +431,9 @@ runtime/
 │   ├── r2.py           Cloudflare R2 asset sync
 │   └── local_fs.py     fallback / dry-run
 │
-├── promote/        workshop → wiki proposal pipeline
-│   ├── propose.py      generate proposal document
-│   └── apply.py        Librarian writes wiki page; backlink to source
+├── promote/        surfacing promotion pipeline (query → proactive)
+│   ├── propose.py      list accepted query-only claims; emit proposal doc
+│   └── apply.py        flip reviewed claims' surfacing in place (RFC 0005 §7.1)
 │
 ├── service/        long-running engine + MCP surface
 │   ├── server.py       `atelier serve` asyncio supervisor + pidfile guard

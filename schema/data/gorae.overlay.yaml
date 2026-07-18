@@ -42,7 +42,14 @@ page_types:
     writer: wiki-write
     notes: "Append-only activity log. No required frontmatter."
 
-  # ── Wiki pages (Librarian-owned) ──────────────────────────────────────────
+  # ── Wiki pages (writer: wiki-write) ───────────────────────────────────────
+  #
+  # RETIRED (legacy-compat only): `digest`, `theme`, and `synthesis` below
+  # describe pre-v7 wiki artifacts. Nothing writes them anymore — digests are
+  # gone, themes folded into `entity` (RFC 0003), synthesis moved to
+  # query-time (`atelier_think`) and dream-generated claims in graph/atomic
+  # (RFC 0005). The definitions stay so vaults that still carry such legacy
+  # pages keep validating/indexing; do not add new pages of these types.
   digest:
     path_patterns: ["graph/digests/YYYY-MM.md", "wiki/digests/YYYY-MM.md"]
     filename_pattern: "^[0-9]{4}-[0-9]{2}\\.md$"

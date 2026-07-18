@@ -52,8 +52,9 @@ def _vault_root() -> Path:
 
 
 def _knowledge_root(vault: Path) -> Path:
-    """Write base for ingested sources — `provenance/knowledge` post-RFC-0003,
-    falling back to legacy `raw/knowledge` for an un-renamed vault. ONE resolver
+    """Write base for ingested sources — `raw/knowledge` (structure.yaml's
+    content_root), falling back to a legacy `provenance/knowledge` tree if
+    that's what the vault still has. ONE resolver
     so the writer can't resurrect the old tree (the 1507 bug class: a writer
     whose path misses a rename re-creates it). Mirrors index_regen._graph_root."""
     new = vault / _structure.intake_dir("knowledge")

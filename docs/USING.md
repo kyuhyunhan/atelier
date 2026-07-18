@@ -18,10 +18,14 @@ Put markdown in the vault. That's the whole verb.
 - Use Obsidian, your editor, or ask Claude — anything that writes a
   `.md` file into the vault.
 - **No commands.** While the engine is up, autosync commits, pushes,
-  and reindexes your change within ~30 seconds of the file going quiet.
+  and reindexes your change within about a minute of the file going
+  quiet (it waits for two 30-second polls of stability before
+  committing, so the window is 30–60s). Requires
+  `vault.auto_commit.enabled: true` in `~/.atelier/config.yaml` —
+  opt-in, per machine.
 
 You never run `git`, `atelier sync`, or `atelier reindex` for normal
-writing. If you edited a huge batch (50+ files), the engine defers
+writing. If you edited a huge batch (more than 50 files), the engine defers
 embeddings and tells you so in the log; a manual `atelier reindex`
 catches vectors up — that's the only writing-adjacent command you'll
 ever be nudged toward.
@@ -62,7 +66,7 @@ the engine polls, commits, and reindexes on its own.
 
 | You do | The engine does |
 |---|---|
-| write markdown | commit, push, reindex (≤30s, autosync) |
+| write markdown | commit, push, reindex (30–60s, autosync) |
 | talk to Claude | inject context, recall, capture learnings |
 | answer nudges | schedule them, dedup them, track cadence |
 | nothing | stay alive (session-anchored daemon: every Claude Code session start runs `atelier daemon ensure`) |

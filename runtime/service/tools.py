@@ -199,7 +199,7 @@ async def _h_fix_pending(dry_run: bool = False,
 
 async def _h_index_regen(role: str = "librarian-territory",
                           dry_run: bool = False) -> Dict[str, Any]:
-    """Regenerate wiki/index.md from current wiki/* contents."""
+    """Regenerate graph/index.md (wiki/ on un-renamed legacy vaults)."""
     from .jobs import index_regen as _jir
     return _jir.regen(role=role, dry_run=dry_run)
 
@@ -772,7 +772,7 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_index_regen",
-                     "Regenerate wiki/index.md from current wiki contents.",
+                     "Regenerate graph/index.md (wiki/ on legacy vaults).",
                      _h_index_regen,
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
@@ -881,9 +881,9 @@ def _register_v01_tools() -> None:
     ))
     register(ToolDef(
         "atelier_absorb_claude_memory",
-        "Import Claude Code's per-project auto-memory into "
-        "learnings/{accepted,candidates}/. Dedupes by content hash; "
-        "re-runs are safe.",
+        "Import Claude Code's per-project auto-memory as v7 claims in "
+        "graph/atomic/ (ac_status passed|pending). Dedupes by content "
+        "hash; re-runs are safe.",
         _h_absorb_claude_memory,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,

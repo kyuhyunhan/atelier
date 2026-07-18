@@ -180,12 +180,13 @@ async def _h_capture(text: str, source: str = "manual",
 
 
 async def _h_promote_propose() -> Dict[str, Any]:
-    """Scan workshop for promote-worthy notes; emit a proposal document."""
+    """List accepted query-only claims awaiting promotion; emit a proposal doc."""
     return _api.promote_propose()
 
 
 async def _h_promote_apply(proposal: str) -> Dict[str, Any]:
-    """Apply a proposal — Librarian writes the wiki page + backlink."""
+    """Apply a proposal — flip reviewed claims' surfacing query→proactive
+    in place (a field transition, RFC 0005 §7.1 — no wiki page is written)."""
     return _api.promote_apply(proposal)
 
 
@@ -757,7 +758,8 @@ def _register_v01_tools() -> None:
                      "Git status / pull / push / commit / commit-push for the vault.",
                      _h_sync))
     register(ToolDef("atelier_promote_propose",
-                     "Scan workshop for promote-worthy notes.",
+                     "List accepted query-only claims awaiting promotion "
+                     "(surfacing query→proactive); emits a proposal doc.",
                      _h_promote_propose))
     register(ToolDef("atelier_validate",
                      "Validate frontmatter against schema v4. "
@@ -794,7 +796,7 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_youtube",
-                     "Ingest a YouTube URL into provenance/knowledge/. Falls "
+                     "Ingest a YouTube URL into raw/knowledge/. Falls "
                      "back to status=needs-stt when neither captions "
                      "nor OpenAI STT are available.",
                      _h_youtube,
@@ -814,7 +816,8 @@ def _register_v01_tools() -> None:
                      claim=_claims.Claim.MOBILE_CLAIM,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_promote_apply",
-                     "Apply a promotion proposal — writes wiki/.",
+                     "Apply a promotion proposal — flips reviewed claims' "
+                     "surfacing query→proactive in place (no wiki write).",
                      _h_promote_apply,
                      claim=_claims.Claim.PROMOTE_APPLY,
                      lock_role=_claims.WriterRole.WIKI))

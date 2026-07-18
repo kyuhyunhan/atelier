@@ -6,6 +6,7 @@ content repositories with a derived SQLite index. Markdown is the truth; the
 DB is a projection.
 
 If you want to run atelier on your own content, this document is the recipe.
+Once it's running, day-to-day use is three verbs — see `docs/USING.md`.
 
 ---
 

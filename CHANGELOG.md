@@ -4,6 +4,14 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — docs/USING.md: the three-verb daily contract
+
+- The ~19-subcommand CLI surface is now explicitly split into a
+  **user contract** (three verbs: write / ask / tend, plus four escape
+  hatches) and **engine/maintainer surface** (everything else, invoked by
+  hooks and the daemon). `docs/USING.md` is the single page a daily user
+  needs; `docs/ADOPTING.md` stays the install-time recipe.
+
 ### Added — always-on serve (launchd) with resource guardrails
 
 - `atelier daemon {install,uninstall,status}` — serve becomes a login-started,

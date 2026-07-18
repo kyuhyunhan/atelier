@@ -59,6 +59,7 @@ tooling. Content (the actual user IP) lives in separate private repos.
 | Need | Path |
 |---|---|
 | Release scope | `CHANGELOG.md` |
+| Daily-use contract (the three verbs) | `docs/USING.md` |
 | Architecture overview | `docs/ARCHITECTURE.md` |
 | Schema spec (human) | `docs/SCHEMA_V4.md` |
 | Implementation history (archival) | `docs/_archive/IMPLEMENTATION_LOG.md` |

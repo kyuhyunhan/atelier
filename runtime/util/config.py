@@ -84,6 +84,20 @@ class AutoSyncConfig:
 
 
 @dataclass
+class YouTubeConfig:
+    """YouTube ingest options (`youtube:` block).
+
+    yt-dlp needs authenticated cookies to clear YouTube's bot-detection wall
+    (intermittent since ~2026-06 — an unauthenticated request is challenged
+    with "Sign in to confirm you're not a bot"). `cookies_from_browser` names
+    the browser yt-dlp reads cookies from (chrome / firefox / safari / edge /
+    brave / …); None = send no cookies (works only while YouTube isn't
+    challenging that IP). Out of code so a distributed adopter picks their own
+    browser via config, never a source edit."""
+    cookies_from_browser: Optional[str] = None
+
+
+@dataclass
 class VaultConfig:
     local: Path
     remote_type: Optional[str] = None
@@ -100,6 +114,7 @@ class Config:
     subtrees: Dict[str, SubtreeConfig] = field(default_factory=dict)
     auto_sync: AutoSyncConfig = field(default_factory=AutoSyncConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
 
     def space(self, name: str) -> SpaceConfig:
         if name not in self.spaces:
@@ -269,8 +284,13 @@ def load(path: Optional[Path] = None) -> Config:
         console=bool(lg.get("console", ldefaults.console)),
     )
 
+    yt = data.get("youtube") or {}
+    youtube_cfg = YouTubeConfig(
+        cookies_from_browser=(yt.get("cookies_from_browser") or None),
+    )
+
     cfg = Config(spaces=spaces, raw=data, vault=vault, subtrees=subtrees,
-                 auto_sync=auto_sync, logging=logging_cfg)
+                 auto_sync=auto_sync, logging=logging_cfg, youtube=youtube_cfg)
     _validate_strict(cfg, path)
     return cfg
 

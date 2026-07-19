@@ -35,6 +35,8 @@ from ...util import config as _config
 
 
 _VTT_TIME_RX = re.compile(r"(\d{2}):(\d{2}):(\d{2})\.\d+")
+_VTT_TAG_RX = re.compile(r"<[^>]+>")          # any inline tag (strip): <00:00:06>, <c>, <i>, <v …>
+_VTT_TS_TAG_RX = re.compile(r"<\d{2}:\d{2}:\d{2}[.,]\d{3}>")  # ASR-only word-timing tag
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
 
 
@@ -75,17 +77,29 @@ def _which(cmd: str) -> Optional[str]:
     return shutil.which(cmd)
 
 
-def _fetch_metadata(url: str, *, runner: Optional[Any] = None) -> Dict[str, Any]:
-    """Call yt-dlp -J. Lets tests stub `runner`."""
+def _fetch_metadata(url: str, *, runner: Optional[Any] = None,
+                    cookies_from_browser: Optional[str] = None) -> Dict[str, Any]:
+    """Call yt-dlp -J. Lets tests stub `runner`.
+
+    Two flags earn their keep against current YouTube:
+    - `--ignore-no-formats-error`: `-J` resolves media formats even when we only
+      want metadata + subtitle tracks; recent YouTube player-API changes make
+      that resolution fail ("Requested format is not available") and abort the
+      whole dump. Ignoring it yields the metadata we actually need.
+    - `--cookies-from-browser <b>`: clears the bot-detection wall (see
+      YouTubeConfig). Only added when configured; absent ⇒ unauthenticated."""
     if runner is not None:
         return runner(url)
     if _which("yt-dlp") is None:
         raise FileNotFoundError(
             "yt-dlp not installed. `pip install -e '.[youtube]'` or install yt-dlp"
         )
+    args = ["yt-dlp", "-J", "--no-warnings", "--ignore-no-formats-error"]
+    if cookies_from_browser:
+        args += ["--cookies-from-browser", cookies_from_browser]
+    args.append(url)
     proc = subprocess.run(
-        ["yt-dlp", "-J", "--no-warnings", url],
-        check=True, capture_output=True, text=True, timeout=60,
+        args, check=True, capture_output=True, text=True, timeout=120,
     )
     return json.loads(proc.stdout)
 
@@ -118,28 +132,82 @@ def _select_vtt(entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 
 
 def _vtt_to_markdown(vtt: str) -> str:
-    """Render VTT cues as `[mm:ss] text` lines."""
-    lines: List[str] = []
+    """Render VTT cues as `[mm:ss] text` lines, cleaning auto-caption noise.
+
+    YouTube ASR (auto) captions carry two artifacts this cleans:
+    - **inline word-timing tags** (`<00:00:06><c>word</c>`) — always stripped;
+    - **rolling duplication** — each cue re-emits the tail of the previous cue
+      plus a few new words, doubling every line.
+
+    The rolling collapse (token-level suffix/prefix overlap: drop the longest
+    cue prefix already present as the accumulated stream's suffix) is applied
+    **only when an ASR word-timing tag** (`<00:00:06.010>`, `_VTT_TS_TAG_RX`)
+    was seen — that tag is unique to auto-captions. Manual subtitles are
+    emitted **verbatim**: their cues are independent sentences, so the collapse
+    would silently delete real words whenever a cue's leading token coincides
+    with the previous cue's trailing token (a common boundary word like
+    "the"/"이"). The gate deliberately does NOT trip on styling/voice tags
+    (`<i>`, `<v Speaker>`) that manual subs legally carry — those are stripped
+    for the text but never enable the collapse. "Markdown is truth" — never
+    lossy on the exact human track."""
+    cues: List[tuple] = []                 # (mm:ss, cleaned text)
     block: List[str] = []
     cue_start: Optional[str] = None
+    had_tags = False                       # inline <...> seen ⇒ ASR/rolling
+
+    def _flush() -> None:
+        if block and cue_start is not None:
+            text = _VTT_TAG_RX.sub("", " ".join(block)).strip()
+            if text:
+                cues.append((cue_start, text))
+
     for raw in vtt.splitlines():
         line = raw.rstrip("\r")
         if "-->" in line:
+            _flush()
             block = []
             m = _VTT_TIME_RX.search(line)
             cue_start = f"{m.group(2)}:{m.group(3)}" if m else None
             continue
         if line.strip() == "":
-            if block and cue_start is not None:
-                lines.append(f"[{cue_start}] " + " ".join(block).strip())
+            _flush()
             block = []
             cue_start = None
             continue
         if line.startswith("WEBVTT") or "Kind:" in line or "Language:" in line:
             continue
-        block.append(line.strip())
-    if block and cue_start is not None:
-        lines.append(f"[{cue_start}] " + " ".join(block).strip())
+        if _VTT_TS_TAG_RX.search(line):    # ASR word-timing tag ⇒ rolling track
+            had_tags = True                # (NOT styling/voice tags like <i>/<v>,
+        block.append(line.strip())         #  which manual subs legally carry)
+    _flush()
+
+    if not had_tags:                       # manual subtitles → verbatim, lossless
+        return "\n".join(f"[{ts}] {text}" for ts, text in cues) + "\n"
+
+    out: List[str] = []                    # running deduped token stream
+    anchors: List[tuple] = []              # (start_index_in_out, mm:ss)
+    for ts, text in cues:
+        toks = text.split()
+        if not toks:
+            continue
+        maxk = min(len(out), len(toks))
+        k = 0
+        for cand in range(maxk, 0, -1):
+            if out[-cand:] == toks[:cand]:
+                k = cand
+                break
+        new = toks[k:]
+        if not new:
+            continue
+        anchors.append((len(out), ts))
+        out.extend(new)
+
+    lines: List[str] = []
+    for i, (idx, ts) in enumerate(anchors):
+        end = anchors[i + 1][0] if i + 1 < len(anchors) else len(out)
+        seg = " ".join(out[idx:end]).strip()
+        if seg:
+            lines.append(f"[{ts}] {seg}")
     return "\n".join(lines) + "\n"
 
 
@@ -174,7 +242,15 @@ def youtube_ingest(*, url: str,
     the body manually.
     """
     vault = _vault_root()
-    meta = _fetch_metadata(url, runner=metadata_runner)
+    cookies = None
+    if metadata_runner is None:
+        try:
+            from ...util import config as _config
+            cookies = _config.load().youtube.cookies_from_browser
+        except Exception:                 # unconfigured / unloadable — go without
+            cookies = None
+    meta = _fetch_metadata(url, runner=metadata_runner,
+                           cookies_from_browser=cookies)
     video_id = meta.get("id") or _slugify(meta.get("title", url))
     title = meta.get("title") or video_id
     upload_date = meta.get("upload_date")  # YYYYMMDD
@@ -234,7 +310,7 @@ def youtube_ingest(*, url: str,
             "note": f"video_id={video_id}",
         }],
         "embedded_assets": [],
-        "word_count": 0,
+        "word_count": len(re.sub(r"\[\d+:\d+\]", "", body).split()),
         "source": "youtube",
         "youtube_video_id": video_id,
         "youtube_url": url,

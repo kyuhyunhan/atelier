@@ -68,6 +68,17 @@ vault:
                                 # vectors to a manual `atelier reindex` instead
                                 # of hammering the embedding provider unattended.
 
+# ── YouTube ingest ───────────────────────────────────────────────────────────
+# youtube:
+#   cookies_from_browser: chrome  # yt-dlp reads cookies from this browser to
+#                                 # clear YouTube's bot-detection wall (an
+#                                 # unauthenticated request is intermittently
+#                                 # challenged with "Sign in to confirm you're
+#                                 # not a bot"). One of: chrome / firefox /
+#                                 # safari / edge / brave / chromium / opera /
+#                                 # vivaldi. Omit to send no cookies (works only
+#                                 # while YouTube isn't challenging your IP).
+
 # ── Subtree writer roles ─────────────────────────────────────────────────────
 # Each subtree under the vault root binds to exactly one writer role, keyed by
 # SUBTREE (RFC 0001 retired the librarian/builder agent personas). The engine

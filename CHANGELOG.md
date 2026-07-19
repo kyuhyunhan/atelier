@@ -4,6 +4,25 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Fixed — YouTube ingest recovery (external breakage since ~2026-06)
+
+- `atelier_youtube` stopped working against current YouTube for two external
+  reasons, neither an atelier regression: (1) YouTube tightened bot detection
+  and now intermittently challenges unauthenticated requests ("Sign in to
+  confirm you're not a bot"); (2) recent player-API changes make yt-dlp's `-J`
+  fail on format resolution even when only metadata is wanted. Fixes:
+  - `_fetch_metadata` now always passes `--ignore-no-formats-error` (metadata
+    dump no longer aborts on the format-resolution error) and, when
+    `youtube.cookies_from_browser` is set, `--cookies-from-browser <b>` to clear
+    the bot wall. The browser is config-driven (`YouTubeConfig`), never
+    hard-coded, so a distributed adopter picks their own without a source edit.
+  - `_vtt_to_markdown` now cleans YouTube auto-caption noise it previously
+    passed through verbatim: strips inline word-timing tags (`<00:00:06><c>…`)
+    and collapses the rolling-caption duplication (each cue re-emits the prior
+    cue's tail) via token-level suffix/prefix overlap. Manual subtitles, which
+    don't roll, pass through intact. `word_count` is now computed from the body
+    instead of hard-coded `0`.
+
 ### Fixed — encode-pipeline drift: descriptions caught up to retired behavior
 
 - `atelier_promote_propose`/`atelier_promote_apply` MCP descriptions (and the

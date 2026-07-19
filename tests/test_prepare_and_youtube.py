@@ -130,6 +130,110 @@ def test_youtube_marks_needs_stt_when_no_captions(atelier_env: Dict,
     assert "(no captions available)" in text
 
 
+# ── VTT cleaning: auto-caption tags + rolling dedup (YouTube ingest recovery) ─
+
+
+_ROLLING_VTT = (
+    "WEBVTT\n"
+    "Kind: captions\n"
+    "Language: ko\n"
+    "\n"
+    "00:00:01.000 --> 00:00:03.000\n"
+    "hello world\n"
+    "\n"
+    "00:00:03.000 --> 00:00:05.000 align:start position:0%\n"
+    "hello world<00:00:04.000><c> this</c><00:00:04.500><c> is</c>\n"
+    "\n"
+    "00:00:05.000 --> 00:00:07.000\n"
+    "this is a test\n"
+    "\n"
+)
+
+
+def test_vtt_strips_inline_word_timing_tags() -> None:
+    md = _yt._vtt_to_markdown(_ROLLING_VTT)
+    assert "<c>" not in md and "<" not in md          # all inline tags gone
+
+
+def test_vtt_collapses_rolling_duplicates() -> None:
+    md = _yt._vtt_to_markdown(_ROLLING_VTT)
+    flat = " ".join(l.split("] ", 1)[1] for l in md.splitlines() if "] " in l)
+    # each word appears exactly once despite the rolling cue overlap
+    assert flat == "hello world this is a test"
+    assert md.count("hello world") == 1
+
+
+_MANUAL_VTT = (
+    "WEBVTT\n"
+    "\n"
+    "00:00:01.000 --> 00:00:04.000\n"
+    "First sentence here.\n"
+    "\n"
+    "00:00:05.000 --> 00:00:08.000\n"
+    "Completely different line.\n"
+    "\n"
+)
+
+
+def test_vtt_keeps_manual_subtitles_intact() -> None:
+    # Non-rolling human subtitles have no overlap → pass through unchanged.
+    md = _yt._vtt_to_markdown(_MANUAL_VTT)
+    assert "[00:01] First sentence here." in md
+    assert "[00:05] Completely different line." in md
+
+
+def test_youtube_computes_word_count(atelier_env: Dict) -> None:
+    out = _yt.youtube_ingest(
+        url="https://youtube.com/watch?v=abc123",
+        metadata_runner=lambda url: _FAKE_METADATA,
+        text_fetcher=lambda url: _FAKE_VTT,
+    )
+    fm, _ = _read(Path(out["path"]))
+    # "hello world" + "second cue" = 4 words; timestamps are not counted
+    assert fm["word_count"] == 4
+
+
+def test_fetch_metadata_adds_ignore_formats_and_cookies(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: Dict[str, Any] = {}
+
+    class _R:
+        stdout = '{"id": "x"}'
+
+    def fake_run(args, **kw):
+        captured["args"] = list(args)
+        return _R()
+
+    monkeypatch.setattr(_yt.subprocess, "run", fake_run)
+    monkeypatch.setattr(_yt, "_which", lambda name: "/usr/bin/yt-dlp")
+
+    _yt._fetch_metadata("https://y/x", cookies_from_browser="chrome")
+    assert "--ignore-no-formats-error" in captured["args"]
+    assert captured["args"][captured["args"].index("--cookies-from-browser") + 1] == "chrome"
+
+    _yt._fetch_metadata("https://y/x")                # unconfigured → no cookies
+    assert "--ignore-no-formats-error" in captured["args"]
+    assert "--cookies-from-browser" not in captured["args"]
+
+
+def test_config_loads_youtube_cookies_from_browser(tmp_path: Path) -> None:
+    from runtime.util import config as _config
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(
+        "vault:\n  local: ~/v\nyoutube:\n  cookies_from_browser: firefox\n",
+        encoding="utf-8")
+    cfg = _config.load(cfg_path)
+    assert cfg.youtube.cookies_from_browser == "firefox"
+
+
+def test_config_youtube_cookies_default_none(tmp_path: Path) -> None:
+    from runtime.util import config as _config
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("vault:\n  local: ~/v\n", encoding="utf-8")
+    cfg = _config.load(cfg_path)
+    assert cfg.youtube.cookies_from_browser is None
+
+
 # ── MCP dispatch ───────────────────────────────────────────────────────────
 
 

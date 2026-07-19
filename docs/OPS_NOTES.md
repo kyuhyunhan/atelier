@@ -67,3 +67,33 @@ If any of those becomes necessary, log it as a `Phase 9 escalation` below.
 
 - (populated from `Action: defer to v0.2` entries above)
 ```
+
+### 2026-07-19 — dream plan clusters are term-frequency artifacts
+
+**Command**: `atelier dream` (158 proactive claims → 20 clusters)
+**Observed**: clusters group by near-stopword shared terms (`file`, `user`,
+`every`, `yaml`); the same claim appears in 5+ clusters; no cluster boundary
+matched a semantic theme. Mechanically synthesizing all 20 would have minted
+20 mushy always-claims. Real themes (3 of them) ran *across* cluster
+boundaries; `dream.synthesize` accepts arbitrary `source_claim_ids`, so the
+agent curated member subsets per theme instead — by design, but the cluster
+quality bar makes the plan step mostly a candidate pool, not a plan.
+**Expected**: clusters cohesive enough that one cluster ≈ one synthesis.
+**Class**: UX
+**Action**: defer to v0.2 (revisit clustering once RFC 0002 hybrid retrieval
+lands — embedding-based grouping would beat shared-term counting)
+
+### 2026-07-19 — dream plan latency vs the MCP client timeout
+
+**Command**: `atelier-mcp-call atelier_dream_plan`
+**Observed**: `dream.plan()` takes minutes on 158 proactive claims (each
+member preview calls `find_claim_by_entry_id`, a full scan over ~4.3k claim
+files → O(members × all-claims) file reads), while `mcp_call.py` hard-codes
+a 15s read timeout — so the MCP surface for `atelier_dream_plan` cannot
+complete over HTTP on a real vault. Worked around by calling
+`dream.plan()` in-process.
+**Expected**: plan completes within the tool-call timeout, or the timeout is
+configurable.
+**Class**: bug
+**Action**: defer to v0.2 (index entry_id→path once per plan() call, or read
+member previews from the projection instead of the filesystem)

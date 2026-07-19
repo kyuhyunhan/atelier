@@ -176,10 +176,32 @@ _MANUAL_VTT = (
 
 
 def test_vtt_keeps_manual_subtitles_intact() -> None:
-    # Non-rolling human subtitles have no overlap → pass through unchanged.
+    # Non-rolling human subtitles have no inline tags → emitted verbatim.
     md = _yt._vtt_to_markdown(_MANUAL_VTT)
     assert "[00:01] First sentence here." in md
     assert "[00:05] Completely different line." in md
+
+
+_MANUAL_BOUNDARY_OVERLAP_VTT = (
+    "WEBVTT\n"
+    "\n"
+    "00:00:01.000 --> 00:00:04.000\n"
+    "the cat sat on the mat\n"
+    "\n"
+    "00:00:05.000 --> 00:00:08.000\n"
+    "the mat was red\n"
+    "\n"
+)
+
+
+def test_vtt_manual_boundary_repeat_is_not_dropped() -> None:
+    # Regression: a manual sub whose next cue starts with words that coincide
+    # with the previous cue's tail ("the mat") must NOT have them collapsed —
+    # only ASR (tagged) captions roll. Silent word loss on the human track is
+    # the worst failure shape ("markdown is truth").
+    md = _yt._vtt_to_markdown(_MANUAL_BOUNDARY_OVERLAP_VTT)
+    assert "[00:01] the cat sat on the mat" in md
+    assert "[00:05] the mat was red" in md            # "the mat" survives intact
 
 
 def test_youtube_computes_word_count(atelier_env: Dict) -> None:

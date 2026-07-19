@@ -19,9 +19,11 @@ All notable changes to atelier.
   - `_vtt_to_markdown` now cleans YouTube auto-caption noise it previously
     passed through verbatim: strips inline word-timing tags (`<00:00:06><c>…`)
     and collapses the rolling-caption duplication (each cue re-emits the prior
-    cue's tail) via token-level suffix/prefix overlap. Manual subtitles, which
-    don't roll, pass through intact. `word_count` is now computed from the body
-    instead of hard-coded `0`.
+    cue's tail) via token-level suffix/prefix overlap. The collapse runs **only
+    when inline word-timing tags are present** (i.e. ASR captions); manual
+    subtitles carry no tags and are emitted verbatim, so a coincidental
+    boundary-word repeat on the human track is never silently dropped.
+    `word_count` is now computed from the body instead of hard-coded `0`.
 
 ### Fixed — encode-pipeline drift: descriptions caught up to retired behavior
 

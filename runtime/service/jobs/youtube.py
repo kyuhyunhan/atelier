@@ -131,19 +131,26 @@ def _select_vtt(entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 
 
 def _vtt_to_markdown(vtt: str) -> str:
-    """Render VTT cues as deduped `[mm:ss] text` lines.
+    """Render VTT cues as `[mm:ss] text` lines, cleaning auto-caption noise.
 
-    YouTube auto-captions are noisy in two ways this cleans:
-    - **inline word-timing tags** (`<00:00:06><c>word</c>`) — stripped;
+    YouTube ASR (auto) captions carry two artifacts this cleans:
+    - **inline word-timing tags** (`<00:00:06><c>word</c>`) — always stripped;
     - **rolling duplication** — each cue re-emits the tail of the previous cue
-      plus a few new words, so a naive render doubles every line. Collapsed by
-      token-level suffix/prefix overlap: for each cue, drop the longest prefix
-      already present as the accumulated stream's suffix, keep only new tokens.
-    Manual (human) subtitles have neither trait, so they pass through intact
-    (overlap k=0 on non-rolling cues)."""
+      plus a few new words, doubling every line.
+
+    The rolling collapse (token-level suffix/prefix overlap: drop the longest
+    cue prefix already present as the accumulated stream's suffix) is applied
+    **only when inline word-timing tags were seen** — i.e. only to ASR
+    captions. Manual (human) subtitles carry no such tags and their cues are
+    independent sentences, so they are emitted **verbatim**: applying the
+    overlap-collapse to them would silently delete real words whenever a cue's
+    leading token coincides with the previous cue's trailing token (a common
+    boundary word like "the"/"이"). "Markdown is truth" — never lossy on the
+    exact human track."""
     cues: List[tuple] = []                 # (mm:ss, cleaned text)
     block: List[str] = []
     cue_start: Optional[str] = None
+    had_tags = False                       # inline <...> seen ⇒ ASR/rolling
 
     def _flush() -> None:
         if block and cue_start is not None:
@@ -166,8 +173,13 @@ def _vtt_to_markdown(vtt: str) -> str:
             continue
         if line.startswith("WEBVTT") or "Kind:" in line or "Language:" in line:
             continue
+        if _VTT_TAG_RX.search(line):
+            had_tags = True
         block.append(line.strip())
     _flush()
+
+    if not had_tags:                       # manual subtitles → verbatim, lossless
+        return "\n".join(f"[{ts}] {text}" for ts, text in cues) + "\n"
 
     out: List[str] = []                    # running deduped token stream
     anchors: List[tuple] = []              # (start_index_in_out, mm:ss)

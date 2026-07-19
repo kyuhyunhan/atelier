@@ -35,7 +35,8 @@ from ...util import config as _config
 
 
 _VTT_TIME_RX = re.compile(r"(\d{2}):(\d{2}):(\d{2})\.\d+")
-_VTT_TAG_RX = re.compile(r"<[^>]+>")          # inline word-timing tags: <00:00:06><c>…</c>
+_VTT_TAG_RX = re.compile(r"<[^>]+>")          # any inline tag (strip): <00:00:06>, <c>, <i>, <v …>
+_VTT_TS_TAG_RX = re.compile(r"<\d{2}:\d{2}:\d{2}[.,]\d{3}>")  # ASR-only word-timing tag
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
 
 
@@ -140,13 +141,15 @@ def _vtt_to_markdown(vtt: str) -> str:
 
     The rolling collapse (token-level suffix/prefix overlap: drop the longest
     cue prefix already present as the accumulated stream's suffix) is applied
-    **only when inline word-timing tags were seen** — i.e. only to ASR
-    captions. Manual (human) subtitles carry no such tags and their cues are
-    independent sentences, so they are emitted **verbatim**: applying the
-    overlap-collapse to them would silently delete real words whenever a cue's
-    leading token coincides with the previous cue's trailing token (a common
-    boundary word like "the"/"이"). "Markdown is truth" — never lossy on the
-    exact human track."""
+    **only when an ASR word-timing tag** (`<00:00:06.010>`, `_VTT_TS_TAG_RX`)
+    was seen — that tag is unique to auto-captions. Manual subtitles are
+    emitted **verbatim**: their cues are independent sentences, so the collapse
+    would silently delete real words whenever a cue's leading token coincides
+    with the previous cue's trailing token (a common boundary word like
+    "the"/"이"). The gate deliberately does NOT trip on styling/voice tags
+    (`<i>`, `<v Speaker>`) that manual subs legally carry — those are stripped
+    for the text but never enable the collapse. "Markdown is truth" — never
+    lossy on the exact human track."""
     cues: List[tuple] = []                 # (mm:ss, cleaned text)
     block: List[str] = []
     cue_start: Optional[str] = None
@@ -173,9 +176,9 @@ def _vtt_to_markdown(vtt: str) -> str:
             continue
         if line.startswith("WEBVTT") or "Kind:" in line or "Language:" in line:
             continue
-        if _VTT_TAG_RX.search(line):
-            had_tags = True
-        block.append(line.strip())
+        if _VTT_TS_TAG_RX.search(line):    # ASR word-timing tag ⇒ rolling track
+            had_tags = True                # (NOT styling/voice tags like <i>/<v>,
+        block.append(line.strip())         #  which manual subs legally carry)
     _flush()
 
     if not had_tags:                       # manual subtitles → verbatim, lossless

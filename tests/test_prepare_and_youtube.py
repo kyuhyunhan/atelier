@@ -197,11 +197,34 @@ _MANUAL_BOUNDARY_OVERLAP_VTT = (
 def test_vtt_manual_boundary_repeat_is_not_dropped() -> None:
     # Regression: a manual sub whose next cue starts with words that coincide
     # with the previous cue's tail ("the mat") must NOT have them collapsed —
-    # only ASR (tagged) captions roll. Silent word loss on the human track is
-    # the worst failure shape ("markdown is truth").
+    # only ASR (timestamp-tagged) captions roll. Silent word loss on the human
+    # track is the worst failure shape ("markdown is truth").
     md = _yt._vtt_to_markdown(_MANUAL_BOUNDARY_OVERLAP_VTT)
     assert "[00:01] the cat sat on the mat" in md
     assert "[00:05] the mat was red" in md            # "the mat" survives intact
+
+
+_MANUAL_STYLED_OVERLAP_VTT = (
+    "WEBVTT\n"
+    "\n"
+    "00:00:01.000 --> 00:00:04.000\n"
+    "the cat sat on the <i>mat</i>\n"
+    "\n"
+    "00:00:05.000 --> 00:00:08.000\n"
+    "<v Bob>the mat was red\n"
+    "\n"
+)
+
+
+def test_vtt_manual_styling_tags_do_not_enable_collapse() -> None:
+    # A manual sub carrying legal WebVTT styling/voice tags (<i>, <v>) must
+    # still pass verbatim — the collapse gate is the ASR *timestamp* tag only,
+    # not any angle-bracket tag. Styling tags are stripped from the text but
+    # never trip the rolling dedup.
+    md = _yt._vtt_to_markdown(_MANUAL_STYLED_OVERLAP_VTT)
+    assert "<i>" not in md and "<v" not in md          # styling stripped
+    assert "[00:01] the cat sat on the mat" in md
+    assert "[00:05] the mat was red" in md             # "the mat" survives intact
 
 
 def test_youtube_computes_word_count(atelier_env: Dict) -> None:

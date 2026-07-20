@@ -4,6 +4,29 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0007 (draft): single intake front door — born-as-Source + deterministic mint
+
+- Design RFC (`docs/rfc/0007-single-intake-front-door.md`) revising RFC 0005
+  §7.1. Today operational learnings (`capture` + `absorb`) are *born directly as
+  Claims* on one shared anchor Source (`raw/inbox/operational-capture.md`, P10) —
+  a second intake track that bypasses `raw/` and flattens provenance (every
+  operational Claim shares one `derived_from`). This is the root of the recurring
+  "domain-blind pipeline stage" bug class (a stage written against the track its
+  author saw first forgets the other).
+- Proposal: every input lands as **its own Source** in `raw/`; the `raw → Claim`
+  edge splits by domain lane into **deterministic mint** (LLM-free 1:1, for the
+  new content-addressed `raw/operational/` lane) vs **generative atomize** (LLM,
+  for raw material). Anchor is **frozen to legacy** (forward-only migration — no
+  legacy-claim rewrite, since `claim_id = f(statement, derived_from)` makes id
+  conservation-under-repoint a contradiction). Content-addressed operational
+  Source id (`atelier:operational:{content_hash}`, no `created_at`) preserves
+  `capture`'s ledger-less cross-session dedup.
+- Adversarially reviewed twice (independent subagent): first pass caught the
+  entry_id/`derived_from` coupling that made the original migration self-
+  contradictory; second pass confirmed the forward-only + content-addressed
+  rewrite is sound and caught the acceptance-criteria mirror requirement. Status:
+  Draft (awaiting implementation gates M1–M4).
+
 ### Fixed — dream cadence tracks the proactive pool, not accepted-operational
 
 - The dream nudge's accumulation trigger counted *accepted operational

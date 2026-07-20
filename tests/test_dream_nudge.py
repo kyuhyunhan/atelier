@@ -32,6 +32,14 @@ def _accept(seed: str, project: str = "lexio") -> str:
     )
     out = _rev.accept(candidate_slug=cap["entry_id"],
                        target_topic="t", target_project=project)
+    # The dream cadence counts the PROACTIVE pool (dream's input), not accepted
+    # learnings — so elevate the accepted claim to proactive to make it count.
+    from runtime.service.learnings import claims_io as _ci
+    found = _ci.find_claim_by_entry_id(cap["entry_id"])
+    if found is not None:
+        p, fm, body = found
+        _ci.set_surfacing(p, fm, body, new_tier=_ci.TIER_PROACTIVE,
+                          generated_by="promote")
     return cap["entry_id"]
 
 
@@ -57,7 +65,7 @@ def test_nudge_on_count_threshold(atelier_env: Dict) -> None:
                         now="2026-05-28T12:00:00+00:00")
     assert out["nudge"] is True
     assert "atelier dream" in out["markdown"]
-    assert "new learnings" in out["markdown"]
+    assert "new proactive claims" in out["markdown"]
 
 
 # ── days threshold ──────────────────────────────────────────────────────────

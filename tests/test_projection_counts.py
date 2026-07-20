@@ -78,8 +78,8 @@ def test_cold_db_returns_none_and_caller_falls_back(atelier_env: Dict) -> None:
     _capture_accept("a"); _capture_accept("b")
     # No reindex: the pages table has no claim/source rows.
     assert _pc.accepted_operational() is None          # projection abstains
-    # dream_status still returns the correct total via the filesystem fallback.
-    assert _cl.dream_status()["accepted_total"] == 2
+    # the filesystem counterpart still answers the accepted count.
+    assert _cl._count_accepted(_cl._vault_root()) == 2
 
 
 def test_legacy_notes_present_abstains_and_stays_correct(atelier_env: Dict) -> None:
@@ -97,5 +97,5 @@ def test_legacy_notes_present_abstains_and_stays_correct(atelier_env: Dict) -> N
     vault = _cl._vault_root()
     # The note projects as page_type='learning_accepted' → accepted count abstains.
     assert _pc.accepted_operational() is None
-    # dream_status (projection-first) still equals the filesystem union.
-    assert _cl.dream_status()["accepted_total"] == _cl._count_accepted(vault)
+    # the filesystem union (notes/ + graph/atomic) still answers correctly.
+    assert _cl._count_accepted(vault) >= 1

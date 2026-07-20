@@ -360,26 +360,38 @@ def _cluster_items(items: List[Learning], *, vault: Path,
 # ── dream-cadence tracking (meta table) ─────────────────────────────────────
 
 _META_LAST_DREAM = "last_dream_at"
-_META_DREAM_BASELINE = "dream_accepted_baseline"   # accepted count at last dream
+_META_DREAM_BASELINE = "dream_accepted_baseline"   # proactive count at last dream
+                                                   # (key name kept for back-compat)
 
 
 def _count_accepted(vault: Path) -> int:
-    """Count canonical accepted learnings on disk (markdown is truth).
+    """Count canonical accepted operational learnings on disk (markdown is truth).
 
-    The DB projection can lag behind accepts that happened since the last
-    reindex, so the cadence counter reads the filesystem directly.
-    """
+    No longer the dream cadence (that now counts the proactive pool — see
+    `_count_proactive`); kept as the filesystem counterpart of
+    `projection_counts.accepted_operational` for the accepted-learnings metric,
+    which unions legacy flat notes with graph/atomic claims."""
     from . import store as _store
     from . import recall as _recall
-    # Share recall's noise predicate (INDEX/TAXONOMY/README) with load_accepted
-    # so the cadence count matches the actually-loadable set.
     return sum(1 for p in _store.iter_accepted_files(vault)
                if not _recall.is_noise(p.name))
 
 
+def _count_proactive(vault: Path) -> int:
+    """Count claims on the proactive tier — dream's actual input, ANY domain.
+
+    Dream clusters proactive claims (operational OR knowledge, no domain gate),
+    so the cadence must track proactive-pool growth, not accepted-operational
+    learnings — the old proxy left knowledge (which reaches proactive only via
+    the domain-aware promote gate) invisible to the dream nudge. Markdown is
+    truth; the DB projection can lag a recent promote, so this reads the
+    filesystem directly (shares `load_proactive_claims`' predicate)."""
+    return len(load_proactive_claims(vault))
+
+
 def dream_status() -> Dict[str, Any]:
-    """Return cadence info for the nudge: last dream time + how many
-    accepted learnings have appeared since."""
+    """Return cadence info for the nudge: last dream time + how many proactive
+    claims have appeared since (dream's input, any domain)."""
     vault = _vault_root()
     last: Optional[str] = None
     baseline_raw: Optional[str] = None
@@ -392,18 +404,17 @@ def dream_status() -> Dict[str, Any]:
         pass
     finally:
         conn.close()
-    # Read the accepted total from the DB projection (one indexed query, no
-    # markdown I/O); fall back to the filesystem scan on a cold/empty DB. Same
-    # predicate either way (`store.is_accepted_operational_claim`).
+    # Proactive total from the DB projection (one indexed query, no markdown
+    # I/O); fall back to the filesystem scan on a cold/empty DB.
     from . import projection_counts as _pc
-    total = _pc.accepted_operational()
+    total = _pc.proactive_count()
     if total is None:
-        total = _count_accepted(vault)
+        total = _count_proactive(vault)
     baseline = int(baseline_raw) if (baseline_raw or "").isdigit() else 0
     return {
         "last_dream_at": last,
-        "accepted_total": total,
-        "accepted_since_last_dream": max(0, total - baseline),
+        "proactive_total": total,
+        "proactive_since_last_dream": max(0, total - baseline),
     }
 
 
@@ -413,7 +424,7 @@ def mark_dream_complete(*, when: str) -> Dict[str, Any]:
     `when` is an ISO timestamp supplied by the caller (engine has no clock
     of its own in tests)."""
     vault = _vault_root()
-    total = _count_accepted(vault)
+    total = _count_proactive(vault)
     conn = _db.connect()
     try:
         _db.set_meta(conn, _META_LAST_DREAM, when)
@@ -421,4 +432,4 @@ def mark_dream_complete(*, when: str) -> Dict[str, Any]:
         conn.commit()
     finally:
         conn.close()
-    return {"last_dream_at": when, "accepted_total": total}
+    return {"last_dream_at": when, "proactive_total": total}

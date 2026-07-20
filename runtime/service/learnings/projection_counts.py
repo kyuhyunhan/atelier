@@ -98,6 +98,17 @@ def accepted_operational() -> Optional[int]:
                if _store.is_accepted_operational_claim(fm))
 
 
+def proactive_count() -> Optional[int]:
+    """Count of proactive-tier claims (the dream cadence total — dream's actual
+    input, ANY domain). Returns None on a cold DB → filesystem fallback."""
+    nodes = _load_nodes()
+    if nodes is None:
+        return None
+    from . import claims_io as _c
+    return sum(1 for fm in nodes["claims"]
+               if _c.surfacing_of(fm) == _c.TIER_PROACTIVE)
+
+
 def promote_eligible(limit: Optional[int] = None) -> Optional[int]:
     """Count of promotion-eligible claims — the SAME domain-aware gate as the
     filesystem scan (`claims_io.is_promote_eligible`), so projection and scan

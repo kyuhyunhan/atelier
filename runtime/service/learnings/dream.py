@@ -293,26 +293,30 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
         {due, accepted_since, days_since, pending, short, long}
 
     Two independent triggers fire `due`:
-    - accumulation: accepted_since >= nudge_after_accepted OR
+    - accumulation: proactive-since-last-dream >= nudge_after_proactive OR
       days_since >= nudge_after_days
     - pending review: proposed drafts exist (interrupted/unreviewed dream)
 
-    The cadence (count + time) is shared infrastructure unchanged by the §7.1
-    field-transition rework; the pending-review trigger counts proposed principle
-    *claims* (ac_status:pending) — the principle file pipeline is retired (P7), so
-    `review_proposed` is now a tier/field query over claims, not a dir scan."""
+    The accumulation trigger counts growth of the PROACTIVE pool since the last
+    dream — dream's actual input, ANY domain (RFC 0005 §7.1). It formerly counted
+    accepted *operational* learnings, which left knowledge (proactive only via the
+    domain-aware promote gate) invisible to the dream nudge. The pending-review
+    trigger counts proposed principle *claims* (ac_status:pending)."""
     from . import principles as _principles
 
     cfg = _config.load()
     dream_cfg = (cfg.raw.get("learnings") or {}).get("dream") or {}
-    after_accepted = int(dream_cfg.get("nudge_after_accepted", 15))
+    # `nudge_after_proactive` is the accurate name; `nudge_after_accepted` is
+    # still read for back-compat with existing configs.
+    after_accepted = int(dream_cfg.get("nudge_after_proactive",
+                         dream_cfg.get("nudge_after_accepted", 15)))
     after_days = int(dream_cfg.get("nudge_after_days", 7))
 
     try:
         status = _cluster.dream_status()
     except Exception:                       # pragma: no cover
-        status = {"accepted_since_last_dream": 0, "last_dream_at": None}
-    since = int(status.get("accepted_since_last_dream", 0))
+        status = {"proactive_since_last_dream": 0, "last_dream_at": None}
+    since = int(status.get("proactive_since_last_dream", 0))
     last = status.get("last_dream_at")
     days = _days_between(last, now)
 
@@ -337,7 +341,7 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
                 f"(`atelier_principle_review_proposed`)"
             )
         if accumulation_due:
-            when = f"{since} new learnings" if since else "enough time"
+            when = f"{since} new proactive claims" if since else "enough time"
             if days is not None and days >= after_days and since < after_accepted:
                 when = f"{int(days)} days"
             bits.append(

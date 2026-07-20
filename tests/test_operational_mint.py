@@ -32,8 +32,8 @@ def test_source_id_is_pure_function_of_statement() -> None:
     assert a != c
     # Deterministic across calls (no created_at / randomness in the id).
     assert a == _ci.operational_source_content_id("Integration tests must hit a real DB")
-    assert a.startswith("")  # a uuid5 string
-    assert len(a) == 36
+    from uuid import UUID
+    assert str(UUID(a)) == a  # a well-formed uuid5 string
 
 
 # ── the mint: Source + Claim, LLM-free ───────────────────────────────────────
@@ -94,6 +94,21 @@ def test_mint_same_lesson_dedups_to_one_source_and_one_claim(atelier_env: Dict) 
 
 
 # ── acceptance-criteria mirror (criteria.py reads these off the CLAIM) ────────
+
+
+def test_mint_id_invariant_to_whitespace_and_case(atelier_env: Dict) -> None:
+    # Locks the RFC 0007 §4 invariant END-TO-END: the operational Source key
+    # (sha256 of collapse+lower) and the claim id (write_operational_claim's
+    # collapse + resolver._norm's lower) must normalize on the SAME basis. These
+    # are two independent code paths today; if either drifts, both ids diverge
+    # and this test fails — the guard the reviewer asked for against M2 refactors.
+    vault = atelier_env["gorae"]
+    a = _ci.mint_operational_claim(statement="Guard the  RETURN  path",
+                                   body="x", vault=vault)
+    b = _ci.mint_operational_claim(statement="guard the return path",
+                                   body="y", vault=vault)
+    assert a["source"]["entry_id"] == b["source"]["entry_id"]
+    assert a["claim"]["entry_id"] == b["claim"]["entry_id"]
 
 
 def test_mint_mirrors_session_fields_onto_claim(atelier_env: Dict) -> None:

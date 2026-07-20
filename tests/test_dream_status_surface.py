@@ -60,7 +60,7 @@ def test_nudge_info_due_on_count(atelier_env: Dict) -> None:
     _accept("a"); _accept("b")
     info = _dr.nudge_info(now="2026-05-29T12:00:00+00:00")
     assert info["due"] is True
-    assert info["accepted_since"] == 2
+    assert info["proactive_since"] == 2
     assert "2 to dream" in info["short"]
     assert "💡 **atelier dream**" in info["long"]
 
@@ -116,5 +116,5 @@ def test_cli_status_json(atelier_env: Dict, capsys) -> None:
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert data["due"] is True
-    assert data["accepted_since"] == 2
+    assert data["proactive_since"] == 2
     assert "long" in data and "short" in data

@@ -135,7 +135,8 @@ learnings:
   # review. Usage-coupled: it rides the first prompt of a session, so a
   # lid-sleeping laptop never misses it.
   dream:
-    nudge_after_accepted: 15       # accepted learnings since last dream
+    nudge_after_proactive: 15      # new proactive claims since last dream
+    #                                (nudge_after_accepted still honored for compat)
     nudge_after_days: 7            # days since last dream
 
 # ── Secrets references ───────────────────────────────────────────────────────

@@ -290,7 +290,7 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
     session_bootstrap model-context injection, the SessionStart systemMessage
     hook, and the statusline. Returns:
 
-        {due, accepted_since, days_since, pending, short, long}
+        {due, proactive_since, days_since, pending, short, long}
 
     Two independent triggers fire `due`:
     - accumulation: proactive-since-last-dream >= nudge_after_proactive OR
@@ -364,7 +364,7 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
 
     return {
         "due": due,
-        "accepted_since": since,
+        "proactive_since": since,
         "days_since": days,
         "pending": pending,
         "short": short,

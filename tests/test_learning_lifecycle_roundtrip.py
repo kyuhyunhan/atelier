@@ -43,7 +43,7 @@ def test_capture_births_a_query_pending_claim(atelier_env: Dict) -> None:
     assert fm["domain"] == "operational"
     assert fm["surfacing"] == "query"
     assert fm["ac_status"] == "pending"
-    assert fm["generated_by"] == "ingest"     # PROV activity (hook is in `hook`)
+    assert fm["generated_by"] == "mint"       # RFC 0007: deterministic mint (hook in `hook`)
     assert fm["hook"] == "Stop"
 
 

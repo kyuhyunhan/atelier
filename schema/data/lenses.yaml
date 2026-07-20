@@ -30,6 +30,7 @@ lenses:
     selectors:
       - {kind: claim,  domain: operational}
       - {kind: claim,  domain: knowledge}
+      - {kind: source, domain: operational}   # RFC 0007: the raw form of the primary dev content
       - {kind: source, domain: knowledge}
       - {kind: source, domain: inbox}
       - {kind: entity, domain: knowledge}

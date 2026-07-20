@@ -41,9 +41,9 @@ def test_capture_is_born_as_a_query_pending_claim(atelier_env: Dict) -> None:
     assert fm["domain"] == "operational"
     assert fm["surfacing"] == "query"
     assert fm["ac_status"] == "pending"
-    # generated_by is the PROV activity (schema enum ingest|atomize|promote|
-    # dream) — a born-as-claim capture is `ingest`; the hook is in `hook`.
-    assert fm["generated_by"] == "ingest"
+    # generated_by is the PROV activity — RFC 0007: a capture is deterministically
+    # MINTED from its own operational Source (no LLM); the hook is in `hook`.
+    assert fm["generated_by"] == "mint"
     assert fm["hook"] == "Stop"
     assert fm["agent_kind"] == "claude-code"
     assert fm["attributed_to"] == "claude-code"
@@ -71,37 +71,58 @@ def test_capture_carries_session_metadata_on_claim(atelier_env: Dict) -> None:
     assert fm["captured_at"]
 
 
-def test_capture_derives_from_single_shared_source(atelier_env: Dict) -> None:
-    """RFC 0005 P10: every operational claim derives_from ONE shared
-    operational-capture Source. Two captures share the same source id, and
-    exactly ONE shared source node exists in the vault — no per-learning stubs."""
+def test_capture_derives_from_its_own_operational_source(atelier_env: Dict) -> None:
+    """RFC 0007: each operational claim derives_from its OWN content-addressed
+    Source in raw/operational/ (no shared anchor). Different lessons -> different
+    Sources; the same lesson re-captured -> the same Source id (idempotency,
+    preserving the hook's ledger-less cross-session dedup)."""
     a = _cap.capture(observation="alpha", why="because a",
                      working_dir="/w", session_id="s1", hook="manual")
     b = _cap.capture(observation="beta", why="because b",
                      working_dir="/w", session_id="s2", hook="Stop")
-    assert a["source_entry_id"] == b["source_entry_id"]
-    fm_a = _read_fm(Path(a["path"]))
-    fm_b = _read_fm(Path(b["path"]))
-    assert fm_a["derived_from"] == [a["source_entry_id"]]
-    assert fm_b["derived_from"] == [b["source_entry_id"]]
+    # Per-item, not shared: two distinct lessons -> two distinct Sources.
+    assert a["source_entry_id"] != b["source_entry_id"]
+    assert _read_fm(Path(a["path"]))["derived_from"] == [a["source_entry_id"]]
+    assert _read_fm(Path(b["path"]))["derived_from"] == [b["source_entry_id"]]
+
+    # Re-capturing the SAME lesson reuses the same content-addressed Source id.
+    a2 = _cap.capture(observation="alpha", why="because a",
+                      working_dir="/w2", session_id="s3", hook="manual")
+    assert a2["source_entry_id"] == a["source_entry_id"]
 
     vault = atelier_env["gorae"]
     sources = [p for p in vault.rglob("*.md")
                if _read_fm(p).get("kind") == "source"
                and _read_fm(p).get("entry_id") == a["source_entry_id"]]
-    assert len(sources) == 1
+    assert len(sources) == 1                        # idempotent: one Source file
     sfm = _read_fm(sources[0])
-    assert sfm["domain"] == "inbox"
+    assert sfm["domain"] == "operational"
     assert sfm["sensitivity"] == "public"
-    # No per-learning session stub is created (RFC 0005 P10).
-    stubs = [p for p in (vault / "raw" / "inbox").rglob("*.md")
-             if p.name.startswith("session-") or p.name.startswith("learning-")]
-    assert stubs == []
+    assert sources[0].relative_to(vault).as_posix().startswith("raw/operational/")
+
+
+def test_capture_mirrors_session_fields_onto_claim_and_source(atelier_env: Dict) -> None:
+    """RFC 0007: capture mirrors session provenance onto BOTH the Claim (so the
+    promotion acceptance criteria — tied_to_event / has_project_tag — keep
+    resolving) AND its Source (first-class lineage). Mirrored, not moved."""
+    result = _cap.capture(
+        observation="mirror test", why="criteria contract",
+        working_dir="/Users/me/workspaces/lexio", session_id="sess-mirror",
+        hook="Stop",
+    )
+    cfm = _read_fm(Path(result["path"]))
+    assert cfm.get("session_id") == "sess-mirror"           # tied_to_event
+    assert cfm.get("working_dir") == "/Users/me/workspaces/lexio"
+    assert cfm.get("project_hint") == "lexio"               # has_project_tag
+    vault = atelier_env["gorae"]
+    src = [p for p in vault.rglob("*.md")
+           if _read_fm(p).get("entry_id") == result["source_entry_id"]][0]
+    assert _read_fm(src).get("session_id") == "sess-mirror"  # also on the Source
 
 
 def test_capture_source_lands_in_raw_not_graph(atelier_env: Dict) -> None:
-    """RFC 0005 §3 round-trip: the shared operational Source is an L1 node in the
-    content tree (raw/inbox), NEVER under graph/. The claim stays flat in graph/."""
+    """RFC 0007: the per-item operational Source is an L1 node in the content
+    tree (raw/operational), NEVER under graph/. The claim stays flat in graph/."""
     result = _cap.capture(
         observation="capture writes its source to raw, not graph",
         why="a Source is an L1 node in the content tree",
@@ -112,11 +133,9 @@ def test_capture_source_lands_in_raw_not_graph(atelier_env: Dict) -> None:
     matches = [p for p in vault.rglob("*.md")
                if _read_fm(p).get("entry_id") == result["source_entry_id"]]
     assert len(matches) == 1
-    src_path = matches[0]
-    rel = src_path.relative_to(vault).as_posix()
-    # the shared source lives under the inbox intake (raw/inbox) …
-    assert rel.startswith("raw/inbox/"), rel
-    assert rel.endswith("operational-capture.md"), rel
+    rel = matches[0].relative_to(vault).as_posix()
+    # the per-item operational Source lives under raw/operational …
+    assert rel.startswith("raw/operational/"), rel
     # … and decidedly NOT in the graph tree.
     assert "graph/" not in rel
     # the claim it derives_from still resolves the source by id (stable handle).

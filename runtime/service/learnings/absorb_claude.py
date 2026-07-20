@@ -249,28 +249,27 @@ def absorb(*, dry_run: bool = False,
         statement = _statement_of(mem)
         now = _now_iso()
 
-        # Born as a v7 claim derived_from the single shared operational-capture
-        # Source (RFC 0005 P10 — one canonical L1 node, not a per-memory session
-        # stub). NO candidate/note file lifecycle.
+        # RFC 0007: born-as-Source + deterministic mint. Each absorbed memory
+        # lands as its OWN content-addressed operational Source (carrying its
+        # ~/.claude provenance — source_path / claude_memory_type / body_sha) in
+        # raw/operational/, from which a no-LLM 1:1 mint derives the Claim
+        # (generated_by: mint). The body-hash ledger (below) still guards
+        # re-import, so a mint is reached only for a first-seen memory.
         if dry_run:
             dest_repr = f"<claim:{statement[:40]}>"
         else:
-            src = _claims.ensure_operational_source(vault=vault)
             is_about = []
             if mem.project:
                 is_about.append(_claims._resolve_entity_id(
                     mem.project, sensitivity="public",
-                    in_scheme="inbox", vault=vault))
-            # generated_by is the PROV activity (enum ingest|atomize|promote|
-            # dream) — an absorbed memory is ingested. The `absorbed` provenance
-            # is carried on agent_kind/attributed_to (the v7 migration shape).
-            claim = _claims.write_operational_claim(
-                statement=statement, source_entry_id=src["entry_id"],
-                body=mem.body, generated_by="ingest",
-                attributed_to="absorbed", agent_kind="absorbed", hook="manual",
+                    in_scheme="operational", vault=vault))
+            minted = _claims.mint_operational_claim(
+                statement=statement, body=mem.body,
                 observation_kind=_map_type(mem.type),
                 why_status="present", project=mem.project or None,
-                is_about=is_about, ac_status=ac_status, captured_at=now,
+                is_about=is_about, attributed_to="absorbed",
+                agent_kind="absorbed", hook="manual",
+                ac_status=ac_status, captured_at=now,
                 extra={
                     "source": "claude-memory",
                     "source_path": str(mem.src),
@@ -280,8 +279,15 @@ def absorb(*, dry_run: bool = False,
                     **({"title": mem.name, "description": mem.description}
                        if mem.description else {}),
                 },
+                source_extra={
+                    "source_type": "claude-memory",
+                    "source_path": str(mem.src),
+                    "claude_memory_type": mem.type,
+                    "body_sha": mem.body_sha,
+                },
                 vault=vault,
             )
+            claim = minted["claim"]
             dest_repr = claim["path"]
             ledger[mem.body_sha] = _ledger_entry(mem)
             ledger_dirty = True

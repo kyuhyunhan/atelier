@@ -17,9 +17,15 @@ All notable changes to atelier.
   content-addressed operational Source — same born-as-Source model as
   capture/absorb. The anchor is now fully frozen: no writer creates or attaches
   new claims to it; existing anchor-hung claims are grandfathered.
-- Guard test: neither principle path leaves an orphaned Source
-  (`atomize.unatomized_count == 0`) and no anchor file is created. Full suite
-  655 green.
+- `claims_io.ensure_operational_source` (the create-once anchor **writer**) is
+  removed — it had zero callers after M2/M3, and a dead anchor-writer is a loaded
+  gun that would re-arm the orphaned-Source class the freeze eliminates.
+  `operational_source_id()` (the id-stable discriminator string) is retained.
+- Guard tests (split so the count assertion is a genuine 1→0 guard): an
+  evidence-bearing principle leaves no orphaned anchor
+  (`atomize.unatomized_count == 0`, no anchor file); an evidence-less principle
+  is born from its own `raw/operational/` Source (not the anchor id). Full suite
+  656 green.
 - (`raw/knowledge/_new/` removal is a vault-side cleanup, handled separately in
   the gorae content repo — not an engine change.)
 

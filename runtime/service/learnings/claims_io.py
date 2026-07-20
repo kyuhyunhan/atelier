@@ -251,9 +251,14 @@ def find_entity_by_entry_id(entry_id: str, vault: Path) -> Optional[Path]:
 # captured_at) now lives ON the claim as §4.3 extension fields.
 #
 # The shared source has a FIXED, resolver-derived entry_id that does NOT depend
-# on any session discriminator or the wall-clock — it is the same node for every
-# capture, forever. `ensure_operational_source()` creates it once (idempotent)
-# and returns its id.
+# on any session discriminator or the wall-clock. RFC 0007 FROZE this anchor: no
+# writer creates or attaches new claims to it — capture/absorb (M2) and
+# principles (M3) all use per-item content-addressed operational Sources now.
+# `operational_source_id()` is kept ONLY as the id-stable discriminator string
+# for legacy references (e.g. an evidence-bearing principle's claim id, whose
+# derived_from FIELD points at its evidence). The create-once *writer* was
+# removed: a dead anchor-writer is a loaded gun that would re-arm the orphaned-
+# Source class the freeze exists to eliminate.
 
 # The fixed basis for the shared source's id. created_at is held empty so the id
 # never depends on wall-clock; the discriminator is the canonical literal — the
@@ -262,58 +267,14 @@ _OPERATIONAL_SOURCE_DISCRIMINATOR = "atelier:operational-capture"
 
 
 def operational_source_id() -> str:
-    """The fixed entry_id of the single shared operational-capture Source
-    (RFC 0005 P10). Resolver-derived from a stable basis (no created_at, no
-    session discriminator), so it is the SAME id for every capture, forever."""
+    """The fixed entry_id of the legacy shared operational-capture Source
+    (RFC 0005 P10; FROZEN by RFC 0007). Resolver-derived from a stable basis (no
+    created_at, no session discriminator), so it is the SAME id forever. Kept as
+    an id-stable discriminator string only — nothing creates the anchor file."""
     return _structure.entry_id(
         "source", created_at="",
         discriminator=_OPERATIONAL_SOURCE_DISCRIMINATOR,
     )
-
-
-def ensure_operational_source(vault: Optional[Path] = None) -> Dict[str, Any]:
-    """Create-once the single shared operational-capture Source and return its
-    id (RFC 0005 P10). Idempotent: if the node already exists by its fixed
-    entry_id, this is a no-op read and the same id is returned.
-
-    The Source is a canonical L1 node (kind:source, domain:inbox,
-    sensitivity:public) living in the content tree under the inbox intake
-    (session_source_dir(), = raw/inbox) — RFC 0005 §3: a Source IS an ingested
-    artifact. Every operational Claim born by capture/absorb derives_from THIS
-    one node; the per-capture session metadata lives on the Claim (§4.3), not
-    on a per-learning source stub.
-
-    Returns {path, entry_id}.
-    """
-    vault = vault if vault is not None else vault_root()
-    eid = operational_source_id()
-    out = vault / _structure.session_source_dir() / "operational-capture.md"
-    # The shared source lives at a deterministic path, so an O(1) existence check
-    # avoids an O(tree) rglob on every capture/absorb/principle write.
-    if out.exists():
-        return {"path": str(out), "entry_id": eid}
-    now = _now_iso()
-    front: Dict[str, Any] = {
-        "entry_id": eid,
-        "schema_version": 7,
-        "kind": "source",
-        "created_at": now,
-        "domain": "inbox",
-        "sensitivity": "public",
-        "attributed_to": "atelier",
-        "title": "Operational capture",
-    }
-    front["content_hash"] = _content_hash(front)
-    body = (
-        "Shared L1 Source for operational learnings (RFC 0005 P10).\n\n"
-        "Every operational Claim (a capture or an absorbed Claude memory) "
-        "derives_from this single canonical Source. The per-capture session "
-        "metadata (agent_kind / hook / session_id / working_dir / captured_at) "
-        "lives ON each Claim as §4.3 extension fields — not on a per-learning "
-        "source stub.\n"
-    )
-    _atomic_write(out, _emit(front, body))
-    return {"path": str(out), "entry_id": eid}
 
 
 def find_source_by_entry_id(entry_id: str, vault: Path) -> Optional[Path]:

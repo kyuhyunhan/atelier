@@ -235,20 +235,19 @@ def add(*, title: str, rule: str, why: str,
     #     so an anchor file would be an orphan the atomize nudge flags forever).
     #   • no evidence → the principle is born from its OWN content-addressed
     #     operational Source (like capture/absorb), never the shared anchor.
+    body = _render_body(rule, why, links, notes)
     if source_entry_ids:
         source_eid = _claims.operational_source_id()   # id-stable string; no file
         extra["derived_from"] = list(dict.fromkeys(source_entry_ids))
     else:
         src = _claims.write_operational_source(
-            statement=statement,
-            body=_render_body(rule, why, links, notes),
+            statement=statement, body=body,
             attributed_to="curator", agent_kind="curator", hook="principle-add",
             vault=vault)
         source_eid = src["entry_id"]
 
     claim = _claims.write_operational_claim(
-        statement=statement, source_entry_id=source_eid,
-        body=_render_body(rule, why, links, notes),
+        statement=statement, source_entry_id=source_eid, body=body,
         generated_by="dream" if status == "proposed" else "promote",
         attributed_to="curator", agent_kind="curator",
         hook="principle-add", observation_kind="feedback",

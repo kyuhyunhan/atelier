@@ -188,6 +188,17 @@ def session_source_dir() -> str:
     return inbox_dir()
 
 
+def operational_source_dir() -> str:
+    """Vault-relative dir where a capture/absorb operational Source is born.
+
+    RFC 0007: operational input is domain-known and already atomic, so it lands
+    as its own content-addressed Source in the `operational` intake lane
+    (today raw/operational), NOT on the shared inbox anchor. Single-sourced from
+    intake_dir() so a root/intake flip moves it.
+    """
+    return intake_dir("operational")
+
+
 def atomic_claim_dir() -> str:
     """Vault-relative dir holding v7 Claim nodes (flat: graph/atomic)."""
     return home("atomic_claim")

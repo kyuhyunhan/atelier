@@ -39,7 +39,9 @@ page_types:
       title:       { type: string }
       sensitivity: { type: string, enum: [private, public] }
       # legacy 'provenance' field -> domain (RFC 0005 §4.1).
-      domain:      { type: string, enum: [personal, knowledge, inbox, workshop] }
+      # `operational` (RFC 0007): the raw/operational/ lane for capture/absorb
+      # Sources (born-as-Source + deterministic mint).
+      domain:      { type: string, enum: [personal, knowledge, inbox, workshop, operational] }
       attributed_to: { type: string }   # PROV-O wasAttributedTo: authoring channel
       content_hash:  { type: string }
       summary:       { type: string }
@@ -89,7 +91,7 @@ page_types:
                Organization, Project, Emotion, Role, Model]
       in_scheme:                                          # skos:inScheme [domain]
         type: array
-        items: { type: string, enum: [personal, knowledge, inbox, workshop] }
+        items: { type: string, enum: [personal, knowledge, inbox, workshop, operational] }
       gloss:       { type: string }
       content_hash: { type: string }
       # links: [{to, rel, why}], rel in broader|narrower|related (SKOS).
@@ -118,7 +120,7 @@ page_types:
       attributed_to: { type: string }                    # PROV wasAttributedTo
       generated_by:
         type: string
-        enum: [ingest, atomize, promote, dream]          # PROV wasGeneratedBy
+        enum: [ingest, atomize, promote, dream, mint]    # PROV wasGeneratedBy; mint = deterministic L1->L2 (RFC 0007)
       surfacing:
         type: string
         enum: [query, proactive, always]                 # recall tier (RFC 0005 §6)

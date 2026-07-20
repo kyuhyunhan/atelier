@@ -58,8 +58,9 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
     out = _ac.absorb(dry_run=False, source_root=src_root)
     assert len(out["accepted"]) == 2
     assert len(out["candidates"]) == 0
-    # RFC 0005 §7.1: absorbed memories are born as v7 claims (generated_by
-    # absorbed), accepted ones at ac_status passed — NOT legacy notes/ files.
+    # RFC 0007: absorbed memories are deterministically MINTED (generated_by
+    # mint) from their own per-memory operational Source; accepted ones at
+    # ac_status passed — NOT legacy notes/ files.
     from runtime.index.parse import split_frontmatter
     for item in out["accepted"]:
         assert "/graph/atomic/" in item["path"]   # flat L2 graph (P9.4)
@@ -68,12 +69,22 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
         fm, _ = split_frontmatter(Path(item["path"]).read_text())
         assert fm["kind"] == "claim"
         assert fm["domain"] == "operational"
-        # generated_by is the PROV activity (enum); the absorbed provenance is on
-        # agent_kind/attributed_to (matches the v7 migration shape).
-        assert fm["generated_by"] == "ingest"
+        # generated_by is the PROV activity; RFC 0007 mints deterministically.
+        # The absorbed provenance stays on agent_kind/attributed_to.
+        assert fm["generated_by"] == "mint"
         assert fm["agent_kind"] == "absorbed"
         assert fm["attributed_to"] == "absorbed"
         assert fm["ac_status"] == "passed"
+        # RFC 0007: derives from the memory's OWN per-memory Source in
+        # raw/operational/ — NOT the shared raw/inbox anchor.
+        assert fm["derived_from"] and isinstance(fm["derived_from"], list)
+        src_id = fm["derived_from"][0]
+        srcs = [p for p in atelier_env["gorae"].rglob("*.md")
+                if split_frontmatter(p.read_text())[0].get("entry_id") == src_id]
+        assert len(srcs) == 1
+        rel = srcs[0].relative_to(atelier_env["gorae"]).as_posix()
+        assert rel.startswith("raw/operational/"), rel
+        assert not rel.endswith("operational-capture.md"), rel
 
 
 def test_absorb_routes_user_project_to_candidates(atelier_env: Dict,

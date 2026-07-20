@@ -1,16 +1,22 @@
-"""Learning capture — born-as-claim writer (RFC 0005 §7.1).
+"""Learning capture — born-as-Source + deterministic mint (RFC 0007).
 
-An operational learning is **born directly as a v7 Claim** — there is no
-candidate FILE lifecycle any more. `capture()`:
+An operational learning is captured as its **own content-addressed Source** in
+`raw/operational/`, from which a deterministic (no-LLM) 1:1 **mint** derives the
+v7 Claim. There is no candidate FILE lifecycle. `capture()`:
 
-1. ensures the single shared operational-capture Source exists
-   (RFC 0005 P10 — one canonical L1 node, created once, not a per-learning
-   session stub), then
-2. writes a v7 Claim (`domain:operational`, `surfacing:query`,
-   `ac_status:pending`, `generated_by:<hook-or-caller>`) that `derived_from`
-   that shared Source, carrying the session metadata (session_id /
-   working_dir / agent_kind / hook / captured_at) ON the claim as §4.3
-   extension fields.
+1. resolves-or-creates the `is_about` entities, then
+2. calls `mint_operational_claim`, which writes the per-item operational Source
+   (content-addressed by the normalized statement — same lesson → same id, so
+   this hook keeps its ledger-less cross-session dedup) and mints the v7 Claim
+   (`domain:operational`, `surfacing:query`, `ac_status:pending`,
+   `generated_by:mint`) that `derived_from` that Source. Session metadata
+   (session_id / working_dir / agent_kind / hook / captured_at) is mirrored onto
+   BOTH the Source (first-class lineage) and the Claim (so the acceptance-
+   criteria heuristics keep resolving).
+
+This revises the prior born-as-claim-on-a-shared-anchor design (RFC 0005 §7.1 /
+P10); see RFC 0007 for the rationale (single intake front door; real per-Claim
+provenance; the enumeration-bypass bug class it removes).
 
 The candidate/note/principle DIRECTORIES collapse to the `surfacing` +
 `ac_status` FIELDS: promote (query→proactive) and dream (proactive→always)
@@ -146,45 +152,36 @@ def capture(*, observation: str,
     statement = _claim_statement(observation, rule)
     body = _build_body(observation or "", why, rule, excerpt)
 
-    # 1) the single shared operational-capture Source the claim derives_from
-    #    (RFC 0005 P10 — one canonical L1 node, created once, not a per-learning
-    #    session stub). The session metadata lives on the claim (§4.3), below.
-    src = _claims.ensure_operational_source(vault=vault_root)
-
-    # 2) resolve-or-create is_about entities for project + touched subjects.
+    # 1) resolve-or-create is_about entities for project + touched subjects.
     is_about: List[str] = []
     subjects = list(touches or [])
     if project:
         subjects.append(project)
     for label in dict.fromkeys(s for s in subjects if s and s.strip()):
         is_about.append(_claims._resolve_entity_id(
-            label, sensitivity="public", in_scheme="inbox",
+            label, sensitivity="public", in_scheme="operational",
             vault=vault_root))
 
-    # 3) the operational Claim, born at query/pending. The session metadata
-    #    (agent_kind / hook / session_id / working_dir / captured_at) lives ON
-    #    the claim as §4.3 extension fields (RFC 0005 P10) — this is also what
-    #    the acceptance criteria heuristics (tied_to_event, has_project_tag)
-    #    read, so they keep working unchanged.
-    extra: Dict[str, Any] = {"captured_at": now, "ac_results": {}}
-    if session_id:
-        extra["session_id"] = session_id
-    if working_dir:
-        extra["working_dir"] = working_dir
-
-    # generated_by is the PROV wasGeneratedBy *activity* (schema enum:
-    # ingest|atomize|promote|dream) — a born-as-claim capture is `ingest`. The
-    # capturing HOOK (Stop/SessionEnd/manual) is recorded in the `hook` field,
-    # the agent in `agent_kind`/`attributed_to` (matches the v7 migration shape).
-    claim = _claims.write_operational_claim(
-        statement=statement, source_entry_id=src["entry_id"], body=body,
-        generated_by="ingest",
-        attributed_to=agent_kind, agent_kind=agent_kind, hook=hook,
+    # 2) RFC 0007: born-as-Source + deterministic mint. The capture lands as its
+    #    OWN content-addressed operational Source in raw/operational/ (no shared
+    #    anchor), from which a no-LLM 1:1 mint derives the Claim
+    #    (generated_by: mint). The session metadata (session_id / working_dir /
+    #    captured_at) is mirrored onto BOTH the Source (first-class provenance,
+    #    so a Claim traces to its origin) AND the Claim (so the acceptance-
+    #    criteria heuristics — tied_to_event, has_project_tag — keep resolving).
+    #    Same lesson -> same content-addressed Source id -> same claim id, which
+    #    preserves this hook's ledger-less cross-session dedup.
+    minted = _claims.mint_operational_claim(
+        statement=statement, body=body,
         observation_kind=observation_kind,
         why_status="present" if why_present else "missing",
         project=project or None, is_about=is_about,
-        captured_at=now, extra=extra, vault=vault_root,
+        attributed_to=agent_kind, agent_kind=agent_kind, hook=hook,
+        session_id=session_id, working_dir=working_dir,
+        captured_at=now, vault=vault_root,
     )
+    claim = minted["claim"]
+    src = minted["source"]
 
     result: Dict[str, Any] = {
         "path": claim["path"],

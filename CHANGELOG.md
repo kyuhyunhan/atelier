@@ -4,6 +4,28 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — RFC 0007 M2: capture/absorb wired to the mint path (live behavior)
+
+- `capture()` (`runtime/service/learnings/capture.py`) and `absorb()`
+  (`runtime/service/learnings/absorb_claude.py`) now call
+  `mint_operational_claim` instead of `ensure_operational_source` +
+  `write_operational_claim`. Each operational learning is born as its **own**
+  content-addressed Source in `raw/operational/` (not the shared
+  `operational-capture.md` anchor), and the Claim is deterministically minted
+  (`generated_by: mint`, was `ingest`). Session provenance is mirrored onto both
+  the Source and the Claim; `is_about` entities now scheme as `operational`.
+  absorb carries `body_sha` / `source_path` / `claude_memory_type` on the Source;
+  its body-hash ledger still guards re-import.
+- `raw/operational/` added to the **dev lens** (`schema/data/lenses.yaml`) — the
+  raw form of the primary coding-session content.
+- `capture`/`absorb` no longer attach to the shared anchor; existing
+  anchor-hung claims are grandfathered. (`principles.py` still writes the anchor
+  for evidence-less synthesis — freezing that writer and removing the vestigial
+  `_new/` dir is M3.) Tests updated from the old shared-anchor/`ingest` behavior
+  to the per-item/`mint` behavior; new coverage for the acceptance-criteria
+  mirror at the `capture()` level and for absorb's per-memory Source. Full suite
+  654 green.
+
 ### Added — RFC 0007 M1: mint primitives (additive; writers unwired)
 
 - Schema (additive, non-breaking): `operational` added to the `source.domain`

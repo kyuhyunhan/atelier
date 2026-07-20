@@ -4,6 +4,24 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — deterministic atomization write-path (`atomize_write`)
+
+- `claims_io.atomize_write(source_entry_id, created_at, domain, entities, claims)`
+  and the `atelier_atomize_write` MCP tool: the engine now owns the mechanical
+  write for turning a raw Source into v7 graph nodes. The agent supplies only
+  judgement — structured `{entities:[{type,pref_label}], claims:[{statement,
+  attributed_to,is_about:[pref_label…]}]}` — and the engine resolve-or-creates
+  the *typed* entities (`_resolve_typed_entity`; the type is part of the
+  content-addressed id, so an AI model filed as `Model` never collides with a
+  same-named `Concept`), resolves each claim's `is_about` labels to entity ids
+  (auto-minting a `Concept` for any undeclared label so `is_about` never
+  dangles), and mints content-addressed, deduped, hashed claim nodes. No LLM,
+  no per-source script. Idempotent by content-addressing.
+  This closes the gap that made atomization expensive: the skill/agents were
+  hand-authoring a resolver+write script per source (the token sink), when that
+  work is deterministic and belongs in the engine — "judgement is the LLM's,
+  the write is the engine's."
+
 ### Fixed — YouTube ingest recovery (external breakage since ~2026-06)
 
 - `atelier_youtube` stopped working against current YouTube for two external

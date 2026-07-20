@@ -398,6 +398,119 @@ def write_operational_claim(*, statement: str,
     return {"path": str(out), "entry_id": eid, "slug": out.stem}
 
 
+def _resolve_typed_entity(*, type: str, pref_label: str, in_scheme: str,
+                          sensitivity: str, created_at: str,
+                          vault: Path) -> Tuple[str, bool]:
+    """Resolve-or-create a *typed* v7 Entity (Model / Person / Organization /
+    Tool / Concept / …), returning (entry_id, was_created).
+
+    Like `_resolve_entity_id` but honours the caller's `type` instead of forcing
+    `Concept` — knowledge atomization needs real types (an AI model is a `Model`,
+    a company an `Organization`), and the entry_id is `type | norm(pref_label)`,
+    so the type is part of the dedup key. Idempotent: same (type, label) → same
+    id → the existing node is reused."""
+    pref_label = " ".join(str(pref_label).split())
+    eid = _structure.entry_id("entity", type=type, pref_label=pref_label)
+    if find_entity_by_entry_id(eid, vault) is not None:
+        return eid, False
+    front: Dict[str, Any] = {
+        "entry_id": eid, "schema_version": 7, "kind": "entity", "type": type,
+        "created_at": created_at, "pref_label": pref_label, "alt_label": [],
+        "in_scheme": [in_scheme], "sensitivity": sensitivity, "links": [],
+    }
+    front["content_hash"] = _content_hash(front)
+    out = (vault / _structure.atomic_entity_dir()
+           / f"{_slugify(pref_label)}-{eid[:8]}.md")
+    _atomic_write(out, _emit(front, f"# {pref_label}\n"))
+    return eid, True
+
+
+def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
+                  entities: List[Dict[str, str]],
+                  claims: List[Dict[str, Any]],
+                  vault: Optional[Path] = None) -> Dict[str, Any]:
+    """Deterministic write-path for atomizing a knowledge Source into v7 nodes.
+
+    The agent supplies only judgement — WHICH entities and claims, their phrasing
+    and attribution — as structured input; this function does all the mechanical
+    work with NO LLM and NO per-source script: resolve-or-create every entity,
+    resolve each claim's `is_about` labels to entity ids, mint content-addressed
+    claim nodes, dedup, hash, atomic-write. Re-running with the same input is
+    idempotent (content-addressed ids → same files).
+
+    - `entities`: ``[{"type": "Model"|"Person"|"Organization"|"Tool"|"Concept"|…,
+      "pref_label": str}]`` — resolve-or-create; the type is part of the id.
+    - `claims`: ``[{"statement": str, "attributed_to": str,
+      "is_about": [pref_label, …], "context"?: str, "links"?: [ {to,rel,why} ]}]``
+      — one atomic assertion each. An `is_about` label not present in `entities`
+      is resolve-or-created as a `Concept` (referential integrity: `is_about`
+      always points at a real node).
+    - defaults: knowledge claims are `sensitivity: public, surfacing: query,
+      generated_by: atomize`; personal ones `sensitivity: private`.
+
+    Returns ``{entities_created, entities_reused, claims_written, claim_ids}``.
+    """
+    vault = vault if vault is not None else vault_root()
+    if not source_entry_id:
+        raise ValueError("atomize_write requires a source_entry_id")
+    sensitivity = "private" if domain == "personal" else "public"
+
+    # Pass A — resolve-or-create every declared entity; build label → id.
+    label_to_id: Dict[str, str] = {}
+    created_e = reused_e = 0
+    for e in entities or []:
+        label = " ".join(str(e["pref_label"]).split())
+        eid, was_created = _resolve_typed_entity(
+            type=str(e.get("type") or "Concept"), pref_label=label,
+            in_scheme=domain, sensitivity=sensitivity,
+            created_at=created_at, vault=vault)
+        label_to_id[label] = eid
+        created_e += int(was_created)
+        reused_e += int(not was_created)
+
+    # Pass B — write each claim, resolving is_about labels to entity ids.
+    claim_ids: List[str] = []
+    for c in claims or []:
+        statement = " ".join(str(c["statement"]).split())
+        if not statement:
+            raise ValueError("atomize claim requires a statement")
+        is_about: List[str] = []
+        for lbl in c.get("is_about") or []:
+            lbl = " ".join(str(lbl).split())
+            if lbl not in label_to_id:            # undeclared → mint a Concept
+                eid_e, was_created = _resolve_typed_entity(
+                    type="Concept", pref_label=lbl, in_scheme=domain,
+                    sensitivity=sensitivity, created_at=created_at, vault=vault)
+                label_to_id[lbl] = eid_e
+                created_e += int(was_created)
+                reused_e += int(not was_created)
+            is_about.append(label_to_id[lbl])
+        eid = _structure.entry_id("claim", statement=statement,
+                                  derived_from=source_entry_id)
+        front: Dict[str, Any] = {
+            "entry_id": eid, "schema_version": 7, "kind": "claim",
+            "created_at": created_at, "statement": statement,
+            "domain": domain, "sensitivity": sensitivity,
+            "surfacing": TIER_QUERY, "derived_from": [source_entry_id],
+            "is_about": list(dict.fromkeys(is_about)),
+            "attributed_to": str(c.get("attributed_to") or "unknown"),
+            "generated_by": "atomize", "links": c.get("links") or [],
+        }
+        if c.get("context"):
+            front["context"] = str(c["context"])
+        front["content_hash"] = _content_hash(front)
+        out = claims_dir(vault) / f"{_slugify(statement)}-{eid[:8]}.md"
+        n = 1
+        while out.exists() and str(_safe_eid(out)) != eid:
+            out = claims_dir(vault) / f"{_slugify(statement)}-{eid[:8]}-{n}.md"
+            n += 1
+        _atomic_write(out, _emit(front, f"{statement}\n"))
+        claim_ids.append(eid)
+
+    return {"entities_created": created_e, "entities_reused": reused_e,
+            "claims_written": len(claim_ids), "claim_ids": claim_ids}
+
+
 def _safe_eid(path: Path) -> Optional[str]:
     got = read_claim(path)
     return got[0].get("entry_id") if got else None

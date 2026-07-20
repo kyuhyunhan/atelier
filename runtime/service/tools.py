@@ -652,6 +652,27 @@ async def _h_dream_synthesize(source_claim_ids: List[str],
                           cluster_key=cluster_key)
 
 
+async def _h_atomize_write(source_entry_id: str,
+                           created_at: str,
+                           entities: List[Dict[str, Any]],
+                           claims: List[Dict[str, Any]],
+                           domain: str = "knowledge",
+                           ) -> Dict[str, Any]:
+    """Atomize write-path (RFC 0005 §7.2) — the engine's deterministic write for
+    turning a raw Source into v7 graph nodes. The agent supplies ONLY judgement
+    as structured input (which entities/claims, their phrasing + attribution);
+    the engine resolve-or-creates the typed entities, resolves each claim's
+    is_about labels to entity ids, mints content-addressed claim nodes, dedups,
+    and hashes — no LLM, no per-source script. Idempotent (content-addressed).
+
+    entities: [{type: Model|Person|Organization|Tool|Concept|…, pref_label}]
+    claims:   [{statement, attributed_to, is_about: [pref_label…], context?, links?}]"""
+    from .learnings import claims_io as _cio
+    return _cio.atomize_write(source_entry_id=source_entry_id,
+                              created_at=created_at, domain=domain,
+                              entities=entities, claims=claims)
+
+
 async def _h_dream_distill(claim_ids: List[str]) -> Dict[str, Any]:
     """Dream cycle distill (RFC 0005 §7.1) — elevate named PROACTIVE claims to
     `always` (the capped T0 budget) by a field transition in place. Only claims
@@ -1032,6 +1053,17 @@ def _register_v01_tools() -> None:
         "given source claims (generated_by: dream, linked refines/supports). "
         "Agent supplies statement/why; engine writes the node.",
         _h_dream_synthesize,
+        claim=_claims.Claim.CURATOR_WRITE,
+        lock_role=_claims.WriterRole.CURATOR,
+    ))
+    register(ToolDef(
+        "atelier_atomize_write",
+        "Atomize write-path — the agent returns structured extraction "
+        "{entities:[{type,pref_label}], claims:[{statement,attributed_to,"
+        "is_about:[pref_label…]}]} for one raw Source; the engine resolve-or-"
+        "creates the typed entities, links is_about, mints content-addressed "
+        "claim nodes, dedups + hashes. No per-source script. Idempotent.",
+        _h_atomize_write,
         claim=_claims.Claim.CURATOR_WRITE,
         lock_role=_claims.WriterRole.CURATOR,
     ))

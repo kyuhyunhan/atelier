@@ -4,6 +4,25 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Fixed — dream cadence tracks the proactive pool, not accepted-operational
+
+- The dream nudge's accumulation trigger counted *accepted operational
+  learnings* since the last dream — a proxy from when the only path to the
+  proactive tier was the operational accept→promote flow. Dream actually
+  clusters the **proactive pool** (any domain, no gate — `cluster.load_proactive_
+  claims`), so after the promote gate was made domain-aware, knowledge could
+  reach proactive but never moved the dream nudge: the cadence was blind to it
+  (the same domain-blindness, one pipeline stage downstream of promote).
+- `dream_status` now counts `proactive_since_last_dream` (via the new
+  `projection_counts.proactive_count` + `cluster._count_proactive`, filesystem-
+  truth with projection fast-path), and `mark_dream_complete` baselines the
+  proactive count. `nudge_info` reads a new config key `nudge_after_proactive`
+  (falls back to `nudge_after_accepted` for compat). Net effect: promoting
+  knowledge query→proactive now grows the dream signal, so the whole
+  atomize→promote→dream pipeline is domain-aware end to end. The standalone
+  accepted-learnings count (`accepted_operational` / `_count_accepted`) is kept
+  for learning stats but no longer drives dream.
+
 ### Fixed — promote eligibility is now domain-aware (knowledge is promotable)
 
 - The query→proactive promote gate required `ac_status: passed`, a field only

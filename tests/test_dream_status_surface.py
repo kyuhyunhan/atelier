@@ -32,6 +32,14 @@ def _accept(seed: str, project: str = "lexio") -> str:
                        session_id=seed, hook="Stop")
     out = _rev.accept(candidate_slug=cap["entry_id"],
                       target_topic="t", target_project=project)
+    # The dream cadence counts the PROACTIVE pool (dream's input) — elevate the
+    # accepted claim to proactive so it counts toward the nudge threshold.
+    from runtime.service.learnings import claims_io as _ci
+    found = _ci.find_claim_by_entry_id(cap["entry_id"])
+    if found is not None:
+        p, fm, body = found
+        _ci.set_surfacing(p, fm, body, new_tier=_ci.TIER_PROACTIVE,
+                          generated_by="promote")
     return cap["entry_id"]
 
 
@@ -52,7 +60,7 @@ def test_nudge_info_due_on_count(atelier_env: Dict) -> None:
     _accept("a"); _accept("b")
     info = _dr.nudge_info(now="2026-05-29T12:00:00+00:00")
     assert info["due"] is True
-    assert info["accepted_since"] == 2
+    assert info["proactive_since"] == 2
     assert "2 to dream" in info["short"]
     assert "💡 **atelier dream**" in info["long"]
 
@@ -108,5 +116,5 @@ def test_cli_status_json(atelier_env: Dict, capsys) -> None:
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert data["due"] is True
-    assert data["accepted_since"] == 2
+    assert data["proactive_since"] == 2
     assert "long" in data and "short" in data

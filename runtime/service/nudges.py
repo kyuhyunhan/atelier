@@ -66,7 +66,7 @@ def _dream_nudge(*, now: str) -> Nudge:
         info = _dream.nudge_info(now=now)
         # The salient number: accepted-since when accumulation drove the nudge,
         # otherwise the pending-review count (an interrupted/unreviewed dream).
-        count = int(info.get("accepted_since") or 0) or int(info.get("pending") or 0)
+        count = int(info.get("proactive_since") or 0) or int(info.get("pending") or 0)
         return Nudge(
             kind="dream",
             due=bool(info.get("due")),

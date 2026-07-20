@@ -87,26 +87,41 @@ def test_clustering_is_deterministic(atelier_env: Dict) -> None:
 # ── dream cadence ───────────────────────────────────────────────────────────
 
 
+def _proactive(vault: Path, eid: str) -> None:
+    """Write a minimal v7 claim at surfacing:proactive — the dream cadence now
+    counts the proactive pool (dream's input, any domain), not accepted learnings."""
+    import yaml
+    from runtime.structure import resolver as _structure
+    fm = {"entry_id": eid, "schema_version": 7, "kind": "claim",
+          "statement": f"claim {eid}", "surfacing": "proactive",
+          "domain": "knowledge", "sensitivity": "public", "content_hash": "h",
+          "created_at": "2026-01-01T00:00:00Z", "generated_by": "atomize",
+          "is_about": [], "derived_from": ["s"]}
+    d = vault / _structure.atomic_claim_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{eid}.md").write_text(
+        "---\n" + yaml.safe_dump(fm, allow_unicode=True) + "---\n\nx\n",
+        encoding="utf-8")
+
+
 def test_dream_status_counts_since_baseline(atelier_env: Dict) -> None:
-    _accept("a learning about caching strategy in production systems today",
-            "caching", "cache aggressively", project="lexio", topic="perf")
+    _proactive(atelier_env["gorae"], "p1")
     st = _cl.dream_status()
-    assert st["accepted_since_last_dream"] >= 1
+    assert st["proactive_since_last_dream"] >= 1
     assert st["last_dream_at"] is None
 
 
 def test_mark_dream_complete_resets_baseline(atelier_env: Dict) -> None:
-    _accept("first learning about logging discipline across the services",
-            "logging", "log structured", project="lexio", topic="ops")
+    vault = atelier_env["gorae"]
+    _proactive(vault, "p1")
     _cl.mark_dream_complete(when="2026-05-28T20:00:00+09:00")
     st = _cl.dream_status()
     assert st["last_dream_at"] == "2026-05-28T20:00:00+09:00"
-    assert st["accepted_since_last_dream"] == 0
-    # A new acceptance after the dream shows up as +1.
-    _accept("second learning about retry backoff in distributed callers",
-            "retry", "exponential backoff", project="bht", topic="ops")
+    assert st["proactive_since_last_dream"] == 0
+    # A new proactive claim after the dream shows up as +1.
+    _proactive(vault, "p2")
     st2 = _cl.dream_status()
-    assert st2["accepted_since_last_dream"] == 1
+    assert st2["proactive_since_last_dream"] == 1
 
 
 # ── MCP dispatch ────────────────────────────────────────────────────────────

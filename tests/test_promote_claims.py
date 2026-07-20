@@ -153,3 +153,26 @@ def test_propose_then_apply_round_trip(vault_env: Dict) -> None:
     assert out["promoted"] == ["c1"]
     _p, fm, _b = _ci.find_claim_by_entry_id("c1", vault)
     assert fm["surfacing"] == "proactive"
+
+
+# ── domain-aware promote-eligibility gate (knowledge born-accepted) ──────────
+
+def test_promote_gate_is_domain_aware() -> None:
+    """`is_promote_eligible` — the ONE gate shared by the filesystem scan and the
+    DB projection. Operational learnings need ac_status:passed; atomize-born
+    knowledge (no ac_status) is born-accepted; private is never eligible."""
+    def fm(**kw):
+        base = {"surfacing": "query", "sensitivity": "public"}
+        base.update(kw)
+        return base
+
+    # atomize-born knowledge: no ac_status → eligible (atomization is acceptance)
+    assert _ci.is_promote_eligible(fm(domain="knowledge")) is True
+    # operational passed → eligible
+    assert _ci.is_promote_eligible(fm(domain="operational", ac_status="passed")) is True
+    # operational still pending → NOT eligible (accept gate not cleared)
+    assert _ci.is_promote_eligible(fm(domain="operational", ac_status="pending")) is False
+    # private (personal) → never eligible, even without ac_status
+    assert _ci.is_promote_eligible(fm(domain="personal", sensitivity="private")) is False
+    # already promoted past query → not eligible
+    assert _ci.is_promote_eligible(fm(domain="knowledge", surfacing="proactive")) is False

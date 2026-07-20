@@ -4,6 +4,23 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Fixed — promote eligibility is now domain-aware (knowledge is promotable)
+
+- The query→proactive promote gate required `ac_status: passed`, a field only
+  operational learnings carry (their human accept-gate). Atomize-born knowledge
+  claims have no `ac_status`, so every knowledge claim was permanently locked at
+  the query tier — never promote-eligible, so never dream-visible either, and
+  the promote nudge stayed silent no matter how much knowledge was atomized
+  (the same class of gap as the atomize nudge only counting `kind: source`).
+- New single predicate `claims_io.is_promote_eligible(fm)` — shared by the
+  filesystem scan (`promote.propose._eligible`) and the DB projection
+  (`projection_counts.promote_eligible`) so they can't drift — encodes a
+  domain-aware gate: on the query tier, `sensitivity: public`, and past
+  acceptance where **operational needs `ac_status: passed` but an absent
+  `ac_status` (atomize-born knowledge) counts as accepted** (atomization is its
+  curation). Private claims are never eligible (never pushed proactively). The
+  raw-source and claim schemas are unchanged — this fixes the gate, not the data.
+
 ### Added — deterministic atomization write-path (`atomize_write`)
 
 - `claims_io.atomize_write(source_entry_id, created_at, domain, entities, claims)`

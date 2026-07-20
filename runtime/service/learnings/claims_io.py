@@ -143,6 +143,25 @@ def surfacing_of(fm: Dict[str, Any]) -> str:
     return s if s in _LADDER else TIER_QUERY
 
 
+def is_promote_eligible(fm: Dict[str, Any]) -> bool:
+    """Whether a claim may be promoted query→proactive. ONE definition, shared
+    by the filesystem scan (`promote.propose._eligible`) and the DB projection
+    (`projection_counts.promote_eligible`) so the two can't disagree.
+
+    The acceptance gate is **domain-aware**: operational learnings are auto-
+    captured and carry an explicit `ac_status` that must be `passed` (a human
+    reviewed them); atomize-born claims (knowledge, …) have NO `ac_status` —
+    atomization itself is their curation, so an absent `ac_status` counts as
+    accepted. Private claims are never eligible: they are reachable only by
+    explicit on-query and are never pushed proactively (RFC 0005 §6)."""
+    if surfacing_of(fm) != TIER_QUERY:
+        return False
+    if str(fm.get("sensitivity") or "").lower() != "public":
+        return False
+    ac = str(fm.get("ac_status") or "").lower()
+    return ac in ("", "passed")            # absent = atomize-born (born-accepted)
+
+
 def find_claim_by_slug_or_id(needle: str,
                              vault: Optional[Path] = None
                              ) -> Optional[Tuple[Path, Dict[str, Any], str]]:

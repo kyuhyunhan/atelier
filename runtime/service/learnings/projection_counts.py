@@ -99,15 +99,14 @@ def accepted_operational() -> Optional[int]:
 
 
 def promote_eligible(limit: Optional[int] = None) -> Optional[int]:
-    """Count of promotion-eligible claims (surfacing:query AND ac_status:passed).
-    Capped at `limit` to match `promote.propose.eligible_count`'s contract."""
+    """Count of promotion-eligible claims — the SAME domain-aware gate as the
+    filesystem scan (`claims_io.is_promote_eligible`), so projection and scan
+    can't disagree. Capped at `limit` to match `eligible_count`'s contract."""
     nodes = _load_nodes()
     if nodes is None:
         return None
     from . import claims_io as _c
-    n = sum(1 for fm in nodes["claims"]
-            if _c.surfacing_of(fm) == _c.TIER_QUERY
-            and str(fm.get("ac_status") or "").lower() == "passed")
+    n = sum(1 for fm in nodes["claims"] if _c.is_promote_eligible(fm))
     return min(n, limit) if limit is not None else n
 
 

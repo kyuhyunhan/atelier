@@ -32,19 +32,18 @@ def _promotions_dir() -> Path:
 
 
 def _eligible(limit: int = 50) -> List[Dict[str, Any]]:
-    """Claims eligible for query→proactive promotion: surfacing == query AND
-    ac_status == passed (the acceptance gate). Returns compact rows keyed by the
-    stable entry_id (the link/ledger target), newest acceptance first by file
-    order (sorted path)."""
+    """Claims eligible for query→proactive promotion (see
+    `claims_io.is_promote_eligible` — the domain-aware acceptance gate:
+    operational needs ac_status:passed, atomize-born knowledge is born-accepted,
+    private is never eligible). Compact rows keyed by the stable entry_id, in
+    sorted-path order."""
     out: List[Dict[str, Any]] = []
     for p in _claims.iter_claim_files():
         got = _claims.read_claim(p)
         if got is None:
             continue
         fm, _ = got
-        if _claims.surfacing_of(fm) != _claims.TIER_QUERY:
-            continue
-        if str(fm.get("ac_status") or "").lower() != "passed":
+        if not _claims.is_promote_eligible(fm):
             continue
         out.append({
             "entry_id": str(fm.get("entry_id")),

@@ -417,6 +417,157 @@ def write_operational_claim(*, statement: str,
     return {"path": str(out), "entry_id": eid, "slug": out.stem}
 
 
+# ── RFC 0007: born-as-Source + deterministic mint ────────────────────────────
+#
+# The operational write path (capture/absorb) is moving off the single shared
+# anchor (P10) onto per-item, CONTENT-ADDRESSED Sources in raw/operational/, from
+# which a deterministic (no-LLM) 1:1 mint derives the Claim. The Source id is a
+# pure function of the normalized statement — no wall-clock — so the same lesson
+# maps to one Source and (since claim_id = f(statement, derived_from)) one Claim,
+# preserving capture's ledger-less cross-session dedup that the constant anchor
+# provided today.
+#
+# M1 (RFC 0007): these exist but are NOT yet wired into capture/absorb (that is
+# M2). The live write path is unchanged.
+
+
+def _statement_content_key(statement: str) -> str:
+    """sha256 of the normalized statement — the content-address for an
+    operational Source. Same normalization basis as the claim entry_id
+    (whitespace-collapsed, lowercased), so 'the same lesson' maps to one id."""
+    norm = " ".join(str(statement).split()).lower()
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()
+
+
+def operational_source_content_id(statement: str) -> str:
+    """Content-addressed entry_id of a per-item operational Source (RFC 0007):
+    a pure function of the normalized statement (no created_at), via the
+    dedicated `operational` id template — NOT the generic `source` template
+    whose {created_at} would reintroduce per-capture variance."""
+    return _structure.entry_id(
+        "operational", content_hash=_statement_content_key(statement))
+
+
+def write_operational_source(*, statement: str, body: str,
+                             attributed_to: str = "claude-code",
+                             agent_kind: str = "claude-code",
+                             hook: str = "manual",
+                             session_id: Optional[str] = None,
+                             working_dir: Optional[str] = None,
+                             captured_at: Optional[str] = None,
+                             sensitivity: str = "public",
+                             source_extra: Optional[Dict[str, Any]] = None,
+                             vault: Optional[Path] = None,
+                             ) -> Dict[str, Any]:
+    """Create-once a per-item, content-addressed operational Source in
+    raw/operational/ (RFC 0007). Returns {path, entry_id}.
+
+    Unlike the shared anchor (P10), this is ONE Source per lesson, carrying the
+    session/memory provenance (session_id / working_dir / hook / attributed_to /
+    captured_at) as FIRST-CLASS Source metadata, so a Claim traces back to its
+    origin by walking derived_from. Idempotent: same statement -> same
+    content-addressed id -> existing node reused.
+    """
+    vault = vault if vault is not None else vault_root()
+    statement = " ".join(str(statement).split())
+    if not statement:
+        raise ValueError("operational source requires a statement")
+    eid = operational_source_content_id(statement)
+    base = vault / _structure.operational_source_dir()
+    out = base / f"{_slugify(statement)}-{eid[:8]}.md"
+    # Deterministic path + O(1) existence check (no O(tree) rglob on every
+    # capture). Read the Source's OWN stored entry_id (not _safe_eid, which is
+    # claim-specific) so the collision loop only fires for the astronomically-
+    # rare case of a distinct statement sharing both slug and id-prefix.
+    def _stored_eid(p: Path) -> Optional[str]:
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+            return fm.get("entry_id")
+        except Exception:                       # pragma: no cover - defensive
+            return None
+    n = 1
+    while out.exists() and _stored_eid(out) != eid:
+        out = base / f"{_slugify(statement)}-{eid[:8]}-{n}.md"
+        n += 1
+    if out.exists():
+        return {"path": str(out), "entry_id": eid}   # idempotent no-op
+    now = captured_at or _now_iso()
+    front: Dict[str, Any] = {
+        "entry_id": eid,
+        "schema_version": 7,
+        "kind": "source",
+        "created_at": now,
+        "domain": "operational",
+        "sensitivity": sensitivity,
+        "attributed_to": attributed_to or "unknown",
+        "agent_kind": agent_kind or "unknown",
+        "hook": hook or "manual",
+        "title": statement[:80],
+    }
+    if session_id:
+        front["session_id"] = session_id
+    if working_dir:
+        front["working_dir"] = working_dir
+    if captured_at:
+        front["captured_at"] = captured_at
+    if source_extra:
+        front.update(source_extra)
+    front["content_hash"] = _content_hash(front)
+    _atomic_write(out, _emit(front, body or ""))
+    return {"path": str(out), "entry_id": eid}
+
+
+def mint_operational_claim(*, statement: str, body: str,
+                           observation_kind: str = "feedback",
+                           why_status: str = "present",
+                           project: Optional[str] = None,
+                           is_about: Optional[List[str]] = None,
+                           attributed_to: str = "claude-code",
+                           agent_kind: str = "claude-code",
+                           hook: str = "manual",
+                           session_id: Optional[str] = None,
+                           working_dir: Optional[str] = None,
+                           sensitivity: str = "public",
+                           surfacing: str = TIER_QUERY,
+                           ac_status: str = "pending",
+                           captured_at: Optional[str] = None,
+                           extra: Optional[Dict[str, Any]] = None,
+                           source_extra: Optional[Dict[str, Any]] = None,
+                           vault: Optional[Path] = None,
+                           ) -> Dict[str, Any]:
+    """Deterministic (no-LLM) 1:1 mint of an operational Claim from its own
+    content-addressed Source (RFC 0007) — the composition
+    write_operational_source + write_operational_claim(generated_by='mint').
+
+    session_id / working_dir / project are MIRRORED onto the Claim (not just the
+    Source), because the promotion acceptance criteria (criteria.py:
+    tied_to_event / has_project_tag) read them off the Claim frontmatter. Returns
+    {claim, source}.
+    """
+    vault = vault if vault is not None else vault_root()
+    now = captured_at or _now_iso()
+    src = write_operational_source(
+        statement=statement, body=body, attributed_to=attributed_to,
+        agent_kind=agent_kind, hook=hook, session_id=session_id,
+        working_dir=working_dir, captured_at=now, sensitivity=sensitivity,
+        source_extra=source_extra, vault=vault)
+    claim_extra: Dict[str, Any] = {"captured_at": now, "ac_results": {}}
+    if session_id:
+        claim_extra["session_id"] = session_id
+    if working_dir:
+        claim_extra["working_dir"] = working_dir
+    if extra:
+        claim_extra.update(extra)
+    claim = write_operational_claim(
+        statement=statement, source_entry_id=src["entry_id"], body=body,
+        generated_by="mint", attributed_to=attributed_to, agent_kind=agent_kind,
+        hook=hook, observation_kind=observation_kind, why_status=why_status,
+        project=project, is_about=is_about, sensitivity=sensitivity,
+        surfacing=surfacing, ac_status=ac_status, captured_at=now,
+        extra=claim_extra, vault=vault)
+    return {"claim": claim, "source": src}
+
+
 def _entity_types() -> set:
     """The v7 entity `type` enum, single-sourced from the schema overlay (hard
     rule #3 — schema is data). Returns an empty set if the schema is unreadable,

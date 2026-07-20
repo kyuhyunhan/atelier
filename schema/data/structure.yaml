@@ -38,6 +38,7 @@ intake:
   personal: personal           # under content_root  -> raw/personal
   knowledge: knowledge         # under content_root  -> raw/knowledge
   inbox: inbox                 # under content_root  -> raw/inbox
+  operational: operational     # under content_root  -> raw/operational (RFC 0007: capture/absorb Sources)
   workshop: workshop           # under vault root     -> workshop
   inbox_subpath: inbox         # legacy leaf under personal intake (new_doc raw)
 
@@ -155,6 +156,13 @@ entry_id:
     source: "atelier:source:{created_at}|{discriminator}"
     entity: "atelier:entity:{type}|{pref_label}"
     claim: "atelier:claim:{statement}|{derived_from}"
+    # RFC 0007 — the raw/operational/ Source (capture/absorb). Content-ONLY, no
+    # {created_at}: same lesson -> same id, so the minted claim id (= f(statement,
+    # derived_from)) is a pure function of the statement, preserving capture's
+    # ledger-less cross-session dedup. content_hash = sha256(norm(statement)).
+    # Mirrors the youtube/claude content-template precedent, NOT the generic
+    # source: template (whose {created_at} would reintroduce per-capture variance).
+    operational: "atelier:operational:{content_hash}"
   # Templates introduced for NEW writes only — NOT applied to existing content.
   # Their ids are free to be defined here; they have no legacy form. The v7
   # node kinds (RFC 0005) are content-addressed and stable across move/shard.

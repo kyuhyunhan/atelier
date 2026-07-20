@@ -4,6 +4,25 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0007 M1: mint primitives (additive; writers unwired)
+
+- Schema (additive, non-breaking): `operational` added to the `source.domain`
+  and `entity.in_scheme` enums; `mint` added to the claim `generated_by` enum
+  (`schema/data/graph.overlay.yaml`). A dedicated **content-only** Source id
+  template `operational: "atelier:operational:{content_hash}"` (no `created_at`)
+  and an `operational` intake lane (`raw/operational/`) in
+  `schema/data/structure.yaml`; `resolver.operational_source_dir()` derives it.
+- Engine (`runtime/service/learnings/claims_io.py`): `write_operational_source`
+  (create-once, content-addressed by `sha256(norm(statement))`) +
+  `mint_operational_claim` (deterministic, LLM-free 1:1 mint with
+  `generated_by: mint`, mirroring `session_id`/`working_dir`/`project_hint` onto
+  the Claim for the promotion acceptance criteria). **Not yet called by
+  capture/absorb** — the live write path is unchanged (that wiring is M2).
+- Tests (`tests/test_operational_mint.py`): content-addressed id is a pure
+  function of the statement; same lesson dedups to one Source + one Claim
+  (the property that replaces the shared anchor); acceptance-criteria field
+  mirror; additive-enum validation end-to-end.
+
 ### Added — RFC 0007 (draft): single intake front door — born-as-Source + deterministic mint
 
 - Design RFC (`docs/rfc/0007-single-intake-front-door.md`) revising RFC 0005

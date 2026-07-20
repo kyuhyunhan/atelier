@@ -60,8 +60,11 @@ def apply_proposal(path: Path) -> Dict[str, Any]:
             skipped.append({"entry_id": eid, "reason": "not-query-tier"})
             continue
         # Acceptance gate (defence in depth — propose already filtered, but the
-        # proposal could be stale/hand-edited): only ac_status:passed promotes.
-        if str(fm.get("ac_status") or "").lower() != "passed":
+        # proposal could be stale/hand-edited). SAME domain-aware predicate as
+        # propose/projection: operational needs ac_status:passed, atomize-born
+        # knowledge is born-accepted, private never promotes. (surfacing already
+        # checked above; is_promote_eligible re-checks it harmlessly.)
+        if not _claims.is_promote_eligible(fm):
             skipped.append({"entry_id": eid, "reason": "acceptance-gate"})
             continue
         _claims.set_surfacing(claim_path, fm, body,

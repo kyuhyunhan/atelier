@@ -40,10 +40,12 @@ def _source(vault: Path, eid: str, subdir: str = "inbox") -> None:
 
 def _claim(vault: Path, eid: str, *, derived_from=None,
            surfacing: str = "query", ac_status: str = "passed",
-           domain: str = "operational") -> None:
+           domain: str = "operational", sensitivity: str = "public") -> None:
+    # Real promotable claims are always public (operational learnings + knowledge);
+    # private claims are never proactively pushed, so never promote-eligible.
     fm = {"entry_id": eid, "schema_version": 7, "kind": "claim",
           "statement": f"claim {eid}", "surfacing": surfacing,
-          "ac_status": ac_status, "domain": domain}
+          "ac_status": ac_status, "domain": domain, "sensitivity": sensitivity}
     if derived_from is not None:
         fm["derived_from"] = derived_from
     write_page(vault / _structure.atomic_claim_dir() / f"{eid}.md", fm,

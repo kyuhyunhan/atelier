@@ -75,8 +75,16 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
         assert fm["agent_kind"] == "absorbed"
         assert fm["attributed_to"] == "absorbed"
         assert fm["ac_status"] == "passed"
-        # derived_from resolves to the memory's OWN Source (not a shared anchor).
+        # RFC 0007: derives from the memory's OWN per-memory Source in
+        # raw/operational/ — NOT the shared raw/inbox anchor.
         assert fm["derived_from"] and isinstance(fm["derived_from"], list)
+        src_id = fm["derived_from"][0]
+        srcs = [p for p in atelier_env["gorae"].rglob("*.md")
+                if split_frontmatter(p.read_text())[0].get("entry_id") == src_id]
+        assert len(srcs) == 1
+        rel = srcs[0].relative_to(atelier_env["gorae"]).as_posix()
+        assert rel.startswith("raw/operational/"), rel
+        assert not rel.endswith("operational-capture.md"), rel
 
 
 def test_absorb_routes_user_project_to_candidates(atelier_env: Dict,

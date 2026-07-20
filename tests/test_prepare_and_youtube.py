@@ -106,12 +106,36 @@ def test_youtube_writes_md_with_captions(atelier_env: Dict) -> None:
     assert out["status"] == "captioned"
     assert "[00:01]" in text and "hello world" in text
     fm, _ = _read(p)
-    assert fm["youtube_video_id"] == "abc123"
-    assert fm["source"] == "youtube"
+    # RFC 0005 §4.1 — the raw artifact is a v7 Source node, not a schema-4
+    # raw_source: it carries kind:source so the atomize nudge (which counts
+    # kind:source) sees it, domain:knowledge + sensitivity:public (a talk is
+    # public knowledge, not private), and source_type/source_url extensions.
+    assert fm["schema_version"] == 7
+    assert fm["kind"] == "source"
+    assert fm["domain"] == "knowledge"
+    assert fm["sensitivity"] == "public"
+    assert fm["source_type"] == "youtube"
+    assert fm["source_url"] == "https://youtube.com/watch?v=abc123"
+    assert fm["content_hash"].startswith("sha256:")
     # RFC 0005 §3.2 — the Source lands DIRECTLY in raw/knowledge/, not a `_new/`
     # staging tree. The Web-Clipper/youtube default no longer assumes staging.
     assert "_new" not in p.parts
     assert p.parent.name == "knowledge"
+
+
+def test_youtube_source_node_is_schema_valid(atelier_env: Dict) -> None:
+    # The produced raw file must validate as a v7 `source` node (the gate that
+    # would catch a missing required field like domain/attributed_to/content_hash).
+    from runtime.lint import validate_v4 as _v
+    out = _yt.youtube_ingest(
+        url="https://youtube.com/watch?v=abc123",
+        metadata_runner=lambda url: _FAKE_METADATA,
+        text_fetcher=lambda url: _FAKE_VTT,
+    )
+    vault = atelier_env["gorae"]
+    findings = _v.validate_paths([Path(out["path"])], vault_root=vault)
+    v0 = [f for f in findings if f.rule_id == "V0"]
+    assert v0 == [], f"source node schema-invalid: {[f.message for f in v0]}"
 
 
 def test_youtube_marks_needs_stt_when_no_captions(atelier_env: Dict,

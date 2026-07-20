@@ -19,6 +19,7 @@ the ingest manually.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -294,11 +295,23 @@ def youtube_ingest(*, url: str,
 
     entry_id = _structure.entry_id("youtube", video_id=video_id)
 
+    # RFC 0005 §4.1 — the raw artifact IS the L1 v7 Source node (`kind: source`,
+    # `schema_version: 7`), exactly like a personal reading/diary source. This is
+    # what makes it visible to the atomize nudge (`_source_ids` counts kind:source)
+    # and a valid `derived_from` target for its Claims. A youtube source is
+    # knowledge (public), not private — the old schema-4 raw_source wrote neither
+    # `kind` nor `domain` and hard-coded `sensitivity: private`, so ingested talks
+    # were invisible to v7 source accounting.
+    channel = meta.get("channel") or meta.get("uploader")
     fm: Dict[str, Any] = {
-        "schema_version": 4,
+        "schema_version": 7,
         "entry_id": entry_id,
+        "kind": "source",
         "title": title,
-        "sensitivity": "private",
+        "domain": "knowledge",
+        "sensitivity": "public",
+        "attributed_to": channel or "youtube",   # PROV-O wasAttributedTo: the channel
+        "content_hash": "sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest(),
         "created_at": [{
             "value": precise,
             "precision": "second",
@@ -311,10 +324,20 @@ def youtube_ingest(*, url: str,
         }],
         "embedded_assets": [],
         "word_count": len(re.sub(r"\[\d+:\d+\]", "", body).split()),
-        "source": "youtube",
-        "youtube_video_id": video_id,
-        "youtube_url": url,
+        "source_type": "youtube",
+        "source_url": url,
     }
+    if channel:
+        fm["channel"] = channel
+    channel_url = meta.get("channel_url") or meta.get("uploader_url")
+    if channel_url:
+        fm["channel_url"] = channel_url
+    duration = meta.get("duration")
+    if isinstance(duration, (int, float)):
+        fm["duration_sec"] = int(duration)
+    language = meta.get("language") or lang
+    if language:
+        fm["language"] = language
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     target.write_text(f"---\n{serialized}\n---\n# {title}\n\n{body}",
                        encoding="utf-8")

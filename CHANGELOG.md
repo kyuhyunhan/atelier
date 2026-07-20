@@ -4,6 +4,25 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — RFC 0007 M3: freeze the shared anchor (principles.py)
+
+- `principles.py` no longer creates the shared `operational-capture` anchor. It
+  was the last production writer to touch it, and for evidence-bearing synthesis
+  it created the anchor then overrode `derived_from` — leaving an **orphaned**
+  anchor Source that the atomize nudge would flag as un-atomized forever (a
+  latent leak the M2 review surfaced; deployed vaults were masked by legacy
+  anchor-hung claims). Now: evidence-bearing principles use the anchor id only as
+  an id-stable discriminator string (no file created; `derived_from` points at
+  the evidence), and evidence-less principles are born from their **own**
+  content-addressed operational Source — same born-as-Source model as
+  capture/absorb. The anchor is now fully frozen: no writer creates or attaches
+  new claims to it; existing anchor-hung claims are grandfathered.
+- Guard test: neither principle path leaves an orphaned Source
+  (`atomize.unatomized_count == 0`) and no anchor file is created. Full suite
+  655 green.
+- (`raw/knowledge/_new/` removal is a vault-side cleanup, handled separately in
+  the gorae content repo — not an engine change.)
+
 ### Changed — RFC 0007 M2: capture/absorb wired to the mint path (live behavior)
 
 - `capture()` (`runtime/service/learnings/capture.py`) and `absorb()`

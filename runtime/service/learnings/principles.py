@@ -227,15 +227,24 @@ def add(*, title: str, rule: str, why: str,
     if target_topic:
         extra["target_topic"] = _slugify(target_topic)
 
-    # derived_from: the source claims when given (the synthesis evidence), else
-    # the single shared operational-capture Source so the PROV chain is never
-    # empty (RFC 0005 P10 — one canonical L1 node, not a per-principle session
-    # stub). The shared source is the id-discriminating anchor; when source
-    # claims are given, `derived_from` is overridden (via extra) to point at them.
-    src = _claims.ensure_operational_source(vault=vault)
-    source_eid = src["entry_id"]
+    # derived_from (RFC 0007 — the shared anchor is frozen; no writer attaches
+    # new claims to it):
+    #   • evidence given → the source claims (the synthesis provenance). The
+    #     anchor id is used ONLY as the id-stable discriminator string; the file
+    #     is NOT created (the claim's derived_from FIELD points at the evidence,
+    #     so an anchor file would be an orphan the atomize nudge flags forever).
+    #   • no evidence → the principle is born from its OWN content-addressed
+    #     operational Source (like capture/absorb), never the shared anchor.
     if source_entry_ids:
+        source_eid = _claims.operational_source_id()   # id-stable string; no file
         extra["derived_from"] = list(dict.fromkeys(source_entry_ids))
+    else:
+        src = _claims.write_operational_source(
+            statement=statement,
+            body=_render_body(rule, why, links, notes),
+            attributed_to="curator", agent_kind="curator", hook="principle-add",
+            vault=vault)
+        source_eid = src["entry_id"]
 
     claim = _claims.write_operational_claim(
         statement=statement, source_entry_id=source_eid,

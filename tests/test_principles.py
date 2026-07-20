@@ -79,6 +79,32 @@ def test_add_rejects_bad_priority(atelier_env: Dict) -> None:
         _pr.add(title="t", rule="r", why="w", priority="urgent")
 
 
+def test_principle_add_leaves_no_orphaned_operational_source(atelier_env: Dict) -> None:
+    """RFC 0007 M3: neither an evidence-less nor an evidence-bearing principle
+    leaves an ORPHANED operational Source (a Source with no deriving Claim) that
+    the atomize nudge would flag forever. The shared anchor is frozen — no
+    principle write creates or attaches to it.
+
+    Pre-M3 this failed: the evidence-bearing path created the anchor then
+    overrode derived_from, orphaning it (unatomized_count == 1)."""
+    from runtime.service.learnings import atomize as _at
+    vault = atelier_env["gorae"]
+
+    # evidence-less → born from its OWN content-addressed operational Source.
+    _pr.add(title="evidence-less rule", rule="always X", why="because",
+            slug="evidence-less-rule")
+    # evidence-bearing → derives from a real captured claim; no anchor file.
+    cap = _cap.capture(observation="a lesson", why="it matters",
+                       working_dir="/w", session_id="s1", hook="manual")
+    _pr.add(title="evidence rule", rule="do Y", why="reason",
+            slug="evidence-rule", source_entry_ids=[cap["entry_id"]])
+
+    # No orphaned Source anywhere → atomize backlog stays 0.
+    assert _at.unatomized_count(vault=vault) == 0
+    # The frozen anchor is never created by principle writes.
+    assert not (vault / "raw" / "inbox" / "operational-capture.md").exists()
+
+
 # ── synthesize ─────────────────────────────────────────────────────────────
 
 

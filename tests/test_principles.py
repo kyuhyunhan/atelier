@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from runtime.service.learnings import capture as _cap
+from runtime.service.learnings import claims_io as _ci
 from runtime.service.learnings import principles as _pr
 from runtime.service.learnings import review as _rev
 
@@ -77,6 +78,45 @@ def test_add_refuses_collision(atelier_env: Dict) -> None:
 def test_add_rejects_bad_priority(atelier_env: Dict) -> None:
     with pytest.raises(ValueError, match="priority"):
         _pr.add(title="t", rule="r", why="w", priority="urgent")
+
+
+def test_evidence_bearing_principle_leaves_no_orphaned_anchor(atelier_env: Dict) -> None:
+    """RFC 0007 M3: an evidence-bearing principle must NOT create an orphaned
+    anchor Source. Isolated (no evidence-less add first) so the count assertion
+    is a genuine 1->0 guard: pre-M3 the path created the anchor then overrode
+    derived_from, orphaning it (unatomized_count 0 -> 1); post-M3 no anchor file
+    is created (stays 0)."""
+    from runtime.service.learnings import atomize as _at
+    vault = atelier_env["gorae"]
+    cap = _cap.capture(observation="a lesson", why="it matters",
+                       working_dir="/w", session_id="s1", hook="manual")
+    assert _at.unatomized_count(vault=vault) == 0        # capture leaves a clean state
+    _pr.add(title="evidence rule", rule="do Y", why="reason",
+            slug="evidence-rule", source_entry_ids=[cap["entry_id"]])
+    # The regression: pre-M3 this would be 1 (orphaned anchor). Post-M3: 0.
+    assert _at.unatomized_count(vault=vault) == 0
+    assert not (vault / "raw" / "inbox" / "operational-capture.md").exists()
+
+
+def test_evidence_less_principle_born_from_own_source(atelier_env: Dict) -> None:
+    """RFC 0007 M3: an evidence-less principle is born from its OWN
+    content-addressed operational Source (raw/operational/), never the frozen
+    shared anchor — and that Source is not left orphaned."""
+    from runtime.service.learnings import atomize as _at
+    from runtime.index.parse import split_frontmatter
+    vault = atelier_env["gorae"]
+    out = _pr.add(title="evidence-less rule", rule="always X", why="because",
+                  slug="evidence-less-rule")
+    cfm = _read_fm(Path(out["path"]))
+    src_id = cfm["derived_from"][0]
+    srcs = [p for p in vault.rglob("*.md")
+            if split_frontmatter(p.read_text())[0].get("entry_id") == src_id]
+    assert len(srcs) == 1
+    rel = srcs[0].relative_to(vault).as_posix()
+    assert rel.startswith("raw/operational/"), rel            # its own Source …
+    assert src_id != _ci.operational_source_id()              # … not the anchor id
+    assert _at.unatomized_count(vault=vault) == 0             # and not orphaned
+    assert not (vault / "raw" / "inbox" / "operational-capture.md").exists()
 
 
 # ── synthesize ─────────────────────────────────────────────────────────────

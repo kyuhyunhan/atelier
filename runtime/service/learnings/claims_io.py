@@ -398,6 +398,20 @@ def write_operational_claim(*, statement: str,
     return {"path": str(out), "entry_id": eid, "slug": out.stem}
 
 
+def _entity_types() -> set:
+    """The v7 entity `type` enum, single-sourced from the schema overlay (hard
+    rule #3 — schema is data). Returns an empty set if the schema is unreadable,
+    in which case `atomize_write` skips the up-front type check and lets the
+    reindex/validate gate be the backstop (fail-open, never fail-shut on a
+    schema read)."""
+    try:
+        from ...lint import validate_v4 as _v
+        spec = _v._v7_specs().get("entity", {}).get("field_specs", {})
+        return set((spec.get("type") or {}).get("enum") or [])
+    except Exception:                             # pragma: no cover - defensive
+        return set()
+
+
 def _resolve_typed_entity(*, type: str, pref_label: str, in_scheme: str,
                           sensitivity: str, created_at: str,
                           vault: Path) -> Tuple[str, bool]:
@@ -455,6 +469,28 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
         raise ValueError("atomize_write requires a source_entry_id")
     sensitivity = "private" if domain == "personal" else "public"
 
+    # Fail the whole batch up front on a malformed item — no half-written vault,
+    # and a clear error naming the offender instead of a raw KeyError mid-loop.
+    valid_types = _entity_types()
+    for i, e in enumerate(entities or []):
+        if not str(e.get("pref_label") or "").strip():
+            raise ValueError(f"entity[{i}] missing pref_label: {e!r}")
+        typ = str(e.get("type") or "Concept")
+        if valid_types and typ not in valid_types:
+            raise ValueError(
+                f"entity[{i}] type {typ!r} not in the v7 entity type enum "
+                f"({sorted(valid_types)})")
+    for i, c in enumerate(claims or []):
+        if not str(c.get("statement") or "").strip():
+            raise ValueError(f"claim[{i}] missing statement: {c!r}")
+
+    # `label_to_id` is keyed by the SAME normalization the entity id uses
+    # (whitespace-collapsed + lowercased), so an is_about that differs only in
+    # case/spacing from a declared entity resolves to it instead of silently
+    # minting a duplicate of a different type.
+    def _key(s: str) -> str:
+        return " ".join(str(s).split()).lower()
+
     # Pass A — resolve-or-create every declared entity; build label → id.
     label_to_id: Dict[str, str] = {}
     created_e = reused_e = 0
@@ -464,7 +500,7 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
             type=str(e.get("type") or "Concept"), pref_label=label,
             in_scheme=domain, sensitivity=sensitivity,
             created_at=created_at, vault=vault)
-        label_to_id[label] = eid
+        label_to_id[_key(label)] = eid
         created_e += int(was_created)
         reused_e += int(not was_created)
 
@@ -472,19 +508,18 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
     claim_ids: List[str] = []
     for c in claims or []:
         statement = " ".join(str(c["statement"]).split())
-        if not statement:
-            raise ValueError("atomize claim requires a statement")
         is_about: List[str] = []
         for lbl in c.get("is_about") or []:
-            lbl = " ".join(str(lbl).split())
-            if lbl not in label_to_id:            # undeclared → mint a Concept
+            key = _key(lbl)
+            if key not in label_to_id:            # undeclared → mint a Concept
                 eid_e, was_created = _resolve_typed_entity(
-                    type="Concept", pref_label=lbl, in_scheme=domain,
-                    sensitivity=sensitivity, created_at=created_at, vault=vault)
-                label_to_id[lbl] = eid_e
+                    type="Concept", pref_label=" ".join(str(lbl).split()),
+                    in_scheme=domain, sensitivity=sensitivity,
+                    created_at=created_at, vault=vault)
+                label_to_id[key] = eid_e
                 created_e += int(was_created)
                 reused_e += int(not was_created)
-            is_about.append(label_to_id[lbl])
+            is_about.append(label_to_id[key])
         eid = _structure.entry_id("claim", statement=statement,
                                   derived_from=source_entry_id)
         front: Dict[str, Any] = {

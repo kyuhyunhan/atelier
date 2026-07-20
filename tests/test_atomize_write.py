@@ -76,12 +76,67 @@ def test_atomize_write_is_idempotent(atelier_env: Dict) -> None:
     assert again["claim_ids"] == first["claim_ids"]
 
 
+def test_atomize_write_produces_schema_valid_nodes(atelier_env: Dict) -> None:
+    # The real gate: every node atomize_write writes must pass the v7 validator
+    # (this is what catches an out-of-enum `type` like the once-missing `Model`).
+    from runtime.lint import validate_v4 as _v
+    vault = atelier_env["gorae"]
+    out = _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
+                             domain="knowledge", entities=_ENTITIES,
+                             claims=_CLAIMS, vault=vault)
+    paths = list(_cio.claims_dir(vault).glob("*.md"))
+    findings = _v.validate_paths(paths, vault_root=vault)
+    v0 = [f for f in findings if f.rule_id == "V0"]
+    assert v0 == [], f"schema-invalid nodes produced: {[f.message for f in v0]}"
+    assert out["claims_written"] == 2          # sanity: it actually wrote
+
+
 def test_atomize_write_type_is_part_of_entity_id(atelier_env: Dict) -> None:
     # Same label, different type → different entity id (type is a dedup-key part),
     # so an AI model filed as Model never collides with a same-named Concept.
     as_model = _structure.entry_id("entity", type="Model", pref_label="Claude Fable")
     as_concept = _structure.entry_id("entity", type="Concept", pref_label="Claude Fable")
     assert as_model != as_concept
+
+
+def test_atomize_write_rejects_unknown_entity_type(atelier_env: Dict) -> None:
+    import pytest
+    with pytest.raises(ValueError, match="type"):
+        _cio.atomize_write(
+            source_entry_id=SRC, created_at=CREATED, domain="knowledge",
+            entities=[{"type": "Wombat", "pref_label": "x"}],
+            claims=[], vault=atelier_env["gorae"])
+
+
+def test_atomize_write_rejects_malformed_items(atelier_env: Dict) -> None:
+    import pytest
+    vault = atelier_env["gorae"]
+    with pytest.raises(ValueError, match="pref_label"):
+        _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
+                           domain="knowledge", entities=[{"type": "Concept"}],
+                           claims=[], vault=vault)
+    with pytest.raises(ValueError, match="statement"):
+        _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
+                           domain="knowledge", entities=[],
+                           claims=[{"attributed_to": "x", "is_about": []}],
+                           vault=vault)
+
+
+def test_atomize_write_is_about_is_case_insensitive(atelier_env: Dict) -> None:
+    # A declared entity is reused when a claim's is_about differs only in case —
+    # no silent duplicate Concept of a different type (the id normalizes lower).
+    vault = atelier_env["gorae"]
+    out = _cio.atomize_write(
+        source_entry_id=SRC, created_at=CREATED, domain="knowledge",
+        entities=[{"type": "Model", "pref_label": "Claude Fable"}],
+        claims=[{"statement": "가격이 2배다.", "attributed_to": "x",
+                 "is_about": ["claude fable"]}],       # lowercased
+        vault=vault)
+    assert out["entities_created"] == 1                # only the declared Model
+    fable_id = _structure.entry_id("entity", type="Model", pref_label="Claude Fable")
+    cid = out["claim_ids"][0]
+    path = next(_cio.claims_dir(vault).glob(f"*{cid[:8]}*.md"))
+    assert _read(path)["is_about"] == [fable_id]        # points at the Model
 
 
 def test_atomize_write_undeclared_is_about_has_a_node(atelier_env: Dict) -> None:

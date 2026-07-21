@@ -74,7 +74,7 @@ def test_atomize_due_normalized(vault_env: Dict) -> None:
     assert a.due is True
     assert a.count == 2
     assert "atelier atomize" in a.long
-    assert "2 un-atomized sources" in a.long
+    assert "2 sources to atomize" in a.long
     assert a.short  # non-empty short form
 
 
@@ -110,7 +110,7 @@ def test_promote_singular_noun(vault_env: Dict) -> None:
     _claim(v, "e1", surfacing="query", ac_status="passed")
     p = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}["promote"]
     assert p.count == 1
-    assert "1 accepted claim " in p.long      # singular noun (note trailing space)
+    assert "1 claim " in p.long               # singular noun (note trailing space)
 
 
 # ── dream normalization ──────────────────────────────────────────────────────

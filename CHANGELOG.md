@@ -4,6 +4,22 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — clearer nudge wording (atomize domain-split, promote cap indicator)
+
+- **Atomize nudge** now splits the un-atomized backlog by the human-gate
+  (`atomize.unatomized_by_gate`): a private-domain (`personal`) Source is
+  surfaced as **human-gated** ("atomize only when you direct it, not a blind
+  pass"), while other domains say "run `atelier-atomize`". Fixes the confusing
+  case where a lone personal diary read as "1 un-atomized source, run
+  atelier-atomize" — which the skill (correctly) refuses to auto-run on personal
+  content (Policy 1: personal is atomizable but human-gated, claims stay
+  `sensitivity: private`).
+- **Promote nudge** shows `N+` when the eligible count hits the scan cap (50),
+  so the number no longer reads as an exact total when the backlog is larger; and
+  clarifies "accepted" as "passed review, or atomize-born knowledge".
+- Tests: domain-split + personal-only nudge messages; updated existing wording
+  assertions. Full suite 658 green.
+
 ### Changed — RFC 0007 M3: freeze the shared anchor (principles.py)
 
 - `principles.py` no longer creates the shared `operational-capture` anchor. It

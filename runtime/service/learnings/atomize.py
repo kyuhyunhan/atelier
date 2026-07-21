@@ -134,6 +134,30 @@ def unatomized_count(*, vault: Optional[Path] = None) -> int:
     return len(sources - atomized)
 
 
+def unatomized_by_gate(*, vault: Optional[Path] = None) -> Dict[str, int]:
+    """Split the un-atomized backlog by the human-gate (Policy 1): `personal`
+    = a private-domain Source (human-gated — atomize only when the human directs
+    it, never a blind pass) vs `atomizable` = everything else (run the skill).
+    Filesystem scan; used only when the nudge is already due, so O(sources) is
+    fine at session start. Returns {'atomizable': int, 'personal': int}."""
+    vault = vault if vault is not None else _vault_root()
+    atomized = _atomized_source_ids(vault)
+    private_domains = set(_structure.atomize_private_source_domains())
+    atomizable = personal = 0
+    base = vault / _structure.source_scan_root()
+    for fm in _iter_fm(base):
+        if fm.get("kind") != "source":
+            continue
+        eid = fm.get("entry_id")
+        if not (isinstance(eid, str) and eid) or eid in atomized:
+            continue
+        if fm.get("domain") in private_domains:
+            personal += 1
+        else:
+            atomizable += 1
+    return {"atomizable": atomizable, "personal": personal}
+
+
 def nudge_info(*, now: Optional[str] = None,
                vault: Optional[Path] = None) -> Dict[str, Any]:
     """Single source of the atomize-nudge decision, shaped like
@@ -158,11 +182,30 @@ def nudge_info(*, now: Optional[str] = None,
     short = ""
     if due:
         noun = "source" if count == 1 else "sources"
-        long = (
-            f"🧩 **atelier atomize** — {count} un-atomized {noun} "
-            f"(a Source with no derived Claim). Ask me to run `atelier-atomize` "
-            f"to extract claims + entities."
-        )
+        # Split by the human-gate so the message doesn't tell the human to run
+        # `atelier-atomize` on a private diary (personal is human-gated, Policy 1).
+        gate = unatomized_by_gate(vault=vault)
+        a, p = gate["atomizable"], gate["personal"]
+        if a and p:
+            long = (
+                f"🧩 **atelier atomize** — {count} un-atomized {noun} "
+                f"(no derived Claim): {a} to atomize → ask me to run "
+                f"`atelier-atomize`; {p} personal → private, human-gated "
+                f"(atomize only when you direct it)."
+            )
+        elif a:
+            long = (
+                f"🧩 **atelier atomize** — {a} {noun} to atomize "
+                f"(no derived Claim). Ask me to run `atelier-atomize` to "
+                f"extract claims + entities."
+            )
+        else:  # personal only
+            pnoun = "source" if p == 1 else "sources"
+            long = (
+                f"🧩 **atelier atomize** — {p} personal {pnoun} awaiting "
+                f"atomization (no derived Claim). Private + human-gated — "
+                f"atomize only when you direct it, not a blind pass."
+            )
         short = f"🧩 atelier: {count} to atomize"
 
     return {"due": due, "count": count, "short": short, "long": long}

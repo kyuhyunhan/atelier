@@ -110,7 +110,7 @@ def test_nudge_due_with_backlog(atelier_env: Dict) -> None:
     info = _atomize.nudge_info(vault=v)
     assert info["due"] is True
     assert info["count"] == 2
-    assert "2 un-atomized sources" in info["long"]
+    assert "2 sources to atomize" in info["long"]
     assert "atelier-atomize" in info["long"]
     assert "2 to atomize" in info["short"]
 
@@ -129,11 +129,43 @@ def test_nudge_singular_noun(atelier_env: Dict) -> None:
     v = _vault(atelier_env)
     _source(v, "s1")
     info = _atomize.nudge_info(vault=v)
-    assert "1 un-atomized source" in info["long"]
+    assert "1 source to atomize" in info["long"]
     assert "sources" not in info["long"]   # singular, not plural
 
 
 # ── bootstrap integration: the atomize nudge surfaces in model context ───────
+
+
+def _personal_source(vault: Path, eid: str) -> None:
+    _write_node(vault, f"{_structure.source_scan_root()}/personal", eid, {
+        "entry_id": eid, "schema_version": 7, "kind": "source",
+        "title": eid, "sensitivity": "private", "domain": "personal",
+    })
+
+
+def test_nudge_splits_personal_from_atomizable(atelier_env: Dict) -> None:
+    """Policy 1 / RFC 0007: the nudge splits the backlog by the human-gate — a
+    private-domain (personal) Source is human-gated, other domains are
+    skill-atomizable — so it never says 'run atelier-atomize' on a diary."""
+    v = _vault(atelier_env)
+    _source(v, "k1", subdir="knowledge")           # domain: knowledge → atomizable
+    _personal_source(v, "p1")                      # domain: personal  → human-gated
+    _set_atomize_cfg(atelier_env["home"], after=1)
+    assert _atomize.unatomized_by_gate(vault=v) == {"atomizable": 1, "personal": 1}
+    long = _atomize.nudge_info(vault=v)["long"]
+    assert "1 to atomize" in long and "atelier-atomize" in long   # knowledge → skill
+    assert "1 personal" in long and "human-gated" in long          # personal → gated
+
+
+def test_nudge_personal_only_is_human_gated(atelier_env: Dict) -> None:
+    """A personal-only backlog must NOT tell the human to run `atelier-atomize`
+    (the confusion this fixes) — it reads as human-gated instead."""
+    v = _vault(atelier_env)
+    _personal_source(v, "p1")
+    _set_atomize_cfg(atelier_env["home"], after=1)
+    long = _atomize.nudge_info(vault=v)["long"]
+    assert "personal" in long and "human-gated" in long
+    assert "`atelier-atomize`" not in long          # not the skill CTA for personal
 
 
 def test_bootstrap_surfaces_atomize_nudge(atelier_env: Dict) -> None:
@@ -143,7 +175,7 @@ def test_bootstrap_surfaces_atomize_nudge(atelier_env: Dict) -> None:
                         now="2026-06-19T12:00:00+00:00")
     assert out["atomize_nudge"] is True
     assert "atelier atomize" in out["markdown"]
-    assert "2 un-atomized sources" in out["markdown"]
+    assert "2 sources to atomize" in out["markdown"]
 
 
 def test_bootstrap_no_atomize_nudge_when_empty(atelier_env: Dict) -> None:

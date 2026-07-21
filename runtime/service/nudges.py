@@ -85,18 +85,23 @@ def _promote_nudge() -> Nudge:
     promote → dream → reindex pass)."""
     try:
         from ..promote import propose as _propose
-        count = int(_propose.eligible_count())
+        LIMIT = 50
+        count = int(_propose.eligible_count(limit=LIMIT))
         due = count >= 1
         long = ""
         short = ""
         if due:
             noun = "claim" if count == 1 else "claims"
+            # eligible_count caps the scan at LIMIT — show "N+" so the number
+            # doesn't read as the exact total when the backlog is larger.
+            disp = f"{count}+" if count >= LIMIT else str(count)
             long = (
-                f"⬆️ **atelier promote** — {count} accepted {noun} on query-only "
-                f"awaiting promotion to proactive. Ask me to run "
-                f"`atelier-consolidate` to promote them behind the acceptance gate."
+                f"⬆️ **atelier promote** — {disp} {noun} on query-only awaiting "
+                f"promotion to proactive (passed review, or atomize-born "
+                f"knowledge). Ask me to run `atelier-consolidate` to promote "
+                f"them behind the acceptance gate."
             )
-            short = f"⬆️ atelier: {count} to promote"
+            short = f"⬆️ atelier: {disp} to promote"
         return Nudge(kind="promote", due=due, count=count,
                      short=short, long=long)
     except Exception:                            # pragma: no cover - tolerance

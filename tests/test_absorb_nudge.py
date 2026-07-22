@@ -197,6 +197,27 @@ def test_no_pattern_file_is_noop(atelier_env: Dict) -> None:
     assert "pii_flag" not in fm
 
 
+def test_pattern_file_bad_lines_skipped_good_lines_applied(
+        atelier_env: Dict) -> None:
+    """An uncompilable regex and a POSIX class are skipped (warned, not
+    silent), but the remaining valid patterns still enforce."""
+    (atelier_env["home"] / "pii_patterns.txt").write_text(
+        "([unclosed\n[[:alpha:]]name\nSECRETNAME\n", encoding="utf-8")
+    root = _croot(atelier_env)
+    _seed_claude(root, "-w-p1", "leaky", type_="feedback",
+                 description="checklist", body="ping SECRETNAME first\n")
+    out = _ac.absorb(dry_run=False, source_root=root)
+    fm, _ = split_frontmatter(Path(out["accepted"][0]["path"]).read_text())
+    assert fm["sensitivity"] == "private" and fm["pii_flag"] is True
+
+
+def test_dry_run_previews_sensitivity(atelier_env: Dict) -> None:
+    root = _croot(atelier_env)
+    _seed_claude(root, "-w-p1", "who", type_="user", description="a user fact")
+    out = _ac.absorb(dry_run=True, source_root=root)
+    assert out["candidates"][0]["sensitivity"] == "private"
+
+
 def test_demoted_absorb_still_dedupes_on_rerun(atelier_env: Dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "who", type_="user", description="a user fact")

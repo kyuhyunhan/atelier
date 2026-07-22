@@ -211,9 +211,18 @@ def _is_absorbed(ledger: Dict[str, Any], body_sha: str) -> bool:
 
 
 def _pii_patterns(path: Optional[Path] = None) -> List[re.Pattern]:
-    """Compiled PII patterns, one regex per line (blank / `#` lines skipped;
-    an uncompilable line is skipped, never fatal). Missing file → empty list
-    (the pass is a no-op, same trust model as the pre-commit guard)."""
+    """Compiled PII patterns, one regex per line (blank / `#` lines skipped).
+    Missing file → empty list (the pass is a no-op, same trust model as the
+    pre-commit guard).
+
+    A line this pass cannot honor is skipped but WARNED, never silent — a
+    silently dropped pattern is a hole in the safety net the operator believes
+    is closed. Two cases: an uncompilable regex, and a POSIX character class
+    (`[[:alpha:]]` etc.) — grep -E (the guard) matches those, but Python `re`
+    compiles them as a literal character set that matches nothing, so honoring
+    the line silently would be a no-op divergence from the guard. The shared
+    vocabulary is the ERE ∩ Python-re subset (literals and standard classes
+    like `\\w`, `[A-Za-z]`)."""
     p = path if path is not None else _PII_PATTERNS_PATH
     if not p.exists():
         return []
@@ -222,9 +231,17 @@ def _pii_patterns(path: Optional[Path] = None) -> List[re.Pattern]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
+        if "[[:" in line:
+            _log.warn("absorb.pii-pattern-posix-class", pattern=line,
+                      hint="POSIX classes match in the pre-commit guard but "
+                           "not in Python re; rewrite with [A-Za-z] / \\w "
+                           "style classes")
+            continue
         try:
             out.append(re.compile(line))
-        except re.error:
+        except re.error as exc:
+            _log.warn("absorb.pii-pattern-invalid", pattern=line,
+                      error=repr(exc))
             continue
     return out
 
@@ -402,8 +419,12 @@ def absorb(*, dry_run: bool = False,
             ledger[mem.body_sha] = _ledger_entry(mem)
             ledger_dirty = True
 
+        # sensitivity + pii_flag ride the record so a dry-run previews which
+        # memories would land private/flagged before any write happens.
         record = {"src": str(mem.src), "path": str(dest_repr),
-                  "type": mem.type, "project": mem.project}
+                  "type": mem.type, "project": mem.project,
+                  "sensitivity": sensitivity,
+                  **({"pii_flag": True} if pii_flagged else {})}
         (absorbed_accepted if is_accepted else absorbed_candidates).append(record)
 
     if not dry_run and ledger_dirty:

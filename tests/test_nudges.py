@@ -176,6 +176,20 @@ def test_failing_probe_yields_not_due(monkeypatch, vault_env: Dict) -> None:
     assert "promote" in by_kind and "dream" in by_kind
 
 
+def test_failing_absorb_probe_yields_not_due(monkeypatch, vault_env: Dict) -> None:
+    import runtime.service.learnings.absorb_claude as _absorb
+
+    def _boom(*a, **k):
+        raise RuntimeError("absorb probe exploded")
+
+    monkeypatch.setattr(_absorb, "nudge_info", _boom)
+    by_kind = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}
+    assert by_kind["absorb"].due is False
+    assert by_kind["absorb"].count == 0
+    # the other edges still resolve
+    assert {"atomize", "promote", "dream"} <= set(by_kind)
+
+
 def test_failing_promote_probe_is_isolated(monkeypatch, vault_env: Dict) -> None:
     from runtime.promote import propose as _propose
 

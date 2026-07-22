@@ -55,6 +55,11 @@ from . import claims_io as _claims
 _CLAUDE_PROJECTS = Path.home() / ".claude" / "projects"
 _LEDGER_FILENAME = ".absorbed-from-claude.json"
 
+# RFC 0008 M4: the SAME pattern vocabulary as the pre-commit PII guard
+# (scripts/git-hooks/pre-commit) — one file, two enforcement points. Absent
+# file → the pass is a no-op, matching the guard's behavior.
+_PII_PATTERNS_PATH = Path.home() / ".atelier" / "pii_patterns.txt"
+
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
 
 
@@ -198,6 +203,96 @@ def _ledger_entry(mem: ClaudeMemory) -> Dict[str, Any]:
     }
 
 
+def _is_absorbed(ledger: Dict[str, Any], body_sha: str) -> bool:
+    """The ONE membership test against the dedup ledger (RFC 0008 §7): both
+    `absorb` and `unabsorbed_count` go through this accessor, so M2's `by_sha`
+    nesting will change one function, not every call site."""
+    return body_sha in ledger
+
+
+def _pii_patterns(path: Optional[Path] = None) -> List[re.Pattern]:
+    """Compiled PII patterns, one regex per line (blank / `#` lines skipped;
+    an uncompilable line is skipped, never fatal). Missing file → empty list
+    (the pass is a no-op, same trust model as the pre-commit guard)."""
+    p = path if path is not None else _PII_PATTERNS_PATH
+    if not p.exists():
+        return []
+    out: List[re.Pattern] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            out.append(re.compile(line))
+        except re.error:
+            continue
+    return out
+
+
+def _pii_hit(text: str, patterns: List[re.Pattern]) -> bool:
+    return any(rx.search(text) for rx in patterns)
+
+
+# ── RFC 0008 M1 — the absorb nudge (unabsorbed backlog) ──────────────────────
+
+
+def unabsorbed_count(*, source_root: Optional[Path] = None,
+                     vault: Optional[Path] = None) -> int:
+    """Number of Claude Code memories whose body sha is not in the ledger
+    (RFC 0008 §3). Deterministic, read-only, LLM-free: one directory walk +
+    one sha256 per file. `MEMORY.md` indexes are skipped, as in absorb."""
+    src_root = source_root if source_root is not None else _CLAUDE_PROJECTS
+    vault = vault if vault is not None else _vault_root()
+    ledger = _load_ledger(vault)
+    count = 0
+    for path in _iter_memories(src_root):
+        try:
+            mem = _read_memory(path)
+        except Exception:                       # pragma: no cover - defensive
+            continue
+        if mem is None:                         # pragma: no cover
+            continue
+        if not _is_absorbed(ledger, mem.body_sha):
+            count += 1
+    return count
+
+
+def nudge_info(*, now: Optional[str] = None,
+               source_root: Optional[Path] = None,
+               vault: Optional[Path] = None) -> Dict[str, Any]:
+    """Single source of the absorb-nudge decision, shaped like
+    atomize/dream.nudge_info(): {due, count, short, long}.
+
+    `due` fires when the backlog reaches `learnings.absorb.nudge_after_memories`
+    (default 1). Human-pulled, never cron (RFC 0008 §3 posture): absorb is the
+    only ingest that reads outside the vault, and it auto-passes
+    feedback/reference claims — unattended runs would accrue unreviewed
+    `passed` claims. `now` is accepted for signature parity; the nudge is
+    count-driven."""
+    cfg = _config.load()
+    absorb_cfg = (cfg.raw.get("learnings") or {}).get("absorb") or {}
+    after = int(absorb_cfg.get("nudge_after_memories", 1))
+
+    try:
+        count = unabsorbed_count(source_root=source_root, vault=vault)
+    except Exception:                           # pragma: no cover
+        count = 0
+
+    due = count >= after
+    long = ""
+    short = ""
+    if due:
+        noun = "memory" if count == 1 else "memories"
+        long = (
+            f"📥 **atelier absorb** — {count} Claude Code {noun} not yet "
+            f"absorbed into the vault. Ask me to run "
+            f"`atelier_absorb_claude_memory` to pull them in (copy-only — "
+            f"the `~/.claude` source is never touched)."
+        )
+        short = f"📥 atelier: {count} to absorb"
+    return {"due": due, "count": count, "short": short, "long": long}
+
+
 _AUTO_ACCEPT = {"feedback", "reference"}
 
 
@@ -216,10 +311,12 @@ def _statement_of(mem: ClaudeMemory) -> str:
 
 def absorb(*, dry_run: bool = False,
            source_root: Optional[Path] = None,
-           auto_accept_kinds: Optional[List[str]] = None) -> Dict[str, Any]:
+           auto_accept_kinds: Optional[List[str]] = None,
+           pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
     src_root = source_root or _CLAUDE_PROJECTS
     vault = _vault_root()
     accept_kinds = set(auto_accept_kinds or _AUTO_ACCEPT)
+    pii_rx = _pii_patterns(pii_patterns_path)
 
     # One read of the dedup ledger up front; mutate in memory, persist once at
     # the end (absorb is manual + single-writer, so read-modify-write is safe).
@@ -240,7 +337,7 @@ def absorb(*, dry_run: bool = False,
         if mem is None:                 # pragma: no cover
             continue
 
-        if mem.body_sha in ledger:
+        if _is_absorbed(ledger, mem.body_sha):
             deduped.append(str(mem.src))
             continue
 
@@ -248,6 +345,16 @@ def absorb(*, dry_run: bool = False,
         ac_status = "passed" if is_accepted else "pending"
         statement = _statement_of(mem)
         now = _now_iso()
+
+        # RFC 0008 M4 — safety at the absorb boundary, demote-never-block:
+        # a `user` memory describes who the user IS → private by default; a
+        # PII pattern hit demotes to private + flags for later curation. The
+        # promote gate requires public, so a demoted claim can never be
+        # proactively pushed.
+        pii_flagged = bool(pii_rx) and (_pii_hit(mem.body, pii_rx)
+                                        or _pii_hit(statement, pii_rx))
+        sensitivity = ("private" if (mem.type == "user" or pii_flagged)
+                       else "public")
 
         # RFC 0007: born-as-Source + deterministic mint. Each absorbed memory
         # lands as its OWN content-addressed operational Source (carrying its
@@ -269,12 +376,14 @@ def absorb(*, dry_run: bool = False,
                 why_status="present", project=mem.project or None,
                 is_about=is_about, attributed_to="absorbed",
                 agent_kind="absorbed", hook="manual",
+                sensitivity=sensitivity,
                 ac_status=ac_status, captured_at=now,
                 extra={
                     "source": "claude-memory",
                     "source_path": str(mem.src),
                     "claude_memory_type": mem.type,
                     "ac_results": {"absorbed_from": "claude-code-memory"},
+                    **({"pii_flag": True} if pii_flagged else {}),
                     **({"accepted_at": now} if is_accepted else {}),
                     **({"title": mem.name, "description": mem.description}
                        if mem.description else {}),
@@ -284,6 +393,7 @@ def absorb(*, dry_run: bool = False,
                     "source_path": str(mem.src),
                     "claude_memory_type": mem.type,
                     "body_sha": mem.body_sha,
+                    **({"pii_flag": True} if pii_flagged else {}),
                 },
                 vault=vault,
             )

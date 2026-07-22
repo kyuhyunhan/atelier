@@ -142,9 +142,9 @@ def test_dream_due_when_threshold_crossed(vault_env: Dict) -> None:
 # ── all_nudges / due_nudges shape ────────────────────────────────────────────
 
 
-def test_all_nudges_returns_three_kinds(vault_env: Dict) -> None:
+def test_all_nudges_returns_four_kinds(vault_env: Dict) -> None:
     kinds = [n.kind for n in _nudges.all_nudges(now=_NOW)]
-    assert kinds == ["atomize", "promote", "dream"]
+    assert kinds == ["absorb", "atomize", "promote", "dream"]
 
 
 def test_due_nudges_filters(vault_env: Dict) -> None:
@@ -197,7 +197,7 @@ def test_atelier_nudges_tool_returns_list(vault_env: Dict) -> None:
     assert "nudges" in out
     assert isinstance(out["nudges"], list)
     kinds = {n["kind"] for n in out["nudges"]}
-    assert kinds == {"atomize", "promote", "dream"}
+    assert kinds == {"absorb", "atomize", "promote", "dream"}
     # each item carries the full normalized shape (dataclass asdict)
     for n in out["nudges"]:
         assert set(n.keys()) == {"kind", "due", "count", "short", "long"}

@@ -70,8 +70,18 @@ def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, P
     monkeypatch.setattr(_config, "VOICES_DIR",  voices)
     monkeypatch.setattr(_config, "SECRETS_ENV", secrets / ".env")
 
+    # RFC 0008: the absorb probes read OUTSIDE the vault (~/.claude memories,
+    # ~/.atelier PII patterns). Point both at the temp workspace so no test —
+    # including bootstrap/nudge surfaces — ever touches the real machine state.
+    from runtime.service.learnings import absorb_claude as _absorb
+    monkeypatch.setattr(_absorb, "_CLAUDE_PROJECTS",
+                        workspace / "claude_projects")
+    monkeypatch.setattr(_absorb, "_PII_PATTERNS_PATH",
+                        home / "pii_patterns.txt")
+
     return {"home": home, "gorae": workspace / "gorae",
-            "workshop": workspace / "workshop", "cache": cache}
+            "workshop": workspace / "workshop", "cache": cache,
+            "claude_projects": workspace / "claude_projects"}
 
 
 @pytest.fixture

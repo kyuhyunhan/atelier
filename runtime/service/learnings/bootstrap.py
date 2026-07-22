@@ -184,6 +184,14 @@ def _atomize_nudge(*, now: str) -> str:
     return _atomize.nudge_info(now=now)["long"]
 
 
+def _absorb_nudge_line() -> str:
+    """The model-context absorb-backlog nudge line (RFC 0008 M1). Single source
+    of truth lives in absorb_claude.nudge_info(), mirroring atomize/dream —
+    it surfaces 'N memories to absorb' so the human pulls the siphon."""
+    from . import absorb_claude as _absorb
+    return _absorb.nudge_info()["long"]
+
+
 def bootstrap(*, working_dir: Optional[str] = None,
               max_chars: int = 6000,
               now: Optional[str] = None) -> Dict[str, Any]:
@@ -200,6 +208,10 @@ def bootstrap(*, working_dir: Optional[str] = None,
         now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     nudge = _dream_nudge(now=now)
     atomize_nudge = _atomize_nudge(now=now)
+    try:
+        absorb_nudge = _absorb_nudge_line()
+    except Exception:                           # pragma: no cover - tolerance
+        absorb_nudge = ""
 
     # Content and the unknown-project banner are assembled separately: the
     # banner must not make an otherwise-empty vault look non-empty (else the
@@ -208,6 +220,8 @@ def bootstrap(*, working_dir: Optional[str] = None,
     content_parts: List[str] = []
     if nudge:
         content_parts.append(nudge)
+    if absorb_nudge:
+        content_parts.append(absorb_nudge)
     if atomize_nudge:
         content_parts.append(atomize_nudge)
     principles_md = _render_principles(items)
@@ -238,6 +252,7 @@ def bootstrap(*, working_dir: Optional[str] = None,
         "project_known": resolution.known,
         "principles_count": len(items),
         "nudge": bool(nudge),
+        "absorb_nudge": bool(absorb_nudge),
         "atomize_nudge": bool(atomize_nudge),
         "char_count": len(block),
         "markdown": block,

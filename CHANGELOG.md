@@ -95,7 +95,10 @@ review because neither function was in any recent diff.
   is a no-op, absent-project-dir skipped, **the inversion case** (an already-
   repaired claim on a machine missing the directory is not re-mangled),
   pre-mint claims without `source_path` untouched, and an entity still linked
-  from another entity is not retired. Suite 688 → 695 green.
+  from another entity is not retired, and the dry run announces the entity it
+  would retire (the first preview compared Paths by object identity — `rglob`
+  returns fresh objects, so it silently reported "none" while `--apply`
+  unlinked). Suite 688 → 697 green.
 
 ### Added — RFC 0008 M1+M4: absorb nudge + safety at the absorb boundary
 

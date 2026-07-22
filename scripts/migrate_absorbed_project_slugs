@@ -176,12 +176,16 @@ def main() -> int:
         # Preview the DESTRUCTIVE step too — an unlink is the one thing a dry
         # run most needs to show. Recomputed post-remap: an entity is retired
         # only if nothing would still reference it.
+        # Compare by PATH EQUALITY, not object identity: `rglob` builds fresh
+        # Path objects on every pass, so `is`/`id()` against the survey's
+        # Paths is always False — which would silently make this whole preview
+        # dead code and report "retire: none" while --apply unlinks.
+        fixed = {f[0] for f in fixes}
         would_ref = set()
         for _p, fm, _b in _iter_nodes(graph):
             if fm.get("kind") == "claim":
-                fixed = {id(f[0]) for f in fixes}
                 refs = fm.get("is_about") or []
-                if id(_p) in fixed or any(p is _p for p, *_ in fixes):
+                if _p in fixed:
                     refs = [remap.get(e, e) for e in refs]
                 would_ref.update(refs)
             elif fm.get("kind") == "entity":

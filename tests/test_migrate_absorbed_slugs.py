@@ -140,6 +140,30 @@ def test_dry_run_writes_nothing(atelier_env: Dict, tmp_path: Path) -> None:
     assert ent.exists()                                # nothing retired
 
 
+def test_dry_run_announces_the_entity_it_would_retire(
+        atelier_env: Dict, tmp_path: Path, capsys) -> None:
+    """The unlink is the one step a dry run most needs to disclose. This
+    assertion exists because the first implementation compared Paths by
+    object identity — `rglob` returns fresh objects, so the check was always
+    False and the preview silently reported 'none' while --apply retired."""
+    _seed(atelier_env, tmp_path, make_real_dir=True)
+    _run()
+    out = capsys.readouterr().out
+    assert "entities to RETIRE (1)" in out
+    assert "'hub'" in out
+
+
+def test_dry_run_preview_matches_what_apply_retires(
+        atelier_env: Dict, tmp_path: Path, capsys) -> None:
+    """The preview must not under-report: what it names is exactly what the
+    apply run unlinks."""
+    vault, _claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
+    _run()
+    previewed = "'hub'" in capsys.readouterr().out
+    _run("--apply")
+    assert previewed is (not ent.exists())
+
+
 # ── the guard: never guess, never invert ─────────────────────────────────────
 
 

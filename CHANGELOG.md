@@ -60,6 +60,20 @@ review because neither function was in any recent diff.
   isolation, memoization, a guard that the nudge count never resolves projects,
   the revision-dropped signal, and lifecycle-preservation pins for
   promote/retract re-mint. Suite 676 → 688 green.
+### Fixed — vault migration: absorbed claims repaired to the resolver's slug
+
+- `scripts/migrate_absorbed_project_slugs` (one-time, dry-run by default)
+  repairs claims keyed under a mangled slug from the old string-split decoder.
+  Ran on the live vault: **14 claims** corrected (`frontend` →
+  `inheaden-app-frontend`, `hub` → `inheaden-identity-hub`, `mobile` →
+  `inheaden-app-mobile`), `is_about` repointed from the bare-noun `Concept`
+  entities to correctly-labelled ones, and **3** now-unreferenced bare-noun
+  entities retired. `entry_id` is deliberately untouched — it is
+  `f(statement, derived_from)` and neither input changes — so links,
+  `derived_from` edges and dedup all stay valid.
+- Verified after reindex: 0 slug mismatches, 0 dangling `is_about` refs, 6/6
+  projects agree with `resolve_project`, doctor v7-green.
+
 - **Forward-only; the existing corpus is not repaired by this PR.** The decoder
   now agrees with the session resolver for all live projects, but the 62 ledger
   entries and the already-absorbed claims on disk still carry the mangled keys

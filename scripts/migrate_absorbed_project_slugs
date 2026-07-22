@@ -94,6 +94,7 @@ def main() -> int:
 
     _ac.derive_project.cache_clear()
     fixes: List[Tuple[Path, Dict, str, str, str]] = []   # p, fm, body, old, new
+    unverified: List[str] = []
     for p, fm, body in _iter_nodes(graph):
         if fm.get("kind") != "claim" or fm.get("agent_kind") != "absorbed":
             continue
@@ -101,10 +102,31 @@ def main() -> int:
         if not src_path:
             continue                      # pre-mint era: no provenance to key on
         encoded = Path(src_path).parents[1].name
+        # HARD GUARD — only a decode confirmed against this filesystem may
+        # drive a rewrite. `derive_project` deliberately falls back to the
+        # naive basename when the project directory is gone (or we are on
+        # another machine), and that fallback is exactly the mangled slug this
+        # script repairs. Trusting it would INVERT the migration: a re-run on
+        # a machine missing those directories would rewrite the repaired
+        # claims back to `frontend`/`hub`, re-mint the bare-noun entities, and
+        # retire the good ones.
+        if not _ac._decode_by_filesystem(encoded):
+            unverified.append(encoded)
+            continue
         correct = _ac.derive_project(encoded)
         current = fm.get("project") or fm.get("project_hint")
         if correct and current != correct:
             fixes.append((p, fm, body, str(current), correct))
+
+    if unverified:
+        uniq = sorted(set(unverified))
+        print(f"! skipped {len(unverified)} claim(s) from {len(uniq)} project "
+              f"director{'y' if len(uniq) == 1 else 'ies'} that do not exist on "
+              f"this machine — their slug cannot be verified, and guessing "
+              f"would re-mangle them:")
+        for u in uniq:
+            print(f"    {u}")
+        print()
 
     if not fixes:
         print("nothing to migrate — every absorbed claim already carries the "
@@ -119,13 +141,22 @@ def main() -> int:
         print(f"  project: {old!r} -> {new!r}   ({n} claims)")
 
     # ── entity remap: bare-noun label -> correctly-labelled entity ───────────
-    stale_labels = {old for old, _ in by_pair}
-    stale_ids = {eid for eid, (_, fm) in entities.items()
-                 if str(fm.get("pref_label", "")) in stale_labels}
+    #
+    # Keyed on (type, pref_label), NOT the label alone: an entity id is
+    # uuid5(type|pref_label), so two entities may legitimately share a label
+    # with different types. Matching by label alone could retarget — or retire
+    # — an unrelated node.
+    def _find(label: str) -> str | None:
+        for eid, (_, fm) in entities.items():
+            if (str(fm.get("pref_label", "")) == label
+                    and fm.get("type") == "Concept"
+                    and "operational" in (fm.get("in_scheme") or [])):
+                return eid
+        return None
+
     remap: Dict[str, str] = {}
     for old, new in by_pair:
-        src = next((eid for eid, (_, fm) in entities.items()
-                    if str(fm.get("pref_label", "")) == old), None)
+        src = _find(old)
         if src is None:
             continue
         if args.apply:
@@ -135,12 +166,32 @@ def main() -> int:
         else:
             dst = f"<resolve-or-create {new!r}>"
         remap[src] = dst
+    stale_ids = set(remap)
     print(f"\n  entity remap ({len(remap)}):")
     for src, dst in remap.items():
         lbl = entities[src][1].get("pref_label") if src in entities else "?"
         print(f"    {lbl!r} ({src[:8]}…) -> {dst if not args.apply else dst[:8]+'…'}")
 
     if not args.apply:
+        # Preview the DESTRUCTIVE step too — an unlink is the one thing a dry
+        # run most needs to show. Recomputed post-remap: an entity is retired
+        # only if nothing would still reference it.
+        would_ref = set()
+        for _p, fm, _b in _iter_nodes(graph):
+            if fm.get("kind") == "claim":
+                fixed = {id(f[0]) for f in fixes}
+                refs = fm.get("is_about") or []
+                if id(_p) in fixed or any(p is _p for p, *_ in fixes):
+                    refs = [remap.get(e, e) for e in refs]
+                would_ref.update(refs)
+            elif fm.get("kind") == "entity":
+                for lk in (fm.get("links") or []):
+                    if isinstance(lk, dict) and lk.get("to"):
+                        would_ref.add(lk["to"])
+        doomed = [entities[e][1].get("pref_label") for e in stale_ids
+                  if e not in would_ref]
+        print(f"\n  entities to RETIRE ({len(doomed)}): "
+              + (", ".join(repr(d) for d in doomed) or "none"))
         print("\n(no files written — re-run with --apply)")
         return 0
 
@@ -154,11 +205,18 @@ def main() -> int:
         p.write_text(_emit(fm, body), encoding="utf-8")
     print(f"\n  rewrote {len(fixes)} claim(s)")
 
-    # retire bare-noun entities that nothing references any more
+    # Retire bare-noun entities nothing references any more. Scan EVERY
+    # entity-referencing field the schema allows — claims' `is_about` AND
+    # entity→entity `links` — so a node referenced only from the entity layer
+    # is never orphaned.
     still_referenced = set()
     for _p, fm, _b in _iter_nodes(graph):
         if fm.get("kind") == "claim":
             still_referenced.update(fm.get("is_about") or [])
+        elif fm.get("kind") == "entity":
+            for lk in (fm.get("links") or []):
+                if isinstance(lk, dict) and lk.get("to"):
+                    still_referenced.add(lk["to"])
     retired = 0
     for eid in stale_ids:
         if eid in still_referenced:

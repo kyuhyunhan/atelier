@@ -60,28 +60,42 @@ review because neither function was in any recent diff.
   isolation, memoization, a guard that the nudge count never resolves projects,
   the revision-dropped signal, and lifecycle-preservation pins for
   promote/retract re-mint. Suite 676 → 688 green.
+- **The decoder fix is forward-only** — it corrects what absorb writes from now
+  on, not what is already on disk. The corpus repair ships as the migration
+  below.
+
 ### Fixed — vault migration: absorbed claims repaired to the resolver's slug
 
 - `scripts/migrate_absorbed_project_slugs` (one-time, dry-run by default)
-  repairs claims keyed under a mangled slug from the old string-split decoder.
-  Ran on the live vault: **14 claims** corrected (`frontend` →
+  repairs claims already written under a mangled slug. Re-absorbing cannot do
+  this: dedup is by `body_sha` and both writes are idempotent, so a re-run
+  lands on the same files; delete-and-re-mint would rewrite them at the cost of
+  the lifecycle state the guard above exists to protect. Markdown is truth, so
+  the repair is an in-place frontmatter edit.
+- Ran on the live vault: **14 claims** corrected (`frontend` →
   `inheaden-app-frontend`, `hub` → `inheaden-identity-hub`, `mobile` →
   `inheaden-app-mobile`), `is_about` repointed from the bare-noun `Concept`
   entities to correctly-labelled ones, and **3** now-unreferenced bare-noun
   entities retired. `entry_id` is deliberately untouched — it is
   `f(statement, derived_from)` and neither input changes — so links,
   `derived_from` edges and dedup all stay valid.
+- The script **refuses to guess**: a claim whose project directory is absent on
+  this machine is skipped and reported, never rewritten. Without that guard a
+  re-run elsewhere would invert the migration — `derive_project` falls back to
+  the naive basename precisely when it cannot verify, and that fallback *is*
+  the mangled slug. Entity lookup is keyed on (type, label, scheme), and
+  retirement scans entity→entity `links` as well as claims' `is_about`.
+- The dedup ledger (`.absorbed-from-claude.json`) is deliberately left alone:
+  membership is by `body_sha` only and its `project` field is informational, so
+  rewriting it would risk the dedup key for no gain.
 - Verified after reindex: 0 slug mismatches, 0 dangling `is_about` refs, 6/6
-  projects agree with `resolve_project`, doctor v7-green.
-
-- **Forward-only; the existing corpus is not repaired by this PR.** The decoder
-  now agrees with the session resolver for all live projects, but the 62 ledger
-  entries and the already-absorbed claims on disk still carry the mangled keys
-  (`hub`, `frontend`, `team`), along with the bare-noun `Concept` entities
-  minted from them. Re-absorbing does NOT fix them — dedup is by `body_sha` and
-  both writes are now idempotent, so a re-run lands on the same files. The
-  repair is an in-place frontmatter migration (markdown is truth), tracked
-  separately.
+  projects agree with `resolve_project`, doctor v7-green; a second run is a
+  clean no-op.
+- Tests (7): repair + entity retirement, dry-run writes nothing, second apply
+  is a no-op, absent-project-dir skipped, **the inversion case** (an already-
+  repaired claim on a machine missing the directory is not re-mangled),
+  pre-mint claims without `source_path` untouched, and an entity still linked
+  from another entity is not retired. Suite 688 → 695 green.
 
 ### Added — RFC 0008 M1+M4: absorb nudge + safety at the absorb boundary
 

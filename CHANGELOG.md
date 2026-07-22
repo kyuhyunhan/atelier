@@ -31,11 +31,35 @@ review because neither function was in any recent diff.
   data-loss path with 98 absorbed claims already promoted. `write_operational_
   claim` is now idempotent on an existing same-`entry_id` file (mirroring
   `write_operational_source`) and reports `existed` in its result.
+- **Slug resolution must not be paid per file.** `resolve_project` gained
+  `need_known=False`: the slug layers are config/filesystem lookups, but the
+  `known` probe is a DB query that falls back to scanning EVERY accepted node
+  when a project has no learnings yet. Routing absorb through the resolver
+  without this turned the session-start nudge count from milliseconds into
+  **243 seconds** on the live vault (61 files × ~5s). Now: `derive_project`
+  skips the unused `known` probe and is memoized per encoded directory, and
+  `unabsorbed_count` reads memories with `with_project=False` (it needs only
+  body hashes). Measured back down to **0.025s**.
+- **An unverified decode no longer borrows a live project's identity.** When
+  the project directory is gone, the naive fallback path (`…/app/fe` for a
+  deleted `app-fe`) would hit the config map's *prefix* matching and be keyed
+  onto a different, real project — contaminating that project's recall boost.
+  Unverified decodes now fall back to the plain basename: a wrong-but-orphan
+  key is safer than a wrong-but-real one.
+- **The M2 gap is now surfaced, not silent.** With both writes idempotent, an
+  upstream body edit that keeps its description is stored nowhere (the ledger
+  records the new hash regardless). absorb now logs `absorb.revision-dropped`
+  and marks the record `revision_dropped: true`; `capture` reports the claim's
+  LIVE surfacing/ac_status (plus `already_captured`) instead of asserting birth
+  defaults it did not write; `principles.add` warns on a no-op instead of
+  reporting a success that changed nothing.
 - Tests: hyphenated-directory fixtures (the original fixtures used
   non-hyphenated names — `lexio`, later a generic `project` — which is exactly
   why the defect survived), config-project-map routing, session-resolver
-  agreement, and lifecycle-preservation pins for promote/retract re-mint.
-  Suite 676 → 684 green.
+  agreement, decode stability under an ambiguous tie, unverified-decode
+  isolation, memoization, a guard that the nudge count never resolves projects,
+  the revision-dropped signal, and lifecycle-preservation pins for
+  promote/retract re-mint. Suite 676 → 688 green.
 
 ### Added — RFC 0008 M1+M4: absorb nudge + safety at the absorb boundary
 

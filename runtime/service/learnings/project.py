@@ -213,9 +213,18 @@ def _git_root_main(wd: Path) -> Optional[Path]:
 
 def resolve_project(working_dir: Optional[str], *,
                     explicit: Optional[str] = None,
-                    cfg: Optional[_config.Config] = None) -> ProjectResolution:
+                    cfg: Optional[_config.Config] = None,
+                    need_known: bool = True) -> ProjectResolution:
     """Resolve a session's project slug via the layered chain. `cfg` is
-    loaded lazily when omitted; pass it to avoid a redundant config read."""
+    loaded lazily when omitted; pass it to avoid a redundant config read.
+
+    `need_known=False` skips the `known` probe and reports `known=False`. The
+    slug layers are pure config/filesystem lookups, but `_is_known` is a DB
+    query that falls back to scanning EVERY accepted node when the project has
+    no learnings yet — seconds per call on a real vault. A caller that only
+    wants the slug (absorb deriving a memory's project) must not pay that, and
+    must not be tempted to re-derive the slug itself to avoid it: rolling a
+    private derivation is the divergence this module exists to prevent."""
     if cfg is None:
         try:
             cfg = _config.load()
@@ -224,8 +233,9 @@ def resolve_project(working_dir: Optional[str], *,
     vault = _vault_root(cfg)
 
     def finalize(slug: Optional[str], source: str) -> ProjectResolution:
-        return ProjectResolution(slug=slug, source=source,
-                                 known=_is_known(vault, slug))
+        return ProjectResolution(
+            slug=slug, source=source,
+            known=_is_known(vault, slug) if need_known else False)
 
     # 1. explicit hint always wins.
     if explicit:

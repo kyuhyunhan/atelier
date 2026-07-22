@@ -40,7 +40,8 @@ def test_decode_cwd_dirname_round_trip() -> None:
     ) == "/Users/user/workspaces/project"
 
 
-def test_derive_project_takes_basename() -> None:
+def test_derive_project_takes_basename(atelier_env: Dict) -> None:
+    _ac.derive_project.cache_clear()
     assert _ac.derive_project("-Users-user-workspaces-project") == "project"
 
 
@@ -66,13 +67,37 @@ def test_decode_disambiguates_hyphenated_dir_against_filesystem(
     assert _ac.decode_cwd_dirname(_encode(real)) == str(real)
 
 
-def test_decode_prefers_the_path_that_exists(tmp_path: Path) -> None:
-    """When BOTH readings exist on disk, longest-component wins (the deeper
-    split is still reachable via its own encoding)."""
+def test_decode_prefers_longest_component_when_both_readings_exist(
+        tmp_path: Path) -> None:
+    """`org/app-frontend` and `org/app/frontend` encode to the SAME dirname —
+    Claude Code itself commingles them, so no decoder can tell them apart. The
+    tie-break (longest component first) is therefore arbitrary but must be
+    STABLE: an unstable choice would re-key a project between absorb runs."""
     (tmp_path / "org" / "app-frontend").mkdir(parents=True)
     (tmp_path / "org" / "app" / "frontend").mkdir(parents=True)
-    decoded = _ac.decode_cwd_dirname(_encode(tmp_path / "org" / "app-frontend"))
-    assert decoded == str(tmp_path / "org" / "app-frontend")
+    name = _encode(tmp_path / "org" / "app-frontend")
+    assert _ac.decode_cwd_dirname(name) == str(tmp_path / "org" / "app-frontend")
+    assert _ac.decode_cwd_dirname(name) == _ac.decode_cwd_dirname(name)
+
+
+def test_unverified_decode_does_not_borrow_a_live_project_slug(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """A GONE project must not inherit a live project's identity. The config
+    map matches by path PREFIX, so the guessed path for a deleted `app-fe`
+    (`…/app/fe`) would otherwise map onto the real `…/app` project and pollute
+    its recall boost. An orphan key is safer than a wrong real one."""
+    import yaml
+    live = tmp_path / "org" / "app"
+    live.mkdir(parents=True)
+    cfg_path = atelier_env["home"] / "config.yaml"
+    data = yaml.safe_load(cfg_path.read_text())
+    data.setdefault("learnings", {})["project_map"] = {str(live): "org-app"}
+    cfg_path.write_text(yaml.safe_dump(data))
+
+    # `org/app-fe` does NOT exist → unverified decode → naive `org/app/fe`
+    gone = _encode(tmp_path / "org" / "app-fe")
+    _ac.derive_project.cache_clear()
+    assert _ac.derive_project(gone) == "fe"       # orphan, NOT "org-app"
 
 
 def test_decode_falls_back_when_path_is_gone() -> None:
@@ -82,7 +107,8 @@ def test_decode_falls_back_when_path_is_gone() -> None:
         "-nonexistent-a-b-c") == "/nonexistent/a/b/c"
 
 
-def test_derive_project_agrees_with_the_session_resolver(tmp_path: Path) -> None:
+def test_derive_project_agrees_with_the_session_resolver(
+        atelier_env: Dict, tmp_path: Path) -> None:
     """The whole point of routing through `project.resolve_project`: an
     absorbed claim must be keyed the SAME as the live session that produced it,
     or recall's project boost can never match (project.py's documented failure
@@ -90,14 +116,28 @@ def test_derive_project_agrees_with_the_session_resolver(tmp_path: Path) -> None
     from runtime.service.learnings import project as _project
     real = tmp_path / "org" / "identity-hub"
     real.mkdir(parents=True)
+    _ac.derive_project.cache_clear()
     absorbed_slug = _ac.derive_project(_encode(real))
     session_slug = _project.resolve_project(str(real)).slug
     assert absorbed_slug == session_slug
     assert absorbed_slug == "identity-hub"      # not the mangled "hub"
 
 
+def test_derive_project_is_memoized_per_encoded_dir(tmp_path: Path) -> None:
+    """A batch absorbs many memories per project dir; resolution must not be
+    repeated per file (it was ~5s/call before the `need_known` split)."""
+    real = tmp_path / "org" / "identity-hub"
+    real.mkdir(parents=True)
+    name = _encode(real)
+    _ac.derive_project.cache_clear()
+    _ac.derive_project(name)
+    before = _ac.derive_project.cache_info()
+    _ac.derive_project(name)
+    assert _ac.derive_project.cache_info().hits == before.hits + 1
+
+
 def test_derive_project_honors_the_config_project_map(
-        atelier_env: Dict, tmp_path: Path, monkeypatch) -> None:
+        atelier_env: Dict, tmp_path: Path) -> None:
     """resolve_project's config-map layer must reach absorb too — the mapping
     that turns a folder into its real project identity."""
     import yaml
@@ -108,7 +148,22 @@ def test_derive_project_honors_the_config_project_map(
     data.setdefault("learnings", {})["project_map"] = {
         str(real): "org-identity-hub"}
     cfg_path.write_text(yaml.safe_dump(data))
+    _ac.derive_project.cache_clear()
     assert _ac.derive_project(_encode(real)) == "org-identity-hub"
+
+
+def test_unabsorbed_count_skips_project_resolution(
+        atelier_env: Dict, monkeypatch) -> None:
+    """The nudge count runs at EVERY session start and needs only body hashes.
+    Resolving the project per file made it ~4 minutes on a real vault."""
+    root = atelier_env["claude_projects"]
+    _seed_claude(root, "-w-p1", "m1", type_="feedback", description="a")
+
+    def _boom(*a, **k):
+        raise AssertionError("unabsorbed_count must not resolve projects")
+
+    monkeypatch.setattr(_ac, "derive_project", _boom)
+    assert _ac.unabsorbed_count() == 1
 
 
 # ── absorb ────────────────────────────────────────────────────────────────

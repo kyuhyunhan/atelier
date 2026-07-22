@@ -183,6 +183,22 @@ def capture(*, observation: str,
     claim = minted["claim"]
     src = minted["source"]
 
+    # A re-capture of the SAME lesson resolves to the same content-addressed
+    # claim, which is now left untouched (its lifecycle may have moved on).
+    # Report the birth defaults only for an actual birth — otherwise read the
+    # live state back off disk rather than asserting what we did not write.
+    existed = bool(claim.get("existed"))
+    surfacing, ac_status = "query", "pending"
+    if existed:
+        try:
+            from ...index import parse as _parse
+            fm, _ = _parse.split_frontmatter(
+                Path(claim["path"]).read_text(encoding="utf-8"))
+            surfacing = str(fm.get("surfacing") or surfacing)
+            ac_status = str(fm.get("ac_status") or ac_status)
+        except Exception:                       # pragma: no cover - defensive
+            pass
+
     result: Dict[str, Any] = {
         "path": claim["path"],
         "entry_id": claim["entry_id"],
@@ -190,8 +206,9 @@ def capture(*, observation: str,
         "project_hint": project,
         "project_known": resolution.known,
         "why_status": "present" if why_present else "missing",
-        "surfacing": "query",
-        "ac_status": "pending",
+        "surfacing": surfacing,
+        "ac_status": ac_status,
+        "already_captured": existed,
     }
     if not why_present and require_why:
         result["why_missing"] = True

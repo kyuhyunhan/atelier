@@ -42,9 +42,10 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple  # noqa: F401
 
 from ...index import parse as _parse
 from ...util import config as _config
@@ -126,6 +127,14 @@ def decode_cwd_dirname(name: str) -> str:
     return _decode_by_filesystem(name) or _decode_naive(name)
 
 
+def _decode_verified(name: str) -> Tuple[str, bool]:
+    """(path, verified) — `verified` is False when the path had to be guessed
+    because nothing on this filesystem matched."""
+    hit = _decode_by_filesystem(name)
+    return (hit, True) if hit else (_decode_naive(name), False)
+
+
+@lru_cache(maxsize=256)
 def derive_project(name: str) -> str:
     """The project slug for an absorbed memory.
 
@@ -135,15 +144,28 @@ def derive_project(name: str) -> str:
     (`hub`) while the live session looked it up under another
     (`inheaden-identity-hub`) and the project boost could never match — exactly
     the divergence `project.py` exists to prevent. Deriving it here would
-    reintroduce the split, so we decode to a real path and delegate."""
-    decoded = decode_cwd_dirname(name)
-    try:
-        from . import project as _project
-        slug = _project.resolve_project(decoded).slug
-        if slug:
-            return slug
-    except Exception:                           # pragma: no cover - defensive
-        pass
+    reintroduce the split, so we decode to a real path and delegate.
+
+    `need_known=False`: we want only the slug, and the `known` probe scans the
+    whole vault for a project with no learnings yet. Memoized because a batch
+    absorbs many memories per project directory (17 dirs / 61 files today), and
+    the answer is a pure function of the encoded name for one run.
+
+    An UNVERIFIED decode (the project directory is gone, or we are on another
+    machine) skips the resolver: its config-map layer matches by path PREFIX,
+    so a guessed path like `…/app/fe` (really the deleted `app-fe`) would map
+    onto a *different live* project and contaminate that project's recall
+    boost. A wrong-but-orphan key is strictly safer than a wrong-but-real one,
+    so an unverified decode falls back to the plain basename."""
+    decoded, verified = _decode_verified(name)
+    if verified:
+        try:
+            from . import project as _project
+            slug = _project.resolve_project(decoded, need_known=False).slug
+            if slug:
+                return slug
+        except Exception:                       # pragma: no cover - defensive
+            pass
     base = Path(decoded).name
     return _slugify(base) if base else "unknown"
 
@@ -174,7 +196,7 @@ class ClaudeMemory:
     body_sha: str
 
 
-def _read_memory(path: Path) -> Optional[ClaudeMemory]:
+def _read_memory(path: Path, *, with_project: bool = True) -> Optional[ClaudeMemory]:
     text = path.read_text(encoding="utf-8")
     fm, body = _parse.split_frontmatter(text)
     # Tolerate both top-level `type:` and nested `metadata.type:`.
@@ -190,9 +212,12 @@ def _read_memory(path: Path) -> Optional[ClaudeMemory]:
     if not isinstance(desc, (str, type(None))):
         desc = None
     project_dir = path.parents[1].name      # <encoded-cwd>
+    # `with_project=False` for probes that only need the body hash (the
+    # session-start nudge count): project resolution touches config, the
+    # filesystem and — before this was split out — the vault, per file.
     return ClaudeMemory(
         src=path,
-        project=derive_project(project_dir),
+        project=derive_project(project_dir) if with_project else "",
         name=name,
         description=desc,
         type=type_,
@@ -317,14 +342,18 @@ def unabsorbed_count(*, source_root: Optional[Path] = None,
                      vault: Optional[Path] = None) -> int:
     """Number of Claude Code memories whose body sha is not in the ledger
     (RFC 0008 §3). Deterministic, read-only, LLM-free: one directory walk +
-    one sha256 per file. `MEMORY.md` indexes are skipped, as in absorb."""
+    one sha256 per file. `MEMORY.md` indexes are skipped, as in absorb.
+
+    Runs at EVERY session start, so it reads memories with
+    `with_project=False` — the count needs only the body hash, and project
+    resolution is comparatively expensive."""
     src_root = source_root if source_root is not None else _CLAUDE_PROJECTS
     vault = vault if vault is not None else _vault_root()
     ledger = _load_ledger(vault)
     count = 0
     for path in _iter_memories(src_root):
         try:
-            mem = _read_memory(path)
+            mem = _read_memory(path, with_project=False)
         except Exception:                       # pragma: no cover - defensive
             continue
         if mem is None:                         # pragma: no cover
@@ -439,6 +468,7 @@ def absorb(*, dry_run: bool = False,
         # raw/operational/, from which a no-LLM 1:1 mint derives the Claim
         # (generated_by: mint). The body-hash ledger (below) still guards
         # re-import, so a mint is reached only for a first-seen memory.
+        claim_existed = False
         if dry_run:
             dest_repr = f"<claim:{statement[:40]}>"
         else:
@@ -476,15 +506,30 @@ def absorb(*, dry_run: bool = False,
             )
             claim = minted["claim"]
             dest_repr = claim["path"]
+            claim_existed = bool(claim.get("existed"))
+            if claim_existed:
+                _log.warn("absorb.revision-dropped", source_path=str(mem.src),
+                          claim=claim["path"],
+                          hint="upstream body changed but its description did "
+                               "not, so the claim already exists and is not "
+                               "rewritten; the revised body is not stored "
+                               "(RFC 0008 M2 supersession will close this)")
             ledger[mem.body_sha] = _ledger_entry(mem)
             ledger_dirty = True
 
         # sensitivity + pii_flag ride the record so a dry-run previews which
         # memories would land private/flagged before any write happens.
+        # `revision_dropped` marks the known gap until RFC 0008 M2 lands: an
+        # upstream body edit that keeps the description yields a new body hash
+        # (so it is not deduped) but mints onto the SAME content-addressed
+        # nodes, which are now both idempotent — so the revised body is stored
+        # nowhere. The ledger records the new hash either way, so the operator
+        # would never see it. Surfacing it here is the interim signal.
         record = {"src": str(mem.src), "path": str(dest_repr),
                   "type": mem.type, "project": mem.project,
                   "sensitivity": sensitivity,
-                  **({"pii_flag": True} if pii_flagged else {})}
+                  **({"pii_flag": True} if pii_flagged else {}),
+                  **({"revision_dropped": True} if claim_existed else {})}
         (absorbed_accepted if is_accepted else absorbed_candidates).append(record)
 
     if not dry_run and ledger_dirty:

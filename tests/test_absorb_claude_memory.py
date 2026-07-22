@@ -44,6 +44,73 @@ def test_derive_project_takes_basename() -> None:
     assert _ac.derive_project("-Users-user-workspaces-project") == "project"
 
 
+# ── the encoding is LOSSY: a dir name may itself contain `-` ─────────────────
+#
+# These fixtures deliberately use HYPHENATED directory names. The original
+# fixtures did not (`lexio`, later the generic `project`), and that is exactly
+# why the defect survived: every real project whose folder contains a hyphen
+# (`identity-hub`, `app-frontend`, `fe-shared`) decoded wrong, while the tests
+# stayed green on the one shape that happens to be unambiguous.
+
+
+def _encode(p: Path) -> str:
+    """Encode a real path the way Claude Code does (`/` → `-`)."""
+    return str(p).replace("/", "-")
+
+
+def test_decode_disambiguates_hyphenated_dir_against_filesystem(
+        tmp_path: Path) -> None:
+    real = tmp_path / "org" / "identity-hub"
+    real.mkdir(parents=True)
+    # The encoded form is ambiguous: org/identity-hub vs org/identity/hub.
+    assert _ac.decode_cwd_dirname(_encode(real)) == str(real)
+
+
+def test_decode_prefers_the_path_that_exists(tmp_path: Path) -> None:
+    """When BOTH readings exist on disk, longest-component wins (the deeper
+    split is still reachable via its own encoding)."""
+    (tmp_path / "org" / "app-frontend").mkdir(parents=True)
+    (tmp_path / "org" / "app" / "frontend").mkdir(parents=True)
+    decoded = _ac.decode_cwd_dirname(_encode(tmp_path / "org" / "app-frontend"))
+    assert decoded == str(tmp_path / "org" / "app-frontend")
+
+
+def test_decode_falls_back_when_path_is_gone() -> None:
+    """A project absorbed on another machine (or since deleted) has no
+    filesystem to probe — the naive all-separators decoding still applies."""
+    assert _ac.decode_cwd_dirname(
+        "-nonexistent-a-b-c") == "/nonexistent/a/b/c"
+
+
+def test_derive_project_agrees_with_the_session_resolver(tmp_path: Path) -> None:
+    """The whole point of routing through `project.resolve_project`: an
+    absorbed claim must be keyed the SAME as the live session that produced it,
+    or recall's project boost can never match (project.py's documented failure
+    mode)."""
+    from runtime.service.learnings import project as _project
+    real = tmp_path / "org" / "identity-hub"
+    real.mkdir(parents=True)
+    absorbed_slug = _ac.derive_project(_encode(real))
+    session_slug = _project.resolve_project(str(real)).slug
+    assert absorbed_slug == session_slug
+    assert absorbed_slug == "identity-hub"      # not the mangled "hub"
+
+
+def test_derive_project_honors_the_config_project_map(
+        atelier_env: Dict, tmp_path: Path, monkeypatch) -> None:
+    """resolve_project's config-map layer must reach absorb too — the mapping
+    that turns a folder into its real project identity."""
+    import yaml
+    real = tmp_path / "org" / "identity-hub"
+    real.mkdir(parents=True)
+    cfg_path = atelier_env["home"] / "config.yaml"
+    data = yaml.safe_load(cfg_path.read_text())
+    data.setdefault("learnings", {})["project_map"] = {
+        str(real): "org-identity-hub"}
+    cfg_path.write_text(yaml.safe_dump(data))
+    assert _ac.derive_project(_encode(real)) == "org-identity-hub"
+
+
 # ── absorb ────────────────────────────────────────────────────────────────
 
 

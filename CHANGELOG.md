@@ -4,6 +4,39 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Fixed — absorb hotfix: project-slug divergence + re-mint lifecycle clobber
+
+Two defects found by a whole-system evaluation of absorb after its first live
+run (25 memories). Both pre-date RFC 0008 and were invisible to diff-scoped
+review because neither function was in any recent diff.
+
+- **Project slug was written under a key recall could never match.** Claude
+  Code encodes a working dir by replacing `/` with `-`, but a directory name
+  may itself contain `-` — the encoding is **not injective**, so
+  `decode_cwd_dirname`'s string split turned `inheaden/identity-hub` into
+  `hub`, `inheaden/app/frontend` into `frontend`, `prayer-team` into `team`.
+  Recall matches `project_hint` exactly, so absorbed claims could never receive
+  the project boost, and bare-noun Concept entities (`hub`, `frontend`) were
+  accreting in the graph. Now: the decoder **probes the real filesystem**
+  (longest-component-first) to resolve the ambiguity, falling back to the naive
+  split only when the path is gone; and `derive_project` routes through
+  `project.resolve_project` — the single accessor capture/bootstrap/recall
+  already share (its module docstring describes precisely this divergence).
+  Verified against all live projects: 7/7 now agree with the session slug.
+- **Re-mint silently clobbered lifecycle state.** `entry_id = f(statement,
+  derived_from)`, so a re-capture/re-absorb of the same statement lands on the
+  existing claim's path with freshly built BIRTH defaults. The unconditional
+  write demoted `surfacing: proactive` → `query`, reset `ac_status`
+  (un-retracting a curator-retracted claim), and wiped curated `links` — a live
+  data-loss path with 98 absorbed claims already promoted. `write_operational_
+  claim` is now idempotent on an existing same-`entry_id` file (mirroring
+  `write_operational_source`) and reports `existed` in its result.
+- Tests: hyphenated-directory fixtures (the original fixtures used
+  non-hyphenated names — `lexio`, later a generic `project` — which is exactly
+  why the defect survived), config-project-map routing, session-resolver
+  agreement, and lifecycle-preservation pins for promote/retract re-mint.
+  Suite 676 → 684 green.
+
 ### Added — RFC 0008 M1+M4: absorb nudge + safety at the absorb boundary
 
 - **M1 discovery** (`absorb_claude.unabsorbed_count` / `nudge_info`): a fourth

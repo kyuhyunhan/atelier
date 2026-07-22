@@ -70,22 +70,82 @@ def _vault_root() -> Path:
     return cfg.space_by_role("librarian-territory").local
 
 
+def _decode_naive(name: str) -> str:
+    """Every `-` treated as a path separator — the decoding to fall back on
+    when the real directory no longer exists on this machine."""
+    return "/" + "/".join(name.lstrip("-").split("-"))
+
+
+def _decode_by_filesystem(name: str, *, root: Path = Path("/")) -> Optional[str]:
+    """Resolve the encoding's ambiguity by probing the real filesystem.
+
+    Claude Code encodes a working directory by replacing `/` with `-`, but a
+    directory name may itself CONTAIN `-` (`identity-hub`, `app-frontend`,
+    `fe-shared`). The encoding is therefore NOT injective: in
+    `…-inheaden-identity-hub`, the `-` before `hub` is indistinguishable from a
+    separator by string inspection alone. No parser can recover the truth from
+    the string — but the filesystem can, because only one of the candidate
+    splits names a directory that actually exists.
+
+    We walk the token list depth-first, at each step trying the LONGEST
+    remaining join first (so `identity-hub` is preferred over `identity/hub`),
+    and accept the first full consumption whose path exists. Returns None when
+    no candidate resolves (deleted project, another machine) — the caller then
+    falls back to `_decode_naive`."""
+    tokens = name.lstrip("-").split("-")
+    if not tokens:
+        return None
+
+    def walk(base: Path, i: int) -> Optional[Path]:
+        if i == len(tokens):
+            return base
+        # longest-first: consume as many tokens as possible into one component
+        for j in range(len(tokens), i, -1):
+            cand = base / "-".join(tokens[i:j])
+            try:
+                if not cand.is_dir():
+                    continue
+            except OSError:                     # pragma: no cover - defensive
+                continue
+            found = walk(cand, j)
+            if found is not None:
+                return found
+        return None
+
+    hit = walk(root, 0)
+    return str(hit) if hit is not None else None
+
+
 def decode_cwd_dirname(name: str) -> str:
     """Recover an absolute working directory from a Claude Code project
-    directory name. Claude encodes `/` as `-`; multiple consecutive `-`
-    typically come from `--` in the original path. We undo only the
-    leading-`-` to "/" mapping and treat the rest as path components."""
-    parts = name.lstrip("-").split("-")
-    return "/" + "/".join(parts)
+    directory name.
+
+    The encoding (`/` → `-`) is lossy, so this consults the real filesystem to
+    disambiguate (see `_decode_by_filesystem`) and only falls back to treating
+    every `-` as a separator when nothing resolves."""
+    return _decode_by_filesystem(name) or _decode_naive(name)
 
 
 def derive_project(name: str) -> str:
-    """Project slug = basename of the decoded path."""
+    """The project slug for an absorbed memory.
+
+    Routed through `project.resolve_project` — the SINGLE accessor every other
+    path (capture, bootstrap, recall) already shares. absorb previously derived
+    its own slug by basename, so an absorbed claim was written under one key
+    (`hub`) while the live session looked it up under another
+    (`inheaden-identity-hub`) and the project boost could never match — exactly
+    the divergence `project.py` exists to prevent. Deriving it here would
+    reintroduce the split, so we decode to a real path and delegate."""
     decoded = decode_cwd_dirname(name)
+    try:
+        from . import project as _project
+        slug = _project.resolve_project(decoded).slug
+        if slug:
+            return slug
+    except Exception:                           # pragma: no cover - defensive
+        pass
     base = Path(decoded).name
-    if not base:
-        return "unknown"
-    return _slugify(base)
+    return _slugify(base) if base else "unknown"
 
 
 def _slugify(value: str, *, fallback: str = "x") -> str:

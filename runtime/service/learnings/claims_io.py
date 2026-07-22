@@ -374,8 +374,21 @@ def write_operational_claim(*, statement: str,
     while out.exists() and str(_safe_eid(out)) != eid:
         out = claims_dir(vault) / f"{_slugify(statement)}-{eid[:8]}-{n}.md"
         n += 1
+    if out.exists():
+        # SAME entry_id already on disk — this claim exists. Do NOT rewrite it.
+        # entry_id is f(statement, derived_from), so a re-capture/re-absorb of
+        # the same statement lands here with freshly BUILT frontmatter carrying
+        # birth defaults (surfacing:query, ac_status:pending, links:[]).
+        # Overwriting would silently undo lifecycle state the curator or a
+        # promote/dream pass wrote — demoting a proactive claim back to query,
+        # un-retracting a retracted one, wiping curated links. Lifecycle lives
+        # in field transitions (RFC 0005); birth is a one-time event, so the
+        # write is idempotent — mirroring `write_operational_source` above.
+        return {"path": str(out), "entry_id": eid, "slug": out.stem,
+                "existed": True}
     _atomic_write(out, _emit(front, body))
-    return {"path": str(out), "entry_id": eid, "slug": out.stem}
+    return {"path": str(out), "entry_id": eid, "slug": out.stem,
+            "existed": False}
 
 
 # ── RFC 0007: born-as-Source + deterministic mint ────────────────────────────

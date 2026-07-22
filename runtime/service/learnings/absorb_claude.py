@@ -423,6 +423,10 @@ def absorb(*, dry_run: bool = False,
     vault = _vault_root()
     accept_kinds = set(auto_accept_kinds or _AUTO_ACCEPT)
     pii_rx = _pii_patterns(pii_patterns_path)
+    # The memo is per-process, but the daemon is long-lived: a `project_map`
+    # edit or a directory rename between runs must be picked up. absorb is
+    # manual and rare, so paying cold resolution once per run is free.
+    derive_project.cache_clear()
 
     # One read of the dedup ledger up front; mutate in memory, persist once at
     # the end (absorb is manual + single-writer, so read-modify-write is safe).

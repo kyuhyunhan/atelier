@@ -60,6 +60,14 @@ review because neither function was in any recent diff.
   isolation, memoization, a guard that the nudge count never resolves projects,
   the revision-dropped signal, and lifecycle-preservation pins for
   promote/retract re-mint. Suite 676 → 688 green.
+- **Forward-only; the existing corpus is not repaired by this PR.** The decoder
+  now agrees with the session resolver for all live projects, but the 62 ledger
+  entries and the already-absorbed claims on disk still carry the mangled keys
+  (`hub`, `frontend`, `team`), along with the bare-noun `Concept` entities
+  minted from them. Re-absorbing does NOT fix them — dedup is by `body_sha` and
+  both writes are now idempotent, so a re-run lands on the same files. The
+  repair is an in-place frontmatter migration (markdown is truth), tracked
+  separately.
 
 ### Added — RFC 0008 M1+M4: absorb nudge + safety at the absorb boundary
 

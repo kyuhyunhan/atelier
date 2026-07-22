@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Repair absorbed claims keyed under a MANGLED project slug (one-time).
+
+Claude Code encodes a working directory by replacing `/` with `-`, but a
+directory name may itself contain `-`, so the encoding is not injective.
+`absorb.derive_project` used to split the string blindly, writing
+`inheaden/identity-hub` as `hub`, `inheaden/app/frontend` as `frontend`. Recall
+matches `project_hint` EXACTLY, so those claims could never receive their own
+project's boost — and each mangled slug also minted a bare-noun `Concept`
+entity (`hub`, `frontend`) that future entity resolution would happily attach
+unrelated claims to.
+
+The decoder is fixed (PR #67), but that fix is forward-only: re-absorbing does
+NOT repair the corpus, because dedup is by body sha and both the Source and
+Claim writes are idempotent — a re-run lands on the same files and changes
+nothing. Deleting and re-minting WOULD rewrite them, but at the cost of the
+lifecycle state (surfacing, ac_status, links) that the same PR exists to
+protect. Markdown is truth, so the repair is an in-place frontmatter edit.
+
+What this changes, per affected claim:
+  - `project` / `project_hint` → the slug the live session resolver produces
+  - `is_about`                 → the bare-noun entity id replaced by the
+                                 correctly-labelled entity (resolve-or-create)
+  - `content_hash`             → recomputed (it covers the frontmatter)
+Then: retire the now-unreferenced bare-noun entities, and reindex.
+
+The claim's `entry_id` is NOT touched: it is f(statement, derived_from), and
+neither input changes — so links, derived_from edges and dedup all stay valid.
+
+Usage:
+    scripts/migrate_absorbed_project_slugs            # dry run (default)
+    scripts/migrate_absorbed_project_slugs --apply
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import yaml
+
+from runtime.index import parse as _parse
+from runtime.service.learnings import absorb_claude as _ac
+from runtime.service.learnings import claims_io as _claims
+from runtime.structure import resolver as _structure
+
+
+def _vault() -> Path:
+    from runtime.util import config as _config
+    cfg = _config.load()
+    if cfg.vault is not None:
+        return cfg.vault.local
+    return cfg.space_by_role("librarian-territory").local
+
+
+def _load(p: Path) -> Tuple[Dict, str]:
+    fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+    return (fm if isinstance(fm, dict) else {}), body
+
+
+def _emit(fm: Dict, body: str) -> str:
+    return ("---\n"
+            + yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
+            + "---\n" + body)
+
+
+def _iter_nodes(base: Path):
+    for p in sorted(base.rglob("*.md")):
+        if p.name == "INDEX.md":
+            continue
+        try:
+            fm, body = _load(p)
+        except Exception:
+            continue
+        if fm:
+            yield p, fm, body
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--apply", action="store_true",
+                    help="write the changes (default: dry run)")
+    args = ap.parse_args()
+
+    vault = _vault()
+    graph = vault / _structure.atomic_claim_dir()
+
+    # ── survey ───────────────────────────────────────────────────────────────
+    entities = {fm.get("entry_id"): (p, fm)
+                for p, fm, _ in _iter_nodes(graph) if fm.get("kind") == "entity"}
+
+    _ac.derive_project.cache_clear()
+    fixes: List[Tuple[Path, Dict, str, str, str]] = []   # p, fm, body, old, new
+    unverified: List[str] = []
+    for p, fm, body in _iter_nodes(graph):
+        if fm.get("kind") != "claim" or fm.get("agent_kind") != "absorbed":
+            continue
+        src_path = fm.get("source_path")
+        if not src_path:
+            continue                      # pre-mint era: no provenance to key on
+        encoded = Path(src_path).parents[1].name
+        # HARD GUARD — only a decode confirmed against this filesystem may
+        # drive a rewrite. `derive_project` deliberately falls back to the
+        # naive basename when the project directory is gone (or we are on
+        # another machine), and that fallback is exactly the mangled slug this
+        # script repairs. Trusting it would INVERT the migration: a re-run on
+        # a machine missing those directories would rewrite the repaired
+        # claims back to `frontend`/`hub`, re-mint the bare-noun entities, and
+        # retire the good ones.
+        if not _ac._decode_by_filesystem(encoded):
+            unverified.append(encoded)
+            continue
+        correct = _ac.derive_project(encoded)
+        current = fm.get("project") or fm.get("project_hint")
+        if correct and current != correct:
+            fixes.append((p, fm, body, str(current), correct))
+
+    if unverified:
+        uniq = sorted(set(unverified))
+        print(f"! skipped {len(unverified)} claim(s) from {len(uniq)} project "
+              f"director{'y' if len(uniq) == 1 else 'ies'} that do not exist on "
+              f"this machine — their slug cannot be verified, and guessing "
+              f"would re-mangle them:")
+        for u in uniq:
+            print(f"    {u}")
+        print()
+
+    if not fixes:
+        print("nothing to migrate — every absorbed claim already carries the "
+              "slug the session resolver produces.")
+        return 0
+
+    print(f"{'APPLY' if args.apply else 'DRY RUN'} — {len(fixes)} claim(s) to repair\n")
+    by_pair: Dict[Tuple[str, str], int] = {}
+    for _, _, _, old, new in fixes:
+        by_pair[(old, new)] = by_pair.get((old, new), 0) + 1
+    for (old, new), n in sorted(by_pair.items()):
+        print(f"  project: {old!r} -> {new!r}   ({n} claims)")
+
+    # ── entity remap: bare-noun label -> correctly-labelled entity ───────────
+    #
+    # Keyed on (type, pref_label), NOT the label alone: an entity id is
+    # uuid5(type|pref_label), so two entities may legitimately share a label
+    # with different types. Matching by label alone could retarget — or retire
+    # — an unrelated node.
+    def _find(label: str) -> str | None:
+        for eid, (_, fm) in entities.items():
+            if (str(fm.get("pref_label", "")) == label
+                    and fm.get("type") == "Concept"
+                    and "operational" in (fm.get("in_scheme") or [])):
+                return eid
+        return None
+
+    remap: Dict[str, str] = {}
+    for old, new in by_pair:
+        src = _find(old)
+        if src is None:
+            continue
+        if args.apply:
+            dst = _claims._resolve_entity_id(new, sensitivity="public",
+                                             in_scheme="operational",
+                                             vault=vault)
+        else:
+            dst = f"<resolve-or-create {new!r}>"
+        remap[src] = dst
+    stale_ids = set(remap)
+    print(f"\n  entity remap ({len(remap)}):")
+    for src, dst in remap.items():
+        lbl = entities[src][1].get("pref_label") if src in entities else "?"
+        print(f"    {lbl!r} ({src[:8]}…) -> {dst if not args.apply else dst[:8]+'…'}")
+
+    if not args.apply:
+        # Preview the DESTRUCTIVE step too — an unlink is the one thing a dry
+        # run most needs to show. Recomputed post-remap: an entity is retired
+        # only if nothing would still reference it.
+        # Compare by PATH EQUALITY, not object identity: `rglob` builds fresh
+        # Path objects on every pass, so `is`/`id()` against the survey's
+        # Paths is always False — which would silently make this whole preview
+        # dead code and report "retire: none" while --apply unlinks.
+        fixed = {f[0] for f in fixes}
+        would_ref = set()
+        for _p, fm, _b in _iter_nodes(graph):
+            if fm.get("kind") == "claim":
+                refs = fm.get("is_about") or []
+                if _p in fixed:
+                    refs = [remap.get(e, e) for e in refs]
+                would_ref.update(refs)
+            elif fm.get("kind") == "entity":
+                for lk in (fm.get("links") or []):
+                    if isinstance(lk, dict) and lk.get("to"):
+                        would_ref.add(lk["to"])
+        doomed = [entities[e][1].get("pref_label") for e in stale_ids
+                  if e not in would_ref]
+        print(f"\n  entities to RETIRE ({len(doomed)}): "
+              + (", ".join(repr(d) for d in doomed) or "none"))
+        print("\n(no files written — re-run with --apply)")
+        return 0
+
+    # ── apply ────────────────────────────────────────────────────────────────
+    for p, fm, body, _old, new in fixes:
+        fm["project"] = new
+        fm["project_hint"] = new
+        fm["is_about"] = [remap.get(e, e) for e in (fm.get("is_about") or [])]
+        fm.pop("content_hash", None)
+        fm["content_hash"] = _claims._content_hash(fm)
+        p.write_text(_emit(fm, body), encoding="utf-8")
+    print(f"\n  rewrote {len(fixes)} claim(s)")
+
+    # Retire bare-noun entities nothing references any more. Scan EVERY
+    # entity-referencing field the schema allows — claims' `is_about` AND
+    # entity→entity `links` — so a node referenced only from the entity layer
+    # is never orphaned.
+    still_referenced = set()
+    for _p, fm, _b in _iter_nodes(graph):
+        if fm.get("kind") == "claim":
+            still_referenced.update(fm.get("is_about") or [])
+        elif fm.get("kind") == "entity":
+            for lk in (fm.get("links") or []):
+                if isinstance(lk, dict) and lk.get("to"):
+                    still_referenced.add(lk["to"])
+    retired = 0
+    for eid in stale_ids:
+        if eid in still_referenced:
+            continue
+        path = entities[eid][0]
+        path.unlink()
+        retired += 1
+    print(f"  retired {retired} unreferenced bare-noun entit"
+          f"{'y' if retired == 1 else 'ies'}")
+    print("\nNext: `atelier reindex --full` then `atelier doctor`.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

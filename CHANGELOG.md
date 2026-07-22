@@ -4,6 +4,27 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0008 M1+M4: absorb nudge + safety at the absorb boundary
+
+- **M1 discovery** (`absorb_claude.unabsorbed_count` / `nudge_info`): a fourth
+  nudge kind `absorb` — a memory is *unabsorbed* iff its normalized body sha256
+  is not in the vault dedup ledger (deterministic, read-only, LLM-free). Both
+  absorb and the count go through one ledger accessor (`_is_absorbed`) so M2's
+  `by_sha` nesting changes one function. Surfaced in the unified nudge list
+  (`absorb → atomize → promote → dream`) and at session bootstrap
+  (`absorb_nudge` key + markdown line). Threshold:
+  `learnings.absorb.nudge_after_memories` (default 1). Human-pulled, never cron.
+- **M4 safety** (demote-never-block): a `type: user` memory (who the user *is*)
+  now lands `sensitivity: private` on Claim AND Source; a body/statement match
+  against `~/.atelier/pii_patterns.txt` (the same pattern file the pre-commit
+  guard reads) demotes to private and stamps `pii_flag: true` on both nodes.
+  Missing pattern file → no-op. The promote gate requires public, so demoted
+  claims can never be proactively pushed.
+- Tests: 15 new (count/threshold/nudge shapes, bootstrap surfacing, sensitivity
+  defaults, PII demotion, rerun dedup); conftest isolates the two
+  outside-the-vault reads (`~/.claude` memories, PII patterns) into the temp
+  workspace. Full suite 673 green.
+
 ### Added — RFC 0008 (draft): absorb lifecycle — discovery, supersession, depth, safety
 
 - Design RFC (`docs/rfc/0008-absorb-lifecycle.md`) for the perimeter around the

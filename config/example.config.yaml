@@ -138,6 +138,11 @@ learnings:
     nudge_after_proactive: 15      # new proactive claims since last dream
     #                                (nudge_after_accepted still honored for compat)
     nudge_after_days: 7            # days since last dream
+  # Absorb nudge (RFC 0008 M1) — surfaces the count of Claude Code memories
+  # (~/.claude/projects/*/memory/) not yet in the vault dedup ledger.
+  # Human-pulled, never cron.
+  absorb:
+    nudge_after_memories: 1        # any unabsorbed memory nudges by default
 
 # ── Secrets references ───────────────────────────────────────────────────────
 auth:

@@ -142,9 +142,9 @@ def test_dream_due_when_threshold_crossed(vault_env: Dict) -> None:
 # ── all_nudges / due_nudges shape ────────────────────────────────────────────
 
 
-def test_all_nudges_returns_three_kinds(vault_env: Dict) -> None:
+def test_all_nudges_returns_four_kinds(vault_env: Dict) -> None:
     kinds = [n.kind for n in _nudges.all_nudges(now=_NOW)]
-    assert kinds == ["atomize", "promote", "dream"]
+    assert kinds == ["absorb", "atomize", "promote", "dream"]
 
 
 def test_due_nudges_filters(vault_env: Dict) -> None:
@@ -176,6 +176,20 @@ def test_failing_probe_yields_not_due(monkeypatch, vault_env: Dict) -> None:
     assert "promote" in by_kind and "dream" in by_kind
 
 
+def test_failing_absorb_probe_yields_not_due(monkeypatch, vault_env: Dict) -> None:
+    import runtime.service.learnings.absorb_claude as _absorb
+
+    def _boom(*a, **k):
+        raise RuntimeError("absorb probe exploded")
+
+    monkeypatch.setattr(_absorb, "nudge_info", _boom)
+    by_kind = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}
+    assert by_kind["absorb"].due is False
+    assert by_kind["absorb"].count == 0
+    # the other edges still resolve
+    assert {"atomize", "promote", "dream"} <= set(by_kind)
+
+
 def test_failing_promote_probe_is_isolated(monkeypatch, vault_env: Dict) -> None:
     from runtime.promote import propose as _propose
 
@@ -197,7 +211,7 @@ def test_atelier_nudges_tool_returns_list(vault_env: Dict) -> None:
     assert "nudges" in out
     assert isinstance(out["nudges"], list)
     kinds = {n["kind"] for n in out["nudges"]}
-    assert kinds == {"atomize", "promote", "dream"}
+    assert kinds == {"absorb", "atomize", "promote", "dream"}
     # each item carries the full normalized shape (dataclass asdict)
     for n in out["nudges"]:
         assert set(n.keys()) == {"kind", "due", "count", "short", "long"}

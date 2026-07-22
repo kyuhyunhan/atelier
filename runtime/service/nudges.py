@@ -1,14 +1,14 @@
 """Unified nudge surface — one shape, one surfacing point (RFC 0005 §7).
 
-The three GATED, human-invoked edges of the atomic-graph lifecycle each have
-their own status/nudge probe today, but in inconsistent shapes and surfaced
-inconsistently (only DREAM reaches SessionStart):
+The four GATED, human-invoked edges of the lifecycle each have their own
+status/nudge probe, in one normalized shape:
 
+    absorb   (~/.claude memories → vault, RFC 0008) — absorb_claude.nudge_info()
     atomize  (L1 Source → L2 Claims/Entities)   — atomize.nudge_info()
     promote  (query → proactive, behind accept) — promote.propose.eligible_count()
     dream    (proactive → always + synthesis)   — dream.nudge_info(now=…)
 
-This module normalizes all three to a single frozen `Nudge` shape so callers —
+This module normalizes all four to a single frozen `Nudge` shape so callers —
 the MCP tool `atelier_nudges`, the SessionStart hook, a statusline — consume ONE
 abstraction instead of three bespoke dicts.
 
@@ -26,7 +26,7 @@ from typing import List
 class Nudge:
     """One normalized nudge across every gated edge.
 
-    - kind:  the edge ('atomize' | 'promote' | 'dream').
+    - kind:  the edge ('absorb' | 'atomize' | 'promote' | 'dream').
     - due:   whether this edge wants the human's attention now.
     - count: the salient number for the edge (un-atomized sources / eligible
              claims / accepted-since-or-pending) — 0 when not due / unknown.
@@ -43,6 +43,21 @@ class Nudge:
 def _safe(kind: str) -> Nudge:
     """A not-due Nudge for an edge whose probe failed — never crash the surface."""
     return Nudge(kind=kind, due=False, count=0, short="", long="")
+
+
+def _absorb_nudge() -> Nudge:
+    try:
+        from .learnings import absorb_claude as _absorb
+        info = _absorb.nudge_info()
+        return Nudge(
+            kind="absorb",
+            due=bool(info.get("due")),
+            count=int(info.get("count") or 0),
+            short=str(info.get("short") or ""),
+            long=str(info.get("long") or ""),
+        )
+    except Exception:                            # pragma: no cover - tolerance
+        return _safe("absorb")
 
 
 def _atomize_nudge() -> Nudge:
@@ -110,8 +125,10 @@ def _promote_nudge() -> Nudge:
 
 def all_nudges(*, now: str) -> List[Nudge]:
     """Every edge normalized to `Nudge`, in lifecycle order
-    (atomize → promote → dream). Each is independently tolerant."""
+    (absorb → atomize → promote → dream: ingest before atomization).
+    Each is independently tolerant."""
     return [
+        _absorb_nudge(),
         _atomize_nudge(),
         _promote_nudge(),
         _dream_nudge(now=now),

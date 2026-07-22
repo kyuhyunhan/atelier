@@ -56,9 +56,9 @@ Two findings drive this RFC:
   waiting, and nothing surfaces that number anywhere. (M1)
 - **The "already atomic" premise is false in practice.** Claude Code's memory
   instructions say one file = one fact, but real memories are multi-fact
-  documents (median 253 words). However — every memory carries a *curated
-  one-line `description`*, and the mint's `statement` comes from that
-  description, not the body. So the minted Claim **is** atomic; it is the
+  documents (median 253 words). However — nearly every memory (57 of 61; the
+  rest fall back to the file name) carries a *curated one-line `description`*,
+  and the mint's `statement` comes from that description, not the body. So the minted Claim **is** atomic; it is the
   body's *additional* facts that stay claim-less. This reframes the depth
   question (§5): the mint is not wrong, it is *shallow*.
 
@@ -102,38 +102,70 @@ Claim stays live, and recall can serve both (one stale).
 
 **Mechanism.** "Same file path, new hash" is a deterministic *fact* meaning
 "this memory was revised" — no judgement needed. The ledger gains a `by_path`
-index:
+index. Its key is **machine-independent** — `<encoded-project-dir>/<filename>`,
+not the absolute path — because the ledger is git-tracked precisely so dedup is
+consistent across machines; an absolute `~/.claude/...` key would never match on
+a second machine and supersession would silently not fire there:
 
 ```json
 {
   "by_sha":  { "<sha>": { "source_path": "…", "absorbed_at": "…", "claim_id": "…", … } },
-  "by_path": { "<source_path>": "<latest sha>" }
+  "by_path": { "<encoded-project-dir>/<filename>": "<latest sha>" }
 }
 ```
 
 - Migration: a legacy flat ledger is rebuilt in place on first load
   (`by_sha` = old object; `by_path` derived from each entry's `source_path`).
   Backward-compatible, one-time, no data loss.
-- `by_sha` entries now record the minted `claim_id` (new absorbs only; legacy
-  entries lack it and simply cannot supersede — acceptable grandfathering,
-  same posture as RFC 0007's forward-only migration).
+- `by_sha` entries now record the minted `claim_id` (returned by
+  `mint_operational_claim`). The 37 legacy entries lack it, but because
+  claim_id is a deterministic function of the statement (= the description),
+  legacy claim_ids are **recomputable offline** from ledger + vault — an
+  optional one-time backfill, no re-ingestion needed. Until backfilled, legacy
+  entries simply cannot supersede (forward-only, same posture as RFC 0007).
 
-**On absorb of a first-seen hash whose path is known:**
+**The content-addressing constraint (what a naive design gets wrong).** Claim
+id = f(statement, derived_from) and the operational Source id = f(statement)
+alone. The statement is the memory's `description`. So an upstream **body edit
+that keeps the description — the common case** — yields a new body sha but the
+*same* claim_id and *same* Source id: the naive "retract old, mint new" would
+retract the claim it just minted, and the idempotent Source write would silently
+drop the revised body. Supersession must therefore branch on whether the
+*statement* changed, not just the body:
 
-1. mint the new Source + Claim as normal;
-2. look up the previous sha's `claim_id` via `by_path` → `by_sha`;
-3. mark the old claim retracted (`retracted: true` — the existing acceptance
-   FORBIDDEN flag, so it drops out of promote eligibility structurally) and
-   link the new claim `refines` the old (provenance of the revision chain);
+**On absorb of a first-seen hash whose path is known** (previous sha + claim_id
+resolved via `by_path` → `by_sha`):
+
+1. mint as normal → `new_claim_id`.
+2. **Statement unchanged** (`new_claim_id == old_claim_id`) — a *body-only
+   revision*. No retract, no link. Instead the Source's **body is refreshed in
+   place** (same Source id; `body_sha` in its frontmatter updated, `revised_at`
+   stamped). The Source's id is content-addressed by *statement*, so a body
+   refresh does not break addressing; it is copy-semantics fidelity — the vault
+   mirror tracks the upstream revision instead of silently keeping a stale
+   body. Claims previously deep-atomized (M3) from the old body remain
+   (additive; the curator retracts any the revision invalidated).
+3. **Statement changed** (`new_claim_id != old_claim_id`) — a real
+   supersession. Guard first: if any *other* `by_path` entry still resolves to
+   `old_claim_id` (two memory files sharing one description collapse onto one
+   content-addressed claim), **skip the retract** — the claim is still owned by
+   a live path — and only link + reindex. Otherwise retract the old claim via
+   the existing archive machinery — **`ac_status: retracted`** (`set_ac_status`,
+   which also stamps `archived_at` and carries `archive_reason` + `links`) — so
+   it exits promote eligibility through the same field every other retraction
+   uses, and link the new claim `refines` the old.
 4. update `by_path`.
 
 **Upstream deletion** is deliberately *not* mirrored: absorb is copy-semantics
 (CLAUDE.md hard rule #7); a memory deleted in `~/.claude` leaves its vault claim
 intact — the vault is the durable archive, the source tree is working memory.
 
-**Gate.** Roundtrip test: absorb v1 → edit upstream fixture → absorb v2 →
-old claim `retracted`, new claim `refines` old, `by_path` points at v2; ledger
-migration test (flat → indexed, counts preserved); re-run remains a no-op.
+**Gate.** Three roundtrip tests: (a) body-only revision → same claim, Source
+body refreshed, nothing retracted; (b) description revision → old claim
+`ac_status: retracted` + `archived_at`, new claim `refines` old, `by_path` at
+v2; (c) shared-description guard → retract skipped while a second path owns the
+claim. Plus: ledger migration (flat → indexed, counts preserved, keys
+machine-independent) and re-run stays a no-op.
 
 ## 5. M3 — Depth: mint stays 1:1; deep atomize is additive + human-gated
 
@@ -152,6 +184,12 @@ FTS-searchable, recallable. Depth extraction is then **optional and additive**:
 - `atelier-atomize` on an already-minted operational Source is *legal* and
   purely additive — new Claims `derived_from` the same Source alongside the
   minted one. Content-addressing makes this idempotent; nothing is re-written.
+- **Deep-atomized claims inherit the Source's sensitivity.** The atomize write
+  path derives sensitivity from *domain* only (`personal` → private, else
+  public); an M4-demoted private operational Source must not have public claims
+  minted off its body. The additive path takes
+  `max(domain default, source sensitivity)` — the same no-escalation posture
+  dream already enforces.
 - It is **human-directed only**: no nudge counts "shallowly atomized" sources,
   because shallow-vs-deep is a judgement about *worth*, not a derived fact.
   The human deep-atomizes a memory when its body has proven to matter.
@@ -196,7 +234,9 @@ behavior identical to today.
 if absorb never runs). M4 is next because every absorb run *before* it lands
 `user` memories public — safety before volume. M2 matters as upstream memories
 start evolving. M3 is a docs/scope change plus one pinned test, schedulable any
-time.
+time. To avoid M1→M2 rework, M1 reads the ledger through a **single accessor**
+(`is_absorbed(sha)`) so M2's `by_sha` nesting changes one function, not every
+call site.
 
 **Non-goals:**
 
@@ -205,8 +245,8 @@ time.
   read-only (hard rule #7). Nothing here weakens copy-semantics.
 - **No `MEMORY.md` absorption.** The index is navigation, not content.
 - **No retroactive re-absorb of the 37 ledgered memories.** Grandfathered
-  as-is; M2's supersession applies from their next upstream edit only if a
-  `claim_id` exists (i.e., practically, to post-M2 absorbs).
+  as-is; M2's supersession applies once a `claim_id` exists — for legacy
+  entries, via the optional offline backfill (§4), never via re-ingestion.
 - **No cross-session semantic dedup** (two memories saying the same thing in
   different words). That is dream/consolidation's job, downstream.
 
@@ -220,6 +260,12 @@ time.
 - **Supersede assumes path identity = memory identity.** A memory *renamed*
   upstream reads as new (old claim never retracted) — same failure class as
   today, no worse; accepted.
+- **Body refresh softens Source immutability.** §4's body-only revision updates
+  an operational Source's body in place. This is scoped strictly: only the
+  absorb path, only for a Source whose upstream file revised, only the body +
+  `body_sha`/`revised_at` — the statement (hence the id) never changes. The
+  alternative — an immutable stale mirror silently diverging from its upstream
+  — is the worse violation of copy-semantics.
 - **PII patterns are user-maintained.** An empty/missing pattern file silently
   disables the pass. Accepted: identical trust model as the pre-commit guard.
 - **`description` quality bounds mint quality.** A memory with a weak

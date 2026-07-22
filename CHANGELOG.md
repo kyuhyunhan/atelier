@@ -4,6 +4,23 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0008 (draft): absorb lifecycle — discovery, supersession, depth, safety
+
+- Design RFC (`docs/rfc/0008-absorb-lifecycle.md`) for the perimeter around the
+  RFC 0007 absorb path (`~/.claude/projects/*/memory/` → vault), grounded in a
+  live census (25 unabsorbed memories; median body 253 words — the "one file,
+  one fact" premise does not hold, which reverses the obvious depth design).
+- **M1 discovery**: a fourth nudge kind `absorb` (unabsorbed = body-sha not in
+  ledger); human-pulled, never cron. **M4 safety**: `type: user` memories land
+  `sensitivity: private`; a PII pattern pass (same file as the pre-commit guard)
+  demotes to private + flags, never blocks. **M2 supersession**: path-indexed
+  ledger (machine-independent keys); compute-then-branch on statement change —
+  body-only revisions refresh the Source body in place (Claim file untouched),
+  real supersessions retract via `ac_status: retracted` + a `refines` link on
+  the new claim. **M3 depth**: mint stays 1:1 (statement = the curated
+  description); deep atomize is additive + human-directed, inheriting the
+  Source's sensitivity (tighten-only). Sequencing M1 → M4 → M2 → M3.
+
 ### Changed — clearer nudge wording (atomize domain-split, promote cap indicator)
 
 - **Atomize nudge** now splits the un-atomized backlog by the human-gate

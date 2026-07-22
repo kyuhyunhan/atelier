@@ -136,9 +136,18 @@ drop the revised body. Supersession must therefore branch on whether the
 **On absorb of a first-seen hash whose path is known** (previous sha + claim_id
 resolved via `by_path` → `by_sha`):
 
-1. mint as normal → `new_claim_id`.
+1. **compute, don't write**: `new_claim_id` is a pure function of the statement
+   (`entry_id("claim", statement, source_id)`), so derive it *before* any mint
+   and branch on it. Minting first would be destructive: the claim write is an
+   unconditional atomic overwrite at the content-addressed path, so a same-id
+   re-mint would rebuild the frontmatter from absorb defaults — silently
+   demoting a promoted claim back to `surfacing: query`, un-retracting a
+   curator-retracted one, and wiping `links`/history. Lifecycle state lives in
+   field transitions (RFC 0005); a re-absorb must never reset them.
 2. **Statement unchanged** (`new_claim_id == old_claim_id`) — a *body-only
-   revision*. No retract, no link. Instead the Source's **body is refreshed in
+   revision*. **The Claim file is not written at all** — its statement is
+   unchanged and its lifecycle fields (surfacing, `ac_status`, `accepted_at`,
+   links) are preserved untouched. Only the Source's **body is refreshed in
    place** (same Source id; `body_sha` in its frontmatter updated, `revised_at`
    stamped). The Source's id is content-addressed by *statement*, so a body
    refresh does not break addressing; it is copy-semantics fidelity — the vault
@@ -146,22 +155,29 @@ resolved via `by_path` → `by_sha`):
    body. Claims previously deep-atomized (M3) from the old body remain
    (additive; the curator retracts any the revision invalidated).
 3. **Statement changed** (`new_claim_id != old_claim_id`) — a real
-   supersession. Guard first: if any *other* `by_path` entry still resolves to
-   `old_claim_id` (two memory files sharing one description collapse onto one
-   content-addressed claim), **skip the retract** — the claim is still owned by
-   a live path — and only link + reindex. Otherwise retract the old claim via
-   the existing archive machinery — **`ac_status: retracted`** (`set_ac_status`,
-   which also stamps `archived_at` and carries `archive_reason` + `links`) — so
-   it exits promote eligibility through the same field every other retraction
-   uses, and link the new claim `refines` the old.
+   supersession: mint the new Source + Claim as normal, carrying the `refines →
+   old_claim_id` link on the **new** claim (via the mint's `extra`, where links
+   belong — not on the retract call). Guard first: if any *other* `by_path`
+   entry still resolves to `old_claim_id` (two memory files sharing one
+   description collapse onto one content-addressed claim), **skip the retract**
+   — the claim is still owned by a live path — and only link. Otherwise retract
+   the old claim via the existing archive machinery — **`ac_status: retracted`**
+   (`set_ac_status`, which also stamps `archived_at` + `archive_reason`) — so it
+   exits promote eligibility through the same field every other retraction uses.
 4. update `by_path`.
 
 **Upstream deletion** is deliberately *not* mirrored: absorb is copy-semantics
 (CLAUDE.md hard rule #7); a memory deleted in `~/.claude` leaves its vault claim
 intact — the vault is the durable archive, the source tree is working memory.
 
-**Gate.** Three roundtrip tests: (a) body-only revision → same claim, Source
-body refreshed, nothing retracted; (b) description revision → old claim
+**Known corner (accepted):** an upstream *revert* to a previously-absorbed body
+is invisible — the old sha is already in `by_sha`, so dedup no-ops and the vault
+Source keeps the newer body. Rare, self-healing on the next genuine revision,
+and detectable via `by_path` if it ever matters; not worth special-casing now.
+
+**Gate.** Four tests: (a) body-only revision → same claim **byte-identical**
+(surfacing/`ac_status`/links untouched — pin this against a pre-promoted
+fixture), Source body refreshed; (b) description revision → old claim
 `ac_status: retracted` + `archived_at`, new claim `refines` old, `by_path` at
 v2; (c) shared-description guard → retract skipped while a second path owns the
 claim. Plus: ledger migration (flat → indexed, counts preserved, keys
@@ -188,8 +204,9 @@ FTS-searchable, recallable. Depth extraction is then **optional and additive**:
   path derives sensitivity from *domain* only (`personal` → private, else
   public); an M4-demoted private operational Source must not have public claims
   minted off its body. The additive path takes
-  `max(domain default, source sensitivity)` — the same no-escalation posture
-  dream already enforces.
+  `max(domain default, source sensitivity)` — the same tighten-only posture
+  dream already enforces (sensitivity may escalate toward private, never
+  relax toward public).
 - It is **human-directed only**: no nudge counts "shallowly atomized" sources,
   because shallow-vs-deep is a judgement about *worth*, not a derived fact.
   The human deep-atomizes a memory when its body has proven to matter.

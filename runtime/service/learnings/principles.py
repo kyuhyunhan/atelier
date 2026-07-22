@@ -39,6 +39,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ...index import parse as _parse
 from ...util import config as _config
+from ...util import logging as _log
 from . import claims_io as _claims
 from . import store as _store
 
@@ -255,6 +256,16 @@ def add(*, title: str, rule: str, why: str,
         surfacing=surfacing, ac_status=ac_status,
         extra=extra, vault=vault,
     )
+
+    if claim.get("existed"):
+        # The content-addressed claim already exists, so `add` did NOT update
+        # it (the write is idempotent — lifecycle state is preserved). The
+        # explicit-slug path raises FileExistsError for this case; the derived
+        # path cannot, so surface it in the result instead of reporting a
+        # success that silently changed nothing.
+        _log.warn("principle.add-noop", slug=chosen_slug, path=claim["path"],
+                  hint="a principle with this statement already exists; edit "
+                       "it directly or retract and re-add to change it")
 
     _append_log(vault, f"- {now}  principle-{status}  {chosen_slug}  "
                        f"priority={priority}")

@@ -93,6 +93,84 @@ def test_mint_same_lesson_dedups_to_one_source_and_one_claim(atelier_env: Dict) 
     assert len(minted) == 1
 
 
+# ── re-mint must never clobber lifecycle state (RFC 0008 §4 step 1) ──────────
+#
+# entry_id = f(statement, derived_from), so a re-capture / re-absorb of the
+# SAME statement lands on the existing claim's path carrying freshly built
+# birth defaults (surfacing:query, ac_status:pending, links:[]). Writing those
+# would silently undo everything the lifecycle wrote after birth. Birth is a
+# one-time event; the write is idempotent.
+
+
+def _mutate_claim(path: Path, **fields) -> None:
+    """Simulate the lifecycle acting on a born claim (promote / accept /
+    curate) by editing its frontmatter in place."""
+    import yaml
+    fm, body = _parse(path)
+    fm.update(fields)
+    path.write_text(
+        "---\n" + yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
+        + "---\n" + body, encoding="utf-8")
+
+
+def test_re_mint_preserves_promoted_lifecycle_state(atelier_env: Dict) -> None:
+    """The live data-loss path: 98 absorbed claims sat at surfacing:proactive
+    when this was found. A re-absorb after ANY upstream body edit would have
+    demoted every one of them back to query."""
+    vault = atelier_env["gorae"]
+    kw = dict(statement="Route paths that must agree through one accessor",
+              project="atelier", vault=vault)
+
+    first = _ci.mint_operational_claim(body="## Observation\nv1\n", **kw)
+    path = Path(first["claim"]["path"])
+    assert first["claim"]["existed"] is False
+
+    # the lifecycle acts: promoted, accepted, curated links attached
+    _mutate_claim(path, surfacing="proactive", ac_status="passed",
+                  accepted_at="2026-07-01T00:00:00+00:00",
+                  links=[{"to": "other-claim-id", "rel": "refines",
+                          "why": "curated by hand"}])
+
+    # upstream body is revised; the statement (hence the id) is unchanged
+    second = _ci.mint_operational_claim(body="## Observation\nv2 revised\n", **kw)
+    assert second["claim"]["entry_id"] == first["claim"]["entry_id"]
+    assert second["claim"]["existed"] is True
+    assert second["claim"]["path"] == first["claim"]["path"]
+
+    fm, _ = _parse(path)
+    assert fm["surfacing"] == "proactive"          # NOT demoted to query
+    assert fm["ac_status"] == "passed"             # NOT reset to pending
+    assert fm["accepted_at"] == "2026-07-01T00:00:00+00:00"
+    assert fm["links"] and fm["links"][0]["why"] == "curated by hand"
+
+
+def test_re_mint_does_not_resurrect_a_retracted_claim(atelier_env: Dict) -> None:
+    """A curator-retracted claim must stay retracted — otherwise absorb
+    silently re-admits rejected material on every run."""
+    vault = atelier_env["gorae"]
+    kw = dict(statement="A lesson the curator later retracted",
+              body="## Observation\nx\n", project="atelier", vault=vault)
+    first = _ci.mint_operational_claim(ac_status="passed", **kw)
+    path = Path(first["claim"]["path"])
+    _mutate_claim(path, ac_status="retracted",
+                  archived_at="2026-07-02T00:00:00+00:00")
+
+    _ci.mint_operational_claim(ac_status="passed", **kw)
+    fm, _ = _parse(path)
+    assert fm["ac_status"] == "retracted"          # NOT back to passed
+    assert fm["archived_at"] == "2026-07-02T00:00:00+00:00"
+
+
+def test_first_mint_still_writes(atelier_env: Dict) -> None:
+    """Guard the guard: idempotency must not block the birth write."""
+    vault = atelier_env["gorae"]
+    out = _ci.mint_operational_claim(statement="A brand new lesson",
+                                     body="## Observation\nnew\n",
+                                     project="atelier", vault=vault)
+    assert out["claim"]["existed"] is False
+    assert Path(out["claim"]["path"]).exists()
+
+
 # ── acceptance-criteria mirror (criteria.py reads these off the CLAIM) ────────
 
 

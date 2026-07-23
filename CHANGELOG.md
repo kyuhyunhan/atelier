@@ -15,10 +15,28 @@ because the quantity that actually changed is not in the baseline at all.
 
 - **Delta contract**: a goal declares its intended change *before* any code is
   written; the verifier scores INTENT (did it happen), ENVELOPE (did anything
-  else move), INVARIANT (the never-break bar). The contract is committed and
-  hashed, and the verifier reads it from git — the same freeze rule
-  `verify.verify_against` already applies to the baseline, extended to the
-  target, so a builder cannot widen a bound it failed to hit.
+  else move), INVARIANT (the never-break bar).
+- **The freeze rule, strengthened rather than inherited.** Review established
+  that the existing baseline guard is weaker than its docstring claimed:
+  `atelier verify --allow-uncommitted` is a public CLI flag, and `git status`
+  proves a file *clean*, not *old* — committing a widened bound defeats it.
+  (RFC 0006 §6 specified "dirty **or** newer than the tag"; only the first half
+  shipped. `verify.py`'s docstring is corrected here.) Contracts are pinned by
+  blob sha and commit ancestry instead.
+- **Freezing the *measurement*, not just the bound.** The counters ship in the
+  same PR as the change they score, so a builder that cannot move a number can
+  redefine it — reimplementing the promote counter without the born-accepted
+  branch reports 23 on a vault that still proposes 830, and passes every clause.
+  Counters are therefore thin wrappers over the production predicate, any
+  denominator is schema data (hard rule #3), and the metric diff is part of what
+  the critic accepts before implementation.
+- **One narrow supersession path.** Three goals are *defined* by reducing what
+  an invariant measures — auto-pass narrowing shrinks the accepted pool INV-4
+  guards — so left alone the invariants make them unshippable through the
+  harness built to ship them. A contract may name an invariant in `supersedes`
+  only with a matching exact INTENT bound and critic acceptance; the new
+  counters also land in a `metrics` block, never inside `census`, so INV-1 does
+  not silently become a no-shrink gate on the quantity a goal must reduce.
 - **A third snapshot class**: the per-run *round baseline*. The committed
   program anchor answers "have we drifted since the program began"; a single
   run's delta needs a *current* before-picture. The existing anchor is 19 days
@@ -29,10 +47,26 @@ because the quantity that actually changed is not in the baseline at all.
   (**active** pattern lines, not file existence — the defect RFC 0008 M4
   shipped), cross-project noise, and lens surface coverage.
 - **Convergence loop** with a critic gating the *contract*, a fixer that
-  receives only failing checks, and restore-and-escalate at round 3.
+  receives only failing checks, and abort-and-escalate at round 3 through both
+  rollback mechanisms (git for code, snapshot for the vault — the snapshot
+  restores the vault only, which the first draft conflated).
+- **A two-sided harness gate whose failing side runs through the vault.**
+  Injecting a fake delta into a synthetic dict exercises only the pure compare
+  function, so a counter hard-wired to zero passes *both* sides. The gate now
+  mints a throwaway claim and measures end-to-end, and contract evaluation
+  raises on an unknown metric key rather than resolving it to `0.0` — the
+  behaviour `_metric_not_regressed` has today, which would let a typo'd key
+  satisfy `{"eq": 0}` while proving nothing.
+- **PII posture for the new artifact classes** (hard rule #1): contracts carry
+  counts and metric names only, and the cross-project probe fixture — which
+  cannot be honest without naming real projects — lives out of tree under
+  `~/.atelier/`, with the counter abstaining loudly when it is absent.
 - Records what is **not** goal-able: claim truth-decay ("migration COMPLETE")
   has no labelled set, so no honest bound can be stated. Inventing one would
-  produce the vacuous PASS the whole RFC exists to prevent.
+  produce the vacuous PASS the whole RFC exists to prevent. The pending-review
+  goal was nearly cut for the same reason — "a tool exists" is satisfiable
+  while the 38-day tail rots — and survives only with a bound checkable against
+  the counter.
 
 ### Added — RFC 0008 M3: depth (mint stays 1:1; deep atomize is additive)
 

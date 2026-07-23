@@ -4,6 +4,36 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009 (draft): goal-driven delta contracts
+
+A design document only; no behaviour change. RFC 0006 P0 gave us a real
+verification harness, but every gate in it is **monotone** — "did not shrink,
+did not regress". The work that remains is subtractive (narrow a predicate,
+narrow auto-pass, scope a surface), and a monotone gate meets a deliberate
+reduction either by failing spuriously or — worse — by passing vacuously,
+because the quantity that actually changed is not in the baseline at all.
+
+- **Delta contract**: a goal declares its intended change *before* any code is
+  written; the verifier scores INTENT (did it happen), ENVELOPE (did anything
+  else move), INVARIANT (the never-break bar). The contract is committed and
+  hashed, and the verifier reads it from git — the same freeze rule
+  `verify.verify_against` already applies to the baseline, extended to the
+  target, so a builder cannot widen a bound it failed to hit.
+- **A third snapshot class**: the per-run *round baseline*. The committed
+  program anchor answers "have we drifted since the program began"; a single
+  run's delta needs a *current* before-picture. The existing anchor is 19 days
+  and +215 claims stale, which would bury a 23-claim intended delta in
+  unrelated drift.
+- **Five census counters** so the goals are observable at all — promote
+  eligibility, pending *age* (the tail, not the count), guard liveness
+  (**active** pattern lines, not file existence — the defect RFC 0008 M4
+  shipped), cross-project noise, and lens surface coverage.
+- **Convergence loop** with a critic gating the *contract*, a fixer that
+  receives only failing checks, and restore-and-escalate at round 3.
+- Records what is **not** goal-able: claim truth-decay ("migration COMPLETE")
+  has no labelled set, so no honest bound can be stated. Inventing one would
+  produce the vacuous PASS the whole RFC exists to prevent.
+
 ### Added — RFC 0008 M3: depth (mint stays 1:1; deep atomize is additive)
 
 The last milestone, and the one the measurement inverted. The draft would have

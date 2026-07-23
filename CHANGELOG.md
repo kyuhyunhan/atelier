@@ -4,6 +4,38 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0008 M3: depth (mint stays 1:1; deep atomize is additive)
+
+The last milestone, and the one the measurement inverted. The draft would have
+routed long memories away from the deterministic mint into LLM atomization —
+but 88% of the real backlog is "long", so that routing would push nearly every
+absorb into the expensive lane absorb exists to avoid, *and* discard the free
+curated claim sitting in each memory's `description`. Length therefore never
+changes the lane; depth is optional and human-directed.
+
+- **Derived claims inherit the Source's sensitivity, never widen it**
+  (`claims_io.atomize_write`). The `operational` domain default is public, so
+  deep-atomizing a Source that M4 demoted to `private` (a `type: user` memory,
+  or a PII-pattern hit) would have minted PUBLIC claims off its body — routing
+  the content M4 narrowed straight back toward proactive push. Sensitivity now
+  only ever TIGHTENS here, mirroring the dream-synthesis guard; abstain-on-miss
+  when the Source cannot be resolved (lint L8 remains the audit backstop).
+  `domain: personal` stays private regardless (Policy 1 unchanged).
+- **The atomize skill scopes operational Sources explicitly** (tas repo):
+  additive, on-request only, never on a backlog sweep — a minted Source already
+  has a derived Claim, so it never enters the un-atomized count. "Shallow vs
+  deep" is a judgement about whether a body has earned the tokens, not a
+  derived state the engine can nudge on.
+- Tests (7): a minted Source stays out of the atomize backlog (even at 400
+  words), long and short memories both mint, deep atomization leaves the mint
+  claim **byte-identical** while all claims share one Source, inheritance from
+  a `type: user` Source and from a PII-demoted Source, a public Source still
+  yielding public claims (the guard tightens only), and `domain: personal`
+  unaffected. Suite 717 → 724 green.
+
+**RFC 0008 complete** — M1 discovery, M4 safety, M2 supersession, M3 depth, all
+built, independently reviewed, and verified on the live vault.
+
 ### Added — RFC 0008 M2: supersession (path-indexed ledger)
 
 Closes the gap the M1/M4 hotfix could only *report*: an upstream memory edit

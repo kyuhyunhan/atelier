@@ -690,7 +690,8 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
       is resolve-or-created as a `Concept` (referential integrity: `is_about`
       always points at a real node).
     - defaults: knowledge claims are `sensitivity: public, surfacing: query,
-      generated_by: atomize`; personal ones `sensitivity: private`.
+      generated_by: atomize`; personal ones `sensitivity: private`. The Source's
+      OWN sensitivity is then inherited when it is stricter (RFC 0008 §5).
 
     Returns ``{entities_created, entities_reused, claims_written, claim_ids}``.
     """
@@ -698,6 +699,23 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
     if not source_entry_id:
         raise ValueError("atomize_write requires a source_entry_id")
     sensitivity = "private" if domain == "personal" else "public"
+    # RFC 0008 §5 — deep-atomizing an operational Source must not widen it.
+    # The domain default alone would mint PUBLIC claims off a Source that M4
+    # demoted to private (a `type: user` memory, or a PII-pattern hit), so the
+    # body's contents would reach proactive push by a side door. Sensitivity
+    # here only ever TIGHTENS, mirroring the dream synthesis guard below.
+    # Abstain-on-miss: an unresolvable Source changes nothing (lint L8 audits).
+    if sensitivity != "private":
+        src_path = find_source_by_entry_id(source_entry_id, vault)
+        if src_path is not None:
+            try:
+                src_fm, _ = _parse.split_frontmatter(
+                    Path(src_path).read_text(encoding="utf-8"))
+            except Exception:                   # pragma: no cover - defensive
+                src_fm = {}
+            if isinstance(src_fm, dict) and (
+                    str(src_fm.get("sensitivity") or "") == "private"):
+                sensitivity = "private"
 
     # Fail the whole batch up front on a malformed item — no half-written vault,
     # and a clear error naming the offender instead of a raw KeyError mid-loop.

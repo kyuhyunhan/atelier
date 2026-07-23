@@ -309,3 +309,115 @@ def test_unchanged_memory_still_dedups_cheaply(atelier_env: Dict) -> None:
     out = _ac.absorb(dry_run=False, source_root=root)
     assert len(out["deduped"]) == 1
     assert out["accepted"] == [] and out["candidates"] == []
+
+
+# ── review round 1: regressions the reviewer proved on live data ─────────────
+
+
+def test_migration_picks_the_latest_absorb_not_the_sort_order(
+        atelier_env: Dict) -> None:
+    """A path may carry several shas (absorbed, edited, absorbed again before
+    M2). The index must name the LATEST — `_save_ledger` writes sort_keys=True,
+    so the file is sha-lexicographic and 'last one wins' would crown an
+    arbitrary entry. Here the lexicographically-LAST sha is the OLDER absorb."""
+    legacy = {
+        "zzz-old": {"source_path": "/x/.claude/projects/-w-p/memory/m.md",
+                    "absorbed_at": "2026-05-28T00:00:00+00:00"},
+        "aaa-new": {"source_path": "/x/.claude/projects/-w-p/memory/m.md",
+                    "absorbed_at": "2026-07-22T00:00:00+00:00"},
+    }
+    out = _ac._migrate_ledger(legacy)
+    assert out["by_path"]["-w-p/m.md"] == "aaa-new"      # recency, not order
+    assert len(out["by_sha"]) == 2                       # history preserved
+
+
+def test_description_revert_does_not_leave_every_claim_retracted(
+        atelier_env: Dict) -> None:
+    """A→B→A: the claim for A still exists (the re-mint guard refuses to
+    rewrite it), but supersession retracted it when B took over. Without a
+    reversal the live memory would own nothing but retracted claims."""
+    root = _croot(atelier_env)
+    p = _seed(root, "-w-p1", "m1", description="wording A", body="v1\n")
+    first = _ac.absorb(dry_run=False, source_root=root)
+    a_path = Path(first["accepted"][0]["path"])
+
+    p.write_text(p.read_text().replace("wording A", "wording B")
+                 .replace("v1", "v2"), encoding="utf-8")
+    second = _ac.absorb(dry_run=False, source_root=root)
+    b_path = Path(second["accepted"][0]["path"])
+    assert _fm(a_path)["ac_status"] == "retracted"
+
+    # …and back again
+    p.write_text(p.read_text().replace("wording B", "wording A")
+                 .replace("v2", "v3"), encoding="utf-8")
+    _ac.absorb(dry_run=False, source_root=root)
+
+    assert _fm(a_path)["ac_status"] != "retracted"       # revived
+    assert _fm(a_path).get("unretracted_at")
+    assert _fm(b_path)["ac_status"] == "retracted"       # B now the stale one
+
+
+def test_a_curator_retraction_is_never_reversed(atelier_env: Dict) -> None:
+    """Only a retraction THIS mechanism authored may be undone — the vault's
+    judgement outranks the bookkeeping."""
+    root = _croot(atelier_env)
+    p = _seed(root, "-w-p1", "m1", description="wording A", body="v1\n")
+    first = _ac.absorb(dry_run=False, source_root=root)
+    a_path = Path(first["accepted"][0]["path"])
+    p.write_text(p.read_text().replace("wording A", "wording B")
+                 .replace("v1", "v2"), encoding="utf-8")
+    _ac.absorb(dry_run=False, source_root=root)
+
+    # the curator re-retracts A for their own reason
+    _mutate_claim(a_path, ac_status="retracted",
+                  archive_reason="curator: this was never a real lesson")
+
+    p.write_text(p.read_text().replace("wording B", "wording A")
+                 .replace("v2", "v3"), encoding="utf-8")
+    _ac.absorb(dry_run=False, source_root=root)
+    assert _fm(a_path)["ac_status"] == "retracted"       # respected
+    assert _fm(a_path)["archive_reason"].startswith("curator:")
+
+
+def test_shared_description_guard_survives_a_legacy_co_owner(
+        atelier_env: Dict) -> None:
+    """The guard reads the LIVE corpus, not the ledger: a pre-M2 entry records
+    no claim_id, so a ledger-only guard would not see that path as an owner and
+    would retract a claim another live memory still mints to."""
+    root = _croot(atelier_env)
+    shared = "a rule two projects share"
+    p1 = _seed(root, "-w-p1", "m1", description=shared, body="one\n")
+    _seed(root, "-w-p2", "m2", description=shared, body="two\n")
+    first = _ac.absorb(dry_run=False, source_root=root)
+    shared_path = Path(first["accepted"][0]["path"])
+
+    # simulate a pre-M2 absorb for p2: strip its claim_id from the ledger
+    led_path = atelier_env["gorae"] / ".absorbed-from-claude.json"
+    led = json.loads(led_path.read_text(encoding="utf-8"))
+    p2_sha = led["by_path"]["-w-p2/m2.md"]
+    led["by_sha"][p2_sha].pop("claim_id", None)
+    led_path.write_text(json.dumps(led, indent=2, sort_keys=True),
+                        encoding="utf-8")
+
+    p1.write_text(p1.read_text().replace(shared, "p1 diverges"),
+                  encoding="utf-8")
+    _ac.absorb(dry_run=False, source_root=root)
+    assert _fm(shared_path)["ac_status"] != "retracted"   # p2 still owns it
+
+
+def test_missing_source_is_recreated_not_silently_dropped(
+        atelier_env: Dict) -> None:
+    """A body-only revision whose Source was deleted out of band must not
+    advance the ledger while storing the revision nowhere."""
+    root = _croot(atelier_env)
+    p = _seed(root, "-w-p1", "m1", description="a rule", body="v1\n")
+    _ac.absorb(dry_run=False, source_root=root)
+    src_dir = atelier_env["gorae"] / _structure.operational_source_dir()
+    next(iter(src_dir.glob("*.md"))).unlink()
+    assert list(src_dir.glob("*.md")) == []
+
+    p.write_text(p.read_text().replace("v1", "v2 revised"), encoding="utf-8")
+    _ac.absorb(dry_run=False, source_root=root)
+    files = list(src_dir.glob("*.md"))
+    assert len(files) == 1
+    assert "v2 revised" in files[0].read_text(encoding="utf-8")

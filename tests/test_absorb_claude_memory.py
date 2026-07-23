@@ -285,10 +285,11 @@ def test_ledger_is_single_vault_root_json_file(atelier_env: Dict,
     assert set(data) == {"by_sha", "by_path"}
     assert len(data["by_sha"]) == 1
     (sha, rec), = data["by_sha"].items()
-    # the stale, unused `dest` field is dropped; claim_id is recorded so a
-    # later revision can supersede this claim
+    # the stale, unused `dest` field is dropped; claim_id + statement are
+    # recorded so a later revision can supersede this claim and locate its
+    # file in O(1)
     assert set(rec) == {"source_path", "absorbed_at", "project", "type",
-                        "claim_id"}
+                        "claim_id", "statement"}
     # the path key carries NO absolute path (the ledger is git-tracked and
     # must resolve on another machine)
     (key, indexed_sha), = data["by_path"].items()

@@ -47,7 +47,34 @@ re-mint guard) be dropped entirely.
   **byte-identical** across a body revision, Source refresh without forking,
   `by_path` advancement, retract + `refines`, promote-eligibility actually
   lost, the shared-description guard, description-only supersession, and
-  re-runs staying no-ops. Suite 695 → 711 green.
+  re-runs staying no-ops.
+- **Review round 1** — five fixes, three proven against the live ledger:
+  - *Migration crowned the wrong sha.* `_save_ledger` writes `sort_keys=True`,
+    so a legacy ledger is sha-lexicographic, not append-ordered; "last one
+    wins" picked an arbitrary entry. On the real ledger one path carries two
+    shas and the older (2026-05-28) was winning over the newer (2026-07-22) —
+    latent only because legacy entries lack `claim_id`, but the RFC's planned
+    backfill would have armed supersession against the stale one and retracted
+    the wrong claim. Winner is now max `absorbed_at`.
+  - *A→B→A left every claim retracted.* Reverting a description re-mints onto
+    the claim supersession had retracted; the re-mint guard (correctly) will
+    not rewrite it, so the live memory owned nothing but retracted claims.
+    A retraction **this mechanism authored** (identified by its
+    `archive_reason`) is now reversed to `pending`; a curator's retraction
+    never is.
+  - *The shared-description guard was defeated by legacy co-owners.* It read
+    the ledger, where pre-M2 entries carry no `claim_id` — with all 62 live
+    entries in that state it would have retracted claims another live memory
+    still mints to. Ownership is now computed from the **live upstream
+    corpus**, which is exact and vintage-independent.
+  - *`claim_path_for` was an O(vault) rglob+parse* — 7.7s on 6.5k claims, the
+    same per-item-O(vault) smell the 243s nudge regression just cost. The
+    writer's filename is deterministic, so it now probes the collision chain
+    and verifies the stored id: measured **7.6ms**. The ledger records each
+    absorb's `statement` to make that O(1) lookup possible.
+  - *A body-only revision whose Source was deleted out of band* advanced the
+    ledger while storing the revision nowhere; the Source is now re-created.
+  Suite 695 → 716 green.
 
 ### Fixed — absorb hotfix: project-slug divergence + re-mint lifecycle clobber
 

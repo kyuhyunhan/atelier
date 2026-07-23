@@ -508,25 +508,28 @@ def operational_claim_id_for(statement: str) -> str:
         derived_from=operational_source_id_for(statement))
 
 
-def claim_path_for(entry_id: str, *, vault: Optional[Path] = None
-                   ) -> Optional[str]:
-    """Locate an existing claim node by `entry_id`, or None. Scans the flat
-    claim dir; used by the supersession path, which runs at most once per
-    revised memory."""
+def claim_path_for(statement: str, entry_id: str, *,
+                   vault: Optional[Path] = None) -> Optional[str]:
+    """Locate an existing claim node by its (statement, entry_id), or None.
+
+    O(1): the writer's filename is deterministic — `{slug(statement)}-{eid[:8]}`
+    plus the `-N` collision suffix — so we probe those paths and verify the
+    stored `entry_id`, exactly as `write_operational_source` does. An
+    rglob+parse over the whole claim dir (6.5k files, seconds) would be the
+    same per-item-O(vault) cost the absorb path just paid 243s to remove."""
     vault = vault if vault is not None else vault_root()
     base = claims_dir(vault)
     if not base.exists():
         return None
-    for p in sorted(base.rglob("*.md")):
-        if p.name == "INDEX.md":
-            continue
-        try:
-            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
-        except Exception:                       # pragma: no cover - defensive
-            continue
-        if isinstance(fm, dict) and fm.get("entry_id") == entry_id:
+    stem = f"{_slugify(' '.join(str(statement).split()))}-{entry_id[:8]}"
+    n = 0
+    while True:
+        p = base / (f"{stem}.md" if n == 0 else f"{stem}-{n}.md")
+        if not p.exists():
+            return None                         # the collision chain ends here
+        if str(_safe_eid(p)) == entry_id:
             return str(p)
-    return None
+        n += 1
 
 
 def refresh_operational_source_body(*, statement: str, body: str,

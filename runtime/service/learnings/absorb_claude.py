@@ -275,14 +275,25 @@ def _migrate_ledger(data: Dict[str, Any]) -> Dict[str, Any]:
         data.setdefault("by_path", {})
         return data
     by_sha = {k: v for k, v in data.items() if isinstance(v, dict)}
-    by_path: Dict[str, str] = {}
+    # A path may carry SEVERAL shas (the memory was absorbed, edited, absorbed
+    # again before M2 existed). The index must name the LATEST, so pick by
+    # `absorbed_at` — NOT by iteration order: `_save_ledger` writes with
+    # sort_keys=True, so the file is sha-lexicographic and "last one wins"
+    # would crown an arbitrary (in practice, older) entry. Getting this wrong
+    # is not cosmetic: the RFC's claim_id backfill would then arm supersession
+    # against a stale entry and retract the wrong claim.
+    best: Dict[str, Tuple[str, str]] = {}       # key -> (absorbed_at, sha)
     for sha, entry in by_sha.items():
         sp = entry.get("source_path")
-        if isinstance(sp, str) and sp:
-            # Later entries win: the ledger is append-ordered, so the last
-            # write for a path is the most recent absorb of it.
-            by_path[memory_key(sp)] = sha
-    return {"by_sha": by_sha, "by_path": by_path}
+        if not (isinstance(sp, str) and sp):
+            continue
+        key = memory_key(sp)
+        stamp = str(entry.get("absorbed_at") or "")
+        prior = best.get(key)
+        if prior is None or stamp > prior[0]:
+            best[key] = (stamp, sha)
+    return {"by_sha": by_sha,
+            "by_path": {k: sha for k, (_stamp, sha) in best.items()}}
 
 
 def _load_ledger(vault: Path) -> Dict[str, Any]:
@@ -318,13 +329,19 @@ def _save_ledger(vault: Path, ledger: Dict[str, Any]) -> None:
     )
 
 
-def _ledger_entry(mem: ClaudeMemory) -> Dict[str, Any]:
-    return {
+def _ledger_entry(mem: ClaudeMemory, *, statement: str = "") -> Dict[str, Any]:
+    out: Dict[str, Any] = {
         "source_path": str(mem.src),
         "absorbed_at": _now_iso(),
         "project": mem.project,
         "type": mem.type,
     }
+    if statement:
+        # Kept so a later revision can locate this absorb's claim file in O(1)
+        # (the filename is f(slug(statement), entry_id)) without an
+        # O(vault) scan.
+        out["statement"] = statement
+    return out
 
 
 def _is_absorbed(ledger: Dict[str, Any], body_sha: str) -> bool:
@@ -347,22 +364,27 @@ def _previous_absorb(ledger: Dict[str, Any],
     return entry if isinstance(entry, dict) else None
 
 
-def _paths_owning_claim(ledger: Dict[str, Any], claim_id: str,
-                        *, excluding: str) -> List[str]:
-    """Other memory keys whose latest absorb produced the SAME claim_id.
+def _claim_owners(source_root: Path) -> Dict[str, List[str]]:
+    """claim_id → the memory keys that currently mint to it, computed from the
+    LIVE upstream corpus rather than the ledger.
 
-    Two memory files sharing one `description` collapse onto one
-    content-addressed claim, so retracting it because one of them was revised
-    would kill a claim the other still owns."""
-    by_sha = ledger.get("by_sha") or {}
-    out: List[str] = []
-    for key, sha in (ledger.get("by_path") or {}).items():
-        if key == excluding:
+    The ledger cannot answer this: a pre-M2 entry records no `claim_id`, and
+    with every legacy entry in that state a ledger-only guard would either
+    never fire (retracting claims another memory still owns) or always fire
+    (never retracting anything). The upstream files are authoritative and we
+    are walking them anyway — `claim_id` is a pure function of the memory's
+    description, so ownership is exact, current, and vintage-independent."""
+    owners: Dict[str, List[str]] = {}
+    for path in _iter_memories(source_root):
+        try:
+            mem = _read_memory(path, with_project=False)
+        except Exception:                       # pragma: no cover - defensive
             continue
-        entry = by_sha.get(sha)
-        if isinstance(entry, dict) and entry.get("claim_id") == claim_id:
-            out.append(key)
-    return out
+        if mem is None:                         # pragma: no cover
+            continue
+        cid = _claims.operational_claim_id_for(_statement_of(mem))
+        owners.setdefault(cid, []).append(memory_key(str(mem.src)))
+    return owners
 
 
 def _pii_patterns(path: Optional[Path] = None) -> List[re.Pattern]:
@@ -469,28 +491,28 @@ def nudge_info(*, now: Optional[str] = None,
     return {"due": due, "count": count, "short": short, "long": long}
 
 
-def _retract_superseded(ledger: Dict[str, Any], old_claim_id: str,
-                        this_key: str, *, new_claim_id: str,
-                        vault: Path) -> bool:
+def _retract_superseded(owners: Dict[str, List[str]], old_claim_id: str,
+                        this_key: str, *, old_statement: str,
+                        new_claim_id: str, vault: Path) -> bool:
     """Retract the claim a revision superseded (RFC 0008 §4 step 3).
 
-    GUARDED: if another memory file's latest absorb still resolves to the same
-    claim (two memories sharing one `description` collapse onto one
-    content-addressed claim), the claim is still OWNED by that live path — the
-    new claim links to it, but retracting would destroy a claim that is not
-    stale. Returns True when a retraction actually happened.
+    GUARDED: if another memory file still mints to the same claim (two
+    memories sharing one `description` collapse onto one content-addressed
+    claim), the claim is still OWNED by that live path — the new claim links
+    to it, but retracting would destroy a claim that is not stale. Returns
+    True when a retraction actually happened.
 
     Retraction goes through `ac_status: retracted` (`set_ac_status`), the same
     field every other retraction uses, so the claim leaves promote eligibility
     structurally rather than by a bespoke flag."""
-    others = _paths_owning_claim(ledger, old_claim_id, excluding=this_key)
+    others = [k for k in owners.get(old_claim_id, []) if k != this_key]
     if others:
         _log.warn("absorb.supersede-retract-skipped", claim=old_claim_id,
                   owned_by=others,
                   hint="another memory still resolves to this claim; linked "
                        "the new revision without retracting")
         return False
-    path = _claims.claim_path_for(old_claim_id, vault=vault)
+    path = _claims.claim_path_for(old_statement, old_claim_id, vault=vault)
     if not path:
         return False
     p = Path(path)
@@ -502,7 +524,44 @@ def _retract_superseded(ledger: Dict[str, Any], old_claim_id: str,
         return False
     _claims.set_ac_status(
         p, fm, body, new_status="retracted",
-        archive_reason=f"superseded by {new_claim_id} (upstream memory revised)")
+        archive_reason=(f"{_SUPERSEDE_REASON_PREFIX}{new_claim_id} "
+                        f"(upstream memory revised)"))
+    return True
+
+
+_SUPERSEDE_REASON_PREFIX = "superseded by "
+
+
+def _unretract_if_superseded(claim_path: str) -> bool:
+    """Reverse a retraction THIS mechanism authored, and only that one.
+
+    A description can come back (A→B→A). The claim for A still exists — the
+    re-mint guard correctly refuses to rewrite it — but supersession retracted
+    it when B took over, so without this the live memory would own nothing but
+    retracted claims. A curator's retraction carries a different (or no)
+    `archive_reason` and is never touched: the vault's judgement outranks the
+    mechanism's bookkeeping."""
+    p = Path(claim_path)
+    try:
+        fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+    except Exception:                           # pragma: no cover - defensive
+        return False
+    if not isinstance(fm, dict) or fm.get("ac_status") != "retracted":
+        return False
+    if not str(fm.get("archive_reason") or "").startswith(
+            _SUPERSEDE_REASON_PREFIX):
+        return False                            # a human retracted this
+    new_fm = dict(fm)
+    new_fm["ac_status"] = "pending"             # back for review, not passed
+    for k in ("archived_at", "archive_reason"):
+        new_fm.pop(k, None)
+    new_fm["unretracted_at"] = _now_iso()
+    new_fm.pop("content_hash", None)
+    new_fm["content_hash"] = _claims._content_hash(new_fm)
+    p.write_text(_claims._emit(new_fm, body), encoding="utf-8")
+    _log.warn("absorb.supersede-reverted", claim=claim_path,
+              hint="this description returned upstream; the supersession "
+                   "retraction was reversed (ac_status back to pending)")
     return True
 
 
@@ -539,6 +598,10 @@ def absorb(*, dry_run: bool = False,
     # the end (absorb is manual + single-writer, so read-modify-write is safe).
     ledger = _load_ledger(vault)
     ledger_dirty = False
+    # claim_id -> memory keys, from the LIVE corpus (see _claim_owners):
+    # the shared-description guard cannot be answered from the ledger,
+    # whose legacy entries carry no claim_id.
+    owners = _claim_owners(src_root)
 
     absorbed_accepted: List[Dict[str, str]] = []
     absorbed_candidates: List[Dict[str, str]] = []
@@ -598,12 +661,16 @@ def absorb(*, dry_run: bool = False,
         # so a body-only edit resolves to the very same nodes.
         prev = _previous_absorb(ledger, str(mem.src))
         prev_claim_id = (prev or {}).get("claim_id")
-        new_source_id = _claims.operational_source_id_for(statement)
+        # The superseded claim's own statement — needed to locate its file in
+        # O(1) (the writer's filename is f(slug(statement), id)). Recorded
+        # since M2; absent on a legacy entry, which therefore cannot supersede.
+        prev_statement = (prev or {}).get("statement") or ""
         new_claim_id = _claims.operational_claim_id_for(statement)
         # A body-only revision keeps the id; a description change moves it.
         body_only_revision = bool(prev) and prev_claim_id == new_claim_id
         supersedes = (prev_claim_id
-                      if (prev and prev_claim_id and not body_only_revision)
+                      if (prev and prev_claim_id and prev_statement
+                          and not body_only_revision)
                       else None)
 
         # RFC 0007: born-as-Source + deterministic mint. Each absorbed memory
@@ -624,9 +691,29 @@ def absorb(*, dry_run: bool = False,
             out = _claims.refresh_operational_source_body(
                 statement=statement, body=mem.body, body_sha=mem.body_sha,
                 revised_at=now, vault=vault)
-            refreshed = bool(out and out.get("changed"))
-            dest_repr = _claims.claim_path_for(new_claim_id, vault=vault) or ""
-            entry = _ledger_entry(mem)
+            if out is None:
+                # The Source is gone (deleted out of band). Refusing here would
+                # advance the ledger while storing the revision nowhere, so
+                # re-create it rather than silently lose the body.
+                _log.warn("absorb.source-missing-recreated",
+                          source_path=str(mem.src),
+                          hint="the operational Source for this memory was "
+                               "absent; re-created it from the revision")
+                _claims.write_operational_source(
+                    statement=statement, body=mem.body,
+                    attributed_to="absorbed", agent_kind="absorbed",
+                    hook="manual", captured_at=now, sensitivity=sensitivity,
+                    source_extra={"source_type": "claude-memory",
+                                  "source_path": str(mem.src),
+                                  "claude_memory_type": mem.type,
+                                  "body_sha": mem.body_sha},
+                    vault=vault)
+                refreshed = True
+            else:
+                refreshed = bool(out.get("changed"))
+            dest_repr = _claims.claim_path_for(statement, new_claim_id,
+                                              vault=vault) or ""
+            entry = _ledger_entry(mem, statement=statement)
             entry["claim_id"] = new_claim_id
             entry["revision_of"] = (prev or {}).get("absorbed_at")
             ledger["by_sha"][mem.body_sha] = entry
@@ -674,6 +761,14 @@ def absorb(*, dry_run: bool = False,
             claim = minted["claim"]
             dest_repr = claim["path"]
             claim_existed = bool(claim.get("existed"))
+            if claim_existed and supersedes:
+                # A→B→A: this description was used before, superseded away,
+                # and is now back. The claim still exists but WE retracted it
+                # on the way out — un-retract it, or the memory ends up with
+                # every one of its claims retracted while it is live. Only a
+                # supersession-authored retraction is reversed (identified by
+                # its archive_reason); a curator's retraction is never undone.
+                _unretract_if_superseded(dest_repr)
             if claim_existed and not supersedes:
                 # Not a known revision (no prior absorb of this path), yet the
                 # claim already exists — a DIFFERENT memory minted the same
@@ -685,9 +780,10 @@ def absorb(*, dry_run: bool = False,
                                "rewritten; this memory's body is not stored")
             if supersedes:
                 superseded = _retract_superseded(
-                    ledger, supersedes, memory_key(str(mem.src)),
+                    owners, supersedes, memory_key(str(mem.src)),
+                    old_statement=prev_statement,
                     new_claim_id=new_claim_id, vault=vault)
-            entry = _ledger_entry(mem)
+            entry = _ledger_entry(mem, statement=statement)
             entry["claim_id"] = new_claim_id
             if supersedes:
                 entry["supersedes"] = supersedes

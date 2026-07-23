@@ -74,7 +74,13 @@ re-mint guard) be dropped entirely.
     absorb's `statement` to make that O(1) lookup possible.
   - *A body-only revision whose Source was deleted out of band* advanced the
     ledger while storing the revision nowhere; the Source is now re-created.
-  Suite 695 → 716 green.
+  - *Authorship was matched on prose.* The reviewer proved a curator
+    retraction reading "superseded by my own better learning…" was silently
+    reversed. Authorship is now a STRUCTURAL field (`retracted_by:
+    absorb-supersession`), and `set_ac_status` — the single retraction
+    gateway — clears it on every transition, so a stale marker can never
+    outlive the retraction it described.
+  Suite 695 → 717 green.
 
 ### Fixed — absorb hotfix: project-slug divergence + re-mint lifecycle clobber
 

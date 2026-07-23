@@ -522,14 +522,25 @@ def _retract_superseded(owners: Dict[str, List[str]], old_claim_id: str,
         return False
     if not isinstance(fm, dict) or fm.get("ac_status") == "retracted":
         return False
-    _claims.set_ac_status(
+    new_fm = _claims.set_ac_status(
         p, fm, body, new_status="retracted",
         archive_reason=(f"{_SUPERSEDE_REASON_PREFIX}{new_claim_id} "
                         f"(upstream memory revised)"))
+    # Stamp authorship structurally so an A→B→A revert can tell OUR retraction
+    # from a curator's without pattern-matching their prose.
+    new_fm[_SUPERSEDE_MARKER] = _SUPERSEDE_ACTOR
+    new_fm.pop("content_hash", None)
+    new_fm["content_hash"] = _claims._content_hash(new_fm)
+    _claims._atomic_write(p, _claims._emit(new_fm, body))
     return True
 
 
 _SUPERSEDE_REASON_PREFIX = "superseded by "
+# A STRUCTURAL marker, not prose. `archive_reason` is free text a curator also
+# writes, so matching it would let a human retraction that merely begins
+# "superseded by …" be silently reversed by this mechanism.
+_SUPERSEDE_MARKER = "retracted_by"
+_SUPERSEDE_ACTOR = "absorb-supersession"
 
 
 def _unretract_if_superseded(claim_path: str) -> bool:
@@ -538,9 +549,9 @@ def _unretract_if_superseded(claim_path: str) -> bool:
     A description can come back (A→B→A). The claim for A still exists — the
     re-mint guard correctly refuses to rewrite it — but supersession retracted
     it when B took over, so without this the live memory would own nothing but
-    retracted claims. A curator's retraction carries a different (or no)
-    `archive_reason` and is never touched: the vault's judgement outranks the
-    mechanism's bookkeeping."""
+    retracted claims. A curator's retraction is never touched: the vault's
+    judgement outranks the mechanism's bookkeeping, so authorship is read from
+    the `retracted_by` field this mechanism stamps, never from free text."""
     p = Path(claim_path)
     try:
         fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
@@ -548,17 +559,16 @@ def _unretract_if_superseded(claim_path: str) -> bool:
         return False
     if not isinstance(fm, dict) or fm.get("ac_status") != "retracted":
         return False
-    if not str(fm.get("archive_reason") or "").startswith(
-            _SUPERSEDE_REASON_PREFIX):
+    if fm.get(_SUPERSEDE_MARKER) != _SUPERSEDE_ACTOR:
         return False                            # a human retracted this
     new_fm = dict(fm)
     new_fm["ac_status"] = "pending"             # back for review, not passed
-    for k in ("archived_at", "archive_reason"):
+    for k in ("archived_at", "archive_reason", _SUPERSEDE_MARKER):
         new_fm.pop(k, None)
     new_fm["unretracted_at"] = _now_iso()
     new_fm.pop("content_hash", None)
     new_fm["content_hash"] = _claims._content_hash(new_fm)
-    p.write_text(_claims._emit(new_fm, body), encoding="utf-8")
+    _claims._atomic_write(p, _claims._emit(new_fm, body))
     _log.warn("absorb.supersede-reverted", claim=claim_path,
               hint="this description returned upstream; the supersession "
                    "retraction was reversed (ac_status back to pending)")

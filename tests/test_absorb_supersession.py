@@ -368,15 +368,17 @@ def test_a_curator_retraction_is_never_reversed(atelier_env: Dict) -> None:
                  .replace("v1", "v2"), encoding="utf-8")
     _ac.absorb(dry_run=False, source_root=root)
 
-    # the curator re-retracts A for their own reason
-    _mutate_claim(a_path, ac_status="retracted",
-                  archive_reason="curator: this was never a real lesson")
+    # the curator re-retracts A for their own reason, through the real gateway
+    fm, body = split_frontmatter(a_path.read_text(encoding="utf-8"))
+    _claims.set_ac_status(a_path, fm, body, new_status="retracted",
+                          archive_reason="curator: never a real lesson")
 
     p.write_text(p.read_text().replace("wording B", "wording A")
                  .replace("v2", "v3"), encoding="utf-8")
     _ac.absorb(dry_run=False, source_root=root)
     assert _fm(a_path)["ac_status"] == "retracted"       # respected
     assert _fm(a_path)["archive_reason"].startswith("curator:")
+    assert "retracted_by" not in _fm(a_path)
 
 
 def test_shared_description_guard_survives_a_legacy_co_owner(
@@ -421,3 +423,30 @@ def test_missing_source_is_recreated_not_silently_dropped(
     files = list(src_dir.glob("*.md"))
     assert len(files) == 1
     assert "v2 revised" in files[0].read_text(encoding="utf-8")
+
+
+def test_a_curator_reason_that_mimics_the_mechanism_is_not_reversed(
+        atelier_env: Dict) -> None:
+    """Authorship must be STRUCTURAL. `archive_reason` is free text a curator
+    also writes, so a human retraction whose reason merely begins 'superseded
+    by …' must not be resurrected by the A→B→A path."""
+    root = _croot(atelier_env)
+    p = _seed(root, "-w-p1", "m1", description="wording A", body="v1\n")
+    first = _ac.absorb(dry_run=False, source_root=root)
+    a_path = Path(first["accepted"][0]["path"])
+    p.write_text(p.read_text().replace("wording A", "wording B")
+                 .replace("v1", "v2"), encoding="utf-8")
+    _ac.absorb(dry_run=False, source_root=root)
+    assert _fm(a_path).get("retracted_by") == "absorb-supersession"
+
+    # a human re-retracts through the real gateway, in prose that mimics the
+    # mechanism's wording
+    fm, body = split_frontmatter(a_path.read_text(encoding="utf-8"))
+    _claims.set_ac_status(a_path, fm, body, new_status="retracted",
+                          archive_reason="superseded by my own better learning")
+    assert "retracted_by" not in _fm(a_path)     # the stale marker is cleared
+
+    p.write_text(p.read_text().replace("wording B", "wording A")
+                 .replace("v2", "v3"), encoding="utf-8")
+    _ac.absorb(dry_run=False, source_root=root)
+    assert _fm(a_path)["ac_status"] == "retracted"     # respected

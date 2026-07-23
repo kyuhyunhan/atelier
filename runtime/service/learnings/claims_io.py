@@ -799,6 +799,13 @@ def set_ac_status(path: Path, fm: Dict[str, Any], body: str, *,
     """
     new_fm = dict(fm)
     new_fm["ac_status"] = new_status
+    # Any transition through this gateway invalidates a previous transition's
+    # authorship stamp. `retracted_by` is written by callers (absorb's
+    # supersession) IMMEDIATELY AFTER this returns, so clearing it here means a
+    # stale marker can never outlive the retraction it described — otherwise a
+    # curator re-retracting a machine-retracted claim would inherit the marker
+    # and see their judgement silently reversed later.
+    new_fm.pop("retracted_by", None)
     if new_status == "passed":
         new_fm["accepted_at"] = _now_iso()
     if new_status in ("failed", "retracted"):

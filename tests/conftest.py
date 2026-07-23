@@ -79,6 +79,14 @@ def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, P
     monkeypatch.setattr(_absorb, "_PII_PATTERNS_PATH",
                         home / "pii_patterns.txt")
 
+    # RFC 0009 §5.3: the guard-liveness metric reads the same out-of-vault file,
+    # so it needs the same isolation — otherwise a baseline generated in a test
+    # reports the developer's real pattern count and is not reproducible on
+    # another machine.
+    from runtime.service.learnings import metrics as _metrics
+    monkeypatch.setattr(_metrics, "_PII_PATTERNS_PATH",
+                        home / "pii_patterns.txt")
+
     return {"home": home, "gorae": workspace / "gorae",
             "workshop": workspace / "workshop", "cache": cache,
             "claude_projects": workspace / "claude_projects"}

@@ -1,0 +1,35 @@
+# Content-returning MCP surfaces — RFC 0009 §5.5.
+#
+# The DENOMINATOR of `lens_surface_coverage`. It lives here, not as a literal in
+# the counter, for the reason RFC 0009 §3.2 rule 2 gives: a builder graded on
+# "6 of 6 surfaces are lens-scoped" must not be able to reach the bar by
+# redefining what counts as a surface. Hard rule #3 — schema is data.
+#
+# A surface belongs here when it RETURNS VAULT CONTENT to a caller, i.e. its
+# result can carry claim/source/entity material that a lens would scope. Tools
+# that mutate, report status, or return counts are out of scope by construction:
+# `reindex`, `doctor`, `sync`, `lint`, `capture`, `promote_*`, `dream_*` never
+# hand back content a lens could filter.
+#
+# The NUMERATOR is not declared here — it is introspected from the live handler
+# signature (`runtime/service/tools.py:_h_<name>` accepting a `lens` parameter),
+# so this file cannot be used to claim coverage that the code does not have.
+version: 1
+
+surfaces:
+  - name: recall
+    why: the primary claim retrieval path; lens-scoped since RFC 0006 ③.
+  - name: search
+    why: full-text page search — returns raw page bodies across every domain.
+  - name: list_pages
+    why: enumerates pages; a personal page listed is a personal page disclosed.
+  - name: learning_search
+    why: >-
+      the legacy learnings surface. Operational-only today, so a lens is a
+      no-op for domain — but it is the axis RFC 0009 §5.4 adds `project` on.
+  - name: session_bootstrap
+    why: >-
+      pushes claims into a session unprompted. The highest-leverage surface to
+      scope, because the caller never asked for what it returns.
+  - name: think
+    why: reasons over retrieved claims; inherits whatever the retrieval returned.

@@ -4,6 +4,47 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009 G0a: the goal-program metrics
+
+The five quantities a *deliberate reduction* can be gated on, in a new
+`metrics` block of the baseline. They reproduce the RFC's §2 measurements
+exactly — promote eligibility 830 (knowledge 807 / operational 23), pending
+36 with a 38-day tail, zero active PII patterns, one lens-scoped surface of six.
+
+- **`metrics` is a sibling of `census`, never inside it.** INV-1 reads `census`
+  as a monotone "no node kind shrank" gate, so a counter a goal must drive
+  *down* would become a gate against its own goal if it landed there. A test
+  asserts the block is invisible to `_census_kind_totals`.
+- **Counters wrap the production predicate rather than re-implementing it.**
+  `promote_eligible` routes through `projection_counts` (already the thin
+  wrapper over `claims_io.is_promote_eligible`) with the same filesystem
+  fallback the feature uses — mandatory, because a cold DB answers `None` and
+  under the abstain rule a `None` becomes key-absence and aborts a run. The
+  divergence test asserts equality with `promote.propose._eligible`, and was
+  verified to FAIL against the specific attack the RFC names: re-implement as
+  `ac_status == 'passed'` and the born-accepted branch silently vanishes.
+- **`pending_age` takes `as_of` as a required parameter.** It is the one
+  wall-clock-derived metric; a counter reading the clock would give a different
+  verdict tomorrow on identical commits.
+- **`guard_liveness` counts active pattern lines**, and reports
+  `pii_file_present` separately — so the state RFC 0008 left unspecified (a file
+  that exists carrying only comments, reported healthy by every enforcement
+  point while scanning nothing) is visible as the disagreement it is.
+- **`lens_surface_coverage` splits its two halves by trust.** The denominator is
+  schema data (`schema/data/lens_surfaces.yaml`, hard rule #3) so it cannot be
+  shrunk to meet a bound; the numerator is introspected from the live handler
+  signature, so the schema file cannot claim coverage the code does not have.
+  Both directions are tested.
+- **`cross_project_noise` is deliberately absent** until its out-of-tree fixture
+  lands. Under the abstain rule that absence is the honest signal — a `0.0`
+  would pass a `≤ 0.15` ceiling and report green on a lens returning nothing.
+- `surfacing.audit()`/`snapshot()` gain a `vault` parameter. `baseline.generate`
+  passed one to `eval.run` and `census.census` but could not to this, so a
+  baseline taken against a temp vault silently read the live one for its
+  surfacing block — which also made the RFC's end-to-end self-test
+  unimplementable. `baseline.generate`/`write` gain `about`, since there is now
+  more than one program anchor.
+
 ### Added — RFC 0009 (draft): goal-driven delta contracts
 
 A design document only; no behaviour change. RFC 0006 P0 gave us a real

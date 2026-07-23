@@ -39,10 +39,20 @@ changes the lane; depth is optional and human-directed.
   claims existed — was invisible. It now flags a source that is private by
   domain (Policy 1) **or** by its own sensitivity (M4), and names which. L8 had
   no behavioural test at all (only a schema-wiring assertion); it has four now.
-  Zero new findings on the live vault. Suite 717 → 728 green.
+  Zero new findings on the live vault.
+- **The claim→claim half is closed too.** `write_synthesized_claim` has carried
+  the tighten-only guard since the dream cycle, but `principles.add` — the other
+  claim→claim synthesis path, and the one that writes at `proactive`/`always` —
+  did not: a principle generalized from private evidence landed **public** and
+  was pushed every turn. Both now call ONE shared
+  `claims_io.inherit_sensitivity_from_claims`, so a future synthesis path
+  cannot ship with a subtly different (or absent) copy. Suite 717 → 731 green.
 
 **RFC 0008 complete** — M1 discovery, M4 safety, M2 supersession, M3 depth, all
-built, independently reviewed, and verified on the live vault.
+built, independently reviewed, and verified on the live vault. The sensitivity
+invariant now has a write-time guard on every engine edge that derives a claim
+(Source→claim: mint, atomize; claim→claim: dream, principles) plus an audit
+half (lint L8) covering both the private-domain and private-sensitivity cases.
 
 ### Added — RFC 0008 M2: supersession (path-indexed ledger)
 

@@ -61,6 +61,30 @@ because the quantity that actually changed is not in the baseline at all.
   counts and metric names only, and the cross-project probe fixture — which
   cannot be honest without naming real projects — lives out of tree under
   `~/.atelier/`, with the counter abstaining loudly when it is absent.
+- **Every integrity root lives in the contract, the run's only git-pinned
+  artifact.** A second review round found that the mechanisms added in the first
+  had reintroduced the hole they closed: the round-baseline hash and contract
+  blob sha were recorded in a manifest under `~/.atelier/cache/`, which the
+  builder can rewrite alongside the artifact it attests to. The pins move into
+  the contract, and the capture-time HEAD they now carry doubles as the missing
+  proof that Snapshot preceded Implement.
+- **The out-of-tree fixture is pinned by content**, since a blob sha cannot
+  reach it — otherwise a builder rewrites the probe queries mid-run and the
+  cross-project ratio falls with no lens change shipped.
+- **Supersession is per-clause, and the invariant→metric map is schema data.**
+  Without a declared mapping, "a supersedes entry with a matching INTENT bound"
+  has no definition of *matching* — a contract could release the no-data-loss
+  gate while bounding an unrelated metric. Per-invariant supersession was also
+  too coarse: INV-4 gates two quantities, so releasing it for one silently stops
+  gating the other. The recall invariants read the same accepted pool, so they
+  are nameable too.
+- **The envelope is default-deny.** An enumerated list makes "nothing else
+  moved" a property of the contract author — the same problem one level up —
+  and moving the counters out of `census` removed the incidental monotone floor
+  they had been getting from INV-1.
+- **A raise is a hard abort, not a FAIL.** A broken pin or an unknown metric key
+  means the harness cannot be trusted for this run; retrying would let a builder
+  convert a broken integrity check into three chances at a green one.
 - Records what is **not** goal-able: claim truth-decay ("migration COMPLETE")
   has no labelled set, so no honest bound can be stated. Inventing one would
   produce the vacuous PASS the whole RFC exists to prevent. The pending-review

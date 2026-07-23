@@ -110,14 +110,16 @@ A contract is a small JSON document committed under `docs/goals/<id>.json`
   "id": "G2-promote-predicate",
   "goal": "Narrow promote eligibility to the operational lane.",
   "baseline": "docs/rfc/0009-baseline.json",
+  "pins": {
+    "before_sha256": "9f2c…",
+    "captured_at_head": "2a43ec4…",
+    "fixture_sha256": null
+  },
   "intent": [
     {"metric": "promote_eligible.total", "from": 830, "to": {"max": 30}},
     {"metric": "promote_eligible.by_domain.knowledge", "to": {"eq": 0}}
   ],
-  "envelope": [
-    {"metric": "census.claim.total", "unchanged": true},
-    {"metric": "vault.content_fingerprint", "unchanged": true}
-  ],
+  "envelope": {"mode": "default-deny", "waivers": []},
   "supersedes": [],
   "rubric": "P0"
 }
@@ -126,10 +128,22 @@ A contract is a small JSON document committed under `docs/goals/<id>.json`
 - **INTENT** — the declared change. Each entry names a metric and a bound
   (`eq` / `max` / `min` / `delta`). A goal that cannot state one is not ready to
   be a goal; it is still a discussion (§7).
-- **ENVELOPE** — what must *not* move, over the same metric namespace plus
-  `vault.content_fingerprint` (§5.7).
+- **ENVELOPE** — **default-deny, not an opt-in list.** Every metric in the
+  namespace that INTENT does not name must be unchanged, plus
+  `vault.content_fingerprint` (§5.7). A waiver names a metric and a reason and is
+  accepted by the critic.
+
+  An enumerated envelope makes the thesis ("nothing else moved") a property of
+  the contract *author*, which is the §3.2 problem one level up: a G3 contract
+  listing only lens metrics leaves `promote_eligible`, `pending_age`, and
+  `guard_liveness` unguarded. This matters more after §3.3 moves the counters out
+  of `census`, since that also removes the incidental monotone floor INV-1 was
+  giving them.
 - **INVARIANT** — not authored in the contract. The global gates apply to every
-  run; a contract may only *supersede* one under §3.3, never soften it silently.
+  run; a contract may only *supersede* a named clause under §3.3, never soften
+  one silently.
+- **`pins`** — the integrity roots (§3.1, §4.1, §5.6). They live *in the
+  contract* because the contract is the only git-pinned artifact in the run.
 
 ### 3.1 Freezing the target
 
@@ -145,17 +159,35 @@ A contract is a small JSON document committed under `docs/goals/<id>.json`
 
 So the contract is pinned by **content and ancestry**, not cleanliness:
 
-1. At the Snapshot stage the contract's git blob sha is recorded into the round
-   baseline artifact (§4) together with the commit that last modified it.
-2. The verifier re-reads the contract with `git show <blob-sha>` — never from the
-   working tree — and **fails closed** if the sha is absent from the repo or if
-   the recorded commit is not an ancestor of the implement stage's base.
+1. The verifier resolves the contract's git blob sha for `docs/goals/<id>.json`
+   at the run's recorded head and re-reads it with `git show <blob-sha>` — never
+   from the working tree.
+2. It **fails closed** if the blob is absent from the repo, or if the commit that
+   introduced it is not an ancestor of the implement stage's base.
 3. `--allow-uncommitted` is refused for contract-mode verification. Tests set an
    explicit env var instead, so the escape hatch cannot be typed by an agent
    following a workflow prompt.
 
-Without this the loop is self-grading with extra steps: a builder that cannot hit
-its bound can widen it.
+### 3.1.1 Where the pins live — and why not in a manifest
+
+An earlier revision recorded the contract sha and the round-baseline hash in a
+manifest under `~/.atelier/cache/goals/<id>/`. That reintroduces the hole it was
+meant to close: the directory is outside every git repo and is not covered by
+`snapshot create`, so a builder can rewrite the manifest and the artifact it
+attests to in one step, and every recomputation agrees.
+
+**The pins therefore live inside the contract**, which is the run's only
+git-pinned artifact. The ordering works because Snapshot precedes Contract (§6):
+the round baseline is captured first, and its hash and the capture-time `HEAD`
+are written into the contract before it is committed.
+
+That capture-time `HEAD` also supplies the missing ordering proof — nothing
+otherwise forces Snapshot to precede Implement. The verifier requires it to be an
+ancestor of the implement base and **not** to contain it, so a "before" captured
+after the change is structurally detectable.
+
+Without all of this the loop is self-grading with extra steps: a builder that
+cannot hit its bound can widen it, or re-measure until it fits.
 
 ### 3.2 Freezing the *measurement* (the harder half)
 
@@ -194,15 +226,30 @@ unshippable through the harness that exists to ship them:
   *kinds*. A counter landing at `census["promote_eligible"]` would silently become
   a monotone no-shrink gate on the exact quantity G2 must drive 830 → 23.
 
+A third case is easy to miss: the `self_probe` and `paraphrase` recall invariants
+are computed over that *same* accepted pool (`eval` enumerates it through
+`store.iter_accepted_files`). So G5 can fail `_metric_not_regressed` for the same
+structural reason it fails INV-4 — supersession must be able to name them too.
+
 Therefore:
 
 - **Invariants are computed over a fixed, named key set.** The new counters land
   in a sibling `metrics` block, never inside `census`, so INV-1 keeps meaning
-  "graph nodes did not vanish."
-- A contract may list an invariant in **`supersedes`**, which requires: the
-  reduction is *itself* an INTENT clause with an exact bound, a one-line reason,
-  and explicit critic acceptance. Superseding without a matching INTENT bound is
-  rejected at the Contract stage.
+  "graph nodes did not vanish." (Verified: `_census_kind_totals` is called only on
+  `before["census"]`/`after["census"]`, and no other check walks the baseline's
+  top level.)
+- **Supersession is per-clause, not per-invariant.** An entry names the invariant
+  *and the specific metric and direction* it releases — `INV-4 / surfacing.visible
+  / may-fall`. INV-4 gates two quantities; releasing it wholesale for a fall in
+  `visible` would silently stop gating `dark_count` as well.
+- **The invariant→metric map is schema data**, not prose — the same hard-rule-#3
+  argument §3.2 rule 2 makes for the `lens_surface_coverage` denominator. Without
+  a declared mapping, "a `supersedes` entry with a matching INTENT bound" has no
+  definition of *matching*: a contract could release `INV-1` while its exact
+  INTENT clause is `lens_surface_coverage.covered = 6` and pass mechanically,
+  disabling the no-data-loss gate for a run that never earned it.
+- Each entry additionally requires an INTENT clause **bounding the same metric**,
+  a one-line reason, and explicit critic acceptance.
 
 ---
 
@@ -243,8 +290,9 @@ overshoots (eligibility → 5, and 40 claims lost), re-captures the round baseli
 after the change, and `census.claim.total unchanged` compares the after-state to
 itself → PASS with 40 claims gone.
 
-So the round baseline is **content-hashed at capture**, and its hash is recorded
-in the same manifest as the contract blob sha (§3.1 step 1). The verifier
+So the round baseline is **content-hashed at capture**, and that hash goes into
+the contract's `pins.before_sha256` (§3.1.1) — not into a sibling manifest, which
+would leave the attestation as writable as the thing it attests to. The verifier
 recomputes the hash and fails closed on a mismatch.
 
 ### 4.2 Capture conditions, and what rollback actually covers
@@ -274,13 +322,17 @@ filesystem-fallback discipline, and land in a **`metrics` block** of the baselin
 — never inside `census` (§3.3).
 
 ### 5.1 `promote_eligible{total, by_domain}`
-A thin wrapper over `claims_io.is_promote_eligible` (§3.2 rule 1) — the predicate
-`promote.propose._eligible` already uses. Not derivable from the existing census
-(§1), which is why the largest goal is unobservable today.
+**Extend `projection_counts.promote_eligible()`, do not write a new counter.** It
+is already the thin wrapper over `claims_io.is_promote_eligible` that §3.2 rule 1
+prescribes, already carries the projection/filesystem parity discipline §11.1
+asks for, and lacks only the `by_domain` split. A second counter beside
+`census.py` would be a duplicate definition — precisely the divergence rule 1
+exists to prevent. What is missing today is its presence in the *baseline*, not
+its existence (§1).
 
 ### 5.2 `pending_age{count, p50, max}`
 Days between each `ac_status: pending` claim's `created_at` and the round
-baseline's frozen `as_of` (§4.2). Gates on the tail, not the count (§2.2).
+baseline's frozen `as_of` (§4.2). Gates on the tail, not the count (§2, point 2).
 
 ### 5.3 `guard_liveness{pii_active_patterns, ...}`
 Counts *active* (non-comment, non-blank) lines, not file existence. RFC 0008 §6
@@ -297,8 +349,16 @@ claims whose `project` is some other project. It generalizes
 that gate's known defect**, which must not be inherited: a probe returning nothing
 gives 0/0, and any `≤ x` bound passes while the lens returns nothing at all. So
 the metric carries `returned`, and a **minimum-yield precondition** (`returned ≥
-20` for the fixture below) is a gate, not a note. G3's bound is a number:
-`foreign_ratio ≤ 0.15` against today's measured 0.87.
+20`) is enforced **inside metric evaluation**, not left to a contract clause the
+author may omit — below the threshold the metric emits *no* `foreign_ratio` key,
+so §8.1.3's raise-on-unknown-key fires. G3's bound is a number: `foreign_ratio ≤
+0.15` against today's measured 0.87.
+
+**Abstention is key-absence, never a zero.** The natural implementation of "no
+fixture" or "too few hits" is `{"returned": 0, "foreign_ratio": 0.0}` — which
+*passes* a `≤ 0.15` bound and reports green on a lens that returns nothing. Every
+abstaining metric in this RFC omits its key instead, which is the only encoding
+that composes with §8.1.3.
 
 ### 5.5 `lens_surface_coverage{covered, total}`
 Content-returning MCP surfaces that accept and honour a `lens` argument — today
@@ -317,8 +377,21 @@ strings if left unspecified:
   must name real projects and realistic session queries — precisely the
   adopter-specific identifiers hard rule #1 forbids in repo content. The repo
   holds only anonymised ids (`p1`, `p2`) and the fixture's shape; the counter
-  abstains (and says so) when the fixture is absent, so CI on a fresh clone
-  neither fails nor silently reports green.
+  abstains by *omitting its key* (§5.4) when the fixture is absent, so CI on a
+  fresh clone neither fails nor silently reports green.
+
+  **Out of tree means unpinnable by §3.1 — so pin it by content.** The fixture is
+  the one measurement input §3.2 rule 3 requires frozen that a blob sha cannot
+  reach. Without a pin: the round baseline captures `foreign_ratio` at 0.87 with
+  fixture v1; during Implement the builder rewrites the queries to ones whose hits
+  are same-project; Verify reads `0.05` with `returned: 25` and both INTENT and
+  minimum-yield pass with no lens change shipped. So the fixture's sha256 goes
+  into `pins.fixture_sha256` in the committed, counts-only contract, and the
+  verifier recomputes it.
+
+  The fixture directory is also added to the snapshot's durable set
+  (`config.yaml`, `voices`, `secrets`, `pii_patterns.txt` today), so a round-3
+  restore can return a mutated fixture to its pre-run state.
 
 Note the ordering hazard: the pre-commit PII guard is what would catch a slip
 here, and G1 is what makes that guard live. Until G1 lands, these two rules are
@@ -351,19 +424,30 @@ is why `mtime` is safe there and not here.
 ```
 Snapshot    atelier snapshot create               (vault rollback point)
             reindex, then capture round baseline  (before.json + as_of)
-            record: contract blob sha, its commit, before.json hash
 Contract    author the delta contract  →  CRITIC must accept it
-            commit it, plus the metric diff and any fixture (§3.2 rule 3)
+            pins: before.json hash, capture-time HEAD, fixture sha256
+            commit it, plus the metric diff and the fixture (§3.2 rule 3)
             ← nothing is implemented before this
 Implement   builder agent
 Verify      independent verifier: INTENT + ENVELOPE + INVARIANT
-            contract re-read via `git show <blob-sha>`; before.json hash rechecked
+            contract re-read via `git show`; pins recomputed and checked
       ├─ PASS ────────────────────────────────────────────────→ Ship
       ├─ FAIL, round < 3 → FIXER agent gets ONLY the failing checks → Verify
-      └─ FAIL, round = 3 → discard the branch (code) + snapshot restore if the
-                           run mutated the vault → escalate, never merge
+      ├─ FAIL, round = 3 → discard the branch (code) + snapshot restore if the
+      │                    run mutated the vault → escalate, never merge
+      └─ RAISE (broken pin, unknown metric key, absent blob) → HARD ABORT
+                           does not consume a round, is never retried in-run,
+                           and never reaches Ship
 Ship        ship-pr (which runs its own independent review loop)
 ```
+
+**A raise is not a FAIL.** A failing check means the change missed its target and
+a fixer may try again. A raise means the *harness* cannot be trusted for this run
+— a pin that does not match, a metric key that does not exist, a contract blob
+that is not in the repo. Retrying inside the run would let a builder convert a
+broken integrity check into three chances at a green one, so the run aborts and
+escalates to a human. Amending the contract mid-run is therefore not a path: a new
+contract is a new run, with a new round baseline.
 
 Three properties, each deliberate:
 
@@ -371,6 +455,13 @@ Three properties, each deliberate:
   detected after the fact — by then the implementation defines the target. This is
   the cheapest stage to catch "this goal is not measurable yet," and under §3.2 it
   is also where the *measurement* is reviewed.
+
+  The critic is load-bearing for three decisions — envelope waivers, `supersedes`
+  entries, and the metric diff — so it is a **distinct agent from the builder**,
+  on RFC 0006's independent-verifier principle, and its acceptance is recorded
+  **in the committed contract** (a `critic` block naming what it accepted and
+  why). Recording it anywhere untracked would inherit §3.1.1's problem: an
+  attestation as writable as the thing it attests to.
 - **The fixer receives failing checks only**, not the builder's narrative. Handing
   over the builder's own account of what it did reintroduces the self-grading the
   independent-verifier stage exists to prevent.
@@ -444,7 +535,13 @@ So the gate is:
 1. an unchanged vault PASSes;
 2. a **real** injected delta (mint a throwaway claim; flip one `ac_status`),
    measured end-to-end through the same code path a real run uses, FAILs the
-   clause it violates; and
+   clause it violates. This requires one small fix first: `baseline.generate()`
+   passes `vault` to `eval.run()` and `census.census()` but calls
+   `surfacing.audit()` with no vault argument, and `audit`/`snapshot` resolve
+   `_vault_root()` internally — so an injection into a temp vault cannot move
+   `surfacing.*`. G0 parameterizes `audit()`; the alternative, minting into the
+   live vault behind the data-safety snapshot, is not worth the blast radius for
+   a self-test; and
 3. `evaluate` **raises** on an INTENT/ENVELOPE metric key absent from either
    snapshot. There is a live precedent for why: `_metric_not_regressed._get`
    returns `0.0` for an unresolved path, so a contract naming
@@ -479,14 +576,14 @@ RFC 0008's PII defect was a one-sided check that had never been shown to fail.
   `--allow-uncommitted`) **and** §3.2 — pinning the bound alone is insufficient
   when the grader's own measurement ships in the same PR.
 - **A measurable goal that measures the wrong thing.** The `pending` count-vs-age
-  case (§2.2) and the earlier G4 bound (§7) are the live examples. *Mitigation*:
+  case (§2, point 2) and the earlier G4 bound (§7) are the live examples. *Mitigation*:
   the critic's one job is to reject a bound satisfiable without achieving the goal.
 - **Vacuous pass inherited from the precedent.** §5.4 copies a gate that documents
   its own vacuous-pass. *Mitigation*: `returned` is part of the metric and the
   minimum-yield precondition is a gate.
 - **Two frozen baselines now exist.** A run diffing the wrong one gets meaningless
   results. *Mitigation*: the contract names its baseline explicitly; no default.
-- **Envelope scope.** Fingerprinting is cheap (0.27 s, §5.7); the real hazard is
+- **Envelope scope.** Fingerprinting is cheap (~1 s, §5.7); the real hazard is
   *what* it covers — `mtime` and derived files make it fail spuriously, and
   weakening it to a path-set check makes it blind.
 

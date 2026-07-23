@@ -8,7 +8,12 @@ takes no arguments that let a caller soften the bar beyond selecting the rubric.
 Two integrity guards:
 - **Frozen baseline.** It refuses to run against a baseline with uncommitted
   changes (`require_committed`), so nobody can regenerate the "before" *after* a
-  change and diff against themselves. (Skippable only in tests.)
+  change and diff against themselves. **Two known limits** (RFC 0009 §3.1, which
+  closes both for contract-mode runs): `atelier verify --allow-uncommitted` is a
+  public CLI flag, not a test-only affordance; and `git status` proves a file is
+  *clean*, not *old*, so committing a regenerated baseline defeats the guard.
+  RFC 0006 §6 specified "dirty **or** newer than the tag" — only the first
+  half shipped here.
 - **No self-grading.** The checks are fixed per rubric; a rubric can add checks
   but the global invariants (INV-1..4) always apply.
 

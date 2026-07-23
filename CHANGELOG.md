@@ -4,6 +4,123 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009 (draft): goal-driven delta contracts
+
+A design document only; no behaviour change. RFC 0006 P0 gave us a real
+verification harness, but every gate in it is **monotone** — "did not shrink,
+did not regress". The work that remains is subtractive (narrow a predicate,
+narrow auto-pass, scope a surface), and a monotone gate meets a deliberate
+reduction either by failing spuriously or — worse — by passing vacuously,
+because the quantity that actually changed is not in the baseline at all.
+
+- **Delta contract**: a goal declares its intended change *before* any code is
+  written; the verifier scores INTENT (did it happen), ENVELOPE (did anything
+  else move), INVARIANT (the never-break bar).
+- **The freeze rule, strengthened rather than inherited.** Review established
+  that the existing baseline guard is weaker than its docstring claimed:
+  `atelier verify --allow-uncommitted` is a public CLI flag, and `git status`
+  proves a file *clean*, not *old* — committing a widened bound defeats it.
+  (RFC 0006 §6 specified "dirty **or** newer than the tag"; only the first half
+  shipped. `verify.py`'s docstring is corrected here.) Contracts are pinned by
+  blob sha and commit ancestry instead.
+- **Freezing the *measurement*, not just the bound.** The counters ship in the
+  same PR as the change they score, so a builder that cannot move a number can
+  redefine it — reimplementing the promote counter without the born-accepted
+  branch reports 23 on a vault that still proposes 830, and passes every clause.
+  Counters are therefore thin wrappers over the production predicate, any
+  denominator is schema data (hard rule #3), and the metric diff is part of what
+  the critic accepts before implementation.
+- **One narrow supersession path.** Three goals are *defined* by reducing what
+  an invariant measures — auto-pass narrowing shrinks the accepted pool INV-4
+  guards — so left alone the invariants make them unshippable through the
+  harness built to ship them. A contract may name an invariant in `supersedes`
+  only with a matching exact INTENT bound and critic acceptance; the new
+  counters also land in a `metrics` block, never inside `census`, so INV-1 does
+  not silently become a no-shrink gate on the quantity a goal must reduce.
+- **A third snapshot class**: the per-run *round baseline*. The committed
+  program anchor answers "have we drifted since the program began"; a single
+  run's delta needs a *current* before-picture. The existing anchor is 19 days
+  and +215 claims stale, which would bury a 23-claim intended delta in
+  unrelated drift.
+- **Five census counters** so the goals are observable at all — promote
+  eligibility, pending *age* (the tail, not the count), guard liveness
+  (**active** pattern lines, not file existence — the defect RFC 0008 M4
+  shipped), cross-project noise, and lens surface coverage.
+- **Convergence loop** with a critic gating the *contract*, a fixer that
+  receives only failing checks, and abort-and-escalate at round 3 through both
+  rollback mechanisms (git for code, snapshot for the vault — the snapshot
+  restores the vault only, which the first draft conflated).
+- **A two-sided harness gate whose failing side runs through the vault.**
+  Injecting a fake delta into a synthetic dict exercises only the pure compare
+  function, so a counter hard-wired to zero passes *both* sides. The gate now
+  mints a throwaway claim and measures end-to-end, and contract evaluation
+  raises on an unknown metric key rather than resolving it to `0.0` — the
+  behaviour `_metric_not_regressed` has today, which would let a typo'd key
+  satisfy `{"eq": 0}` while proving nothing.
+- **PII posture for the new artifact classes** (hard rule #1): contracts carry
+  counts and metric names only, and the cross-project probe fixture — which
+  cannot be honest without naming real projects — lives out of tree under
+  `~/.atelier/`, with the counter abstaining loudly when it is absent.
+- **Every integrity root lives in the contract, the run's only git-pinned
+  artifact.** A second review round found that the mechanisms added in the first
+  had reintroduced the hole they closed: the round-baseline hash and contract
+  blob sha were recorded in a manifest under `~/.atelier/cache/`, which the
+  builder can rewrite alongside the artifact it attests to. The pins move into
+  the contract, and the capture-time HEAD they now carry doubles as the missing
+  proof that Snapshot preceded Implement.
+- **The out-of-tree fixture is pinned by content**, since a blob sha cannot
+  reach it — otherwise a builder rewrites the probe queries mid-run and the
+  cross-project ratio falls with no lens change shipped.
+- **Supersession is per-clause, and the invariant→metric map is schema data.**
+  Without a declared mapping, "a supersedes entry with a matching INTENT bound"
+  has no definition of *matching* — a contract could release the no-data-loss
+  gate while bounding an unrelated metric. Per-invariant supersession was also
+  too coarse: INV-4 gates two quantities, so releasing it for one silently stops
+  gating the other. The recall invariants read the same accepted pool, so they
+  are nameable too.
+- **The envelope is default-deny.** An enumerated list makes "nothing else
+  moved" a property of the contract author — the same problem one level up —
+  and moving the counters out of `census` removed the incidental monotone floor
+  they had been getting from INV-1.
+- **A raise is a hard abort, not a FAIL.** A broken pin or an unknown metric key
+  means the harness cannot be trusted for this run; retrying would let a builder
+  convert a broken integrity check into three chances at a green one. A *third*
+  round then found the raise over-applied: a lens change returning 18 rows
+  instead of 20 would have escalated as an integrity failure, so the fixer that
+  exists for "missed its target" would never run. Under-delivery is a FAIL;
+  raises are reserved for a broken pin, an absent fixture, and a key no counter
+  can emit.
+- **The envelope's namespace is defined, and it is a union.** "Everything else
+  unchanged" was asserted without ever saying what *else* ranges over — and the
+  document contradicted itself, since one failure narrative used a `census`
+  metric while the counters had been moved out of `census`. It is now the leaf
+  keys of `metrics`, `census`, `surfacing`, `eval` plus the fingerprint, over
+  `keys(before) ∪ keys(after)`: under intersection semantics, deleting a counter
+  would drop it out of the envelope — the same dodge default-deny had just
+  closed, one level down.
+- **Waivers carry a bound.** A waiver defined as "a metric and a reason" is the
+  enumerated envelope again, with an agent's judgement as the only thing between
+  them. This was not theoretical: the fingerprint is a mandatory namespace
+  member and INTENT bounds are numeric, so every vault-mutating goal must take
+  the waiver path — the hatch was the normal path. A waiver is now a
+  second-class INTENT clause, and a fingerprint waiver bounds changed-path count
+  and prefixes, so "repaired 12 links" stays distinguishable from "rewrote 400
+  files".
+- **The ordering claim is withdrawn and the trust boundary stated instead.** The
+  capture-time HEAD was described as making a late-captured baseline
+  "structurally detectable"; it does not — git ancestry orders commits, not the
+  work behind them, and the value is written by the graded party. The
+  orchestrator is trusted to sequence the stages; the pins detect tampering
+  *between* stages and prove nothing about their order. The pin survives as a
+  consistency check tightened to the contract commit's first parent, which
+  admits one value rather than any older commit the author picks.
+- Records what is **not** goal-able: claim truth-decay ("migration COMPLETE")
+  has no labelled set, so no honest bound can be stated. Inventing one would
+  produce the vacuous PASS the whole RFC exists to prevent. The pending-review
+  goal was nearly cut for the same reason — "a tool exists" is satisfiable
+  while the 38-day tail rots — and survives only with a bound checkable against
+  the counter.
+
 ### Added — RFC 0008 M3: depth (mint stays 1:1; deep atomize is additive)
 
 The last milestone, and the one the measurement inverted. The draft would have

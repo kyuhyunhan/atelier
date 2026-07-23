@@ -491,6 +491,89 @@ def write_operational_source(*, statement: str, body: str,
     return {"path": str(out), "entry_id": eid}
 
 
+def operational_source_id_for(statement: str) -> str:
+    """The content-addressed operational Source id a statement WOULD get —
+    computed, never written. RFC 0008 §4 step 1 requires deciding the
+    supersession branch before any write, because a same-id re-mint would
+    rebuild frontmatter from birth defaults."""
+    return operational_source_content_id(" ".join(str(statement).split()))
+
+
+def operational_claim_id_for(statement: str) -> str:
+    """The claim id a statement WOULD mint to (pure function, no write) —
+    `entry_id("claim", statement, <its operational source id>)`."""
+    statement = " ".join(str(statement).split())
+    return _structure.entry_id(
+        "claim", statement=statement,
+        derived_from=operational_source_id_for(statement))
+
+
+def claim_path_for(entry_id: str, *, vault: Optional[Path] = None
+                   ) -> Optional[str]:
+    """Locate an existing claim node by `entry_id`, or None. Scans the flat
+    claim dir; used by the supersession path, which runs at most once per
+    revised memory."""
+    vault = vault if vault is not None else vault_root()
+    base = claims_dir(vault)
+    if not base.exists():
+        return None
+    for p in sorted(base.rglob("*.md")):
+        if p.name == "INDEX.md":
+            continue
+        try:
+            fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
+        except Exception:                       # pragma: no cover - defensive
+            continue
+        if isinstance(fm, dict) and fm.get("entry_id") == entry_id:
+            return str(p)
+    return None
+
+
+def refresh_operational_source_body(*, statement: str, body: str,
+                                    body_sha: Optional[str] = None,
+                                    revised_at: Optional[str] = None,
+                                    vault: Optional[Path] = None,
+                                    ) -> Optional[Dict[str, Any]]:
+    """Update an EXISTING operational Source's body in place (RFC 0008 §4 §2).
+
+    The Source id is content-addressed by the *statement* alone, so an upstream
+    revision that keeps its description resolves to this same node — and
+    `write_operational_source` is create-once, which would silently drop the
+    revised body. Refreshing keeps the vault mirror faithful to its upstream
+    (copy-semantics) without touching the address.
+
+    ONLY the body and its revision markers change: `entry_id`, `created_at` and
+    every other frontmatter field are preserved, and `content_hash` is
+    re-derived. Returns {path, entry_id, changed} — or None when no Source
+    exists yet (the caller should mint instead).
+    """
+    vault = vault if vault is not None else vault_root()
+    statement = " ".join(str(statement).split())
+    eid = operational_source_content_id(statement)
+    base = vault / _structure.operational_source_dir()
+    if not base.exists():
+        return None
+    for path in sorted(base.glob(f"{_slugify(statement)}-{eid[:8]}*.md")):
+        try:
+            fm, old_body = _parse.split_frontmatter(
+                path.read_text(encoding="utf-8"))
+        except Exception:                       # pragma: no cover - defensive
+            continue
+        if not isinstance(fm, dict) or fm.get("entry_id") != eid:
+            continue
+        if old_body == body:
+            return {"path": str(path), "entry_id": eid, "changed": False}
+        new_fm = dict(fm)
+        if body_sha:
+            new_fm["body_sha"] = body_sha
+        new_fm["revised_at"] = revised_at or _now_iso()
+        new_fm.pop("content_hash", None)
+        new_fm["content_hash"] = _content_hash(new_fm)
+        _atomic_write(path, _emit(new_fm, body))
+        return {"path": str(path), "entry_id": eid, "changed": True}
+    return None
+
+
 def mint_operational_claim(*, statement: str, body: str,
                            observation_kind: str = "feedback",
                            why_status: str = "present",

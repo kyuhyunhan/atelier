@@ -4,6 +4,51 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0008 M2: supersession (path-indexed ledger)
+
+Closes the gap the M1/M4 hotfix could only *report*: an upstream memory edit
+used to mint a second claim and leave the first live and stale, or (after the
+re-mint guard) be dropped entirely.
+
+- **Machine-independent path index.** The ledger gains
+  `{by_sha, by_path}`; `by_path` keys are `<encoded-project-dir>/<filename>`,
+  never an absolute `~/.claude/...` path — the ledger is git-tracked so dedup
+  holds across machines, and an absolute key would never match elsewhere.
+  A legacy flat ledger migrates in place on read, deriving `by_path` from each
+  entry's own `source_path` (lossless, one-time). Entries without one simply
+  cannot supersede — forward-only, the posture RFC 0007 took with the anchor.
+- **Compute-then-branch, on the STATEMENT.** The claim id is
+  `f(statement, source_id)` and the operational Source id is `f(statement)`
+  alone, so the branch is decided before any write:
+  - *body-only revision* (statement unchanged → same ids): the Claim file is
+    **not written at all** — surfacing, `ac_status`, `accepted_at` and curated
+    `links` survive — and only the Source's body is refreshed in place
+    (`body_sha` updated, `revised_at` stamped, `entry_id`/`created_at` kept),
+    via the new `claims_io.refresh_operational_source_body`.
+  - *statement revision*: mint normally, carry the `refines → old_claim_id`
+    edge on the **new** claim, and retract the old one through
+    `ac_status: retracted` (`set_ac_status`) so it exits promote eligibility
+    through the same field every other retraction uses.
+- **Shared-description guard.** Two memories sharing one `description` collapse
+  onto one content-addressed claim; if another live path still resolves to it,
+  the retract is skipped (and warned) while the link is still recorded.
+- **A fourth case the RFC did not anticipate, found by the tests.** Dedup
+  hashes the BODY (frontmatter excluded), so re-titling a memory without
+  touching its content arrives with an *unchanged* hash — yet the statement IS
+  the description, so the claim id moves. Left alone it would strand the old
+  claim exactly as an un-superseded body edit would. absorb now compares the id
+  the statement resolves to against the one the ledger recorded (one uuid5 on
+  the dedup path) and supersedes when they differ.
+- absorb records report which branch a memory took: `body_refreshed`,
+  `supersedes`/`superseded`, or `revision_dropped` (a *different* memory
+  already owns this exact statement, so this body is stored nowhere).
+- Tests: 16 new covering the machine-independent key, ledger migration
+  (including idempotency and `source_path`-less entries), a promoted claim left
+  **byte-identical** across a body revision, Source refresh without forking,
+  `by_path` advancement, retract + `refines`, promote-eligibility actually
+  lost, the shared-description guard, description-only supersession, and
+  re-runs staying no-ops. Suite 695 → 711 green.
+
 ### Fixed — absorb hotfix: project-slug divergence + re-mint lifecycle clobber
 
 Two defects found by a whole-system evaluation of absorb after its first live

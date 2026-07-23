@@ -84,7 +84,36 @@ because the quantity that actually changed is not in the baseline at all.
   they had been getting from INV-1.
 - **A raise is a hard abort, not a FAIL.** A broken pin or an unknown metric key
   means the harness cannot be trusted for this run; retrying would let a builder
-  convert a broken integrity check into three chances at a green one.
+  convert a broken integrity check into three chances at a green one. A *third*
+  round then found the raise over-applied: a lens change returning 18 rows
+  instead of 20 would have escalated as an integrity failure, so the fixer that
+  exists for "missed its target" would never run. Under-delivery is a FAIL;
+  raises are reserved for a broken pin, an absent fixture, and a key no counter
+  can emit.
+- **The envelope's namespace is defined, and it is a union.** "Everything else
+  unchanged" was asserted without ever saying what *else* ranges over — and the
+  document contradicted itself, since one failure narrative used a `census`
+  metric while the counters had been moved out of `census`. It is now the leaf
+  keys of `metrics`, `census`, `surfacing`, `eval` plus the fingerprint, over
+  `keys(before) ∪ keys(after)`: under intersection semantics, deleting a counter
+  would drop it out of the envelope — the same dodge default-deny had just
+  closed, one level down.
+- **Waivers carry a bound.** A waiver defined as "a metric and a reason" is the
+  enumerated envelope again, with an agent's judgement as the only thing between
+  them. This was not theoretical: the fingerprint is a mandatory namespace
+  member and INTENT bounds are numeric, so every vault-mutating goal must take
+  the waiver path — the hatch was the normal path. A waiver is now a
+  second-class INTENT clause, and a fingerprint waiver bounds changed-path count
+  and prefixes, so "repaired 12 links" stays distinguishable from "rewrote 400
+  files".
+- **The ordering claim is withdrawn and the trust boundary stated instead.** The
+  capture-time HEAD was described as making a late-captured baseline
+  "structurally detectable"; it does not — git ancestry orders commits, not the
+  work behind them, and the value is written by the graded party. The
+  orchestrator is trusted to sequence the stages; the pins detect tampering
+  *between* stages and prove nothing about their order. The pin survives as a
+  consistency check tightened to the contract commit's first parent, which
+  admits one value rather than any older commit the author picks.
 - Records what is **not** goal-able: claim truth-decay ("migration COMPLETE")
   has no labelled set, so no honest bound can be stated. Inventing one would
   produce the vacuous PASS the whole RFC exists to prevent. The pending-review

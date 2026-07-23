@@ -128,10 +128,9 @@ A contract is a small JSON document committed under `docs/goals/<id>.json`
 - **INTENT** — the declared change. Each entry names a metric and a bound
   (`eq` / `max` / `min` / `delta`). A goal that cannot state one is not ready to
   be a goal; it is still a discussion (§7).
-- **ENVELOPE** — **default-deny, not an opt-in list.** Every metric in the
-  namespace that INTENT does not name must be unchanged, plus
-  `vault.content_fingerprint` (§5.7). A waiver names a metric and a reason and is
-  accepted by the critic.
+- **ENVELOPE** — **default-deny over a defined namespace** (§3.4). Every metric
+  the namespace contains and INTENT does not name must be unchanged. A waiver
+  releases one metric, and carries a **bound** (§3.5) — never a bare exemption.
 
   An enumerated envelope makes the thesis ("nothing else moved") a property of
   the contract *author*, which is the §3.2 problem one level up: a G3 contract
@@ -181,10 +180,27 @@ git-pinned artifact. The ordering works because Snapshot precedes Contract (§6)
 the round baseline is captured first, and its hash and the capture-time `HEAD`
 are written into the contract before it is committed.
 
-That capture-time `HEAD` also supplies the missing ordering proof — nothing
-otherwise forces Snapshot to precede Implement. The verifier requires it to be an
-ancestor of the implement base and **not** to contain it, so a "before" captured
-after the change is structurally detectable.
+**What `captured_at_head` is not: a proof of ordering.** An earlier draft claimed
+it made "a before captured after the change structurally detectable." It does not,
+and the claim had exactly the shape this section rejects — a pin whose *contents*
+are authored by the graded party, rather than a pin in a writable *location*. Git
+ancestry orders commits, not the work behind them, and it says nothing about when
+an out-of-tree `before.json` was written or when the vault was touched. A builder
+could mutate first, capture after, record any older commit, and satisfy every
+ancestry test.
+
+So the trust boundary is stated instead of papered over:
+
+> **The orchestrator is trusted to sequence Snapshot → Contract → Implement.**
+> Artifacts authored inside a stage are not self-attesting. The pins detect
+> *tampering with an artifact between stages*; they do not prove the stages ran in
+> order. Nothing short of an external timestamping authority would, and that is
+> not worth its weight here.
+
+`captured_at_head` is therefore a **consistency check**, tightened to remove its
+free variable: it must be exactly the contract commit's **first parent**, not
+merely some ancestor. "Some ancestor" admits any older commit the author picks;
+first-parent admits one value, so a mismatch is mechanical rather than a judgement.
 
 Without all of this the loop is self-grading with extra steps: a builder that
 cannot hit its bound can widen it, or re-measure until it fits.
@@ -233,11 +249,13 @@ structural reason it fails INV-4 — supersession must be able to name them too.
 
 Therefore:
 
-- **Invariants are computed over a fixed, named key set.** The new counters land
-  in a sibling `metrics` block, never inside `census`, so INV-1 keeps meaning
-  "graph nodes did not vanish." (Verified: `_census_kind_totals` is called only on
-  `before["census"]`/`after["census"]`, and no other check walks the baseline's
-  top level.)
+- **The new counters land in a sibling `metrics` block, never inside `census`**,
+  so INV-1 keeps meaning "graph nodes did not vanish." (Verified:
+  `_census_kind_totals` is called only on `before["census"]`/`after["census"]`,
+  and no other gate walks the baseline's top level.) Note this is *scoping*, not
+  a fixed key list — INV-1 iterates whatever `census.census()` returns, so the
+  schema-data invariant→metric map below must be revisited whenever a node kind
+  is added.
 - **Supersession is per-clause, not per-invariant.** An entry names the invariant
   *and the specific metric and direction* it releases — `INV-4 / surfacing.visible
   / may-fall`. INV-4 gates two quantities; releasing it wholesale for a fall in
@@ -252,6 +270,45 @@ Therefore:
   a one-line reason, and explicit critic acceptance.
 
 ---
+
+### 3.4 The metric namespace (what default-deny quantifies over)
+
+"Everything else must be unchanged" is meaningless without a defined *else*.
+
+- **The namespace** is the union of leaf keys under `metrics`, `census`,
+  `surfacing`, and `eval` in the baseline, plus the synthetic
+  `vault.content_fingerprint` (§5.7). It is not `metrics` alone: §4.1's own
+  failure narrative (a run that loses 40 claims) moves `census.claim.total`, and
+  under a `metrics`-only namespace nothing would catch it except INV-1's
+  shrink-only proxy — which is blind to a spurious *rise*, such as a mint loop.
+- **It is evaluated over `keys(before) ∪ keys(after)`, never the intersection.**
+  Under intersection semantics, *removing* a counter from the after-snapshot drops
+  it out of the envelope — the identical dodge §3's default-deny closes, one level
+  down.
+- **A key present in the union but missing from one side is a raise** (§6), not
+  an implicit pass. This is the same rule as §8.1.3 and the reason abstention is
+  encoded as key-absence (§5.4) rather than a zero.
+
+### 3.5 Waivers carry a bound
+
+A waiver specified as "a metric and a reason" is byte-for-byte the enumerated
+envelope default-deny replaced, with an agent's judgement as the only thing
+between them. Compare `supersedes` (§3.3), which is hardened with a schema-data
+map, a matching INTENT bound, per-clause scope, a reason *and* critic acceptance:
+the weaker mechanism must not reach the stronger outcome.
+
+**A waiver is therefore a second-class INTENT clause** — it names a metric, a
+*bound*, and a reason, and the metric stays measured. It relaxes what the value
+must be; it never stops looking.
+
+This is load-bearing rather than theoretical, because `vault.content_fingerprint`
+is a mandatory namespace member while INTENT bounds are numeric — a hash cannot be
+an INTENT clause. Any vault-mutating goal therefore needs the waiver path, so it
+is the normal path, not the exception. G5 (wiki-link repair) rewrites vault
+markdown by definition. Its fingerprint waiver bounds
+`vault.changed_paths{count, prefixes}`: *"≤ 30 files, all under `graph/atomic/`"*
+— which distinguishes "repaired 12 links" from "rewrote 400 files", the exact
+discrimination a bare exemption throws away.
 
 ## 4. Snapshots — three classes
 
@@ -324,11 +381,16 @@ filesystem-fallback discipline, and land in a **`metrics` block** of the baselin
 ### 5.1 `promote_eligible{total, by_domain}`
 **Extend `projection_counts.promote_eligible()`, do not write a new counter.** It
 is already the thin wrapper over `claims_io.is_promote_eligible` that §3.2 rule 1
-prescribes, already carries the projection/filesystem parity discipline §11.1
-asks for, and lacks only the `by_domain` split. A second counter beside
+prescribes, and lacks only the `by_domain` split. A second counter beside
 `census.py` would be a duplicate definition — precisely the divergence rule 1
 exists to prevent. What is missing today is its presence in the *baseline*, not
 its existence (§1).
+
+One wrinkle: it returns `Optional[int]` and answers `None` on a cold DB — the
+filesystem fallback lives one level up, in `promote.propose.eligible_count`. Since
+abstention is key-absence and key-absence raises, the baseline counter must route
+through that fallback rather than emit `None`. §4.2's "reindex before capture"
+covers it operationally; the fallback is what covers it structurally.
 
 ### 5.2 `pending_age{count, p50, max}`
 Days between each `ac_status: pending` claim's `created_at` and the round
@@ -359,6 +421,18 @@ fixture" or "too few hits" is `{"returned": 0, "foreign_ratio": 0.0}` — which
 *passes* a `≤ 0.15` bound and reports green on a lens that returns nothing. Every
 abstaining metric in this RFC omits its key instead, which is the only encoding
 that composes with §8.1.3.
+
+**But key-absence must not collapse three conditions into one signal.** Absence
+routes to a raise (§6), and a raise is a hard abort — so a lens change that
+under-delivers (18 hits, not 20) would escalate as a *harness integrity failure*
+and the fixer, which exists for exactly "the change missed its target", would
+never run. The three conditions are distinguished:
+
+| condition | signal | outcome |
+|---|---|---|
+| fixture absent (environmental) | metric omitted, reason recorded | raise |
+| too few hits (change under-delivered) | `returned` present, `foreign_ratio` omitted | **FAIL** — fixer-addressable |
+| contract names a key no counter can emit | absent from both snapshots | raise |
 
 ### 5.5 `lens_surface_coverage{covered, total}`
 Content-returning MCP surfaces that accept and honour a `lens` argument — today
@@ -391,7 +465,9 @@ strings if left unspecified:
 
   The fixture directory is also added to the snapshot's durable set
   (`config.yaml`, `voices`, `secrets`, `pii_patterns.txt` today), so a round-3
-  restore can return a mutated fixture to its pre-run state.
+  restore can return a mutated fixture to its pre-run state. `~/.atelier/cache/`
+  deliberately stays out: the round baseline is hash-pinned and single-use, so a
+  restore would have nothing to return it *to*.
 
 Note the ordering hazard: the pre-commit PII guard is what would catch a slip
 here, and G1 is what makes that guard live. Until G1 lands, these two rules are
@@ -460,8 +536,14 @@ Three properties, each deliberate:
   entries, and the metric diff — so it is a **distinct agent from the builder**,
   on RFC 0006's independent-verifier principle, and its acceptance is recorded
   **in the committed contract** (a `critic` block naming what it accepted and
-  why). Recording it anywhere untracked would inherit §3.1.1's problem: an
-  attestation as writable as the thing it attests to.
+  why). Recording it anywhere untracked would make the record non-durable.
+
+  Durable is not unforgeable, and the difference matters because the critic is
+  load-bearing for the two softest gates (waivers, `supersedes`): the contract is
+  one file, and whoever commits it can write the block. So the **orchestrator**
+  writes it from the critic agent's return value — the builder never does. This is
+  the same trust boundary §3.1.1 states, and it is where the honest limit of the
+  mechanism sits.
 - **The fixer receives failing checks only**, not the builder's narrative. Handing
   over the builder's own account of what it did reintroduces the self-grading the
   independent-verifier stage exists to prevent.
@@ -600,18 +682,29 @@ RFC 0008's PII defect was a one-sided check that had never been shown to fail.
    no I/O and no mutation, and **raises** on an unknown metric key (§8.1.3).
 4. **Two-sided harness gate** — §8.1, with the failing side injected into the
    vault and measured end-to-end.
-5. **Freeze guards** — verification against a contract whose blob sha is absent,
-   whose commit is not an ancestor of the implement base, or whose round baseline
-   hash mismatches, all raise. `--allow-uncommitted` is refused in contract mode.
-6. **Invariant supersession** — a `supersedes` entry without a matching INTENT
+5. **Freeze guards** — verification raises when the contract blob is absent from
+   the repo, when `captured_at_head` is not the contract commit's **first parent**
+   (including the late-capture case: a valid-but-older ancestor must still raise),
+   when `before_sha256` mismatches, or when `fixture_sha256` mismatches.
+   `--allow-uncommitted` is refused in contract mode.
+6. **Envelope namespace** — a metric that moves in `census`, `surfacing`, `eval`,
+   or `metrics` without an INTENT clause or a waiver FAILs; a key present in one
+   snapshot and absent from the other raises (union semantics, §3.4), so dropping
+   a counter cannot dodge the envelope.
+7. **Waivers are bounded** — a waiver without a bound is rejected at the Contract
+   stage; a bounded fingerprint waiver FAILs when `vault.changed_paths` exceeds
+   its count or escapes its prefixes.
+8. **Signal separation** — a min-yield shortfall FAILs (and is fixer-addressable);
+   an absent fixture and an unknown metric key raise (§5.4).
+9. **Invariant supersession** — a `supersedes` entry without a matching INTENT
    bound is rejected at the Contract stage; INV-1 is proven not to see the new
    `metrics` block (§3.3).
-7. **Fingerprint stability** — a `reindex` that rewrites `INDEX.md` and touches
+10. **Fingerprint stability** — a `reindex` that rewrites `INDEX.md` and touches
    `mtime` without changing content leaves `vault.content_fingerprint` unchanged;
    a one-byte edit to one claim changes it (§5.7).
-8. **Reproducibility** — with `as_of` frozen, re-running the verifier on identical
+11. **Reproducibility** — with `as_of` frozen, re-running the verifier on identical
    commits a day later yields an identical verdict (§4.2).
-9. **Loop termination** — the workflow aborts and escalates at round 3 rather than
+12. **Loop termination** — the workflow aborts and escalates at round 3 rather than
    looping or merging, and restores both mechanisms (§4.2).
-10. **Full suite green** — `ATELIER_EMBED=off python3 -m pytest -q` (731 at the
+13. **Full suite green** — `ATELIER_EMBED=off python3 -m pytest -q` (731 at the
     time of writing).

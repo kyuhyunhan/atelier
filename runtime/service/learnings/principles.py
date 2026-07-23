@@ -247,12 +247,21 @@ def add(*, title: str, rule: str, why: str,
             vault=vault)
         source_eid = src["entry_id"]
 
+    # The same tighten-only guard the dream synthesis uses, through the ONE
+    # shared implementation: a principle generalized from private evidence
+    # would otherwise land public at proactive/always and be pushed every turn
+    # — the claim→claim half of the personal invariant. Evidence-less
+    # principles have no upstream, so this is a no-op for them.
+    sensitivity = _claims.inherit_sensitivity_from_claims(
+        "public", list(source_entry_ids or []), vault=vault)
+
     claim = _claims.write_operational_claim(
         statement=statement, source_entry_id=source_eid, body=body,
         generated_by="dream" if status == "proposed" else "promote",
         attributed_to="curator", agent_kind="curator",
         hook="principle-add", observation_kind="feedback",
         why_status="present" if (why or "").strip() else "missing",
+        sensitivity=sensitivity,
         surfacing=surfacing, ac_status=ac_status,
         extra=extra, vault=vault,
     )

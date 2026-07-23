@@ -18,13 +18,20 @@ from runtime.service.learnings import cluster as _cl
 from runtime.structure import resolver as _structure
 
 
-def _write_source(vault: Path, name: str, domain: str) -> str:
+def _write_source(vault: Path, name: str, domain: str,
+                  sensitivity: str = "private") -> str:
+    # `sensitivity` defaults to private because personal sources are, but it is
+    # a PARAMETER: L8 checks the source's own sensitivity as well as its domain
+    # (RFC 0008 M4 demotes an operational source without moving its domain), so
+    # a fixture that marks every source private cannot exercise the
+    # "non-private source is fine" case it means to.
     eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"src-{name}"))
     p = vault / "raw" / domain / f"{name}.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
         f"---\nschema_version: 7\nentry_id: {eid}\nkind: source\n"
-        f"domain: {domain}\nsensitivity: private\ntitle: {name}\n---\n\nbody {name}\n",
+        f"domain: {domain}\nsensitivity: {sensitivity}\ntitle: {name}\n"
+        f"---\n\nbody {name}\n",
         encoding="utf-8")
     return eid
 
@@ -66,9 +73,9 @@ def test_L8_green_when_personal_claim_is_private(atelier_env: Dict) -> None:
     src = _write_source(vault, "diary2", "personal")
     _write_claim(vault, "safe", derived_from=src,
                  domain="personal", sensitivity="private")   # the invariant held
-    know = _write_source(vault, "kdoc", "knowledge")
+    know = _write_source(vault, "kdoc", "knowledge", sensitivity="public")
     _write_claim(vault, "know", derived_from=know,
-                 domain="knowledge", sensitivity="public")   # non-private domain: fine
+                 domain="knowledge", sensitivity="public")   # public source: fine
     _api.reindex(space="gorae", full=True)
 
     out = _api.lint(rule_ids=["L8"])
@@ -116,3 +123,49 @@ def test_dream_guard_abstains_on_unresolvable_upstream(atelier_env: Dict) -> Non
         vault=vault)
     fm, _ = _claims.read_claim(Path(out["path"]))
     assert fm["sensitivity"] == "public"                     # abstain-on-miss
+
+
+# ── the claim→claim half: principle synthesis must not launder ──────────────
+#
+# `write_synthesized_claim` has had the tighten-only guard since the dream
+# cycle shipped, but `principles.add` — the other claim→claim synthesis path,
+# and the one that writes at proactive/always — did not. A principle
+# generalized from private evidence would land PUBLIC and be pushed every turn.
+# Both now go through one shared implementation.
+
+
+def test_principle_from_private_evidence_inherits_private(atelier_env: Dict) -> None:
+    from runtime.service.learnings import principles as _p
+    vault = Path(_cl._vault_root())
+    src = _write_source(vault, "diary-ev", "personal")
+    ev = _write_claim(vault, "evidence", derived_from=src,
+                      domain="personal", sensitivity="private")
+
+    out = _p.add(title="A generalization drawn from private evidence",
+                 rule="when X, do Y", why="because Z",
+                 source_entry_ids=[ev], status="proposed")
+    fm, _ = _claims.read_claim(Path(out["path"]))
+    assert fm["sensitivity"] == "private"
+
+
+def test_principle_from_public_evidence_stays_public(atelier_env: Dict) -> None:
+    """Tighten-only: the guard must not make every principle private."""
+    from runtime.service.learnings import principles as _p
+    vault = Path(_cl._vault_root())
+    src = _write_source(vault, "kdoc-ev", "knowledge", sensitivity="public")
+    ev = _write_claim(vault, "pub-evidence", derived_from=src,
+                      domain="knowledge", sensitivity="public")
+
+    out = _p.add(title="A generalization drawn from public evidence",
+                 rule="when A, do B", why="because C",
+                 source_entry_ids=[ev], status="proposed")
+    fm, _ = _claims.read_claim(Path(out["path"]))
+    assert fm["sensitivity"] == "public"
+
+
+def test_evidence_less_principle_is_unaffected(atelier_env: Dict) -> None:
+    from runtime.service.learnings import principles as _p
+    out = _p.add(title="A principle with no evidence at all",
+                 rule="when P, do Q", why="because R", status="accepted")
+    fm, _ = _claims.read_claim(Path(out["path"]))
+    assert fm["sensitivity"] == "public"

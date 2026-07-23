@@ -4,6 +4,56 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0008 M3: depth (mint stays 1:1; deep atomize is additive)
+
+The last milestone, and the one the measurement inverted. The draft would have
+routed long memories away from the deterministic mint into LLM atomization —
+but 88% of the real backlog is "long", so that routing would push nearly every
+absorb into the expensive lane absorb exists to avoid, *and* discard the free
+curated claim sitting in each memory's `description`. Length therefore never
+changes the lane; depth is optional and human-directed.
+
+- **Derived claims inherit the Source's sensitivity, never widen it**
+  (`claims_io.atomize_write`). The `operational` domain default is public, so
+  deep-atomizing a Source that M4 demoted to `private` (a `type: user` memory,
+  or a PII-pattern hit) would have minted PUBLIC claims off its body — routing
+  the content M4 narrowed straight back toward proactive push. Sensitivity now
+  only ever TIGHTENS here, mirroring the dream-synthesis guard; abstain-on-miss
+  when the Source cannot be resolved (lint L8 remains the audit backstop).
+  `domain: personal` stays private regardless (Policy 1 unchanged).
+- **The atomize skill scopes operational Sources explicitly** (out of tree):
+  additive, on-request only, never on a backlog sweep — a minted Source already
+  has a derived Claim, so it never enters the un-atomized count. "Shallow vs
+  deep" is a judgement about whether a body has earned the tokens, not a
+  derived state the engine can nudge on.
+- Tests (7): a minted Source stays out of the atomize backlog (even at 400
+  words), long and short memories both mint, deep atomization leaves the mint
+  claim **byte-identical** while all claims share one Source, inheritance from
+  a `type: user` Source and from a PII-demoted Source (claims **and** the
+  entities minted alongside them), a public Source still yielding public claims
+  (the guard tightens only), and `domain: personal` unaffected.
+- **Lint L8 now audits what it claimed to.** Its predicate matched only a
+  private *domain*, so a public claim derived from a `sensitivity: private`
+  **operational** Source — exactly the abstain-on-miss case the write-time
+  guard leaves to lint, plus any pre-M3 mint or a Source demoted after its
+  claims existed — was invisible. It now flags a source that is private by
+  domain (Policy 1) **or** by its own sensitivity (M4), and names which. L8 had
+  no behavioural test at all (only a schema-wiring assertion); it has four now.
+  Zero new findings on the live vault.
+- **The claim→claim half is closed too.** `write_synthesized_claim` has carried
+  the tighten-only guard since the dream cycle, but `principles.add` — the other
+  claim→claim synthesis path, and the one that writes at `proactive`/`always` —
+  did not: a principle generalized from private evidence landed **public** and
+  was pushed every turn. Both now call ONE shared
+  `claims_io.inherit_sensitivity_from_claims`, so a future synthesis path
+  cannot ship with a subtly different (or absent) copy. Suite 717 → 731 green.
+
+**RFC 0008 complete** — M1 discovery, M4 safety, M2 supersession, M3 depth, all
+built, independently reviewed, and verified on the live vault. The sensitivity
+invariant now has a write-time guard on every engine edge that derives a claim
+(Source→claim: mint, atomize; claim→claim: dream, principles) plus an audit
+half (lint L8) covering both the private-domain and private-sensitivity cases.
+
 ### Added — RFC 0008 M2: supersession (path-indexed ledger)
 
 Closes the gap the M1/M4 hotfix could only *report*: an upstream memory edit

@@ -18,13 +18,20 @@ from runtime.service.learnings import cluster as _cl
 from runtime.structure import resolver as _structure
 
 
-def _write_source(vault: Path, name: str, domain: str) -> str:
+def _write_source(vault: Path, name: str, domain: str,
+                  sensitivity: str = "private") -> str:
+    # `sensitivity` defaults to private because personal sources are, but it is
+    # a PARAMETER: L8 checks the source's own sensitivity as well as its domain
+    # (RFC 0008 M4 demotes an operational source without moving its domain), so
+    # a fixture that marks every source private cannot exercise the
+    # "non-private source is fine" case it means to.
     eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"src-{name}"))
     p = vault / "raw" / domain / f"{name}.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
         f"---\nschema_version: 7\nentry_id: {eid}\nkind: source\n"
-        f"domain: {domain}\nsensitivity: private\ntitle: {name}\n---\n\nbody {name}\n",
+        f"domain: {domain}\nsensitivity: {sensitivity}\ntitle: {name}\n"
+        f"---\n\nbody {name}\n",
         encoding="utf-8")
     return eid
 
@@ -66,9 +73,9 @@ def test_L8_green_when_personal_claim_is_private(atelier_env: Dict) -> None:
     src = _write_source(vault, "diary2", "personal")
     _write_claim(vault, "safe", derived_from=src,
                  domain="personal", sensitivity="private")   # the invariant held
-    know = _write_source(vault, "kdoc", "knowledge")
+    know = _write_source(vault, "kdoc", "knowledge", sensitivity="public")
     _write_claim(vault, "know", derived_from=know,
-                 domain="knowledge", sensitivity="public")   # non-private domain: fine
+                 domain="knowledge", sensitivity="public")   # public source: fine
     _api.reindex(space="gorae", full=True)
 
     out = _api.lint(rule_ids=["L8"])

@@ -138,6 +138,11 @@ def test_deep_atomize_inherits_a_private_source(atelier_env: Dict) -> None:
                if fm.get("generated_by") == "atomize"]
     assert len(derived) == res["claims_written"] == 1
     assert derived[0]["sensitivity"] == "private"      # inherited, not widened
+    # the ENTITY layer inherits too — a revealing pref_label minted from a
+    # private Source would leak even if every claim is private
+    ents = [fm for fm in (_fm(p) for p in claim_dir.glob("*.md"))
+            if fm.get("kind") == "entity" and fm.get("pref_label") == "a preference"]
+    assert ents and all(e["sensitivity"] == "private" for e in ents)
 
 
 def test_deep_atomize_inherits_a_pii_demoted_source(atelier_env: Dict) -> None:

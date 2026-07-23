@@ -80,3 +80,78 @@ def test_L5_orphan(atelier_env):
     out = api.lint(space="gorae", rule_ids=["L5"])
     orphans = [f for f in out["findings"] if "lonely" in (f["page_slug"] or "")]
     assert orphans
+
+
+# ── L8: a claim derived from a PRIVATE source must be private ───────────────
+#
+# "Private source" is two conditions, and the rule long checked only one.
+# Policy 1 covers a private-DOMAIN source (personal). RFC 0008 M4 introduced
+# the other: an absorbed `type: user` memory or a PII-pattern hit is demoted to
+# `sensitivity: private` while staying in the `operational` domain — invisible
+# to a domain-only predicate, and precisely the case M3's write-time guard
+# abstains on when it cannot resolve the Source.
+
+
+def _l8_source(gorae, eid, *, domain, sensitivity):
+    write_page(
+        gorae / "raw" / domain / f"{eid}.md",
+        {"entry_id": eid, "schema_version": 7, "kind": "source",
+         "title": eid, "domain": domain, "sensitivity": sensitivity},
+        f"# {eid}\n",
+    )
+
+
+def _l8_claim(gorae, eid, *, derived_from, sensitivity):
+    write_page(
+        gorae / "graph" / "atomic" / f"{eid}.md",
+        {"entry_id": eid, "schema_version": 7, "kind": "claim",
+         "statement": f"claim {eid}", "derived_from": [derived_from],
+         "domain": "operational", "sensitivity": sensitivity,
+         "surfacing": "query"},
+        f"## Claim\n\n{eid}\n",
+    )
+
+
+def _l8_run(space="gorae"):
+    from runtime.service import api
+    api.reindex(space=space, full=True)
+    out = api.lint(space=space, rule_ids=["L8"])
+    return [f for f in out["findings"] if f["severity"] == "FAIL"]
+
+
+def test_L8_flags_a_public_claim_from_a_private_domain_source(atelier_env):
+    """Policy 1, the original half."""
+    g = atelier_env["gorae"]
+    _l8_source(g, "src-personal", domain="personal", sensitivity="private")
+    _l8_claim(g, "claim-leak", derived_from="src-personal", sensitivity="public")
+    fails = _l8_run()
+    assert any("claim-leak" in f["page_slug"] for f in fails)
+
+
+def test_L8_flags_a_public_claim_from_a_sensitivity_private_source(atelier_env):
+    """RFC 0008 M4: an `operational` Source demoted to private. A domain-only
+    predicate is blind to this — the exact gap the abstain-on-miss path needs
+    a backstop for."""
+    g = atelier_env["gorae"]
+    _l8_source(g, "src-demoted", domain="operational", sensitivity="private")
+    _l8_claim(g, "claim-widened", derived_from="src-demoted",
+              sensitivity="public")
+    fails = _l8_run()
+    assert any("claim-widened" in f["page_slug"] for f in fails)
+    assert any("sensitivity:private" in f["message"] for f in fails)
+
+
+def test_L8_passes_when_the_derived_claim_is_private(atelier_env):
+    g = atelier_env["gorae"]
+    _l8_source(g, "src-demoted", domain="operational", sensitivity="private")
+    _l8_claim(g, "claim-ok", derived_from="src-demoted", sensitivity="private")
+    assert not [f for f in _l8_run() if "claim-ok" in f["page_slug"]]
+
+
+def test_L8_leaves_a_public_source_alone(atelier_env):
+    """The rule tightens only — a public source's public claims are fine."""
+    g = atelier_env["gorae"]
+    _l8_source(g, "src-public", domain="operational", sensitivity="public")
+    _l8_claim(g, "claim-public", derived_from="src-public",
+              sensitivity="public")
+    assert not [f for f in _l8_run() if "claim-public" in f["page_slug"]]

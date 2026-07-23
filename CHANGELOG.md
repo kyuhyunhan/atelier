@@ -29,9 +29,17 @@ changes the lane; depth is optional and human-directed.
 - Tests (7): a minted Source stays out of the atomize backlog (even at 400
   words), long and short memories both mint, deep atomization leaves the mint
   claim **byte-identical** while all claims share one Source, inheritance from
-  a `type: user` Source and from a PII-demoted Source, a public Source still
-  yielding public claims (the guard tightens only), and `domain: personal`
-  unaffected. Suite 717 → 724 green.
+  a `type: user` Source and from a PII-demoted Source (claims **and** the
+  entities minted alongside them), a public Source still yielding public claims
+  (the guard tightens only), and `domain: personal` unaffected.
+- **Lint L8 now audits what it claimed to.** Its predicate matched only a
+  private *domain*, so a public claim derived from a `sensitivity: private`
+  **operational** Source — exactly the abstain-on-miss case the write-time
+  guard leaves to lint, plus any pre-M3 mint or a Source demoted after its
+  claims existed — was invisible. It now flags a source that is private by
+  domain (Policy 1) **or** by its own sensitivity (M4), and names which. L8 had
+  no behavioural test at all (only a schema-wiring assertion); it has four now.
+  Zero new findings on the live vault. Suite 717 → 728 green.
 
 **RFC 0008 complete** — M1 discovery, M4 safety, M2 supersession, M3 depth, all
 built, independently reviewed, and verified on the live vault.

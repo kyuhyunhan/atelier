@@ -170,8 +170,16 @@ def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any
     p = pii_patterns_path if pii_patterns_path is not None else _PII_PATTERNS_PATH
     if not p.is_file():
         return {"pii_active_patterns": 0, "_file_present": False}
+    try:
+        text = p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        # ABSTAIN, don't raise. This file is per-machine and user-managed: a
+        # latin-1 regex or a permission change would otherwise propagate out of
+        # `metrics()` → `baseline.generate()` → `verify_against()` and abort
+        # every OTHER metric and every global invariant along with it.
+        return {"_file_present": True, "_unreadable": True}
     active = 0
-    for line in p.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         s = line.strip()
         if s and not s.startswith("#"):
             active += 1
@@ -226,16 +234,23 @@ def lens_param_present() -> Optional[Dict[str, Any]]:
         return None
     present: List[str] = []
     absent: List[str] = []
+    unimplemented: List[str] = []
     for entry in declared:
         name = str(entry.get("name") or "")
         handler = getattr(_tools, f"_h_{name}", None)
         if handler is None:
-            absent.append(name)
+            # A DECLARED surface with no handler is a typo in the yaml, not a
+            # missing lens. Folding the two together would cap `covered`
+            # permanently with nothing in the output to say why.
+            unimplemented.append(name)
             continue
         params = inspect.signature(handler).parameters
         (present if "lens" in params else absent).append(name)
-    return {"covered": len(present), "total": len(present) + len(absent),
-            "_present": sorted(present), "_absent": sorted(absent)}
+    total = len(present) + len(absent) + len(unimplemented)
+    return {"covered": len(present), "total": total,
+            "unimplemented": len(unimplemented),
+            "_present": sorted(present), "_absent": sorted(absent),
+            "_unimplemented": sorted(unimplemented)}
 
 
 # ── the block ───────────────────────────────────────────────────────────────
@@ -253,9 +268,11 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
       legal waiver shape. It belongs beside `captured_date` at the top level.
     - **Diagnostic leaves are `_`-prefixed** (`_present`, `_absent`,
       `_file_present`). They are lists and booleans, which cannot carry a
-      numeric bound either; the prefix marks them as outside the namespace so
-      G0b's evaluator can exclude them by rule rather than by a hand-maintained
-      special case.
+      numeric bound either. The prefix is a READABILITY convention, not the
+      exclusion mechanism: §5.1.1 makes the rule "`_`-prefixed **or**
+      non-numeric", because the frozen `0006-baseline.json` already carries
+      unprefixed non-numeric leaves (`eval.engine`, `eval.paraphrase.stale`)
+      that can never be renamed.
 
     `cross_project_noise` (§5.4) is deliberately ABSENT until its out-of-tree
     probe fixture lands in G3 — under the abstain rule that absence is the

@@ -50,6 +50,13 @@ exactly — promote eligibility 830 (knowledge 807 / operational 23), pending
 - **`cross_project_noise` is deliberately absent** until its out-of-tree fixture
   lands. Under the abstain rule that absence is the honest signal — a `0.0`
   would pass a `≤ 0.15` ceiling and report green on a lens returning nothing.
+- **Two abstain guards and a classification split**, all from the same review:
+  `guard_liveness` no longer lets a non-UTF-8 or unreadable pattern file abort
+  every other metric and every invariant (it is per-machine and user-managed);
+  a malformed `captured_date` on an on-disk anchor no longer does either; and a
+  surface declared in the schema with no handler now reports as
+  `unimplemented` rather than as "lacks a lens", so a yaml typo cannot cap the
+  count with nothing in the output to say why.
 - `surfacing.audit()`/`snapshot()` gain a `vault` parameter. `baseline.generate`
   passed one to `eval.run` and `census.census` but could not to this, so a
   baseline taken against a temp vault silently read the live one for its

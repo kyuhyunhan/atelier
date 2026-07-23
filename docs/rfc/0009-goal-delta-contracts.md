@@ -379,22 +379,59 @@ filesystem-fallback discipline, and land in a **`metrics` block** of the baselin
 — never inside `census` (§3.3).
 
 ### 5.1 `promote_eligible{total, by_domain}`
-**Extend `projection_counts.promote_eligible()`, do not write a new counter.** It
-is already the thin wrapper over `claims_io.is_promote_eligible` that §3.2 rule 1
-prescribes, and lacks only the `by_domain` split. A second counter beside
-`census.py` would be a duplicate definition — precisely the divergence rule 1
-exists to prevent. What is missing today is its presence in the *baseline*, not
-its existence (§1).
+**Share the predicate; never re-implement it** (§3.2 rule 1). The counter calls
+`claims_io.is_promote_eligible` — the same function `promote.propose._eligible`
+and `projection_counts.promote_eligible` use — over the projection, with the
+filesystem fallback the feature uses. `total` is derived from `by_domain` so a
+skew between them is unrepresentable, the discipline `census.py` states.
 
-One wrinkle: it returns `Optional[int]` and answers `None` on a cold DB — the
-filesystem fallback lives one level up, in `promote.propose.eligible_count`. Since
-abstention is key-absence and key-absence raises, the baseline counter must route
-through that fallback rather than emit `None`. §4.2's "reindex before capture"
-covers it operationally; the fallback is what covers it structurally.
+Two wrinkles, both structural:
 
-### 5.2 `pending_age{count, p50, max}`
+- `projection_counts.promote_eligible` answers `None` on a cold DB and its
+  fallback lives one level up in `promote.propose.eligible_count`. Since
+  abstention is key-absence and key-absence raises, the metric must carry its own
+  fallback rather than emit `None`.
+- The metric shares the *predicate*, but repeats the *filter*. If either
+  `projection_counts.promote_eligible` or this counter later grows an abstain
+  guard — the way `projection_counts.accepted_operational` has one for legacy
+  notes — the two can disagree. A divergence test asserting equality with
+  `propose._eligible` is what holds them together (§11.2); it is load-bearing,
+  not a formality.
+
+### 5.1.1 Which leaves the ENVELOPE namespace contains
+
+§3.4 defines the namespace as the leaf keys under `metrics`, `census`,
+`surfacing` and `eval`. Default-deny requires every such leaf to be *comparable*,
+and §3.5 requires a waiver to carry a **numeric** bound — so a non-numeric leaf
+is unwaivable by construction:
+
+- **New metric leaves prefix diagnostics with `_`** (`_present`, `_absent`,
+  `_file_present`). Lists, booleans and free strings are useful in a report and
+  meaningless as a bound; the prefix marks them excluded by rule.
+- **The pre-existing blocks cannot be renamed.** `eval.engine` (a string) and
+  `eval.paraphrase.stale` (a list) are already in the frozen
+  `0006-baseline.json`. So the evaluator's exclusion rule is
+  *"`_`-prefixed **or** non-numeric"*, and the `_` prefix is a readability
+  convention on top of it — not the mechanism. Treating the prefix as the
+  mechanism would trip default-deny on `eval.paraphrase.stale` with no legal
+  waiver shape, which is the trap moving `as_of` out of `metrics` closed one
+  block over.
+
+### 5.2 `pending_age{count, dated, p50?, max?}`
 Days between each `ac_status: pending` claim's `created_at` and the round
 baseline's frozen `as_of` (§4.2). Gates on the tail, not the count (§2, point 2).
+
+`p50`/`max` are **conditional**: when `dated < count` some of the queue has no
+parseable date, the tail is partly unmeasured, and both keys are omitted under
+the abstain rule. Emitting `max: 0` there would pass a `≤ 7` ceiling while the
+backlog rots — and would let `count` rise unchallenged. `dated` is numeric and
+therefore itself bound-able, so "make the claims undated" is not an escape: it
+moves `dated`, and the `max` key present in the before-snapshot and absent from
+the after-snapshot raises under §3.4's union rule.
+
+Ages clamp at zero. Verifying against a stale program anchor puts `as_of`
+*before* claims that already exist, and a max over mixed-sign values is not a
+tail measurement.
 
 ### 5.3 `guard_liveness{pii_active_patterns, ...}`
 Counts *active* (non-comment, non-blank) lines, not file existence. RFC 0008 §6

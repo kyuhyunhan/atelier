@@ -155,7 +155,9 @@ def test_lens_param_reads_the_live_handler_signature() -> None:
     *claim* coverage the code does not have."""
     got = _metrics.lens_param_present()
     assert got["total"] == len(_metrics._declared_surfaces())
-    assert got["covered"] + len(got["_absent"]) == got["total"]
+    assert got["covered"] + len(got["_absent"]) + len(got["_unimplemented"]) \
+        == got["total"]
+    assert got["unimplemented"] == 0            # every declared surface exists
     # today exactly one surface takes a lens (RFC 0009 §2); G3 moves this to 6/6
     assert got["_present"] == ["recall"]
 
@@ -167,7 +169,9 @@ def test_lens_param_cannot_be_claimed_by_the_schema_file(monkeypatch) -> None:
                         lambda: [{"name": "recall"}, {"name": "no_such_tool"}])
     got = _metrics.lens_param_present()
     assert got["covered"] == 1
-    assert got["_absent"] == ["no_such_tool"]
+    # a declared-but-nonexistent handler is UNIMPLEMENTED, not lens-less — the
+    # distinction is what tells a reader the yaml is wrong rather than the code
+    assert got["_unimplemented"] == ["no_such_tool"]
 
 
 def test_lens_param_present_does_not_prove_the_lens_is_honoured(
@@ -317,3 +321,87 @@ def test_verify_still_passes_against_a_metrics_less_baseline(
     report = _verify.verify_against(old, "P0", vault=Path(_cl._vault_root()),
                                     require_committed=False)
     assert report["passed"] is True
+
+
+# ── the two fixes a revert would not have noticed ────────────────────────────
+#
+# Review reverted both of these and the whole 749-test suite stayed green. That
+# is the definition of an unprotected fix, and the vault one is load-bearing:
+# RFC 0009 §8.1 names it as the prerequisite for the FAILING side of the G0
+# two-sided gate. The conftest points `_vault_root()` at the temp vault, so the
+# bug is invisible to every ordinary test by construction — proving it needs two
+# DIFFERENT vaults.
+
+
+def test_surfacing_measures_the_vault_it_is_given_not_the_configured_one(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """Without the `vault` parameter, `baseline.generate(vault=B)` measured
+    `census`/`metrics` over B while `surfacing`/`eval.self_probe` silently read
+    the configured root A — so an injected delta could go unobserved and the run
+    would report PASS on a change it never saw."""
+    from runtime.service.learnings import surfacing as _surfacing
+    configured = Path(_cl._vault_root())
+    _write_claim(configured, "here", domain="operational", sensitivity="public",
+                 ac_status="passed")
+    _api.reindex(space="gorae", full=True)
+
+    empty = tmp_path / "other-vault"
+    empty.mkdir()
+    assert _surfacing.audit(vault=configured)["total"] > 0
+    assert _surfacing.audit(vault=empty)["total"] == 0      # genuinely scoped
+
+
+def test_eval_self_probe_follows_the_same_vault_as_surfacing(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """`eval._self_probe_block` resolved the root internally, so the two blocks
+    that share an omission definition could measure different vaults."""
+    from runtime.service.learnings import eval as _eval
+    configured = Path(_cl._vault_root())
+    _write_claim(configured, "probe-me", domain="operational",
+                 sensitivity="public", ac_status="passed")
+    _api.reindex(space="gorae", full=True)
+
+    empty = tmp_path / "other-vault"
+    empty.mkdir()
+    assert _eval.run(vault=empty)["self_probe"]["probes"] == 0
+    assert _eval.run(vault=configured)["self_probe"]["probes"] > 0
+
+
+def test_baseline_cli_passes_about_through() -> None:
+    """`--about` existed on `generate`/`write` but not on the command documented
+    for capturing an anchor, so a 0009 baseline would have been stamped with the
+    0006 description — the misdescription the parameter exists to prevent."""
+    from runtime import cli as _cli
+    args = _cli.build_parser().parse_args(
+        ["baseline", "--out", "/tmp/x.json", "--about", "RFC 0009 anchor"])
+    assert args.about == "RFC 0009 anchor"
+
+
+def test_guard_liveness_abstains_on_an_unreadable_file(tmp_path: Path) -> None:
+    """§5.4 + the SHOULD 7 class: this file is per-machine and user-managed, so
+    a latin-1 regex must not abort every other metric and every invariant."""
+    p = tmp_path / "pii_patterns.txt"
+    p.write_bytes(b"caf\xe9\n")                    # invalid UTF-8
+    got = _metrics.guard_liveness(pii_patterns_path=p)
+    assert "pii_active_patterns" not in got        # abstain, not a zero
+    assert got["_unreadable"] is True
+
+
+def test_lens_param_separates_a_yaml_typo_from_a_missing_lens(
+        monkeypatch) -> None:
+    """A declared surface with no handler caps `covered` permanently; folding it
+    into `_absent` leaves nothing in the output to say why."""
+    monkeypatch.setattr(_metrics, "_declared_surfaces",
+                        lambda: [{"name": "recall"}, {"name": "search"},
+                                 {"name": "typo_here"}])
+    got = _metrics.lens_param_present()
+    assert got["covered"] == 1 and got["total"] == 3
+    assert got["_absent"] == ["search"]
+    assert got["unimplemented"] == 1 and got["_unimplemented"] == ["typo_here"]
+
+
+def test_baseline_tolerates_a_malformed_captured_date(atelier_env: Dict) -> None:
+    """`verify_against` feeds `captured_date` straight from an on-disk anchor."""
+    from runtime.service.learnings import baseline as _baseline
+    out = _baseline.generate(vault=Path(_cl._vault_root()), captured_date="not-a-date")
+    assert "metrics" in out                        # did not raise

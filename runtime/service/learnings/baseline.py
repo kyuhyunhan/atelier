@@ -53,6 +53,13 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
     goal if it landed there (§3.3).
     """
     captured = captured_date or datetime.now(timezone.utc).date().isoformat()
+    try:
+        as_of = date.fromisoformat(captured)
+    except ValueError:
+        # `verify_against` feeds this from an on-disk anchor's `captured_date`.
+        # A hand-edited or truncated value must not abort the whole
+        # verification; fall back to today and let the date itself show it.
+        as_of = datetime.now(timezone.utc).date()
     ev = _eval.run(k=k, vault=vault)
     aud = _surfacing.audit(vault=vault)
     return {
@@ -70,9 +77,8 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
         # default-deny over the leaf keys under `metrics`, and a value that
         # changes every run by construction would trip it with no legal waiver
         # shape (§3.5 requires a numeric bound). It sits beside captured_date.
-        "as_of": captured,
-        "metrics": _metrics.metrics(as_of=date.fromisoformat(captured),
-                                    vault=vault),
+        "as_of": as_of.isoformat(),
+        "metrics": _metrics.metrics(as_of=as_of, vault=vault),
     }
 
 

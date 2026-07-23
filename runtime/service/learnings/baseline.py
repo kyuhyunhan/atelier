@@ -66,6 +66,11 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
             "dark_count": aud["dark_count"],
         },
         "census": _census.census(vault=vault),
+        # `as_of` is capture metadata, NOT a metric: §3.4 makes ENVELOPE
+        # default-deny over the leaf keys under `metrics`, and a value that
+        # changes every run by construction would trip it with no legal waiver
+        # shape (§3.5 requires a numeric bound). It sits beside captured_date.
+        "as_of": captured,
         "metrics": _metrics.metrics(as_of=date.fromisoformat(captured),
                                     vault=vault),
     }

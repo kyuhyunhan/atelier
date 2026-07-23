@@ -1,6 +1,6 @@
 # Content-returning MCP surfaces — RFC 0009 §5.5.
 #
-# The DENOMINATOR of `lens_surface_coverage`. It lives here, not as a literal in
+# The DENOMINATOR of `lens_param_present`. It lives here, not as a literal in
 # the counter, for the reason RFC 0009 §3.2 rule 2 gives: a builder graded on
 # "6 of 6 surfaces are lens-scoped" must not be able to reach the bar by
 # redefining what counts as a surface. Hard rule #3 — schema is data.
@@ -13,7 +13,11 @@
 #
 # The NUMERATOR is not declared here — it is introspected from the live handler
 # signature (`runtime/service/tools.py:_h_<name>` accepting a `lens` parameter),
-# so this file cannot be used to claim coverage that the code does not have.
+# so this file cannot be used to claim a parameter the code does not have.
+#
+# What neither half proves is that a surface HONOURS the lens it accepts. That
+# needs a behavioural probe (call it under two lenses, require the results to
+# differ) and is RFC 0009 G3's job — this list only tracks wiring.
 version: 1
 
 surfaces:

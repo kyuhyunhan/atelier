@@ -7,9 +7,15 @@ same change it grades (§3.2). Two in particular:
 - `test_promote_eligible_matches_the_production_predicate` fails if the counter
   is re-implemented rather than wrapped — including the specific attack §3.2
   names, dropping the born-accepted branch so knowledge claims stop counting.
-- `test_lens_coverage_cannot_be_claimed_by_the_schema_file` fails if the
-  numerator is ever taken from the declaration instead of the live handler
-  signature, which is what makes "6 of 6" unfakeable.
+- `test_lens_param_cannot_be_claimed_by_the_schema_file` fails if the numerator
+  is ever taken from the declaration instead of the live handler signature.
+
+And one test exists to pin a LIMIT rather than a property:
+`test_lens_param_present_does_not_prove_the_lens_is_honoured` asserts that a
+handler accepting `lens` and ignoring it still counts — because that is true,
+and naming the metric `lens_param_present` is the honest response. An earlier
+revision called it `lens_surface_coverage` and asserted the same behaviour as
+the *passing* case, which certified the attack instead of disclosing it.
 """
 from __future__ import annotations
 
@@ -60,9 +66,13 @@ def test_promote_eligible_matches_the_production_predicate(
     _api.reindex(space="gorae", full=True)
 
     got = _metrics.promote_eligible(vault=vault)
-    assert got["total"] == len(_propose._eligible(limit=10_000))
+    rows = _propose._eligible(limit=10_000)
+    assert len(rows) < 10_000, "cap is binding — the comparison would be vacuous"
+    assert got["total"] == len(rows)
     # and the born-accepted branch is genuinely counted, not silently dropped
     assert got["by_domain"] == {"knowledge": 1, "operational": 1}
+    # one tally: the split must always reconstruct the total (§ census discipline)
+    assert sum(got["by_domain"].values()) == got["total"]
 
 
 def test_promote_eligible_falls_back_on_a_cold_db(atelier_env: Dict) -> None:
@@ -118,11 +128,11 @@ def test_guard_liveness_counts_active_lines_not_file_existence(
         tmp_path: Path) -> None:
     """The RFC 0008 defect, made visible: a file that exists carrying only
     comments reports healthy at every enforcement point while scanning nothing.
-    `pii_file_present` and `pii_active_patterns` must disagree here."""
+    `_file_present` and `pii_active_patterns` must disagree here."""
     p = tmp_path / "pii_patterns.txt"
     p.write_text("# a comment\n\n#another\n", encoding="utf-8")
     got = _metrics.guard_liveness(pii_patterns_path=p)
-    assert got["pii_file_present"] is True
+    assert got["_file_present"] is True
     assert got["pii_active_patterns"] == 0       # the whole point
 
 
@@ -134,44 +144,62 @@ def test_guard_liveness_counts_real_patterns(tmp_path: Path) -> None:
 
 def test_guard_liveness_on_an_absent_file(tmp_path: Path) -> None:
     got = _metrics.guard_liveness(pii_patterns_path=tmp_path / "nope.txt")
-    assert got == {"pii_active_patterns": 0, "pii_file_present": False}
+    assert got == {"pii_active_patterns": 0, "_file_present": False}
 
 
 # ── 5.5 lens surface coverage ───────────────────────────────────────────────
 
-def test_lens_coverage_reads_the_live_handler_signature() -> None:
+def test_lens_param_reads_the_live_handler_signature() -> None:
     """§3.2 rule 2 + §5.5: the denominator is schema data so it cannot be shrunk
     to meet a bound; the numerator is introspected so the schema file cannot
     *claim* coverage the code does not have."""
-    got = _metrics.lens_surface_coverage()
+    got = _metrics.lens_param_present()
     assert got["total"] == len(_metrics._declared_surfaces())
-    assert got["covered"] + len(got["missing_names"]) == got["total"]
-    # today exactly one surface is scoped (RFC 0009 §2); G3 moves this to 6/6
-    assert got["covered_names"] == ["recall"]
+    assert got["covered"] + len(got["_absent"]) == got["total"]
+    # today exactly one surface takes a lens (RFC 0009 §2); G3 moves this to 6/6
+    assert got["_present"] == ["recall"]
 
 
-def test_lens_coverage_cannot_be_claimed_by_the_schema_file(monkeypatch) -> None:
+def test_lens_param_cannot_be_claimed_by_the_schema_file(monkeypatch) -> None:
     """Declaring a surface that no handler implements must count as MISSING, not
     as covered — otherwise `6/6` is reachable by editing yaml alone."""
     monkeypatch.setattr(_metrics, "_declared_surfaces",
                         lambda: [{"name": "recall"}, {"name": "no_such_tool"}])
-    got = _metrics.lens_surface_coverage()
+    got = _metrics.lens_param_present()
     assert got["covered"] == 1
-    assert got["missing_names"] == ["no_such_tool"]
+    assert got["_absent"] == ["no_such_tool"]
 
 
-def test_lens_coverage_follows_a_handler_gaining_lens(monkeypatch) -> None:
-    """The inverse: wiring `lens` into a real handler is what moves the number,
-    which is what makes the G3 bound mean something."""
+def test_lens_param_present_does_not_prove_the_lens_is_honoured(
+        monkeypatch) -> None:
+    """A DISCLOSURE test, not a property test.
+
+    A handler that accepts `lens` and discards it counts as present — because
+    "accepts" is all a signature can prove. With a `covered = 6` bound, adding
+    the parameter to five handlers and ignoring it would satisfy every contract
+    layer while the surfaces stay unscoped. The metric is named for its limit,
+    and G3 must add a behavioural gate (call the surface under two lenses,
+    require the results to differ) before that bound means anything.
+    """
     from runtime.service import tools as _tools
 
-    async def _fake(query: str, lens: str = "dev"):        # noqa: ANN202
-        return {}
+    async def _accepts_but_ignores(query: str, lens: str = "dev"):   # noqa: ANN202
+        return {"rows": "everything, unscoped"}
 
     monkeypatch.setattr(_metrics, "_declared_surfaces",
                         lambda: [{"name": "search"}])
-    monkeypatch.setattr(_tools, "_h_search", _fake, raising=False)
-    assert _metrics.lens_surface_coverage()["covered"] == 1
+    monkeypatch.setattr(_tools, "_h_search", _accepts_but_ignores, raising=False)
+    assert _metrics.lens_param_present()["covered"] == 1   # the known blind spot
+
+
+def test_lens_param_abstains_when_the_declaration_is_unreadable(
+        monkeypatch) -> None:
+    """§5.4: a broken schema file omits ONE key. Raising here would abort the
+    whole verification — every other metric and every global invariant with
+    it — because `verify_against` calls `baseline.generate`."""
+    monkeypatch.setattr(_metrics, "_SURFACES_YAML", Path("/nonexistent.yaml"))
+    assert _metrics._declared_surfaces() is None
+    assert _metrics.lens_param_present() is None
 
 
 # ── the block ───────────────────────────────────────────────────────────────
@@ -184,8 +212,11 @@ def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict) -> None:
     got = _metrics.metrics(as_of=datetime.date(2026, 7, 23),
                            vault=Path(_cl._vault_root()))
     assert "cross_project_noise" not in got
-    assert set(got) == {"as_of", "promote_eligible", "pending_age",
-                        "guard_liveness", "lens_surface_coverage"}
+    assert set(got) == {"promote_eligible", "pending_age",
+                        "guard_liveness", "lens_param_present"}
+    # capture metadata is NOT a metric leaf: §3.4 default-deny would trip on a
+    # value that changes every run, and §3.5 allows no non-numeric waiver.
+    assert "as_of" not in got
 
 
 def test_metrics_land_beside_census_never_inside_it(atelier_env: Dict) -> None:
@@ -200,3 +231,89 @@ def test_metrics_land_beside_census_never_inside_it(atelier_env: Dict) -> None:
                              vault=Path(_cl._vault_root()))
     assert "metrics" in out and "metrics" not in out["census"]
     assert "promote_eligible" not in _verify._census_kind_totals(out["census"])
+
+
+def test_pending_age_abstains_when_the_tail_is_unmeasurable(
+        atelier_env: Dict) -> None:
+    """§5.4 applied to the metric that shipped without it.
+
+    Undated pending claims were dropped from the age list but still counted, so
+    a queue of 36 unparseable claims reported `max: 0` — which PASSES a `≤ 7`
+    ceiling while the backlog rots, and lets `count` rise unchallenged. The keys
+    must be absent so a contract naming them raises instead.
+    """
+    vault = Path(_cl._vault_root())
+    import uuid
+    d = vault / "graph" / "atomic"
+    d.mkdir(parents=True, exist_ok=True)
+    for n in ("u1", "u2"):
+        eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"claim-{n}"))
+        (d / f"{n}.md").write_text(                     # no created_at at all
+            f"---\nschema_version: 7\nentry_id: {eid}\nkind: claim\n"
+            f"domain: operational\nsensitivity: public\nac_status: pending\n"
+            f"statement: statement of {n}\n---\n\nbody\n", encoding="utf-8")
+    _api.reindex(space="gorae", full=True)
+
+    got = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
+    assert got["count"] == 2 and got["dated"] == 0
+    assert "max" not in got and "p50" not in got       # abstain, never zero
+
+
+def test_pending_age_clamps_a_claim_newer_than_as_of(atelier_env: Dict) -> None:
+    """Verifying against a stale program anchor puts `as_of` BEFORE claims that
+    exist, and a max over mixed-sign values is not a tail measurement."""
+    vault = Path(_cl._vault_root())
+    _write_claim(vault, "future", domain="operational", sensitivity="public",
+                 ac_status="pending", created_at="2026-08-01T00:00:00+00:00")
+    _api.reindex(space="gorae", full=True)
+    got = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
+    assert got["max"] == 0                             # not negative
+
+
+def test_promote_eligible_parity_between_projection_and_filesystem(
+        atelier_env: Dict) -> None:
+    """One tally, two sources — `census.py`'s discipline. An earlier revision
+    read `total` from one query and `by_domain` from a second, so a DB hiccup
+    between them produced `total: N` with an empty split."""
+    vault = Path(_cl._vault_root())
+    _write_claim(vault, "k1", domain="knowledge", sensitivity="public")
+    _write_claim(vault, "o1", domain="operational", sensitivity="public",
+                 ac_status="passed")
+    from_fs = _metrics.promote_eligible(vault=vault)   # cold DB → filesystem
+    _api.reindex(space="gorae", full=True)
+    from_db = _metrics.promote_eligible(vault=vault)   # warm DB → projection
+    assert from_fs == from_db
+    assert sum(from_db["by_domain"].values()) == from_db["total"]
+
+
+def test_metrics_survive_into_a_written_baseline(atelier_env: Dict,
+                                                 tmp_path: Path) -> None:
+    """`generate` is not the shipping path — `write` is, and it round-trips
+    through JSON."""
+    import json
+    from runtime.service.learnings import baseline as _baseline
+    out = tmp_path / "b.json"
+    _baseline.write(out, vault=Path(_cl._vault_root()),
+                    captured_date="2026-07-23", about="RFC 0009 test anchor")
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["_about"] == "RFC 0009 test anchor"
+    assert data["as_of"] == "2026-07-23"               # top level, not in metrics
+    assert "promote_eligible" in data["metrics"]
+
+
+def test_verify_still_passes_against_a_metrics_less_baseline(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """The frozen record stays frozen. `0006-baseline.json` predates the metrics
+    block; adding one must not make the committed anchor unverifiable."""
+    import json
+    from runtime.service.learnings import baseline as _baseline
+    from runtime.service.learnings import verify as _verify
+    before = _baseline.generate(vault=Path(_cl._vault_root()),
+                                captured_date="2026-07-23")
+    before.pop("metrics")                              # a pre-0009 anchor
+    old = tmp_path / "old.json"
+    old.write_text(json.dumps(before), encoding="utf-8")
+
+    report = _verify.verify_against(old, "P0", vault=Path(_cl._vault_root()),
+                                    require_committed=False)
+    assert report["passed"] is True

@@ -42,39 +42,53 @@ _PII_PATTERNS_PATH = Path.home() / ".atelier" / "pii_patterns.txt"
 
 # ── 5.1 promote eligibility ─────────────────────────────────────────────────
 
-def promote_eligible(*, vault: Optional[Path] = None) -> Dict[str, Any]:
-    """`{total, by_domain}` over `claims_io.is_promote_eligible`.
+def _tally_eligible(fms: Any) -> Dict[str, Any]:
+    """The ONE place an eligible claim becomes counts, shared by both data
+    sources — `census.py`'s discipline, for the same reason: two paths that
+    tally separately can disagree, and `sum(by_domain) != total` must not be
+    representable.
 
-    Routed through `projection_counts.promote_eligible()` — already the thin
-    wrapper §3.2 rule 1 prescribes — with the SAME filesystem fallback the
-    feature uses. That fallback is not optional: `projection_counts` answers
-    `None` on a cold DB, and under the abstain rule a `None` would become
-    key-absence and abort the run (§5.1).
+    An earlier revision took `total` from one projection query and `by_domain`
+    from a second, so a DB hiccup between them yielded `total: N` with an empty
+    split.
+    """
+    from . import claims_io as _claims
+    by_domain: Dict[str, int] = {}
+    for fm in fms:
+        if _claims.is_promote_eligible(fm):
+            d = str(fm.get("domain") or "(absent)")
+            by_domain[d] = by_domain.get(d, 0) + 1
+    return {"total": sum(by_domain.values()), "by_domain": by_domain}
+
+
+def promote_eligible(*, vault: Optional[Path] = None) -> Dict[str, Any]:
+    """`{total, by_domain}` over `claims_io.is_promote_eligible` — the same
+    predicate `promote.propose._eligible` uses, never a re-implementation
+    (RFC 0009 §3.2 rule 1).
+
+    Projection-first with the SAME filesystem fallback the feature uses. That
+    fallback is not optional: `projection_counts` answers `None` on a cold DB,
+    and under the abstain rule a `None` would become key-absence and abort the
+    run (§5.1).
+
+    Note this counts the UNCAPPED pool, while `propose_all()` only ever proposes
+    `_eligible()`'s first 50. That is deliberate — the G2 contract is about how
+    much is eligible, not how much one proposal happens to list — but the two
+    numbers are not meant to reconcile.
     """
     from . import claims_io as _claims
     from . import projection_counts as _pc
 
-    by_domain: Dict[str, int] = {}
-    projected = _pc.promote_eligible()
-    if projected is not None:
-        nodes = _pc._load_nodes()
-        for fm in (nodes or {}).get("claims", []):
-            if _claims.is_promote_eligible(fm):
-                d = str(fm.get("domain") or "(absent)")
-                by_domain[d] = by_domain.get(d, 0) + 1
-        return {"total": projected, "by_domain": by_domain}
+    nodes = _pc._load_nodes()
+    if nodes is not None:
+        return _tally_eligible(nodes["claims"])
 
-    total = 0
+    fms = []
     for p in _claims.iter_claim_files(vault):
         got = _claims.read_claim(p)
-        if got is None:
-            continue
-        fm, _ = got
-        if _claims.is_promote_eligible(fm):
-            total += 1
-            d = str(fm.get("domain") or "(absent)")
-            by_domain[d] = by_domain.get(d, 0) + 1
-    return {"total": total, "by_domain": by_domain}
+        if got is not None:
+            fms.append(got[0])
+    return _tally_eligible(fms)
 
 
 # ── 5.2 pending age ─────────────────────────────────────────────────────────
@@ -118,11 +132,22 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
     for fm in fms:
         d = _as_date(fm.get("created_at") or fm.get("created"))
         if d is not None:
-            ages.append((as_of - d).days)
+            # A claim created after `as_of` is age 0, not negative. Verifying
+            # against a stale program anchor otherwise takes a max over
+            # mixed-sign values, which is not a tail measurement at all.
+            ages.append(max(0, (as_of - d).days))
     ages.sort()
-    if not ages:
-        return {"count": len(fms), "p50": 0, "max": 0}
-    return {"count": len(fms), "p50": ages[len(ages) // 2], "max": ages[-1]}
+
+    out: Dict[str, Any] = {"count": len(fms), "dated": len(ages)}
+    if len(ages) < len(fms):
+        # ABSTAIN — §5.4: key-absence, never a zero. An unmeasurable tail
+        # returning `max: 0` would PASS a `≤ 7` ceiling while 36 undated claims
+        # rot, and would even let `count` rise. That is precisely the defect
+        # `cross_project_noise` is withheld to avoid; the same rule applies here.
+        return out
+    out["p50"] = ages[len(ages) // 2] if ages else 0
+    out["max"] = ages[-1] if ages else 0
+    return out
 
 
 # ── 5.3 guard liveness ──────────────────────────────────────────────────────
@@ -136,47 +161,81 @@ def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any
     report healthy while scanning nothing. That is the live state of this vault
     (9 lines, 0 active), and it is the shape of defect this metric exists to
     make visible.
+
+    Zero here is a real measurement, not an abstention, and that is safe because
+    G1's bound is a FLOOR (`≥ 1`): an unloaded guard fails it rather than
+    passing. Contrast `pending_age`, whose bound is a ceiling — there an
+    unmeasurable zero would pass, so it abstains instead.
     """
     p = pii_patterns_path if pii_patterns_path is not None else _PII_PATTERNS_PATH
     if not p.is_file():
-        return {"pii_active_patterns": 0, "pii_file_present": False}
+        return {"pii_active_patterns": 0, "_file_present": False}
     active = 0
     for line in p.read_text(encoding="utf-8").splitlines():
         s = line.strip()
         if s and not s.startswith("#"):
             active += 1
-    return {"pii_active_patterns": active, "pii_file_present": True}
+    return {"pii_active_patterns": active, "_file_present": True}
 
 
 # ── 5.5 lens surface coverage ───────────────────────────────────────────────
 
-def _declared_surfaces() -> List[Dict[str, Any]]:
-    data = yaml.safe_load(_SURFACES_YAML.read_text(encoding="utf-8"))
-    return list(data.get("surfaces") or [])
+def _declared_surfaces() -> Optional[List[Dict[str, Any]]]:
+    """The declared surface list, or None when it cannot be read.
+
+    None rather than an exception: this file is a new hard dependency of
+    `baseline.generate()`, which `verify.verify_against()` calls. A raised
+    `FileNotFoundError` here would abort the entire verification — the four
+    unrelated metrics and every global invariant with it — where abstaining on
+    one key is the specified behaviour (§5.4).
+    """
+    try:
+        data = yaml.safe_load(_SURFACES_YAML.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    surfaces = data.get("surfaces")
+    return list(surfaces) if isinstance(surfaces, list) else None
 
 
-def lens_surface_coverage() -> Dict[str, Any]:
-    """Content-returning MCP surfaces that actually accept a `lens` argument.
+def lens_param_present() -> Optional[Dict[str, Any]]:
+    """Content-returning MCP surfaces whose handler **accepts** a `lens`
+    argument — a signature-level fact, and named for exactly that.
 
-    The denominator is schema data (§3.2 rule 2) so it cannot be shrunk to meet
-    a bound. The numerator is **introspected from the live handler signature**
-    rather than declared, so this file cannot claim coverage the code does not
-    have — the counter reads `tools._h_<name>` and asks whether `lens` is a real
-    parameter.
+    An earlier revision called this `lens_surface_coverage` and RFC 0009 §5.5
+    defined it as surfaces that "accept **and honour**" a lens. Only the first
+    half is decidable from a signature, and the gap is not academic: with a
+    contract bound of `covered = 6`, adding `lens: str = "dev"` to five handlers
+    and discarding the value satisfies INTENT, ENVELOPE and INVARIANT while
+    `session_bootstrap` still pushes personal claims into every dev session.
+    That is the vacuous PASS this program exists to prevent, on the one counter
+    §3.2 rule 2 singles out — so the metric is named for what it can prove, and
+    **honouring is a behavioural gate G3 must add** (the shape already exists:
+    `verify._check_dev_lens_no_personal` calls the retrieval path and inspects
+    what comes back).
+
+    The denominator stays schema data (§3.2 rule 2) so it cannot be shrunk to
+    meet a bound; the numerator is introspected, so the yaml cannot claim a
+    parameter the code does not have. Returns None (→ key omitted) when the
+    declaration is unreadable.
     """
     from .. import tools as _tools
-    covered: List[str] = []
-    missing: List[str] = []
-    for entry in _declared_surfaces():
+    declared = _declared_surfaces()
+    if declared is None:
+        return None
+    present: List[str] = []
+    absent: List[str] = []
+    for entry in declared:
         name = str(entry.get("name") or "")
         handler = getattr(_tools, f"_h_{name}", None)
         if handler is None:
-            missing.append(name)
+            absent.append(name)
             continue
         params = inspect.signature(handler).parameters
-        (covered if "lens" in params else missing).append(name)
-    return {"covered": len(covered), "total": len(covered) + len(missing),
-            "covered_names": sorted(covered), "missing_names": sorted(missing)}
+        (present if "lens" in params else absent).append(name)
+    return {"covered": len(present), "total": len(present) + len(absent),
+            "_present": sorted(present), "_absent": sorted(absent)}
 
 
 # ── the block ───────────────────────────────────────────────────────────────
@@ -185,16 +244,31 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
             pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
     """The `metrics` block of a baseline (RFC 0009 §5).
 
+    Two shape rules follow from §3.4, which makes ENVELOPE default-deny over
+    "the leaf keys under `metrics`":
+
+    - **Capture metadata does not live here.** `as_of` changes on every round
+      baseline by construction, and §3.5 requires a waiver to carry a *numeric*
+      bound — so an `as_of` leaf would trip default-deny on every run with no
+      legal waiver shape. It belongs beside `captured_date` at the top level.
+    - **Diagnostic leaves are `_`-prefixed** (`_present`, `_absent`,
+      `_file_present`). They are lists and booleans, which cannot carry a
+      numeric bound either; the prefix marks them as outside the namespace so
+      G0b's evaluator can exclude them by rule rather than by a hand-maintained
+      special case.
+
     `cross_project_noise` (§5.4) is deliberately ABSENT until its out-of-tree
     probe fixture lands in G3 — under the abstain rule that absence is the
     honest signal, and a contract naming it raises rather than reading a
-    fabricated zero.
+    fabricated zero. Any counter that cannot measure omits its key the same way.
     """
     stamp = as_of or datetime.now(timezone.utc).date()
-    return {
-        "as_of": stamp.isoformat(),
+    out: Dict[str, Any] = {
         "promote_eligible": promote_eligible(vault=vault),
         "pending_age": pending_age(as_of=stamp, vault=vault),
         "guard_liveness": guard_liveness(pii_patterns_path=pii_patterns_path),
-        "lens_surface_coverage": lens_surface_coverage(),
     }
+    lens = lens_param_present()
+    if lens is not None:
+        out["lens_param_present"] = lens
+    return out

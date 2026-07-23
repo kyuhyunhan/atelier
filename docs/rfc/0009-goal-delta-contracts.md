@@ -6,7 +6,7 @@
 | **Scope** | the verification protocol for the work that remains after RFC 0006's four pillars — a **delta contract** (declare the intended change, then gate on it), a third snapshot class (the per-run *round baseline*), five new census counters, and a **convergence loop** that re-verifies after a fix instead of failing once. Adds the `goal` command as the operator surface. |
 | **Builds on** | RFC 0006 (the rubric-gated protocol, `verify.py`, `baseline.py`, `census.py`, `scripts/workflows/memory-pillar.mjs`), RFC 0008 (absorb perimeter — the source of several goals here) |
 | **Revises** | RFC 0006 §6. Its *baseline-diffing* gates are all monotone ("did not shrink / did not regress"), which cannot express a deliberate reduction. This RFC adds an orthogonal axis and defines the one narrow way a contract may supersede a monotone invariant (§3.3); it removes no invariant. |
-| **Schema** | no node-schema change. `census.py` gains counters; the `lens_surface_coverage` denominator is schema data (hard rule #3). A contract is a committed JSON artifact under `docs/goals/`; probe fixtures live **out of tree** (§5.6). |
+| **Schema** | no node-schema change. `census.py` gains counters; the `lens_param_present` denominator is schema data (hard rule #3). A contract is a committed JSON artifact under `docs/goals/`; probe fixtures live **out of tree** (§5.6). |
 
 ---
 
@@ -221,7 +221,7 @@ Three rules close this:
    re-implementation. `promote_eligible` calls `claims_io.is_promote_eligible`,
    the same function `promote.propose._eligible` uses; a divergence test asserts
    the counter equals `len(propose._eligible(limit=None))`.
-2. **Any denominator is schema data, not a literal.** `lens_surface_coverage`'s
+2. **Any denominator is schema data, not a literal.** `lens_param_present`'s
    "6" is defined nowhere in the repo today; it becomes a declared list of
    content-returning surfaces in `schema/data/` (hard rule #3), so a builder
    cannot reach 6/6 by redefining the surface set.
@@ -261,10 +261,10 @@ Therefore:
   / may-fall`. INV-4 gates two quantities; releasing it wholesale for a fall in
   `visible` would silently stop gating `dark_count` as well.
 - **The invariant→metric map is schema data**, not prose — the same hard-rule-#3
-  argument §3.2 rule 2 makes for the `lens_surface_coverage` denominator. Without
+  argument §3.2 rule 2 makes for the `lens_param_present` denominator. Without
   a declared mapping, "a `supersedes` entry with a matching INTENT bound" has no
   definition of *matching*: a contract could release `INV-1` while its exact
-  INTENT clause is `lens_surface_coverage.covered = 6` and pass mechanically,
+  INTENT clause is `lens_param_present.covered = 6` and pass mechanically,
   disabling the no-data-loss gate for a run that never earned it.
 - Each entry additionally requires an INTENT clause **bounding the same metric**,
   a one-line reason, and explicit critic acceptance.
@@ -434,10 +434,26 @@ never run. The three conditions are distinguished:
 | too few hits (change under-delivered) | `returned` present, `foreign_ratio` omitted | **FAIL** — fixer-addressable |
 | contract names a key no counter can emit | absent from both snapshots | raise |
 
-### 5.5 `lens_surface_coverage{covered, total}`
-Content-returning MCP surfaces that accept and honour a `lens` argument — today
-1, and the denominator comes from a declared list in `schema/data/` (§3.2 rule 2),
-not from a literal in the counter.
+### 5.5 `lens_param_present{covered, total}`
+Content-returning MCP surfaces whose handler **accepts** a `lens` argument —
+today 1 of 6. The denominator comes from a declared list in `schema/data/`
+(§3.2 rule 2), not a literal in the counter; the numerator is introspected from
+the live handler signature, so the declaration cannot claim a parameter the code
+does not have.
+
+**This metric is named for its limit.** An earlier draft called it
+`lens_surface_coverage` and defined it as surfaces that "accept *and honour*" a
+lens. Only the first half is decidable from a signature, and the gap is not
+academic: against a `covered = 6` bound, adding `lens: str = "dev"` to five
+handlers and discarding the value satisfies INTENT, ENVELOPE and INVARIANT while
+`session_bootstrap` still pushes personal claims into every dev session — the
+vacuous PASS this program exists to prevent, on the very counter §3.2 rule 2 was
+written to protect.
+
+So **G3 must add a behavioural gate**, not merely raise this number: call a
+surface under two lenses on a seeded corpus and require the result sets to
+differ. The shape already exists in `verify._check_dev_lens_no_personal`. The
+counter tracks wiring; the gate proves scoping.
 
 ### 5.6 Artifact PII posture (hard rule #1)
 
@@ -562,7 +578,7 @@ achieving the goal?" test to the five open problem families:
 |---|---|---|
 | **G1** L1 lint + PII guard liveness | `lint.L1 = 0`; `pii_active_patterns ≥ 1` **and** a seeded-match probe blocks | ✅ leads on the repo-local half |
 | **G2** promote predicate | `promote_eligible.total ≤ 30`, `.by_domain.knowledge = 0` | ✅ measurable |
-| **G3** lens coverage + project axis | `lens_surface_coverage = 6/6`; `foreign_ratio ≤ 0.15` with `returned ≥ 20` | ✅ needs the §5.6 fixture |
+| **G3** lens coverage + project axis | `lens_param_present = 6/6` **plus** the §5.5 behavioural gate; `foreign_ratio ≤ 0.15` with `returned ≥ 20` | ✅ needs the §5.6 fixture |
 | **G4** pending review surface | the surface returns **all** pending claims with ages, asserted equal to `pending_age.count`/`.max` | ⚠️ tooling only — the 36 judgements stay human |
 | **G5** auto-pass narrowing; wiki-link repair | passed-pool delta (exact, with INV-4 in `supersedes`); dangling-link count → 0 | ✅ mechanical |
 | — **stale status-snapshot claims** | none statable | ❌ **excluded** |

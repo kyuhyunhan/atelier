@@ -30,11 +30,23 @@ exactly — promote eligibility 830 (knowledge 807 / operational 23), pending
   `pii_file_present` separately — so the state RFC 0008 left unspecified (a file
   that exists carrying only comments, reported healthy by every enforcement
   point while scanning nothing) is visible as the disagreement it is.
-- **`lens_surface_coverage` splits its two halves by trust.** The denominator is
+- **`lens_param_present` is named for what it can prove.** The denominator is
   schema data (`schema/data/lens_surfaces.yaml`, hard rule #3) so it cannot be
-  shrunk to meet a bound; the numerator is introspected from the live handler
-  signature, so the schema file cannot claim coverage the code does not have.
-  Both directions are tested.
+  shrunk to meet a bound, and the numerator is introspected from the live
+  handler signature so the schema file cannot claim a parameter the code lacks.
+  But a signature cannot show a lens is *honoured*, and review found the first
+  draft both called it "coverage" and shipped a test asserting an
+  accepts-then-ignores handler as the passing case — certifying the attack
+  instead of disclosing it. The metric is renamed, the test now documents the
+  blind spot, and the RFC records that G3 must add a behavioural gate (call a
+  surface under two lenses, require the results to differ) before its `6/6`
+  bound means anything.
+- **`pending_age` abstains instead of reporting a zero tail.** Undated pending
+  claims were dropped from the age list but still counted, so a queue of
+  unparseable claims read `max: 0` — passing a `≤ 7` ceiling while the backlog
+  rots, which is the exact defect `cross_project_noise` was withheld to avoid.
+  Ages also clamp at zero, since verifying against a stale anchor otherwise
+  takes a max over mixed-sign values.
 - **`cross_project_noise` is deliberately absent** until its out-of-tree fixture
   lands. Under the abstain rule that absence is the honest signal — a `0.0`
   would pass a `≤ 0.15` ceiling and report green on a lens returning nothing.

@@ -97,7 +97,8 @@ def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
     return out
 
 
-def snapshot(*, probe_k: int = DEFAULT_PROBE_K) -> Dict[str, Dict[str, Any]]:
+def snapshot(*, probe_k: int = DEFAULT_PROBE_K,
+             vault: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
     """Map entry_id → {visible, rank, probe, project, topic, title}. `rank` is
     the 0-based position a learning occupies when searched by its own concept,
     or None when it does not appear within `probe_k` (i.e. it is dark).
@@ -105,8 +106,14 @@ def snapshot(*, probe_k: int = DEFAULT_PROBE_K) -> Dict[str, Dict[str, Any]]:
     The probe runs *without* a project boost (project=None): the audit measures
     pure concept-findability, independent of which project context happens to be
     active, so a learning cannot look reachable merely because its own project
-    is being boosted. A stricter, context-free omission signal."""
-    vault = _vault_root()
+    is being boosted. A stricter, context-free omission signal.
+
+    `vault` defaults to the configured root. It is a parameter because
+    `baseline.generate()` passes one to `eval.run()` and `census.census()` but
+    could not to this — so a measurement taken against a temp vault silently
+    read the LIVE one for the surfacing block, and RFC 0009 §8.1's end-to-end
+    self-test (inject a delta, prove the gate fires) was not implementable."""
+    vault = Path(vault) if vault is not None else _vault_root()
     snap: Dict[str, Dict[str, Any]] = {}
     for it in _enumerate_accepted(vault):
         eid, probe = it["entry_id"], it["probe"]
@@ -128,11 +135,12 @@ def snapshot(*, probe_k: int = DEFAULT_PROBE_K) -> Dict[str, Dict[str, Any]]:
     return snap
 
 
-def audit(*, probe_k: int = DEFAULT_PROBE_K) -> Dict[str, Any]:
+def audit(*, probe_k: int = DEFAULT_PROBE_K,
+          vault: Optional[Path] = None) -> Dict[str, Any]:
     """Standalone diagnostic — which accepted learnings are unreachable by their
     own concept *right now*. Useful even without a reorganization pass: it finds
     memory that has already gone effectively dead."""
-    snap = snapshot(probe_k=probe_k)
+    snap = snapshot(probe_k=probe_k, vault=vault)
     dark = [
         {"entry_id": eid, "title": s["title"], "project": s["project"],
          "topic": s["topic"], "probe": s["probe"]}

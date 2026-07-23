@@ -19,12 +19,13 @@ depend on `ATELIER_EMBED` (see RFC 0006 §11.2), so regenerate at a fixed env.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from . import census as _census
 from . import eval as _eval
+from . import metrics as _metrics
 from . import surfacing as _surfacing
 
 _ABOUT = (
@@ -36,14 +37,34 @@ _ABOUT = (
 
 
 def generate(*, k: int = 5, vault: Optional[Path] = None,
-             captured_date: Optional[str] = None) -> Dict[str, Any]:
+             captured_date: Optional[str] = None,
+             about: Optional[str] = None) -> Dict[str, Any]:
     """The full baseline dict (JSON-serializable). `captured_date` defaults to
-    today (UTC); pass it explicitly for reproducible fixtures/tests."""
+    today (UTC); pass it explicitly for reproducible fixtures/tests.
+
+    `about` names the program this baseline anchors. It is a parameter because
+    there is now more than one: `0006-baseline.json` stays frozen as the evidence
+    that pillars ①–④ did not regress, and RFC 0009 captures its own anchor rather
+    than rewriting that record (RFC 0009 §4).
+
+    The `metrics` block (RFC 0009 §5) is a SIBLING of `census`, never part of it.
+    INV-1 (`verify._census_kind_totals`) reads `census` as a monotone no-shrink
+    gate, so a counter a goal must drive DOWN would become a gate against its own
+    goal if it landed there (§3.3).
+    """
+    captured = captured_date or datetime.now(timezone.utc).date().isoformat()
+    try:
+        as_of = date.fromisoformat(captured)
+    except ValueError:
+        # `verify_against` feeds this from an on-disk anchor's `captured_date`.
+        # A hand-edited or truncated value must not abort the whole
+        # verification; fall back to today and let the date itself show it.
+        as_of = datetime.now(timezone.utc).date()
     ev = _eval.run(k=k, vault=vault)
-    aud = _surfacing.audit()
+    aud = _surfacing.audit(vault=vault)
     return {
-        "_about": _ABOUT,
-        "captured_date": captured_date or datetime.now(timezone.utc).date().isoformat(),
+        "_about": about or _ABOUT,
+        "captured_date": captured,
         "engine": ev.get("engine"),          # surfaced top-level for a quick read
         "eval": ev,
         "surfacing": {
@@ -52,6 +73,12 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
             "dark_count": aud["dark_count"],
         },
         "census": _census.census(vault=vault),
+        # `as_of` is capture metadata, NOT a metric: §3.4 makes ENVELOPE
+        # default-deny over the leaf keys under `metrics`, and a value that
+        # changes every run by construction would trip it with no legal waiver
+        # shape (§3.5 requires a numeric bound). It sits beside captured_date.
+        "as_of": as_of.isoformat(),
+        "metrics": _metrics.metrics(as_of=as_of, vault=vault),
     }
 
 
@@ -62,9 +89,11 @@ def _serialize(baseline: Dict[str, Any]) -> str:
 
 
 def write(path: Path, *, k: int = 5, vault: Optional[Path] = None,
-          captured_date: Optional[str] = None) -> Dict[str, Any]:
+          captured_date: Optional[str] = None,
+          about: Optional[str] = None) -> Dict[str, Any]:
     """Generate and write the baseline to `path`; return the dict."""
-    baseline = generate(k=k, vault=vault, captured_date=captured_date)
+    baseline = generate(k=k, vault=vault, captured_date=captured_date,
+                        about=about)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_serialize(baseline), encoding="utf-8")
     return baseline

@@ -105,10 +105,15 @@ def concept_probes(vault: Path) -> List[Dict[str, Any]]:
 
 # ── run ─────────────────────────────────────────────────────────────────────
 
-def _self_probe_block(k: int) -> Dict[str, Any]:
+def _self_probe_block(k: int, vault: Path | None = None) -> Dict[str, Any]:
     """Known-item metrics from the audit's own snapshot at depth k — so Recall@k
-    and the dark count share the surfacing audit's exact omission definition."""
-    snap = _surfacing.snapshot(probe_k=k)
+    and the dark count share the surfacing audit's exact omission definition.
+
+    `vault` must be threaded: the sibling blocks take one, so without it a
+    baseline generated against a temp vault measured `self_probe` over the LIVE
+    vault while `surfacing` measured the temp one — two blocks this docstring
+    claims share an omission definition, silently disagreeing."""
+    snap = _surfacing.snapshot(probe_k=k, vault=vault)
     rows = [s for s in snap.values() if (s.get("probe") or "").strip()]
     recalls = [1.0 if s["visible"] else 0.0 for s in rows]
     rrs = [1.0 / (s["rank"] + 1) if s["rank"] is not None else 0.0 for s in rows]
@@ -231,7 +236,7 @@ def run(*, k: int = 5, vault: Path | None = None) -> Dict[str, Any]:
     return {
         "k": k,
         "engine": _engine_label(),
-        "self_probe": _self_probe_block(k),
+        "self_probe": _self_probe_block(k, vault),
         "concept_grouped": _concept_block(vault, k),
         "paraphrase": paraphrase_block(vault, k),
     }

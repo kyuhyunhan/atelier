@@ -343,16 +343,21 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
 
 
 def _cmd_baseline(args: argparse.Namespace) -> int:
-    """Generate the RFC 0006 verification baseline (eval + surfacing aggregate +
-    census). Writes to --out, or prints to stdout. Regenerating an unchanged
-    vault at a fixed embedding env is byte-identical."""
+    """Generate a verification baseline (eval + surfacing aggregate + census +
+    the RFC 0009 metrics). Writes to --out, or prints to stdout. Regenerating an
+    unchanged vault at a fixed embedding env is byte-identical.
+
+    `--about` names the program this anchor serves. There is now more than one
+    (0006 stays frozen as the pillar record; 0009 has its own), and without it
+    every new anchor would be stamped with the 0006 description — the
+    misdescription the parameter exists to prevent."""
     from .service.learnings import baseline as _bl
     import json as _json
     if args.out:
-        bl = _bl.write(Path(args.out), k=args.k)
+        bl = _bl.write(Path(args.out), k=args.k, about=args.about)
         print(f"baseline written: {args.out}  engine={bl.get('engine')}")
     else:
-        bl = _bl.generate(k=args.k)
+        bl = _bl.generate(k=args.k, about=args.about)
         print(_json.dumps(bl, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
 
@@ -535,9 +540,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=_cmd_snapshot)
 
     s = sub.add_parser("baseline",
-                       help="generate the RFC 0006 verification baseline (eval + surfacing + census)")
+                       help="generate a verification baseline (eval + surfacing + census + metrics)")
     s.add_argument("--k", type=int, default=5, help="cutoff k for P@k/R@k (default 5)")
     s.add_argument("--out", help="write baseline JSON here (default: stdout)")
+    s.add_argument("--about",
+                   help="what program this anchor serves (default: the RFC 0006 text)")
     s.set_defaults(func=_cmd_baseline)
 
     s = sub.add_parser("daemon",

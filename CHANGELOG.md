@@ -21,7 +21,7 @@ changes the lane; depth is optional and human-directed.
   only ever TIGHTENS here, mirroring the dream-synthesis guard; abstain-on-miss
   when the Source cannot be resolved (lint L8 remains the audit backstop).
   `domain: personal` stays private regardless (Policy 1 unchanged).
-- **The atomize skill scopes operational Sources explicitly** (tas repo):
+- **The atomize skill scopes operational Sources explicitly** (out of tree):
   additive, on-request only, never on a backlog sweep — a minted Source already
   has a derived Claim, so it never enters the un-atomized count. "Shallow vs
   deep" is a judgement about whether a body has earned the tokens, not a

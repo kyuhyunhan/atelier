@@ -491,6 +491,92 @@ def write_operational_source(*, statement: str, body: str,
     return {"path": str(out), "entry_id": eid}
 
 
+def operational_source_id_for(statement: str) -> str:
+    """The content-addressed operational Source id a statement WOULD get —
+    computed, never written. RFC 0008 §4 step 1 requires deciding the
+    supersession branch before any write, because a same-id re-mint would
+    rebuild frontmatter from birth defaults."""
+    return operational_source_content_id(" ".join(str(statement).split()))
+
+
+def operational_claim_id_for(statement: str) -> str:
+    """The claim id a statement WOULD mint to (pure function, no write) —
+    `entry_id("claim", statement, <its operational source id>)`."""
+    statement = " ".join(str(statement).split())
+    return _structure.entry_id(
+        "claim", statement=statement,
+        derived_from=operational_source_id_for(statement))
+
+
+def claim_path_for(statement: str, entry_id: str, *,
+                   vault: Optional[Path] = None) -> Optional[str]:
+    """Locate an existing claim node by its (statement, entry_id), or None.
+
+    O(1): the writer's filename is deterministic — `{slug(statement)}-{eid[:8]}`
+    plus the `-N` collision suffix — so we probe those paths and verify the
+    stored `entry_id`, exactly as `write_operational_source` does. An
+    rglob+parse over the whole claim dir (6.5k files, seconds) would be the
+    same per-item-O(vault) cost the absorb path just paid 243s to remove."""
+    vault = vault if vault is not None else vault_root()
+    base = claims_dir(vault)
+    if not base.exists():
+        return None
+    stem = f"{_slugify(' '.join(str(statement).split()))}-{entry_id[:8]}"
+    n = 0
+    while True:
+        p = base / (f"{stem}.md" if n == 0 else f"{stem}-{n}.md")
+        if not p.exists():
+            return None                         # the collision chain ends here
+        if str(_safe_eid(p)) == entry_id:
+            return str(p)
+        n += 1
+
+
+def refresh_operational_source_body(*, statement: str, body: str,
+                                    body_sha: Optional[str] = None,
+                                    revised_at: Optional[str] = None,
+                                    vault: Optional[Path] = None,
+                                    ) -> Optional[Dict[str, Any]]:
+    """Update an EXISTING operational Source's body in place (RFC 0008 §4 §2).
+
+    The Source id is content-addressed by the *statement* alone, so an upstream
+    revision that keeps its description resolves to this same node — and
+    `write_operational_source` is create-once, which would silently drop the
+    revised body. Refreshing keeps the vault mirror faithful to its upstream
+    (copy-semantics) without touching the address.
+
+    ONLY the body and its revision markers change: `entry_id`, `created_at` and
+    every other frontmatter field are preserved, and `content_hash` is
+    re-derived. Returns {path, entry_id, changed} — or None when no Source
+    exists yet (the caller should mint instead).
+    """
+    vault = vault if vault is not None else vault_root()
+    statement = " ".join(str(statement).split())
+    eid = operational_source_content_id(statement)
+    base = vault / _structure.operational_source_dir()
+    if not base.exists():
+        return None
+    for path in sorted(base.glob(f"{_slugify(statement)}-{eid[:8]}*.md")):
+        try:
+            fm, old_body = _parse.split_frontmatter(
+                path.read_text(encoding="utf-8"))
+        except Exception:                       # pragma: no cover - defensive
+            continue
+        if not isinstance(fm, dict) or fm.get("entry_id") != eid:
+            continue
+        if old_body == body:
+            return {"path": str(path), "entry_id": eid, "changed": False}
+        new_fm = dict(fm)
+        if body_sha:
+            new_fm["body_sha"] = body_sha
+        new_fm["revised_at"] = revised_at or _now_iso()
+        new_fm.pop("content_hash", None)
+        new_fm["content_hash"] = _content_hash(new_fm)
+        _atomic_write(path, _emit(new_fm, body))
+        return {"path": str(path), "entry_id": eid, "changed": True}
+    return None
+
+
 def mint_operational_claim(*, statement: str, body: str,
                            observation_kind: str = "feedback",
                            why_status: str = "present",
@@ -713,6 +799,13 @@ def set_ac_status(path: Path, fm: Dict[str, Any], body: str, *,
     """
     new_fm = dict(fm)
     new_fm["ac_status"] = new_status
+    # Any transition through this gateway invalidates a previous transition's
+    # authorship stamp. `retracted_by` is written by callers (absorb's
+    # supersession) IMMEDIATELY AFTER this returns, so clearing it here means a
+    # stale marker can never outlive the retraction it described — otherwise a
+    # curator re-retracting a machine-retracted claim would inherit the marker
+    # and see their judgement silently reversed later.
+    new_fm.pop("retracted_by", None)
     if new_status == "passed":
         new_fm["accepted_at"] = _now_iso()
     if new_status in ("failed", "retracted"):

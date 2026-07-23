@@ -227,25 +227,33 @@ def test_demoted_absorb_still_dedupes_on_rerun(atelier_env: Dict) -> None:
     assert out2["accepted"] == [] and out2["candidates"] == []
 
 
-# ── RFC 0008 M2 gap: a revision that keeps the description is dropped ─────────
+# ── RFC 0008 M2: a body-only revision refreshes the Source, keeps the claim ──
 
 
-def test_revision_with_same_description_is_flagged_not_silent(
+def test_body_only_revision_refreshes_source_and_keeps_the_claim(
         atelier_env: Dict) -> None:
-    """Until M2 supersession lands, an upstream body edit that keeps the
-    description mints onto the SAME content-addressed nodes — both now
-    idempotent — so the revised body is stored nowhere. The ledger records the
-    new hash regardless, so the operator must be TOLD."""
+    """An upstream body edit that keeps the description resolves to the SAME
+    content-addressed nodes. M2's contract: the Source body tracks the upstream
+    revision, and the Claim is left completely alone."""
     root = _croot(atelier_env)
     p = _seed_claude(root, "-w-p1", "m1", type_="feedback",
                      description="one durable rule", body="v1 body\n")
     first = _ac.absorb(dry_run=False, source_root=root)
-    assert "revision_dropped" not in first["accepted"][0]
+    assert "body_refreshed" not in first["accepted"][0]
 
-    # same description, different body → new sha (not deduped), same claim id
     p.write_text(p.read_text().replace("v1 body", "v2 revised body"),
                  encoding="utf-8")
     second = _ac.absorb(dry_run=False, source_root=root)
     assert second["deduped"] == []                  # a genuinely new hash
-    assert second["accepted"][0]["revision_dropped"] is True
-    assert second["accepted"][0]["path"] == first["accepted"][0]["path"]
+    rec = second["accepted"][0]
+    assert rec["body_refreshed"] is True
+    assert "revision_dropped" not in rec            # the gap is CLOSED
+    assert rec["path"] == first["accepted"][0]["path"]
+
+    # the Source now carries the revised body (not the stale v1)
+    src_fms = list(_source_fms(atelier_env["gorae"]))
+    assert len(src_fms) == 1                        # same node, not a fork
+    assert src_fms[0].get("revised_at")
+    src_dir = atelier_env["gorae"] / _structure.operational_source_dir()
+    text = next(iter(src_dir.glob("*.md"))).read_text(encoding="utf-8")
+    assert "v2 revised body" in text and "v1 body" not in text

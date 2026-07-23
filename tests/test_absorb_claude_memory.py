@@ -279,10 +279,22 @@ def test_ledger_is_single_vault_root_json_file(atelier_env: Dict,
     assert ledger.is_file()                                   # single file …
     assert not (vault / "raw" / "learning").exists()          # … no legacy dir
     data = json.loads(ledger.read_text(encoding="utf-8"))
-    assert isinstance(data, dict) and len(data) == 1          # keyed by body sha
-    (_sha, rec), = data.items()
-    # the stale, unused `dest` field is dropped
-    assert set(rec) == {"source_path", "absorbed_at", "project", "type"}
+    # RFC 0008 M2: the indexed shape — dedup by body sha, plus a
+    # machine-independent path index that makes "same file, new hash" mean
+    # "revised" rather than "new memory".
+    assert set(data) == {"by_sha", "by_path"}
+    assert len(data["by_sha"]) == 1
+    (sha, rec), = data["by_sha"].items()
+    # the stale, unused `dest` field is dropped; claim_id + statement are
+    # recorded so a later revision can supersede this claim and locate its
+    # file in O(1)
+    assert set(rec) == {"source_path", "absorbed_at", "project", "type",
+                        "claim_id", "statement"}
+    # the path key carries NO absolute path (the ledger is git-tracked and
+    # must resolve on another machine)
+    (key, indexed_sha), = data["by_path"].items()
+    assert key == "-w-lexio/fb1.md" and indexed_sha == sha
+    assert not key.startswith("/")
 
 
 def test_dry_run_writes_no_ledger(atelier_env: Dict, tmp_path: Path) -> None:
@@ -306,7 +318,8 @@ def test_corrupt_ledger_is_tolerated(atelier_env: Dict, tmp_path: Path) -> None:
     out = _ac.absorb(dry_run=False, source_root=src_root)
     assert len(out["accepted"]) == 1                          # tolerated, imported
     data = json.loads((vault / ".absorbed-from-claude.json").read_text())
-    assert isinstance(data, dict) and len(data) == 1          # rewritten valid
+    assert set(data) == {"by_sha", "by_path"}                 # rewritten valid
+    assert len(data["by_sha"]) == 1
 
 
 def test_mcp_dispatch_absorb_claude_memory(atelier_env: Dict, tmp_path: Path) -> None:

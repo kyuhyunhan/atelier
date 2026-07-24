@@ -181,8 +181,18 @@ def verify_contract_run(contract_path: Path, before_path: Path, *, repo: Path,
     _freeze.check_pins(contract, repo=repo, contract_path=contract_path,
                        before_path=before_path, fixture_path=fixture_path)
 
+    # The round baseline is an integrity root (§4.1: "the same protection as the
+    # contract"). A missing or corrupt before.json is an untrustworthy-harness
+    # condition, so it must surface as the typed hard-abort — not a raw
+    # FileNotFoundError/JSONDecodeError that the CLI would report as a FAIL and
+    # the loop would then retry against a broken root ("three chances at a green
+    # one", §6). check_pins already hashed it, so absence here is a race, but the
+    # decode is the first read of its *content*.
     import json
-    before = json.loads(Path(before_path).read_text(encoding="utf-8"))
+    try:
+        before = json.loads(Path(before_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise ContractError(f"round baseline unreadable: {e}")
     after = _baseline.generate(vault=vault,
                                captured_date=captured_date
                                or before.get("captured_date"))

@@ -23,13 +23,17 @@ The last piece of G0 — what an operator actually invokes.
   prevent. A hard abort restores and escalates without consuming a round.
 - **`docs/rfc/0009-baseline.json`** — the frozen program anchor (§4), captured
   now that the §5 counters have landed and at `engine: hybrid` to match the 0006
-  anchor. It records where the program began: `promote_eligible` 830, `pending`
-  36 (max age 38), 0 active PII patterns, 1-of-6 lens surfaces, plus the vault
-  content fingerprint.
+  anchor. It records where the program began (as of 2026-07-24):
+  `promote_eligible` 830, `pending` 37 (max age 39), 0 active PII patterns,
+  1-of-6 lens surfaces, plus the vault content fingerprint.
 
-This completes G0. The goals themselves (G1 PII liveness, G2 promote predicate,
-G3 lens + cross-project, G4/G5) now run through this surface. 3 CLI tests
-(exit-code contract); 801 → 804.
+This completes the G0 **engine and operator surface**. The remaining G0 §8 line
+item is the `goal` *skill* — a thin invocation wrapper over the workflow, which
+lives out of tree with the other atelier skills (`~/.claude/skills/`), not in
+this public engine repo. The goals themselves (G1 PII liveness, G2 promote
+predicate, G3 lens + cross-project, G4/G5) now run through this surface. 5 CLI
+tests (the exit-code contract, including missing/corrupt round baseline →
+hard-abort); 801 → 806.
 
 ### Added — RFC 0009 G0c-1: the goal orchestrator and the two-sided gate
 

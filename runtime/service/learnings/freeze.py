@@ -123,7 +123,13 @@ def check_pins(contract: Dict[str, Any], *, repo: Path, contract_path: Path,
     want_before = pins.get("before_sha256")
     if not want_before:
         raise ContractError("pins.before_sha256 is missing (§4.1)")
-    got_before = sha256_file(before_path)
+    try:
+        got_before = sha256_file(before_path)
+    except OSError as e:
+        # A missing round baseline is an untrustworthy-harness condition, not a
+        # FAIL — it must surface as the typed hard-abort, never a raw
+        # FileNotFoundError the CLI would report as exit 1 and the loop retry.
+        raise ContractError(f"round baseline unreadable: {e}")
     if got_before != want_before:
         raise ContractError(
             f"round baseline hash mismatch: pinned {want_before[:12]}…, "

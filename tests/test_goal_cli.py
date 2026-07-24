@@ -86,3 +86,20 @@ def test_exit_2_on_hard_abort(atelier_env: Dict, tmp_path: Path) -> None:
     repo, bp = _setup(vault, tmp_path,
                       intent=[{"metric": "metrics.NONEXISTENT", "to": {"eq": 0}}])
     assert _run(repo, bp, vault) == 2
+
+
+def test_exit_2_on_a_missing_round_baseline(atelier_env: Dict, tmp_path: Path) -> None:
+    """§4.1: the round baseline is an integrity root. A missing before.json is a
+    the-harness-cannot-be-trusted condition — code 2, so the loop aborts rather
+    than retrying a fixer against a broken root."""
+    vault = Path(_cl._vault_root())
+    repo, bp = _setup(vault, tmp_path, intent=[])
+    bp.unlink()                                           # baseline vanished
+    assert _run(repo, bp, vault) == 2
+
+
+def test_exit_2_on_a_corrupt_round_baseline(atelier_env: Dict, tmp_path: Path) -> None:
+    vault = Path(_cl._vault_root())
+    repo, bp = _setup(vault, tmp_path, intent=[])
+    bp.write_text("{ not json", encoding="utf-8")         # truncated/tampered
+    assert _run(repo, bp, vault) == 2

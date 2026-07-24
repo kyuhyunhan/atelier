@@ -297,18 +297,28 @@ between them. Compare `supersedes` (§3.3), which is hardened with a schema-data
 map, a matching INTENT bound, per-clause scope, a reason *and* critic acceptance:
 the weaker mechanism must not reach the stronger outcome.
 
-**A waiver is therefore a second-class INTENT clause** — it names a metric, a
-*bound*, and a reason, and the metric stays measured. It relaxes what the value
-must be; it never stops looking.
+**A waiver releases one metric and bounds another** — and the metric it bounds
+stays measured. It relaxes what a value must be; it never stops looking.
 
-This is load-bearing rather than theoretical, because `vault.content_fingerprint`
-is a mandatory namespace member while INTENT bounds are numeric — a hash cannot be
-an INTENT clause. Any vault-mutating goal therefore needs the waiver path, so it
-is the normal path, not the exception. G5 (wiki-link repair) rewrites vault
-markdown by definition. Its fingerprint waiver bounds
-`vault.changed_paths{count, prefixes}`: *"≤ 30 files, all under `graph/atomic/`"*
-— which distinguishes "repaired 12 links" from "rewrote 400 files", the exact
-discrimination a bare exemption throws away.
+```json
+{"release": "vault.content_fingerprint",
+ "bound": {"metric": "vault.changed_paths.count", "to": {"max": 30}},
+ "reason": "wiki-link repair, graph/atomic only"}
+```
+
+The release/bound *split* is load-bearing, not ceremony. `vault.content_fingerprint`
+is a mandatory namespace member and it is a hash string — it cannot carry a
+numeric bound, so a same-metric waiver could never gate it. A vault-mutating goal
+therefore *releases* the fingerprint from strict equality and *bounds a sibling*,
+`vault.changed_paths.count`, which distinguishes "repaired 12 links" from "rewrote
+400 files" — the discrimination a bare exemption throws away. The simple case (a
+numeric metric expected to move within a range) omits `bound.metric` and bounds
+the released metric itself. A waiver whose released metric is not in the namespace
+raises: an inert waiver is almost always a typo, and it must surface at the
+Contract stage rather than leave the metric silently default-denied.
+
+Any vault-mutating goal needs this path, so it is the normal path, not the
+exception.
 
 ## 4. Snapshots — three classes
 

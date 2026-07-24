@@ -4,6 +4,61 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009 G0b: the delta-contract evaluator and freeze guards
+
+The core logic of the goal program, in two modules kept deliberately apart.
+
+`contract.py` — the **pure** evaluator. Given a contract and a (before, after)
+pair of baselines, it scores INTENT (did the declared change happen), ENVELOPE
+(did anything else move), and shape-checks `supersedes`. No I/O, no clock, no
+git — so it is exhaustively property-tested against synthetic dicts.
+
+- **An unknown metric key raises, never resolves to zero.** `_leaf` returns a
+  sentinel on absence rather than the `0.0` `_metric_not_regressed._get` returns
+  today, so a typo'd `{"eq": 0}` clause cannot pass while proving nothing
+  (§8.1.3). A malformed bound, a non-numeric target, or a non-default envelope
+  mode all raise too — a contract that cannot be evaluated is a broken harness
+  (a hard abort, §6), not a missed target (a FAIL).
+- **ENVELOPE is default-deny over a union namespace.** The namespace is the
+  numeric leaves under `metrics`/`census`/`surfacing`/`eval` (excluding
+  `_`-prefixed and non-numeric leaves, §5.1.1) plus `vault.content_fingerprint`,
+  taken over `keys(before) ∪ keys(after)`. A metric present on one side and
+  absent from the other raises — so dropping a counter cannot dodge the envelope,
+  the dodge default-deny closes one level down.
+- **A waiver releases one metric and bounds another** (§3.5), because
+  `vault.content_fingerprint` is a hash string that cannot carry a numeric bound
+  — so a vault-mutating goal releases it and bounds `vault.changed_paths.count`
+  instead. Review caught that the first draft's same-metric-only waiver could
+  never express this, which would have forced a data-model rewrite at G5; the
+  split lands now. A same-metric waiver omits `bound.metric`; a waiver on a
+  metric outside the namespace (an inert typo) raises; one without a reason
+  raises. **`supersedes` is per-clause and needs a matching INTENT bound**
+  (§3.3): releasing an invariant the contract did not also bound is disabling a
+  gate it never earned, and raises.
+- **`from` is an integrity check, not decoration.** A clause declaring
+  `from: 830` against a before-snapshot that reads 500 was authored against a
+  different baseline, and raises rather than being graded.
+
+`freeze.py` — the integrity guards, the only impure part. A contract is read from
+its committed git blob (never the working tree), and pinned by content and
+ancestry rather than cleanliness — the two weaknesses review found in the RFC
+0006 baseline guard.
+
+- **`captured_at_head` must be exactly the contract commit's first parent**, not
+  merely some ancestor (§3.1.1) — that tightening removes the "some older commit
+  the author picks" free variable. The round baseline's hash and any probe
+  fixture's hash are pinned in the contract too, so rewriting the before-picture
+  or the probe mid-run fails closed.
+- A dirty or uncommitted contract raises rather than being graded as a draft;
+  the pins all live *inside* the contract, the run's only git-pinned artifact,
+  because a manifest under `~/.atelier/cache/` would be as writable as what it
+  attests to.
+
+Not in this PR (deferred to G0c, the end-to-end wiring): the `verify_contract`
+orchestrator that combines these with the global invariants and *applies* a
+supersession, the `goal` workflow, and the `0009-baseline.json` capture. 28 new
+tests (a real throwaway git repo for the freeze guards); 755 → 783.
+
 ### Added — RFC 0009 G0a: the goal-program metrics
 
 The five quantities a *deliberate reduction* can be gated on, in a new

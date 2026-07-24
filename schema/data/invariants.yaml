@@ -1,0 +1,51 @@
+# The global invariant clauses — RFC 0009 §3.3.
+#
+# Each clause names ONE metric and the ONE direction it forbids. This is what
+# makes supersession per-clause rather than per-invariant: INV-4 guards two
+# quantities (visible must not fall, dark_count must not rise), so releasing it
+# wholesale for a fall in `visible` would silently stop gating `dark_count` too.
+# A `supersedes` entry names {invariant, metric, direction} and releases exactly
+# the matching clause.
+#
+# Hard rule #3: the map is DATA, not prose — §3.3 says so explicitly ("the
+# invariant→metric map is schema data"). The verifier reads it here and never
+# hardcodes the clause list.
+#
+# `forbids: fall`  → the after-value must be >= the before-value (a drop FAILs).
+# `forbids: rise`  → the after-value must be <= the before-value (a climb FAILs).
+# A `supersedes` direction of `may-fall` releases a `forbids: fall` clause;
+# `may-rise` releases a `forbids: rise` clause.
+#
+# INV-1 (no_data_loss) is NOT here: it ranges over census node-kind totals, a
+# variable key set, and RFC 0009 §3.3 keeps it whole ("graph nodes did not
+# vanish"). A goal never legitimately reduces a node KIND — the counters that
+# goals reduce live in the `metrics` block, invisible to INV-1 by construction.
+version: 1
+
+clauses:
+  - id: INV-4/surfacing.visible
+    invariant: INV-4
+    metric: surfacing.visible
+    forbids: fall
+    why: >-
+      an accepted claim that stopped being reachable by its own concept is a
+      silent omission. G5 (auto-pass narrowing) shrinks the accepted pool by
+      design, so it supersedes this clause with a matching INTENT bound.
+
+  - id: INV-4/surfacing.dark_count
+    invariant: INV-4
+    metric: surfacing.dark_count
+    forbids: rise
+    why: the count of unreachable accepted claims must not climb.
+
+  - id: eval/self_probe.recall_at_k
+    invariant: eval-recall
+    metric: eval.self_probe.recall_at_k
+    forbids: fall
+    why: known-item retrieval must not regress (RFC 0002 baseline).
+
+  - id: eval/paraphrase.recall_at_k
+    invariant: eval-recall
+    metric: eval.paraphrase.recall_at_k
+    forbids: fall
+    why: semantic recall must not fall below the frozen lexical baseline.

@@ -4,6 +4,41 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009 G0c-1: the goal orchestrator and the two-sided gate
+
+The three layers wired together, and the test the whole program exists to pass.
+
+`goal.py` — `verify_contract` scores INTENT, ENVELOPE, and the global invariants
+against a (before, after) pair, and is where a `supersedes` release is actually
+*applied* (the other modules only shape-check it). A pure core (no git, no vault)
+plus an operational wrapper `verify_contract_run` that reads the committed
+contract, checks the pins, and generates the after-state.
+
+- **Invariants are decomposed into per-clause checks, driven by
+  `schema/data/invariants.yaml`** (§3.3, hard rule #3). INV-4 guards two
+  quantities, so it splits into `surfacing.visible / forbids-fall` and
+  `surfacing.dark_count / forbids-rise`; a `supersedes` entry releases exactly
+  the matching clause, and its sibling stays gated — the coarseness §3.3 warns
+  against is now impossible. INV-1 (no node kind vanished) stays whole and
+  unreleasable: a goal never legitimately reduces a node *kind*.
+- **`vault.content_fingerprint`** (§5.7) enters the baseline: one aggregate hash
+  over `(relpath, sha256(body))` for every non-derived vault markdown file
+  (`INDEX.md`/`MEMORY.md` excluded, content only, never `mtime`). The envelope
+  checks it for equality; a vault-mutating goal releases it through a waiver and
+  bounds `vault.changed_paths.count`, which the orchestrator computes by diffing
+  the per-file digest maps the round baseline carries under `_file_digests`.
+
+**The §8.1 two-sided gate, end-to-end.** `test_goal_run.py` builds a real git
+repo, commits a pinned contract, and drives `verify_contract_run` against the
+live temp vault: an unchanged vault PASSes; a **real minted claim** FAILs, caught
+through the actual census→metric→fingerprint path (not a synthetic after-dict, in
+which a counter hard-wired to a constant would pass both sides — the vacuous PASS
+the program exists to prevent); and a declared-and-waived reduction PASSes, so the
+FAIL is the delta, not the harness refusing everything.
+
+Not in this PR (→ G0c-2, the operator surface): the `goal` workflow, the
+`0009-baseline.json` capture, and the CLI entry. 11 new tests; 786 → 797.
+
 ### Added — RFC 0009 G0b: the delta-contract evaluator and freeze guards
 
 The core logic of the goal program, in two modules kept deliberately apart.

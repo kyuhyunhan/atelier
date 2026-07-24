@@ -38,6 +38,13 @@ from typing import Any, Dict, List, Optional, Tuple
 # is not a numeric leaf) and is handled as a named special member below.
 _NAMESPACE_BLOCKS = ("metrics", "census", "surfacing", "eval")
 
+# The float tolerance `verify._metric_not_regressed` already applies to eval
+# recall — those metrics are not bit-stable run-to-run (an MRR sum's ULP noise,
+# ANN ordering under embeddings). The envelope's equality and the decomposed
+# invariants reuse the same metrics, so they must not be *stricter* than the gate
+# they reuse, or an unchanged vault could spuriously FAIL §8.1's side one.
+_EPS = 1e-9
+
 # The one non-numeric member the envelope still guards: a content hash cannot be
 # an INTENT bound, so a vault-mutating goal reaches it only through a bounded
 # waiver (§3.5). Absent from a pure-metrics baseline; present once G0c captures
@@ -253,11 +260,20 @@ def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
                             "ok": ok,
                             "detail": f"released; {wv['bound_metric']} {detail}"})
             continue
-        ok = (av == bv)
+        ok = _values_equal(av, bv)
         results.append({"layer": "envelope", "metric": metric, "waived": False,
                         "ok": ok, "detail": f"{av} == {bv}" if ok
                         else f"moved {bv} → {av}"})
     return results
+
+
+def _values_equal(a: Any, b: Any) -> bool:
+    """Equality for the envelope's "unchanged" check, with the same float
+    tolerance the reused eval gate has (§ `verify._EPS`). Non-numeric leaves
+    (a fingerprint hash string) compare exactly."""
+    if _is_number(a) and _is_number(b):
+        return abs(a - b) <= _EPS
+    return a == b
 
 
 def validate_supersedes(contract: Dict[str, Any]) -> List[Dict[str, Any]]:

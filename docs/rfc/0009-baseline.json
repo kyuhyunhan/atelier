@@ -1,0 +1,108 @@
+{
+  "_about": "RFC 0009 program anchor (goal-driven delta contracts). Captured after the §5 counters landed (G0a–G0c). The goal verifier diffs a round baseline against this; the metrics block carries promote_eligible/pending_age/guard_liveness/lens_param_present, and the vault block the content fingerprint. engine records the embedding env.",
+  "as_of": "2026-07-24",
+  "captured_date": "2026-07-24",
+  "census": {
+    "claim": {
+      "ac_status": {
+        "(absent)": 4247,
+        "archived": 14,
+        "passed": 179,
+        "pending": 37,
+        "retracted": 1
+      },
+      "domain": {
+        "knowledge": 810,
+        "operational": 234,
+        "personal": 3434
+      },
+      "surfacing": {
+        "always": 12,
+        "proactive": 151,
+        "query": 4315
+      }
+    },
+    "entity": {
+      "in_scheme": {
+        "['inbox']": 20,
+        "['knowledge']": 746,
+        "['operational']": 6,
+        "['personal']": 1262
+      }
+    },
+    "source": {
+      "domain": {
+        "inbox": 1,
+        "knowledge": 103,
+        "operational": 30,
+        "personal": 599
+      }
+    }
+  },
+  "engine": "hybrid",
+  "eval": {
+    "concept_grouped": {
+      "precision_at_k": 0.0,
+      "probes": 0,
+      "recall_at_k": 0.0
+    },
+    "engine": "hybrid",
+    "k": 5,
+    "paraphrase": {
+      "mrr": 0.5833333333333333,
+      "probes": 22,
+      "recall_at_k": 0.6363636363636364,
+      "scored": 22,
+      "stale": []
+    },
+    "self_probe": {
+      "dark_count": 0,
+      "mrr": 0.9477653631284917,
+      "probes": 179,
+      "recall_at_k": 1.0
+    }
+  },
+  "metrics": {
+    "guard_liveness": {
+      "_file_present": true,
+      "pii_active_patterns": 0
+    },
+    "lens_param_present": {
+      "_absent": [
+        "learning_search",
+        "list_pages",
+        "search",
+        "session_bootstrap",
+        "think"
+      ],
+      "_present": [
+        "recall"
+      ],
+      "_unimplemented": [],
+      "covered": 1,
+      "total": 6,
+      "unimplemented": 0
+    },
+    "pending_age": {
+      "count": 37,
+      "dated": 37,
+      "max": 39,
+      "p50": 4
+    },
+    "promote_eligible": {
+      "by_domain": {
+        "knowledge": 807,
+        "operational": 23
+      },
+      "total": 830
+    }
+  },
+  "surfacing": {
+    "dark_count": 0,
+    "total": 179,
+    "visible": 179
+  },
+  "vault": {
+    "content_fingerprint": "a1c8b86f97633e0702176801830b2cc984d92eec0f48668cf5c605e9316c1103"
+  }
+}

@@ -423,6 +423,35 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     return 0 if report["passed"] else 1
 
 
+def _cmd_goal_verify(args: argparse.Namespace) -> int:
+    """RFC 0009 §6: score a committed delta contract against its round baseline.
+
+    Exit 0 = PASS, 1 = FAIL (the change missed its target — a fixer may retry),
+    2 = a hard abort (`ContractError`: a broken pin, an unknown metric key, a
+    corrupt invariant map — the harness cannot be trusted for this run and must
+    NOT be retried in-round; §6). The three exit codes are what the workflow's
+    verify stage branches on.
+    """
+    from .service.learnings import goal as _goal
+    from .service.learnings.contract import ContractError
+    import json as _json
+    try:
+        report = _goal.verify_contract_run(
+            Path(args.contract), Path(args.before),
+            repo=Path(args.repo), vault=Path(args.vault) if args.vault else None,
+            fixture_path=Path(args.fixture) if args.fixture else None)
+    except ContractError as e:
+        log.error(f"HARD ABORT: {e}")
+        return 2
+    print(_json.dumps(report, indent=2, ensure_ascii=False))
+    for layer in ("intent", "envelope", "invariants"):
+        for c in report.get(layer, []):
+            if not c["ok"]:
+                key = c.get("metric") or c.get("id")
+                log.error(f"FAIL [{layer}] {key}: {c['detail']}")
+    return 0 if report["passed"] else 1
+
+
 def _cmd_promote(args: argparse.Namespace) -> int:
     if args.action == "propose":
         out = api.promote_propose()
@@ -562,6 +591,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--allow-uncommitted", action="store_true",
                    help="skip the frozen-baseline guard (tests/dev only)")
     s.set_defaults(func=_cmd_verify)
+
+    s = sub.add_parser("goal-verify",
+                       help="RFC 0009: score a committed delta contract "
+                            "(exit 0 PASS / 1 FAIL / 2 hard-abort)")
+    s.add_argument("--contract", required=True,
+                   help="path to the committed contract JSON (docs/goals/<id>.json)")
+    s.add_argument("--before", required=True,
+                   help="path to the round baseline (before.json)")
+    s.add_argument("--repo", default=".",
+                   help="the git repo the contract is committed in (default cwd)")
+    s.add_argument("--vault", help="vault to measure (default: configured root)")
+    s.add_argument("--fixture", help="out-of-tree probe fixture, if the goal uses one")
+    s.set_defaults(func=_cmd_goal_verify)
 
     return p
 

@@ -4,6 +4,33 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009 G0c-2: the operator surface (goal command, workflow, anchor)
+
+The last piece of G0 — what an operator actually invokes.
+
+- **`atelier goal-verify`** scores a committed delta contract against its round
+  baseline, and exits **0 (PASS) / 1 (FAIL) / 2 (hard abort)**. The three codes
+  are the contract with the harness, not cosmetic: a `ContractError` (a broken
+  pin, an unknown metric key, a corrupt invariant map) is code 2 so the loop
+  never retries an untrustworthy run as if it were a missed target (§6).
+- **`scripts/workflows/goal.workflow.js`** — the §6 convergence loop:
+  Snapshot (rollback point + round baseline) → Contract (author → a **critic**, a
+  distinct agent, accepts it before any code is written) → Implement → Verify
+  (independent verifier → fixer, max 3 rounds) → Ship (ship-pr). The critic gates
+  the *contract*, not the code; the fixer receives only the verifier's failing
+  checks, never the builder's narrative — handing the builder's own account
+  downstream reintroduces the self-grading the independent verifier exists to
+  prevent. A hard abort restores and escalates without consuming a round.
+- **`docs/rfc/0009-baseline.json`** — the frozen program anchor (§4), captured
+  now that the §5 counters have landed and at `engine: hybrid` to match the 0006
+  anchor. It records where the program began: `promote_eligible` 830, `pending`
+  36 (max age 38), 0 active PII patterns, 1-of-6 lens surfaces, plus the vault
+  content fingerprint.
+
+This completes G0. The goals themselves (G1 PII liveness, G2 promote predicate,
+G3 lens + cross-project, G4/G5) now run through this surface. 3 CLI tests
+(exit-code contract); 801 → 804.
+
 ### Added — RFC 0009 G0c-1: the goal orchestrator and the two-sided gate
 
 The three layers wired together, and the test the whole program exists to pass.

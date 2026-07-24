@@ -37,7 +37,7 @@ the program exists to prevent); and a declared-and-waived reduction PASSes, so t
 FAIL is the delta, not the harness refusing everything.
 
 Not in this PR (→ G0c-2, the operator surface): the `goal` workflow, the
-`0009-baseline.json` capture, and the CLI entry. 19 new tests; 786 → 797.
+`0009-baseline.json` capture, and the CLI entry. 11 new tests; 786 → 797.
 
 ### Added — RFC 0009 G0b: the delta-contract evaluator and freeze guards
 

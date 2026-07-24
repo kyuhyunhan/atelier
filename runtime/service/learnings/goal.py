@@ -37,8 +37,17 @@ _INVARIANTS_YAML = (Path(__file__).resolve().parents[3]
 # ── invariant clauses (schema-driven, §3.3) ─────────────────────────────────
 
 def _clauses() -> List[Dict[str, Any]]:
-    data = yaml.safe_load(_INVARIANTS_YAML.read_text(encoding="utf-8"))
-    return list(data.get("clauses") or [])
+    """The invariant clause list from schema. An unreadable or malformed map is
+    an untrustworthy-harness condition (§6), so it surfaces as the typed
+    `ContractError` a caller already catches — not a raw yaml/OS exception that
+    would slip past that handler."""
+    try:
+        data = yaml.safe_load(_INVARIANTS_YAML.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as e:
+        raise ContractError(f"cannot read the invariant map: {e}")
+    if not isinstance(data, dict) or not isinstance(data.get("clauses"), list):
+        raise ContractError("invariant map is malformed (no `clauses` list)")
+    return list(data["clauses"])
 
 
 def _released(direction: str) -> str:
@@ -86,7 +95,11 @@ def apply_invariants(before: Dict[str, Any], after: Dict[str, Any],
             raise ContractError(
                 f"invariant {cid} names {metric!r}, absent from "
                 f"{'before' if bv is _contract._MISSING else 'after'}")
-        ok = av >= bv if forbids == "fall" else av <= bv
+        # Same float tolerance the reused `verify._metric_not_regressed` gate
+        # has — the decomposed invariant must not be stricter than the whole one
+        # it replaces, or an unchanged vault trips §8.1 side one.
+        ok = (av >= bv - _contract._EPS if forbids == "fall"
+              else av <= bv + _contract._EPS)
         arrow = "fell" if forbids == "fall" else "rose"
         results.append({"layer": "invariant", "id": cid, "ok": ok,
                         "superseded": False,
@@ -108,22 +121,26 @@ def _check_no_data_loss(before: Dict, after: Dict) -> Dict[str, Any]:
 
 # ── the pure core ────────────────────────────────────────────────────────────
 
-def _inject_changed_paths(before: Dict[str, Any], after: Dict[str, Any]) -> None:
-    """Compute `vault.changed_paths.count` from the per-file digest maps and
-    write it into `after`, so a fingerprint waiver's bound can resolve it (§3.5).
+def _with_changed_paths(before: Dict[str, Any], after: Dict[str, Any],
+                        ) -> Dict[str, Any]:
+    """Return a COPY of `after` carrying `vault.changed_paths.count`, computed
+    from the per-file digest maps, so a fingerprint waiver's bound can resolve it
+    (§3.5). A copy, not an in-place edit — `verify_contract` is documented pure,
+    and a caller must get its `after` dict back unchanged.
 
-    The per-file maps live under `_file_digests` (round-baseline only, `_`-prefixed
-    so they are not namespace leaves). Absent → nothing to inject; the fingerprint
-    is then guarded by plain equality alone.
+    The per-file maps live under `_file_digests` (round-baseline only,
+    `_`-prefixed so they are not namespace leaves). Absent → nothing to inject;
+    the fingerprint is then guarded by plain equality alone.
     """
     b_dig = before.get("_file_digests")
     a_dig = after.get("_file_digests")
     if not isinstance(b_dig, dict) or not isinstance(a_dig, dict):
-        return
+        return after
     changed = _vault_state.changed_paths(b_dig, a_dig)
-    vault_block = dict(after.get("vault") or {})
-    vault_block["changed_paths"] = {"count": len(changed)}
-    after["vault"] = vault_block
+    out = dict(after)
+    out["vault"] = {**(after.get("vault") or {}),
+                    "changed_paths": {"count": len(changed)}}
+    return out
 
 
 def verify_contract(contract: Dict[str, Any], before: Dict[str, Any],
@@ -135,7 +152,7 @@ def verify_contract(contract: Dict[str, Any], before: Dict[str, Any],
     or ENVELOPE failing, or an un-superseded invariant clause failing, makes
     `passed` False — a FAIL the fixer may address.
     """
-    _inject_changed_paths(before, after)
+    after = _with_changed_paths(before, after)
     scored = _contract.evaluate(contract, before, after)
 
     superseded = _superseded_clause_ids(contract)

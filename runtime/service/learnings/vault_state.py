@@ -30,8 +30,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Derived files a reindex rewrites — excluded so the fingerprint tracks authored
-# content, not the projection's own output.
-_DERIVED_NAMES = {"INDEX.md", "MEMORY.md"}
+# content, not the projection's own output. MEMORY.md is matched case-insensitively
+# to stay in parity with `census._fs_rows` (`p.name.upper() == "MEMORY.MD"`); a
+# `memory.md` excluded there but hashed here would move the fingerprint whenever
+# reindex rewrote it.
+_DERIVED_EXACT = {"INDEX.md"}
+
+
+def _is_derived(name: str) -> bool:
+    return name in _DERIVED_EXACT or name.upper() == "MEMORY.MD"
 
 
 def _vault_root(vault: Optional[Path]) -> Path:
@@ -51,7 +58,7 @@ def file_digests(vault: Optional[Path] = None) -> Dict[str, str]:
     if not root.exists():
         return out
     for p in root.rglob("*.md"):
-        if p.name in _DERIVED_NAMES:
+        if _is_derived(p.name):
             continue
         try:
             body = p.read_bytes()

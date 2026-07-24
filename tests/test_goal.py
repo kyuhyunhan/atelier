@@ -139,3 +139,49 @@ def test_no_data_loss_stays_whole_and_unreleasable():
     assert res["passed"] is False
     inv1 = [c for c in res["invariants"] if c["id"] == "INV-1/no_data_loss"]
     assert inv1 and inv1[0]["ok"] is False
+
+
+# ── review round: the tolerances and the typed abort ─────────────────────────
+
+def test_eval_metrics_tolerate_float_noise_on_an_unchanged_run():
+    """§8.1 side one: an unchanged vault must PASS. Eval recall is not bit-stable
+    run-to-run, so envelope equality and the decomposed invariants carry the same
+    _EPS the reused gate has — a sub-epsilon wobble must not FAIL a no-op."""
+    before = _base(eval={"self_probe": {"recall_at_k": 1.0},
+                         "paraphrase": {"recall_at_k": 0.6363636363636364}})
+    after = _base(eval={"self_probe": {"recall_at_k": 1.0},
+                        "paraphrase": {"recall_at_k": 0.6363636363636365}})  # +1 ULP
+    res = _goal.verify_contract({"intent": []}, before, after)
+    assert res["passed"] is True
+
+
+def test_a_real_eval_regression_still_fails():
+    """The tolerance must not swallow a genuine drop."""
+    before = _base(eval={"self_probe": {"recall_at_k": 1.0},
+                         "paraphrase": {"recall_at_k": 0.6}})
+    after = _base(eval={"self_probe": {"recall_at_k": 0.9},   # real regression
+                        "paraphrase": {"recall_at_k": 0.6}})
+    res = _goal.verify_contract({"intent": []}, before, after)
+    assert res["passed"] is False
+
+
+def test_a_broken_invariant_map_raises_contract_error(monkeypatch):
+    """§6: an unreadable invariant map is an untrustworthy-harness condition and
+    must surface as the typed hard-abort a caller catches, not a raw yaml error."""
+    from pathlib import Path as _P
+    monkeypatch.setattr(_goal, "_INVARIANTS_YAML", _P("/nonexistent.yaml"))
+    with pytest.raises(ContractError, match="cannot read the invariant map"):
+        _goal.verify_contract({"intent": []}, _base(), _base())
+
+
+def test_verify_contract_does_not_mutate_its_after_argument():
+    """Documented pure: the caller's `after` dict must come back unchanged even
+    though a fingerprint waiver needs `vault.changed_paths` injected."""
+    before = _base()
+    before["_file_digests"] = {"a.md": "h1"}
+    after = _base()
+    after["_file_digests"] = {"a.md": "CHANGED"}
+    import copy
+    snapshot = copy.deepcopy(after)
+    _goal.verify_contract({"intent": []}, before, after)
+    assert after == snapshot                          # no in-place edit

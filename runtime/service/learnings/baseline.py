@@ -27,6 +27,7 @@ from . import census as _census
 from . import eval as _eval
 from . import metrics as _metrics
 from . import surfacing as _surfacing
+from . import vault_state as _vault_state
 
 _ABOUT = (
     "RFC 0006 P0 foundation baseline (read-only). Produced by "
@@ -79,6 +80,11 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
         # shape (§3.5 requires a numeric bound). It sits beside captured_date.
         "as_of": as_of.isoformat(),
         "metrics": _metrics.metrics(as_of=as_of, vault=vault),
+        # The ENVELOPE's vault-content primitive (§5.7): one aggregate hash the
+        # envelope checks for equality, and that a vault-mutating goal releases
+        # through a waiver. The per-file map is a round-baseline artifact, not
+        # committed here — 7k entries would bloat the frozen anchor.
+        "vault": _vault_state.vault_block(vault),
     }
 
 

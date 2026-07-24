@@ -175,6 +175,16 @@ def _eval_intent(clauses: List[Dict[str, Any]], before: Dict, after: Dict,
             raise ContractError(
                 f"INTENT names {metric!r}, absent from the after-snapshot")
         before_value = _leaf(before, metric)
+        # `from`, when present, is an integrity check, not decoration: it asserts
+        # the before-picture the contract was written against. A contract that
+        # says `from: 830` verified against a before that reads 500 was authored
+        # against a different baseline — RAISE rather than grade it.
+        declared_from = clause.get("from")
+        if declared_from is not None and before_value is not _MISSING \
+                and before_value != declared_from:
+            raise ContractError(
+                f"INTENT {metric!r} declares from={declared_from} but the "
+                f"before-snapshot reads {before_value} — wrong baseline")
         ok, detail = _check_bound(bound, value,
                                   before_value=before_value)
         results.append({"layer": "intent", "metric": metric,
@@ -188,18 +198,39 @@ def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
     if mode != "default-deny":
         raise ContractError(f"unknown envelope mode {mode!r} (only default-deny)")
 
+    ns = set(namespace(before, after))
+
+    # A waiver RELEASES one namespace metric from strict equality and instead
+    # BOUNDS a metric — the same one, or a sibling (§3.5). The release/bound split
+    # is load-bearing: `vault.content_fingerprint` is a hash string that cannot
+    # carry a numeric bound, so a vault-mutating goal releases it and bounds
+    # `vault.changed_paths.count` instead — "repaired 12 links" stays
+    # distinguishable from "rewrote 400 files". A same-metric waiver omits
+    # `bound.metric` and bounds the released metric itself.
     waivers: Dict[str, Dict[str, Any]] = {}
     for w in envelope.get("waivers", []):
-        metric = w.get("metric")
-        bound = w.get("to")
-        if not isinstance(metric, str) or not isinstance(bound, dict):
-            raise ContractError(f"malformed waiver: {w!r}")
+        release = w.get("release")
+        bound = w.get("bound")
+        if not isinstance(release, str) or not isinstance(bound, dict):
+            raise ContractError(
+                f"a waiver needs `release` (a metric) and `bound` (a clause): {w!r}")
+        bound_metric = bound.get("metric", release)
+        bound_to = bound.get("to")
+        if not isinstance(bound_metric, str) or not isinstance(bound_to, dict):
+            raise ContractError(f"waiver `bound` needs a metric and a `to`: {w!r}")
         if not w.get("reason"):
-            raise ContractError(f"waiver for {metric!r} carries no reason (§3.5)")
-        waivers[metric] = w
+            raise ContractError(f"waiver releasing {release!r} carries no reason (§3.5)")
+        if release not in ns:
+            # A waiver on a metric outside the namespace is inert — almost
+            # certainly an author typo. Catch it at the Contract stage rather
+            # than letting the underlying metric stay silently default-denied.
+            raise ContractError(
+                f"waiver releases {release!r}, which is not in the envelope "
+                f"namespace — nothing to release (typo?)")
+        waivers[release] = {"bound_metric": bound_metric, "to": bound_to}
 
     results: List[Dict[str, Any]] = []
-    for metric in namespace(before, after):
+    for metric in sorted(ns):
         if metric in intent_metrics:
             continue                                # owned by INTENT, not envelope
         bv, av = _leaf(before, metric), _leaf(after, metric)
@@ -210,9 +241,17 @@ def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
                 f"{metric!r} is in the namespace but absent from "
                 f"{'before' if bv is _MISSING else 'after'}")
         if metric in waivers:
-            ok, detail = _check_bound(waivers[metric]["to"], av, before_value=bv)
+            wv = waivers[metric]
+            target = _leaf(after, wv["bound_metric"])
+            if target is _MISSING:
+                raise ContractError(
+                    f"waiver bounds {wv['bound_metric']!r}, absent from the "
+                    "after-snapshot")
+            before_target = _leaf(before, wv["bound_metric"])
+            ok, detail = _check_bound(wv["to"], target, before_value=before_target)
             results.append({"layer": "envelope", "metric": metric, "waived": True,
-                            "ok": ok, "detail": f"waived: {detail}"})
+                            "ok": ok,
+                            "detail": f"released; {wv['bound_metric']} {detail}"})
             continue
         ok = (av == bv)
         results.append({"layer": "envelope", "metric": metric, "waived": False,

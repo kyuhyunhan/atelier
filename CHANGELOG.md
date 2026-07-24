@@ -25,10 +25,19 @@ git — so it is exhaustively property-tested against synthetic dicts.
   taken over `keys(before) ∪ keys(after)`. A metric present on one side and
   absent from the other raises — so dropping a counter cannot dodge the envelope,
   the dodge default-deny closes one level down.
-- **A waiver carries a bound, not a bare exemption** (§3.5); one without a reason
+- **A waiver releases one metric and bounds another** (§3.5), because
+  `vault.content_fingerprint` is a hash string that cannot carry a numeric bound
+  — so a vault-mutating goal releases it and bounds `vault.changed_paths.count`
+  instead. Review caught that the first draft's same-metric-only waiver could
+  never express this, which would have forced a data-model rewrite at G5; the
+  split lands now. A same-metric waiver omits `bound.metric`; a waiver on a
+  metric outside the namespace (an inert typo) raises; one without a reason
   raises. **`supersedes` is per-clause and needs a matching INTENT bound**
   (§3.3): releasing an invariant the contract did not also bound is disabling a
   gate it never earned, and raises.
+- **`from` is an integrity check, not decoration.** A clause declaring
+  `from: 830` against a before-snapshot that reads 500 was authored against a
+  different baseline, and raises rather than being graded.
 
 `freeze.py` — the integrity guards, the only impure part. A contract is read from
 its committed git blob (never the working tree), and pinned by content and

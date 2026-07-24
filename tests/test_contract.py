@@ -111,10 +111,12 @@ def test_dropping_a_counter_raises_it_cannot_dodge_the_envelope():
         evaluate(ct, _b(x=830, y=5), _b(x=23))       # y vanished
 
 
-def test_a_bounded_waiver_releases_exactly_one_metric():
+def test_a_same_metric_waiver_releases_exactly_one_metric():
+    """The simple case: release `y` and bound `y` itself (omitting bound.metric)."""
     ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}],
           "envelope": {"mode": "default-deny",
-                       "waivers": [{"metric": "metrics.y", "to": {"max": 200},
+                       "waivers": [{"release": "metrics.y",
+                                    "bound": {"to": {"max": 200}},
                                     "reason": "expected to grow"}]}}
     # y moved 100 → 150, within the waiver's ceiling → PASS
     assert evaluate(ct, _b(x=830, y=100), _b(x=23, y=150))["passed"] is True
@@ -122,12 +124,53 @@ def test_a_bounded_waiver_releases_exactly_one_metric():
     assert evaluate(ct, _b(x=830, y=100), _b(x=23, y=250))["passed"] is False
 
 
+def test_a_release_A_bound_B_waiver_expresses_the_fingerprint_shape():
+    """§3.5: a hash string cannot carry a numeric bound, so a vault-mutating goal
+    RELEASES `vault.content_fingerprint` and BOUNDS a sibling `changed_paths`
+    count. This is the shape every G5-style goal needs, and the reason the waiver
+    model separates release from bound."""
+    before = {"metrics": {"x": 830},
+              "vault": {"content_fingerprint": "aaa", "changed_paths": {"count": 0}}}
+    after = {"metrics": {"x": 23},
+             "vault": {"content_fingerprint": "bbb", "changed_paths": {"count": 12}}}
+    ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}],
+          "envelope": {"mode": "default-deny",
+                       "waivers": [{"release": "vault.content_fingerprint",
+                                    "bound": {"metric": "vault.changed_paths.count",
+                                              "to": {"max": 30}},
+                                    "reason": "wiki-link repair, graph/atomic only"}]}}
+    assert evaluate(ct, before, after)["passed"] is True       # 12 ≤ 30
+    over = {**after, "vault": {"content_fingerprint": "bbb",
+                              "changed_paths": {"count": 400}}}
+    assert evaluate(ct, before, over)["passed"] is False       # 400 > 30 → gated
+
+
 def test_a_waiver_without_a_reason_raises():
     ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}],
           "envelope": {"mode": "default-deny",
-                       "waivers": [{"metric": "metrics.y", "to": {"max": 9}}]}}
+                       "waivers": [{"release": "metrics.y", "bound": {"to": {"max": 9}}}]}}
     with pytest.raises(ContractError, match="no reason"):
         evaluate(ct, _b(x=830, y=1), _b(x=23, y=1))
+
+
+def test_a_waiver_on_a_metric_outside_the_namespace_raises():
+    """An inert waiver — almost always a typo — must be caught at the Contract
+    stage, not silently ignored while the underlying metric stays default-denied."""
+    ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}],
+          "envelope": {"mode": "default-deny",
+                       "waivers": [{"release": "metrics.TYPO",
+                                    "bound": {"to": {"max": 9}}, "reason": "r"}]}}
+    with pytest.raises(ContractError, match="not in the envelope namespace"):
+        evaluate(ct, _b(x=830, y=1), _b(x=23, y=1))
+
+
+def test_a_from_that_disagrees_with_the_before_raises():
+    """`from` is an integrity check on the baseline, not decoration: a contract
+    authored against a different before must not be graded."""
+    ct = {"intent": [{"metric": "metrics.x", "from": 830, "to": {"max": 30}}]}
+    with pytest.raises(ContractError, match="wrong baseline"):
+        evaluate(ct, _b(x=500), _b(x=23))              # before says 500, not 830
+    assert evaluate(ct, _b(x=830), _b(x=23))["passed"] is True   # matches → fine
 
 
 def test_an_unknown_envelope_mode_raises():

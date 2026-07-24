@@ -138,10 +138,14 @@ def check_pins(contract: Dict[str, Any], *, repo: Path, contract_path: Path,
     if parent is None:
         raise ContractError(
             f"contract commit {commit[:12]}… has no parent to pin against")
-    # Compare full-length; accept a pinned short sha by prefix on the resolved one.
-    if not (parent == want_head or parent.startswith(want_head)):
+    # Canonicalize the pinned value through git rather than prefix-matching a
+    # raw string: `startswith` would accept `want_head="2a"`. Resolving it to a
+    # full sha and comparing exactly rejects a truncated or ambiguous pin, and
+    # still accepts a legitimately-abbreviated one that names the same commit.
+    code, resolved = _git(repo, "rev-parse", "--verify", f"{want_head}^{{commit}}")
+    if code != 0 or resolved != parent:
         raise ContractError(
-            f"captured_at_head {want_head[:12]}… is not the contract commit's "
+            f"captured_at_head {want_head} is not the contract commit's "
             f"first parent {parent[:12]}… (§3.1.1) — snapshot did not precede "
             "the contract, or an older commit was substituted")
 

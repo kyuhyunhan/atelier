@@ -37,21 +37,28 @@ export const meta = {
   ],
 }
 
-// Fail fast on missing args rather than letting the author agent fabricate a
-// no-op contract from a placeholder goal. The critic caught exactly that in an
-// earlier run (every clause an identity delta), but a scaffold goal should never
-// reach the author in the first place — an undeclared goal is a caller error, not
-// something to spend three agents discovering. (A stringified `args` also lands
-// here: `args.goalId` on a string is undefined, so this catches the
-// "passed args as a JSON string, not an object" mistake too.)
-if (!args || typeof args !== 'object' || !args.goalId || !args.goal || !args.intentHint) {
-  throw new Error(
-    'goal workflow requires args {goalId, goal, intentHint} as a JSON OBJECT ' +
-    '(not a JSON-encoded string). Got: ' + JSON.stringify(args))
+// Normalize args, then fail fast on a genuinely missing goal. The runtime here
+// delivers `args` as a JSON STRING even when the caller passes an object, so a
+// bare `args.goalId` is undefined and the script would silently fall back to a
+// placeholder goal — from which the author agent fabricated a no-op contract in
+// an earlier run (every clause an identity delta; the critic rightly rejected it,
+// but a scaffold goal should never reach the author). Parse a string form rather
+// than reject it, since that is how the value actually arrives; then require the
+// three fields so an undeclared goal is a loud caller error, not three wasted
+// agents.
+let _args = args
+if (typeof _args === 'string') {
+  try { _args = JSON.parse(_args) } catch (e) {
+    throw new Error('goal workflow: args is a string that is not valid JSON: ' + e)
+  }
 }
-const GOAL_ID = args.goalId
-const GOAL = args.goal
-const INTENT_HINT = args.intentHint
+if (!_args || typeof _args !== 'object' || !_args.goalId || !_args.goal || !_args.intentHint) {
+  throw new Error(
+    'goal workflow requires args {goalId, goal, intentHint}. Got: ' + JSON.stringify(args))
+}
+const GOAL_ID = _args.goalId
+const GOAL = _args.goal
+const INTENT_HINT = _args.intentHint
 const MAX_ROUNDS = 3
 
 const SNAP_SCHEMA = {

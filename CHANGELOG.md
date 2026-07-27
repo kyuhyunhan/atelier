@@ -11,15 +11,20 @@ not the before trips the envelope's union rule and hard-aborts (`contract.py`).
 So a goal's metric is ordinary tested work that lands *first*, and the goal runs
 against it next. This is that work for G5's wiki-link repair.
 
-- `metrics.dangling_links()` counts unresolved `[[wikilinks]]` by wrapping the
+- `metrics.dangling_links()` counts **broken links** (`total`) by wrapping the
   production `broken_links` view (`links.to_page_id IS NULL`) — the same
   referential-integrity definition doctor and `atelier_links` use, so the counter
   cannot drift from what a repair actually fixes (§3.2 rule 1). A divergence test
-  pins `counter == view count`.
-- **Projection-only, abstains on a cold DB** (returns None → the block omits the
-  key). Link resolution is a reindex operation with no per-file fallback, so a
-  fabricated `0` would let a `{eq: 0}` repair bound pass vacuously against an
-  un-rebuilt projection — the §5.4 rule, as for `pending_age`.
+  pins `counter == view count`. `by_type` is seeded with every known `link_type`
+  so its keyset never shifts between baselines (else the ENVELOPE union rule
+  would trip an unrelated goal); the G5 repair binds `by_type.wikilink`, since a
+  broken `concept` edge is an idea with no page, not a wiki link.
+- **Projection-only, abstains on an un-reindexed DB** (returns None → the block
+  omits the key). The abstain keys on an EMPTY projection, not a connect error:
+  `db.connect()` creates the DB with `CREATE ... IF NOT EXISTS`, so a cold DB
+  does not raise — it returns a fabricated `0` that a `{eq: 0}` repair bound
+  would pass vacuously. No pages → abstain; pages with zero broken → a real `0`
+  (§5.4, mirroring the `_load_nodes` empty-projection guard).
 - The live vault currently carries **387** dangling wikilinks (the RFC's §2
   figure of 24 was the absorbed bodies alone). That is the backlog the G5 goal
   will drive down, next session, through the now-safe `goal` workflow.

@@ -222,8 +222,12 @@ def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict) -> None:
     nothing."""
     got = _metrics.metrics(as_of=datetime.date(2026, 7, 23),
                            vault=Path(_cl._vault_root()))
-    # the always-computed metrics are present; the withheld one is not.
+    # the always-computed metrics are present; the withheld one is not; and no
+    # UNKNOWN key leaks in (subset-of-allowed keeps the leak guard the exact-set
+    # assertion used to give, while tolerating conditionally-present metrics).
     assert {"promote_eligible", "pending_age", "guard_liveness"} <= set(got)
+    assert set(got) <= {"promote_eligible", "pending_age", "guard_liveness",
+                        "lens_param_present", "dangling_links"}
     assert "cross_project_noise" not in got          # no fixture until G3 → omitted
     # capture metadata is NOT a metric leaf: §3.4 default-deny would trip on a
     # value that changes every run, and §3.5 allows no non-numeric waiver.
@@ -438,27 +442,74 @@ def test_dangling_links_counts_the_broken_links_view(atelier_env: Dict) -> None:
     view_count = conn.execute("SELECT COUNT(*) FROM broken_links").fetchone()[0]
     conn.close()
     assert got["total"] == view_count == 1            # only [[does-not-exist]]
-    assert got["by_type"] == {"wikilink": 1}
+    # by_type is SEEDED with every known link_type at 0 (namespace stability),
+    # with the one real broken wikilink counted.
+    assert got["by_type"] == {"wikilink": 1, "gorae": 0, "workshop": 0, "concept": 0}
 
 
-def test_dangling_links_abstains_on_a_cold_db(atelier_env: Dict,
-                                               monkeypatch) -> None:
-    """Projection-only: no filesystem fallback exists for link resolution, so a
-    cold/unreadable DB returns None (→ the block omits the key). A fabricated 0
-    would let a `{eq: 0}` repair bound pass against an un-rebuilt projection."""
+def test_dangling_links_seeded_keys_are_stable_across_baselines(
+        atelier_env: Dict) -> None:
+    """§3.4: an unseeded by_type key that appeared only when a type had a broken
+    edge would trip the ENVELOPE union rule on an unrelated goal. All four known
+    types are always present, so the keyset never shifts between baselines."""
+    from tests.conftest import write_page
+    write_page(Path(_cl._vault_root()) / "wiki" / "entities" / "p.md",
+               {"title": "P", "type": "entity", "category": "concept",
+                "created": "2026-05-27", "updated": "2026-05-27"}, "# P\n")
+    _api.reindex(space="gorae", full=True)
+    got = _metrics.dangling_links()
+    assert set(got["by_type"]) == {"wikilink", "gorae", "workshop", "concept"}
+
+
+def test_dangling_links_real_zero_on_a_healthy_reindexed_vault(
+        atelier_env: Dict) -> None:
+    """The distinction the cold-DB abstain rests on: a vault with pages and no
+    broken links is a REAL 0 (a floor/eq bound behaves), NOT an abstention."""
+    from tests.conftest import write_page
+    vault = Path(_cl._vault_root())
+    write_page(vault / "wiki" / "entities" / "solo.md",
+               {"title": "Solo", "type": "entity", "category": "concept",
+                "created": "2026-05-27", "updated": "2026-05-27"},
+               "# Solo\n\nno links here.\n")
+    _api.reindex(space="gorae", full=True)
+    got = _metrics.dangling_links()
+    assert got is not None and got["total"] == 0      # real measurement, not None
+
+
+def test_dangling_links_abstains_on_an_un_reindexed_projection(
+        atelier_env: Dict) -> None:
+    """The load-bearing abstain: `db.connect()` CREATEs the DB (IF NOT EXISTS),
+    so a cold DB does NOT raise — it returns an empty `broken_links`, i.e. a
+    fabricated 0. The guard keys on an EMPTY projection (no pages), not a connect
+    error, so a never-reindexed vault abstains (None → key omitted) rather than
+    reporting a green 0 a `{eq: 0}` repair bound would pass vacuously."""
+    # atelier_env points DB_PATH at a fresh temp cache and does NOT reindex, so
+    # the projection is genuinely empty here.
     from runtime.util import db as _db
-    def _boom():
-        raise RuntimeError("cold db")
-    monkeypatch.setattr(_db, "connect", _boom)
+    conn = _db.connect()
+    assert conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0] == 0  # cold
+    conn.close()
     assert _metrics.dangling_links() is None
-    # and the metrics block omits the key rather than emitting a zero
     out = _metrics.metrics(as_of=datetime.date(2026, 7, 27),
                            vault=Path(_cl._vault_root()))
-    assert "dangling_links" not in out
+    assert "dangling_links" not in out                # omitted, not a zero
+
+
+def test_dangling_links_abstains_on_an_unreadable_db(atelier_env: Dict,
+                                                     monkeypatch) -> None:
+    """The other abstain path: a genuinely unreadable DB (connect raises)."""
+    from runtime.util import db as _db
+    monkeypatch.setattr(_db, "connect",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    assert _metrics.dangling_links() is None
 
 
 def test_dangling_links_in_the_metrics_block_when_measurable(
         atelier_env: Dict) -> None:
+    from tests.conftest import write_page
+    write_page(Path(_cl._vault_root()) / "wiki" / "entities" / "p.md",
+               {"title": "P", "type": "entity", "category": "concept",
+                "created": "2026-05-27", "updated": "2026-05-27"}, "# P\n")
     _api.reindex(space="gorae", full=True)
     out = _metrics.metrics(as_of=datetime.date(2026, 7, 27),
                            vault=Path(_cl._vault_root()))

@@ -11,15 +11,17 @@ from typing import Dict
 
 import pytest
 
-# The embed-pass assertions need the sqlite-vec extension (`semantic` extra) to
-# store vectors; skip cleanly without it. Placed before the CountingGateway
-# cross-import from test_vecstore, which also skips on the same dep.
-pytest.importorskip("sqlite_vec")
-
 from runtime.index import reindex as _reindex
 from runtime.util import config as _config
 from tests.conftest import write_page
-from tests.test_vecstore import CountingGateway
+
+# NOTE: the embed-pass tests below guard on `sqlite_vec` PER-TEST, not at module
+# level. Two tests here — `test_reindex_without_gateway_is_unchanged` and
+# `test_auto_mode_disabled_by_env_kill_switch` — are the dep-free degradation
+# path, the exact "reindex is fine without the extra" contract a fresh checkout
+# most wants to run. A module-level skip would hide precisely them. The
+# `CountingGateway` cross-import likewise moves into the tests that use it, so it
+# is never reached when the extension is absent.
 
 
 def _seed(atelier_env: Dict) -> None:
@@ -33,6 +35,8 @@ def _seed(atelier_env: Dict) -> None:
 
 
 def test_reindex_with_gateway_embeds_and_reports(atelier_env):
+    pytest.importorskip("sqlite_vec")
+    from tests.test_vecstore import CountingGateway
     _seed(atelier_env)
     cfg = _config.load()
     gw = CountingGateway()
@@ -43,6 +47,8 @@ def test_reindex_with_gateway_embeds_and_reports(atelier_env):
 
 
 def test_second_reindex_reuses_cache_zero_gateway_calls(atelier_env):
+    pytest.importorskip("sqlite_vec")
+    from tests.test_vecstore import CountingGateway
     _seed(atelier_env)
     cfg = _config.load()
     gw = CountingGateway()
@@ -83,6 +89,7 @@ def test_gateway_failure_does_not_abort_reindex(atelier_env):
     (Per-batch durability — that already-committed batches survive a mid-pass
     crash — is covered separately by
     test_vecstore.test_sync_persists_completed_batches_on_midway_failure.)"""
+    pytest.importorskip("sqlite_vec")   # else the embed pass never runs → vacuous
     _seed(atelier_env)
     cfg = _config.load()
 

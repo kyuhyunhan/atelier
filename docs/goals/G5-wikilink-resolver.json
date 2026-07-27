@@ -1,0 +1,25 @@
+{
+  "id": "G5-wikilink-resolver",
+  "goal": "Resolve bare [[basename]] wikilinks that dangle because they name a page by basename (e.g. [[2-months-more]]) while the page's slug is a full space-relative path (raw/personal/writings/2-months-more.md). The dominant source is graph/index.md, a machine-generated wiki_index linking ~275 raw/ Source artifacts by basename. PURE PROJECTION fix: add a collision-safe basename fallback index to runtime/index/reindex.py _resolve (mirroring the entity alias_index pattern; populated only with unambiguous basenames — a basename owned by >1 page is skipped, never guessed), tried AFTER _candidate_slugs and the entity alias fallback. No vault markdown is edited; only links.to_page_id is recomputed at reindex time.",
+  "baseline": "docs/rfc/0009-baseline.json",
+  "pins": {
+    "before_sha256": "d3faca584b69a92cb22f1013e3c0b05ba9da57ed2f50b97d3e4e58ba7a1336c9",
+    "captured_at_head": "99cd2ea4bdd44a6e8bbb5f702c3510604ae611de",
+    "fixture_sha256": null
+  },
+  "intent": [
+    {"metric": "metrics.dangling_links.by_type.wikilink", "from": 387, "to": {"max": 150}},
+    {"metric": "metrics.dangling_links.total", "from": 387, "to": {"max": 150}}
+  ],
+  "envelope": {"mode": "default-deny", "waivers": []},
+  "supersedes": [],
+  "rubric": "P0",
+  "critic": {
+    "accepted": true,
+    "by": "gorae",
+    "at": "2026-07-27",
+    "verdict": "Bound is not satisfiable without achieving the goal. INTENT carries two exact numeric bounds (by_type.wikilink and total) both anchored to the round-baseline actual 387 (verified in before.json: by_type.wikilink=387, total=387); neither is a rubber stamp — an unchanged _resolve lands 387 and fails max:150, while the simulated resolver lands ~147. The ~3-unit headroom is a legitimate round-guard tolerance, not a meaningless ceiling: no unchanged or regressed path clears 150. default-deny with no waivers is correct for a pure-projection change — only links.to_page_id is recomputed, no vault markdown is written, so vault.content_fingerprint stays under strict equality with no waiver, and census/surfacing.visible(179)/eval are default-denied and expected unchanged. supersedes=[] confirmed correct: resolving danglers only ADDS graph edges, which is monotone-safe for INV-4 (surfacing.visible cannot fall) and the eval recall invariants (connectivity only improves), so no monotone gate is tripped and nothing needs releasing; INV-1 census node counts are untouched (edges only, no page create/delete). Pins verified: before_sha256 d3faca58... equals the on-disk before.json sha256; captured_at_head 99cd2ea4... equals current main HEAD and will be this commit's first parent (§3.1.1); fixture_sha256:null correct — G5 uses no §5.4 probe fixture. Bound kind max is in contract.py _BOUND_KINDS and both INTENT paths resolve against the round baseline. Named residual, out of this contract's reach and correct: the counter wraps the broken_links NULL view (§3.2 rule 1), so it cannot distinguish a correct resolution from a wrong-target guess; collision-safety (basename owned by >1 page is skipped, never guessed) is enforced by the implementation and independent review, not by this NULL-count metric — no tighter measurable statement exists here.",
+    "rubric_note": "P0 asserted, not derived — accepted as the conservative/strictest harness posture for a projection-only edge change, consistent with the sibling G2 contract."
+  },
+  "_note": "Pure-projection resolver in runtime/index/reindex.py:_resolve. It wraps the same broken_links definition metrics.dangling_links counts (links.to_page_id IS NULL), so the counter cannot drift from what the repair fixes (§3.2 rule 1). A read-only simulation resolves 240 of 387 dangling wikilinks with ZERO ambiguous-basename collisions among current danglers; residual ~147 are targets with no page at all (separate follow-up), so the fix lands both by_type.wikilink and total at ~147 — the {max:150} bound is not satisfiable without the resolver, and an unchanged _resolve lands 387 and fails. concept/gorae/workshop danglers stay 0 (untouched by a basename→page fallback) and are held by default-deny. total is derived from by_type and moves with wikilink, so it is named in INTENT rather than left to trip the envelope. vault.content_fingerprint stays under strict equality (no markdown is written), so NO waiver is declared — the resolver changes only how links.to_page_id is computed at reindex time. supersedes is empty: no invariant is released. INV-1 census node counts (pages/claims/entities/sources) are unchanged — the fix creates or deletes no pages, only edges. INV-4 surfacing.visible (179) does not fall and eval recall does not regress: resolving previously-dangling links only ADDS graph edges, monotonically improving connectivity, so no monotone gate is tripped and no clause needs releasing."
+}

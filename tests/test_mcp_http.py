@@ -12,6 +12,11 @@ from typing import Dict, List
 import pytest
 import yaml
 
+# The whole module exercises the MCP HTTP transport (mcp + starlette, the `serve`
+# extra); skip cleanly on a checkout without it rather than failing on the import.
+pytest.importorskip("mcp")
+pytest.importorskip("starlette")
+
 
 # ── _resolve_settings: loopback enforcement ───────────────────────────────────
 

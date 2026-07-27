@@ -15,6 +15,12 @@ from typing import Dict
 
 import pytest
 
+# The vector sidecar needs the sqlite-vec extension (the `semantic` extra). On a
+# checkout without it the whole module SKIPS rather than failing with
+# `NoneType.sync` — the graceful-degradation the module docstring promises,
+# applied to its own tests. CI installs `.[semantic]`, so it runs there.
+pytest.importorskip("sqlite_vec")
+
 from runtime.search.engine import vecstore
 from tests.conftest import write_page
 

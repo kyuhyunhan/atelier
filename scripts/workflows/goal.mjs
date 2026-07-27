@@ -134,7 +134,9 @@ const critic = await agent(
   `a rubber stamp (a meaningless min/max that a regression would still pass); every ` +
   `waiver names a real reason and a real bound; every supersedes entry has a matching ` +
   `INTENT bound; the pins are present. If it holds: FIRST create and switch to a fresh ` +
-  `feature branch \`feat/rfc-0009-${GOAL_ID}\` off the current main HEAD (so the contract ` +
+  `feature branch \`feat/rfc-0009-${GOAL_ID}\` off the current main HEAD ` +
+  `(\`git switch -c\`; if it already exists from an aborted prior run, delete it first ` +
+  `with \`git branch -D\` so this run starts clean) — so the contract ` +
   `commit's first parent stays that HEAD = captured_at_head, AND every later implement/fix ` +
   `commit lands on the branch — the independent reviewer diffs \`main...HEAD\`, so work on ` +
   `main would leave that diff empty and the review vacuous). THEN commit: ` +
@@ -234,9 +236,10 @@ const review = await agent(
   `You are the INDEPENDENT reviewer for goal ${GOAL_ID}. You did NOT build this change. ` +
   `Read-only audit of \`git diff main...HEAD\` against the ship-pr rubric and the ` +
   `CLAUDE.md invariants. Tag findings [MUST]/[SHOULD]/[NIT]/[Q] with file:line. Verify ` +
-  `the delta matches contract ${contractPath}. If \`git diff main...HEAD\` is EMPTY, the ` +
-  `run produced no change to review — return that as a [MUST] ("empty diff: nothing was ` +
-  `implemented on a branch"), never a clean pass. Do NOT fix, commit, push, or merge.`,
+  `the delta matches contract ${contractPath}. FIRST run \`git diff --quiet main...HEAD\`: ` +
+  `if it exits 0 (EMPTY diff) the run produced no change on a branch — return that as a ` +
+  `[MUST] ("empty diff: nothing was implemented"), never a clean pass. Do NOT fix, ` +
+  `commit, push, or merge.`,
   { label: 'review', phase: 'Ship', schema: REVIEW_SCHEMA })
 
 if (!review) {
@@ -272,5 +275,8 @@ return {
   snapshot: snap ? snap.snapshot_id : null,
   pr: pr.url,
   review: { must: musts, should: review.should || [], summary: review.summary },
-  merge: 'awaiting-human',   // §9: the merge is the human's, always
+  // A clean review awaits the human's merge (§9); open MUSTs are `blocked`, the
+  // same signal the review-unavailable/ship-failed raises use, so a consumer
+  // keying on `merge` never reads a MUST-blocked draft as mergeable.
+  merge: musts.length === 0 ? 'awaiting-human' : 'blocked',
 }

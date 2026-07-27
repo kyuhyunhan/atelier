@@ -85,6 +85,20 @@ const VERIFY_SCHEMA = {
   },
   required: ['outcome', 'summary'],
 }
+const REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    must: { type: 'array', items: { type: 'string' } },
+    should: { type: 'array', items: { type: 'string' } },
+    summary: { type: 'string' },
+  },
+  required: ['must', 'summary'],
+}
+const PR_SCHEMA = {
+  type: 'object',
+  properties: { url: { type: ['string', 'null'] } },
+  required: ['url'],
+}
 
 // ── Snapshot ────────────────────────────────────────────────────────────────
 phase('Snapshot')
@@ -196,17 +210,49 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     { label: `fix:r${round}`, phase: 'Verify' })
 }
 
-// ── Ship ──────────────────────────────────────────────────────────────────────
+// ── Ship — review by the ORCHESTRATOR, merge by a HUMAN ─────────────────────────
+//
+// RFC 0009 §9 lists "autonomous merging of a goal" as a non-goal; the first live
+// run merged its own PR anyway, because the ship stage was one agent that did
+// push + PR + review + merge, and its independence was self-attested (the exact
+// shape §3.1.1 rejects). So review moves HERE, spawned by the orchestrator as a
+// DISTINCT agent, and the orchestrator — not the ship agent's narrative — decides
+// whether the bar is met, from the reviewer's structured return.
+//
+// "Cannot obtain an independent review" is a RAISE (the harness cannot be trusted
+// for this run), never a FAIL to route around by self-reviewing. So a reviewer
+// that does not run means no PR claiming review and no merge — same never-reaches-
+// merge semantics as the abort branch above. And merge itself stays human: it is
+// the one per-goal act §9 always kept outside the loop.
 phase('Ship')
+const review = await agent(
+  `You are the INDEPENDENT reviewer for goal ${GOAL_ID}. You did NOT build this change. ` +
+  `Read-only audit of \`git diff main...HEAD\` against the ship-pr rubric and the ` +
+  `CLAUDE.md invariants. Tag findings [MUST]/[SHOULD]/[NIT]/[Q] with file:line. Verify ` +
+  `the delta matches contract ${contractPath}. Do NOT fix, commit, push, or merge.`,
+  { label: 'review', phase: 'Ship', schema: REVIEW_SCHEMA })
+
+if (!review) {
+  // A raise, not a FAIL: independence is unavailable, so the bar is unmeetable.
+  log(`review unavailable — cannot satisfy the independent-review bar; not shipping`)
+  return { goalId: GOAL_ID, outcome: 'review-unavailable', contract: contractPath,
+           snapshot: snap ? snap.snapshot_id : null, merge: 'blocked' }
+}
+const musts = review.must || []
+const pr = await agent(
+  `Open a PR for goal ${GOAL_ID} (verified delta per ${contractPath}). Push the implement ` +
+  `branch (branch off main first if you are on main) and \`gh pr create\` describing the goal ` +
+  `and its delta. Post the independent review findings as a PR comment. ` +
+  `Do NOT merge — merge is a human act. NEVER pass --no-verify (the pre-commit guard is ` +
+  `mandatory). Author gorae <kyuhyunhaan@gmail.com>, no Co-Authored-By. Return the PR URL.`,
+  { label: 'open-pr', phase: 'Ship', schema: PR_SCHEMA })
+
 return {
   goalId: GOAL_ID,
-  outcome: 'passed',
+  outcome: musts.length === 0 ? 'passed-awaiting-merge' : 'blocked-on-must',
   contract: contractPath,
   snapshot: snap ? snap.snapshot_id : null,
-  ship: await agent(
-    `Goal ${GOAL_ID} converged (contract PASS). Ship it via the ship-pr flow: push the ` +
-    `implement branch, open a PR describing the goal and its verified delta, run the ` +
-    `independent review loop, and merge when the bar is met. Author gorae ` +
-    `<kyuhyunhaan@gmail.com>, no Co-Authored-By.`,
-    { label: 'ship', phase: 'Ship' }) || '(see ship-pr)',
+  pr: pr ? pr.url : null,
+  review: { must: musts, should: review.should || [], summary: review.summary },
+  merge: 'awaiting-human',   // §9: the merge is the human's, always
 }

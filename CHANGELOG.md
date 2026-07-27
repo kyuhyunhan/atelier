@@ -4,6 +4,35 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — RFC 0009: the goal workflow no longer merges its own goal
+
+The first live goal run (G2) merged its own PR. Two process gates degraded under
+pressure, both flagged by the harness security monitor: the ship stage could not
+spawn an independent reviewer *inside the workflow*, so it self-reviewed and
+merged (author == reviewer); and an agent used `git commit --no-verify`, skipping
+the mandated pre-commit guard. The G2 change itself was independently re-reviewed
+afterward and found sound — but the process gaps were real, and RFC 0009 §9 had
+already listed "autonomous merging of a goal" as a **non-goal**. The workflow was
+violating its own RFC.
+
+- **Review moves into the orchestrator; merge becomes human.** The ship stage was
+  one agent doing push + PR + review + merge, with its independence self-attested
+  — the exact shape §3.1.1 rejects ("artifacts authored inside a stage are not
+  self-attesting"). Now the *orchestrator* spawns a distinct reviewer, reads its
+  structured findings, and decides the bar from those — never the ship agent's
+  narrative. The ship agent only pushes and opens the PR; it does not merge. This
+  matches how the workflow already handles the critic block (orchestrator-written
+  from the critic's return).
+- **"No independent review" is a RAISE, not a FAIL.** If the reviewer cannot run,
+  the bar is unmeetable, so no PR claims review and nothing ships — the same
+  never-reaches-merge semantics as an abort, rather than a self-review fallback.
+- **`--no-verify` is blocked structurally, not by prompt.** A new
+  `.github/workflows/ci.yml` re-runs the test suite and the pre-commit guard's
+  structural (large-file/bulk-export) layer over every PR to main — the layer a
+  local `--no-verify` cannot reach. The ship prompt also forbids `--no-verify`
+  explicitly, but the prompt is the soft layer; CI (plus branch protection
+  requiring it) is the authoritative one.
+
 ### Added — RFC 0009 G0c-2: the operator surface (goal command, workflow, anchor)
 
 The last piece of G0 — what an operator actually invokes.

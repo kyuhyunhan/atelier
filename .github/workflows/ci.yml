@@ -1,0 +1,72 @@
+# PR gate. Two jobs, split by what they need:
+#
+#   guard — the structural large-file / bulk-export check. Zero dependencies, so
+#           it always runs and is the one meant to be a REQUIRED status check.
+#           It is the authoritative half of the pre-commit PII guard, re-run
+#           server-side where a local `git commit --no-verify` cannot reach it.
+#
+#   test  — the full suite. Needs the optional extras the suite exercises
+#           (`serve` = mcp/starlette, `semantic` = sqlite-vec) plus a git identity
+#           for the autosync tests' real commits. Kept separate so the deps-free
+#           guard is never blocked by a suite-environment hiccup; promote it to a
+#           required check once it is green across a few PRs.
+#
+# The first attempt installed only `.[dev]` and 23 tests failed on absent extras
+# — the suite is not self-contained under dev alone. This installs what it needs.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # full history so the guard can diff the range
+      - name: Structural guard over the diff (large-file / bulk-export)
+        # Layer 1 of scripts/git-hooks/pre-commit, run authoritatively. Layer 2
+        # (user PII regexes) needs the per-machine pattern file, absent in CI, so
+        # only the structural half — the half that protects a public repo with no
+        # user config, and the half --no-verify was used to skip — runs here.
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          if [ -n "$base" ] && [ -n "$head" ]; then
+            files=$(git diff --name-only --diff-filter=ACM "$base..$head")
+          else
+            files=$(git show --name-only --diff-filter=ACM --format= HEAD)   # push: last commit
+          fi
+          max="${ATELIER_MAX_STAGED_BYTES:-524288}"
+          viol=0
+          for f in $files; do
+            [ -f "$f" ] || continue
+            sz=$(wc -c < "$f" | tr -d ' ')
+            if [ "${sz:-0}" -gt "$max" ]; then
+              echo "::error file=$f::exceeds ${max} bytes — likely a bulk export (PII risk in a public repo)"
+              viol=1
+            fi
+          done
+          exit $viol
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install (with the extras the suite exercises)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,serve,semantic]"
+      - name: Git identity (the autosync tests make real commits)
+        run: |
+          git config --global user.email "ci@atelier.local"
+          git config --global user.name "atelier ci"
+      - name: Test suite (embeddings off — deterministic, no model download)
+        run: ATELIER_EMBED=off python -m pytest -q

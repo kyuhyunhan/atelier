@@ -131,6 +131,82 @@ def test_candidate_slugs_resolves_bare_entity_to_both_trees():
     assert cands.index("graph/entities/foo.md") < cands.index("wiki/entities/foo.md")
 
 
+# ── G5: collision-safe basename fallback for bare [[basename]] wikilinks ──
+
+def test_bare_basename_resolves_to_deep_path_source(atelier_env):
+    """A bare `[[2-months-more]]` (the shape graph/index.md emits ~275 times)
+    must bind to a page whose slug is a full space-relative path
+    (raw/personal/writings/2-months-more.md) that `_candidate_slugs` never
+    probes — via the unambiguous-basename fallback."""
+    from runtime.service import api
+    from runtime.util import db
+
+    gorae = atelier_env["gorae"]
+    write_page(
+        gorae / "raw" / "personal" / "writings" / "2-months-more.md",
+        {"title": "2-months-more", "type": "raw_source",
+         "created": "2026-05-27", "updated": "2026-05-27"},
+        "# 2-months-more\n\nbody\n",
+    )
+    write_page(
+        gorae / "graph" / "index.md",
+        {"title": "wiki-index", "type": "index",
+         "created": "2026-05-27", "updated": "2026-05-27"},
+        "# index\n\n- [[2-months-more]]\n",
+    )
+
+    api.reindex(space="gorae", full=True)
+
+    conn = db.connect()
+    try:
+        row = conn.execute(
+            "SELECT l.to_page_id AS tid, p.slug AS slug "
+            "FROM links l JOIN pages p ON p.id = l.to_page_id "
+            "WHERE l.to_target = ?", ("2-months-more",),
+        ).fetchone()
+        assert row is not None, "bare basename link did not resolve"
+        assert row["slug"] == "raw/personal/writings/2-months-more.md"
+        broken = conn.execute("SELECT COUNT(*) AS n FROM broken_links").fetchone()["n"]
+        assert broken == 0
+    finally:
+        conn.close()
+
+
+def test_ambiguous_basename_does_not_resolve(atelier_env):
+    """A basename owned by >1 page is NEVER guessed: the fallback drops it, so a
+    bare `[[dup]]` stays dangling (to_page_id NULL) rather than binding to an
+    arbitrary page."""
+    from runtime.service import api
+    from runtime.util import db
+
+    gorae = atelier_env["gorae"]
+    for sub in ("personal/writings", "personal/diary"):
+        write_page(
+            gorae / "raw" / sub.split("/")[0] / sub.split("/")[1] / "dup.md",
+            {"title": "dup", "type": "raw_source",
+             "created": "2026-05-27", "updated": "2026-05-27"},
+            "# dup\n\nbody\n",
+        )
+    write_page(
+        gorae / "graph" / "index.md",
+        {"title": "wiki-index", "type": "index",
+         "created": "2026-05-27", "updated": "2026-05-27"},
+        "# index\n\n- [[dup]]\n",
+    )
+
+    api.reindex(space="gorae", full=True)
+
+    conn = db.connect()
+    try:
+        row = conn.execute(
+            "SELECT to_page_id AS tid FROM links WHERE to_target = ?", ("dup",),
+        ).fetchone()
+        assert row is not None, "the [[dup]] link row should exist"
+        assert row["tid"] is None, "an ambiguous basename must NOT be guessed"
+    finally:
+        conn.close()
+
+
 def test_candidate_slugs_treats_rename_prefixes_as_exact():
     """A slug already under a known prefix (incl. the new graph/ and provenance/)
     is an exact path, never re-expanded under graph//wiki/."""

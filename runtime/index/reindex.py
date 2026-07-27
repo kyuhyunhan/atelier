@@ -250,6 +250,7 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
         by_space.setdefault(r["space"], {})[r["slug"]] = r["id"]
 
     alias_index = _build_alias_index(conn, by_space)
+    basename_index = _build_basename_index(conn)
 
     n = 0
     pages = list(conn.execute(
@@ -268,7 +269,8 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
             )
         )
         for link in linker.extract_links(body, default_space=space):
-            target_id = _resolve(by_space, link.to_space, link.to_slug, alias_index)
+            target_id = _resolve(by_space, link.to_space, link.to_slug,
+                                 alias_index, basename_index)
             conn.execute(
                 "INSERT INTO links(from_page, to_target, to_page_id, link_type) "
                 "VALUES (?, ?, ?, ?)",
@@ -448,8 +450,34 @@ def _build_alias_index(conn: sqlite3.Connection,
     return index
 
 
+def _build_basename_index(conn: sqlite3.Connection) -> dict[str, int]:
+    """Map normalized page *basename* → page_id, for UNAMBIGUOUS basenames only.
+
+    Mirrors the entity `alias_index` pattern (a name→page fallback the slug-form
+    candidates miss). The dominant miss is `graph/index.md`, a machine-generated
+    wiki_index that links ~275 raw/ Source artifacts by basename alone (e.g.
+    `[[2-months-more]]`) while the page's slug is a full space-relative path
+    (`raw/personal/writings/2-months-more.md`). `_candidate_slugs` never probes
+    the deep raw/ tree, so those links dangle.
+
+    Collision-safe by construction: a basename owned by >1 page is NEVER guessed
+    — it is dropped from the index, so an ambiguous `[[foo]]` stays unresolved
+    rather than binding to an arbitrary page. Built across all spaces (a bare
+    wikilink may name a page in any domain)."""
+    counts: dict[str, int] = {}
+    first: dict[str, int] = {}
+    for r in conn.execute("SELECT id, slug FROM pages"):
+        base = _norm(r["slug"].split("/")[-1].rsplit(".", 1)[0])
+        if not base:
+            continue
+        counts[base] = counts.get(base, 0) + 1
+        first.setdefault(base, r["id"])
+    return {b: pid for b, pid in first.items() if counts[b] == 1}
+
+
 def _resolve(by_space: dict, to_space: str, to_slug: str,
-             alias_index: Optional[dict] = None) -> Optional[int]:
+             alias_index: Optional[dict] = None,
+             basename_index: Optional[dict] = None) -> Optional[int]:
     candidates = _candidate_slugs(to_slug)
     # Try the named space first, then every other space. Single-vault has one
     # space (no-op); this makes cross-space links resolve in any config.
@@ -459,13 +487,20 @@ def _resolve(by_space: dict, to_space: str, to_slug: str,
         for c in candidates:
             if c in space_map:
                 return space_map[c]
+    basename = to_slug.split("/")[-1].rsplit(".", 1)[0]
     # Alias fallback: same canonical entity referenced from any domain.
     if alias_index:
-        basename = to_slug.split("/")[-1].rsplit(".", 1)[0]
         for key in (_norm(to_slug), _norm(basename)):
             pid = alias_index.get(key)
             if pid is not None:
                 return pid
+    # Basename fallback (last resort): a bare `[[basename]]` that names a
+    # deep-path page whose slug the candidates never reached. Only unambiguous
+    # basenames live in the index, so a collision resolves to None here.
+    if basename_index:
+        pid = basename_index.get(_norm(basename))
+        if pid is not None:
+            return pid
     return None
 
 

@@ -37,9 +37,21 @@ export const meta = {
   ],
 }
 
-const GOAL_ID = (args && args.goalId) || 'G-unnamed'
-const GOAL = (args && args.goal) || 'Implement the goal as specified.'
-const INTENT_HINT = (args && args.intentHint) || '(state the intended metric changes)'
+// Fail fast on missing args rather than letting the author agent fabricate a
+// no-op contract from a placeholder goal. The critic caught exactly that in an
+// earlier run (every clause an identity delta), but a scaffold goal should never
+// reach the author in the first place — an undeclared goal is a caller error, not
+// something to spend three agents discovering. (A stringified `args` also lands
+// here: `args.goalId` on a string is undefined, so this catches the
+// "passed args as a JSON string, not an object" mistake too.)
+if (!args || typeof args !== 'object' || !args.goalId || !args.goal || !args.intentHint) {
+  throw new Error(
+    'goal workflow requires args {goalId, goal, intentHint} as a JSON OBJECT ' +
+    '(not a JSON-encoded string). Got: ' + JSON.stringify(args))
+}
+const GOAL_ID = args.goalId
+const GOAL = args.goal
+const INTENT_HINT = args.intentHint
 const MAX_ROUNDS = 3
 
 const SNAP_SCHEMA = {

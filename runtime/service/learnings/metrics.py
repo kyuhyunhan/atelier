@@ -162,6 +162,61 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
     return out
 
 
+# ── dangling links (enables G5 wiki-link repair) ────────────────────────────
+
+# The link_type enum, from `linker.py` (wikilink/gorae/workshop) plus the
+# `concept` edge minted in `reindex.py`. KEEP IN SYNC with those two: a new
+# link_type added there but not here loses its zero-seed and reintroduces the
+# keyset-instability this list fixes (an unknown type is still COUNTED correctly
+# — the loop below adds it — just not pre-seeded). `by_type` is SEEDED with all so a
+# key never appears or disappears between baselines — an unseeded key that shows
+# up only when that type currently has a broken edge would trip the ENVELOPE's
+# union rule (§3.4) on an unrelated goal, the same reason `_tally_eligible` seeds
+# its domains. `wikilink` is the subset a wiki-link repair (G5) targets; the
+# others are counted for honesty but are not "wiki links".
+_LINK_TYPES = ("wikilink", "gorae", "workshop", "concept")
+
+
+def dangling_links() -> Optional[Dict[str, Any]]:
+    """Count of BROKEN links — an edge whose target page does not resolve. Wraps
+    the production `broken_links` view (`links.to_page_id IS NULL`), the same
+    referential-integrity definition doctor and `atelier_links` use, so the
+    counter cannot drift from what a repair actually has to fix (§3.2 rule 1).
+
+    `total` is every broken edge; `by_type.wikilink` is the wiki subset a G5
+    repair drives to zero (a broken `concept` edge is an idea with no page, not a
+    wiki link, so a repair goal binds `by_type.wikilink`, not `total`).
+
+    Projection-only, and it ABSTAINS by returning None (→ the `metrics()` block
+    omits the key) on a cold or **un-reindexed** DB. There is no filesystem
+    fallback: link resolution is a reindex operation, not a per-file fact. The
+    abstain is keyed on an EMPTY projection, not a connect error — `db.connect()`
+    creates the DB with `CREATE ... IF NOT EXISTS`, so a cold DB does NOT raise;
+    it returns an empty `broken_links`, i.e. a fabricated `0` that would let a
+    `{eq: 0}` repair bound pass vacuously against a projection that was never
+    built. So: no pages → abstain; pages present with zero broken → a real `0`
+    (§5.4, and the `_load_nodes` empty-projection guard it mirrors).
+    """
+    from ...util import db as _db
+    try:
+        conn = _db.connect()
+        try:
+            pages = _db.fetchall(conn, "SELECT COUNT(*) AS n FROM pages")[0]["n"]
+            if not pages:
+                return None                  # un-reindexed projection → abstain
+            rows = _db.fetchall(
+                conn, "SELECT link_type, COUNT(*) AS n FROM links "
+                      "WHERE to_page_id IS NULL GROUP BY link_type")
+        finally:
+            conn.close()
+    except Exception:
+        return None                          # unreadable DB → abstain
+    by_type = {t: 0 for t in _LINK_TYPES}
+    for r in rows:
+        by_type[str(r["link_type"])] = int(r["n"])   # a new type would surface too
+    return {"total": sum(by_type.values()), "by_type": by_type}
+
+
 # ── 5.3 guard liveness ──────────────────────────────────────────────────────
 
 def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -300,4 +355,7 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
     lens = lens_param_present()
     if lens is not None:
         out["lens_param_present"] = lens
+    dangling = dangling_links()
+    if dangling is not None:
+        out["dangling_links"] = dangling
     return out

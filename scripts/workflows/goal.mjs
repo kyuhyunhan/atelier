@@ -85,6 +85,20 @@ const VERIFY_SCHEMA = {
   },
   required: ['outcome', 'summary'],
 }
+const REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    must: { type: 'array', items: { type: 'string' } },
+    should: { type: 'array', items: { type: 'string' } },
+    summary: { type: 'string' },
+  },
+  required: ['must', 'summary'],
+}
+const PR_SCHEMA = {
+  type: 'object',
+  properties: { url: { type: ['string', 'null'] } },
+  required: ['url'],
+}
 
 // ── Snapshot ────────────────────────────────────────────────────────────────
 phase('Snapshot')
@@ -108,7 +122,7 @@ const author = await agent(
   `round baseline's actual values), a default-deny envelope with any needed bounded ` +
   `waivers, supersedes entries only if an invariant must be released (each with a ` +
   `matching INTENT bound), and the pins block (before_sha256 = sha256 of before.json; ` +
-  `captured_at_head = the CURRENT HEAD, which becomes the contract commit's first ` +
+  `captured_at_head = the CURRENT HEAD on main, which becomes the contract commit's first ` +
   `parent; fixture_sha256 if a probe fixture is used). Do NOT implement anything yet. ` +
   `Summarize the contract for the critic.`,
   { label: 'author', phase: 'Contract' })
@@ -119,7 +133,14 @@ const critic = await agent(
   `Check: every intended change has an INTENT clause with an exact bound; no bound is ` +
   `a rubber stamp (a meaningless min/max that a regression would still pass); every ` +
   `waiver names a real reason and a real bound; every supersedes entry has a matching ` +
-  `INTENT bound; the pins are present. If it holds, COMMIT it: git add docs/goals/${GOAL_ID}.json ` +
+  `INTENT bound; the pins are present. If it holds: FIRST create and switch to a fresh ` +
+  `feature branch \`feat/rfc-0009-${GOAL_ID}\` off the current main HEAD ` +
+  `(\`git switch -c\`; if it already exists from an aborted prior run, delete it first ` +
+  `with \`git branch -D\` so this run starts clean) — so the contract ` +
+  `commit's first parent stays that HEAD = captured_at_head, AND every later implement/fix ` +
+  `commit lands on the branch — the independent reviewer diffs \`main...HEAD\`, so work on ` +
+  `main would leave that diff empty and the review vacuous). THEN commit: ` +
+  `git add docs/goals/${GOAL_ID}.json ` +
   `&& commit (author gorae <kyuhyunhaan@gmail.com>, no Co-Authored-By), and record the ` +
   `critic acceptance in the contract's critic block. If not, return accepted=false with ` +
   `objections. The author's summary, for cross-reference only:\n${author || '(none)'}`,
@@ -196,17 +217,66 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     { label: `fix:r${round}`, phase: 'Verify' })
 }
 
-// ── Ship ──────────────────────────────────────────────────────────────────────
+// ── Ship — review by the ORCHESTRATOR, merge by a HUMAN ─────────────────────────
+//
+// RFC 0009 §9 lists "autonomous merging of a goal" as a non-goal; the first live
+// run merged its own PR anyway, because the ship stage was one agent that did
+// push + PR + review + merge, and its independence was self-attested (the exact
+// shape §3.1.1 rejects). So review moves HERE, spawned by the orchestrator as a
+// DISTINCT agent, and the orchestrator — not the ship agent's narrative — decides
+// whether the bar is met, from the reviewer's structured return.
+//
+// "Cannot obtain an independent review" is a RAISE (the harness cannot be trusted
+// for this run), never a FAIL to route around by self-reviewing. So a reviewer
+// that does not run means no PR claiming review and no merge — same never-reaches-
+// merge semantics as the abort branch above. And merge itself stays human: it is
+// the one per-goal act §9 always kept outside the loop.
 phase('Ship')
+const review = await agent(
+  `You are the INDEPENDENT reviewer for goal ${GOAL_ID}. You did NOT build this change. ` +
+  `Read-only audit of \`git diff main...HEAD\` against the ship-pr rubric and the ` +
+  `CLAUDE.md invariants. Tag findings [MUST]/[SHOULD]/[NIT]/[Q] with file:line. Verify ` +
+  `the delta matches contract ${contractPath}. FIRST run \`git diff --quiet main...HEAD\`: ` +
+  `if it exits 0 (EMPTY diff) the run produced no change on a branch — return that as a ` +
+  `[MUST] ("empty diff: nothing was implemented"), never a clean pass. Do NOT fix, ` +
+  `commit, push, or merge.`,
+  { label: 'review', phase: 'Ship', schema: REVIEW_SCHEMA })
+
+if (!review) {
+  // A raise, not a FAIL: independence is unavailable, so the bar is unmeetable.
+  log(`review unavailable — cannot satisfy the independent-review bar; not shipping`)
+  return { goalId: GOAL_ID, outcome: 'review-unavailable', contract: contractPath,
+           snapshot: snap ? snap.snapshot_id : null, merge: 'blocked' }
+}
+const musts = review.must || []
+const pr = await agent(
+  `Open a PR for goal ${GOAL_ID} (verified delta per ${contractPath}). Push the feature ` +
+  `branch \`feat/rfc-0009-${GOAL_ID}\` and \`gh pr create\` describing the goal and its ` +
+  `delta${musts.length ? ' AS A DRAFT (open MUST findings remain)' : ''}. Post the ` +
+  `independent review findings as a PR comment. Do NOT merge — merge is a human act. ` +
+  `NEVER pass --no-verify (the pre-commit guard is mandatory). Author gorae ` +
+  `<kyuhyunhaan@gmail.com>, no Co-Authored-By. Return the PR URL.`,
+  { label: 'open-pr', phase: 'Ship', schema: PR_SCHEMA })
+
+if (!pr || !pr.url) {
+  // The open-pr agent failed to produce a PR. Reporting "passed" with no PR is
+  // the false-success §9 guards against — treat a missing PR as a raise.
+  log(`open-pr produced no PR URL — nothing to hand to the human; not claiming a pass`)
+  return { goalId: GOAL_ID, outcome: 'ship-failed', contract: contractPath,
+           snapshot: snap ? snap.snapshot_id : null, pr: null,
+           review: { must: musts, should: review.should || [], summary: review.summary },
+           merge: 'blocked' }
+}
+
 return {
   goalId: GOAL_ID,
-  outcome: 'passed',
+  outcome: musts.length === 0 ? 'passed-awaiting-merge' : 'blocked-on-must',
   contract: contractPath,
   snapshot: snap ? snap.snapshot_id : null,
-  ship: await agent(
-    `Goal ${GOAL_ID} converged (contract PASS). Ship it via the ship-pr flow: push the ` +
-    `implement branch, open a PR describing the goal and its verified delta, run the ` +
-    `independent review loop, and merge when the bar is met. Author gorae ` +
-    `<kyuhyunhaan@gmail.com>, no Co-Authored-By.`,
-    { label: 'ship', phase: 'Ship' }) || '(see ship-pr)',
+  pr: pr.url,
+  review: { must: musts, should: review.should || [], summary: review.summary },
+  // A clean review awaits the human's merge (§9); open MUSTs are `blocked`, the
+  // same signal the review-unavailable/ship-failed raises use, so a consumer
+  // keying on `merge` never reads a MUST-blocked draft as mergeable.
+  merge: musts.length === 0 ? 'awaiting-human' : 'blocked',
 }

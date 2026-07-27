@@ -165,7 +165,10 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
 # ── dangling links (enables G5 wiki-link repair) ────────────────────────────
 
 # The link_type enum, from `linker.py` (wikilink/gorae/workshop) plus the
-# `concept` edge minted in `reindex.py`. `by_type` is SEEDED with all four so a
+# `concept` edge minted in `reindex.py`. KEEP IN SYNC with those two: a new
+# link_type added there but not here loses its zero-seed and reintroduces the
+# keyset-instability this list fixes (an unknown type is still COUNTED correctly
+# — the loop below adds it — just not pre-seeded). `by_type` is SEEDED with all so a
 # key never appears or disappears between baselines — an unseeded key that shows
 # up only when that type currently has a broken edge would trip the ENVELOPE's
 # union rule (§3.4) on an unrelated goal, the same reason `_tally_eligible` seeds

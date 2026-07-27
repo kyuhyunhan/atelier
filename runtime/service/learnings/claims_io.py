@@ -143,23 +143,43 @@ def surfacing_of(fm: Dict[str, Any]) -> str:
     return s if s in _LADDER else TIER_QUERY
 
 
-def is_promote_eligible(fm: Dict[str, Any]) -> bool:
-    """Whether a claim may be promoted query→proactive. ONE definition, shared
-    by the filesystem scan (`promote.propose._eligible`) and the DB projection
-    (`projection_counts.promote_eligible`) so the two can't disagree.
+def is_promote_candidate(fm: Dict[str, Any]) -> bool:
+    """The domain-INDEPENDENT prerequisites for query→proactive promotion: the
+    claim is still on the query tier and is public. A claim that clears this but
+    not `is_promote_eligible` is a candidate the domain gate rejected.
 
-    The acceptance gate is **domain-aware**: operational learnings are auto-
-    captured and carry an explicit `ac_status` that must be `passed` (a human
-    reviewed them); atomize-born claims (knowledge, …) have NO `ac_status` —
-    atomization itself is their curation, so an absent `ac_status` counts as
-    accepted. Private claims are never eligible: they are reachable only by
-    explicit on-query and are never pushed proactively (RFC 0005 §6)."""
+    Factored out so the metrics counter can enumerate the DOMAINS in play (to
+    report a gated-out domain as `0` rather than dropping its key) using the same
+    prerequisite the eligibility gate applies — one definition, no drift."""
     if surfacing_of(fm) != TIER_QUERY:
         return False
-    if str(fm.get("sensitivity") or "").lower() != "public":
+    return str(fm.get("sensitivity") or "").lower() == "public"
+
+
+def is_promote_eligible(fm: Dict[str, Any]) -> bool:
+    """Whether a claim may be promoted query→proactive. ONE definition, shared
+    by the filesystem scan (`promote.propose._eligible`), the DB projection
+    (`projection_counts.promote_eligible`) and the metrics counter
+    (`metrics.promote_eligible`) so they can't disagree.
+
+    G2 (RFC 0009) — promote eligibility is the **operational lane only**. The
+    normal query→proactive promote path is for auto-captured operational
+    learnings that a human reviewed to `ac_status: passed`. Atomize-born
+    knowledge claims (`domain: knowledge`, no `ac_status` — born-accepted) are NO
+    LONGER promote-eligible: they reach the proactive/always tiers only via dream
+    synthesis, never this path. Private claims are never eligible either — they
+    are reachable only by explicit on-query and are never pushed proactively
+    (RFC 0005 §6).
+
+    The operational-lane gate is `store.is_accepted_operational_claim`
+    (domain:operational + ac_status:passed) — reused, not re-stated, so "an
+    accepted operational claim" has one definition across the engine."""
+    if not is_promote_candidate(fm):
         return False
-    ac = str(fm.get("ac_status") or "").lower()
-    return ac in ("", "passed")            # absent = atomize-born (born-accepted)
+    # Local import: `store` imports `claims_io` lazily to break the cycle, so we
+    # mirror that here rather than pull it to module scope.
+    from . import store as _store
+    return _store.is_accepted_operational_claim(fm)
 
 
 def find_claim_by_slug_or_id(needle: str,

@@ -103,29 +103,49 @@ def test_apply_transitions_query_to_proactive_in_place(vault_env: Dict) -> None:
     assert fm["content_hash"] != "h"
 
 
-def test_knowledge_claim_promotes_end_to_end(vault_env: Dict) -> None:
-    """Regression: an atomize-born knowledge claim (domain:knowledge, no
-    ac_status) must survive the WHOLE promote path — proposed by _eligible AND
-    actually flipped by apply. The apply-side gate previously hard-checked
-    ac_status:passed and silently skipped every knowledge claim, making the
-    feature cosmetic."""
+def test_g2_knowledge_gated_out_operational_survives_end_to_end(
+        vault_env: Dict) -> None:
+    """G2 pin (RFC 0009): an atomize-born knowledge claim (domain:knowledge, no
+    ac_status) is NO LONGER promote-eligible, while a passed operational claim
+    still is — measured through the WHOLE promote path (propose → apply).
+
+    The knowledge claim is neither proposed by `_eligible` nor flipped by apply;
+    the operational claim is proposed and actually transitions query→proactive.
+    Knowledge reaches proactive/always only via dream synthesis, never here."""
     vault = vault_env["vault"]
-    fm = {**_BASE, "domain": "knowledge", "sensitivity": "public",
-          "entry_id": "kc", "statement": "HBM stacks DRAM layers",
-          "surfacing": "query", "generated_by": "atomize"}
-    fm.pop("ac_status", None)                 # knowledge has NO ac_status
-    write_page(vault / "graph" / "atomic" / "claims" / "kc.md", fm,
+
+    kfm = {**_BASE, "domain": "knowledge", "sensitivity": "public",
+           "entry_id": "kc", "statement": "HBM stacks DRAM layers",
+           "surfacing": "query", "generated_by": "atomize"}
+    kfm.pop("ac_status", None)                # knowledge has NO ac_status
+    write_page(vault / "graph" / "atomic" / "claims" / "kc.md", kfm,
                "## Claim\n\nHBM stacks DRAM layers\n")
+    _claim(vault, "oc", "prefer a real db in integration tests",
+           surfacing="query", ac_status="passed")   # operational, passed
 
+    # the knowledge claim is not eligible; only the operational one is proposed
+    assert _ci.is_promote_eligible(kfm) is False
     prop_out = _propose.propose_all()
-    assert prop_out["candidates"] == 1        # proposed despite no ac_status
+    assert prop_out["candidates"] == 1
+    body = Path(prop_out["path"]).read_text()
+    assert "entry_id: oc" in body
+    assert "entry_id: kc" not in body
 
+    # even a hand-edited proposal naming the knowledge claim is gated at apply
     prop = vault_env["cache"] / "promotions" / "p.md"
     _write_proposal(prop, "kc", promote=True)
     out = _apply.apply_proposal(prop)
-    assert out["promoted"] == ["kc"]          # and actually promoted (not skipped)
-    _p, after, _b = _ci.find_claim_by_entry_id("kc", vault)
-    assert after["surfacing"] == "proactive"
+    assert out["promoted"] == []
+    assert out["skipped_detail"][0]["reason"] == "acceptance-gate"
+    _p, kafter, _b = _ci.find_claim_by_entry_id("kc", vault)
+    assert kafter["surfacing"] == "query"     # untouched — never promoted
+
+    # the operational claim promotes cleanly
+    _write_proposal(prop, "oc", promote=True)
+    out2 = _apply.apply_proposal(prop)
+    assert out2["promoted"] == ["oc"]
+    _p, oafter, _b = _ci.find_claim_by_entry_id("oc", vault)
+    assert oafter["surfacing"] == "proactive"
 
 
 def test_apply_ignores_unselected_rows(vault_env: Dict) -> None:
@@ -180,24 +200,32 @@ def test_propose_then_apply_round_trip(vault_env: Dict) -> None:
     assert fm["surfacing"] == "proactive"
 
 
-# ── domain-aware promote-eligibility gate (knowledge born-accepted) ──────────
+# ── G2 (RFC 0009): promote eligibility is the operational lane only ──────────
 
-def test_promote_gate_is_domain_aware() -> None:
-    """`is_promote_eligible` — the ONE gate shared by the filesystem scan and the
-    DB projection. Operational learnings need ac_status:passed; atomize-born
-    knowledge (no ac_status) is born-accepted; private is never eligible."""
+def test_promote_gate_is_operational_lane_only() -> None:
+    """`is_promote_eligible` — the ONE gate shared by the filesystem scan, the DB
+    projection and the metrics counter.
+
+    G2 narrowed eligibility to the operational lane: an operational claim still
+    needs ac_status:passed (unchanged), but an atomize-born knowledge claim
+    (domain:knowledge, NO ac_status — born-accepted) is NO LONGER eligible. It
+    reaches proactive/always only via dream synthesis, never this promote path.
+    Private is never eligible."""
     def fm(**kw):
-        base = {"surfacing": "query", "sensitivity": "public"}
+        base = {"kind": "claim", "surfacing": "query", "sensitivity": "public"}
         base.update(kw)
         return base
 
-    # atomize-born knowledge: no ac_status → eligible (atomization is acceptance)
-    assert _ci.is_promote_eligible(fm(domain="knowledge")) is True
-    # operational passed → eligible
+    # operational passed → eligible (the lane is unchanged for operational)
     assert _ci.is_promote_eligible(fm(domain="operational", ac_status="passed")) is True
     # operational still pending → NOT eligible (accept gate not cleared)
     assert _ci.is_promote_eligible(fm(domain="operational", ac_status="pending")) is False
+    # atomize-born knowledge (no ac_status) → NO LONGER eligible under G2
+    assert _ci.is_promote_eligible(fm(domain="knowledge")) is False
+    # even a knowledge claim carrying ac_status:passed stays out — wrong lane
+    assert _ci.is_promote_eligible(fm(domain="knowledge", ac_status="passed")) is False
     # private (personal) → never eligible, even without ac_status
     assert _ci.is_promote_eligible(fm(domain="personal", sensitivity="private")) is False
     # already promoted past query → not eligible
-    assert _ci.is_promote_eligible(fm(domain="knowledge", surfacing="proactive")) is False
+    assert _ci.is_promote_eligible(
+        fm(domain="operational", ac_status="passed", surfacing="proactive")) is False

@@ -122,7 +122,7 @@ const author = await agent(
   `round baseline's actual values), a default-deny envelope with any needed bounded ` +
   `waivers, supersedes entries only if an invariant must be released (each with a ` +
   `matching INTENT bound), and the pins block (before_sha256 = sha256 of before.json; ` +
-  `captured_at_head = the CURRENT HEAD, which becomes the contract commit's first ` +
+  `captured_at_head = the CURRENT HEAD on main, which becomes the contract commit's first ` +
   `parent; fixture_sha256 if a probe fixture is used). Do NOT implement anything yet. ` +
   `Summarize the contract for the critic.`,
   { label: 'author', phase: 'Contract' })
@@ -133,7 +133,12 @@ const critic = await agent(
   `Check: every intended change has an INTENT clause with an exact bound; no bound is ` +
   `a rubber stamp (a meaningless min/max that a regression would still pass); every ` +
   `waiver names a real reason and a real bound; every supersedes entry has a matching ` +
-  `INTENT bound; the pins are present. If it holds, COMMIT it: git add docs/goals/${GOAL_ID}.json ` +
+  `INTENT bound; the pins are present. If it holds: FIRST create and switch to a fresh ` +
+  `feature branch \`feat/rfc-0009-${GOAL_ID}\` off the current main HEAD (so the contract ` +
+  `commit's first parent stays that HEAD = captured_at_head, AND every later implement/fix ` +
+  `commit lands on the branch — the independent reviewer diffs \`main...HEAD\`, so work on ` +
+  `main would leave that diff empty and the review vacuous). THEN commit: ` +
+  `git add docs/goals/${GOAL_ID}.json ` +
   `&& commit (author gorae <kyuhyunhaan@gmail.com>, no Co-Authored-By), and record the ` +
   `critic acceptance in the contract's critic block. If not, return accepted=false with ` +
   `objections. The author's summary, for cross-reference only:\n${author || '(none)'}`,
@@ -229,7 +234,9 @@ const review = await agent(
   `You are the INDEPENDENT reviewer for goal ${GOAL_ID}. You did NOT build this change. ` +
   `Read-only audit of \`git diff main...HEAD\` against the ship-pr rubric and the ` +
   `CLAUDE.md invariants. Tag findings [MUST]/[SHOULD]/[NIT]/[Q] with file:line. Verify ` +
-  `the delta matches contract ${contractPath}. Do NOT fix, commit, push, or merge.`,
+  `the delta matches contract ${contractPath}. If \`git diff main...HEAD\` is EMPTY, the ` +
+  `run produced no change to review — return that as a [MUST] ("empty diff: nothing was ` +
+  `implemented on a branch"), never a clean pass. Do NOT fix, commit, push, or merge.`,
   { label: 'review', phase: 'Ship', schema: REVIEW_SCHEMA })
 
 if (!review) {
@@ -240,19 +247,30 @@ if (!review) {
 }
 const musts = review.must || []
 const pr = await agent(
-  `Open a PR for goal ${GOAL_ID} (verified delta per ${contractPath}). Push the implement ` +
-  `branch (branch off main first if you are on main) and \`gh pr create\` describing the goal ` +
-  `and its delta. Post the independent review findings as a PR comment. ` +
-  `Do NOT merge — merge is a human act. NEVER pass --no-verify (the pre-commit guard is ` +
-  `mandatory). Author gorae <kyuhyunhaan@gmail.com>, no Co-Authored-By. Return the PR URL.`,
+  `Open a PR for goal ${GOAL_ID} (verified delta per ${contractPath}). Push the feature ` +
+  `branch \`feat/rfc-0009-${GOAL_ID}\` and \`gh pr create\` describing the goal and its ` +
+  `delta${musts.length ? ' AS A DRAFT (open MUST findings remain)' : ''}. Post the ` +
+  `independent review findings as a PR comment. Do NOT merge — merge is a human act. ` +
+  `NEVER pass --no-verify (the pre-commit guard is mandatory). Author gorae ` +
+  `<kyuhyunhaan@gmail.com>, no Co-Authored-By. Return the PR URL.`,
   { label: 'open-pr', phase: 'Ship', schema: PR_SCHEMA })
+
+if (!pr || !pr.url) {
+  // The open-pr agent failed to produce a PR. Reporting "passed" with no PR is
+  // the false-success §9 guards against — treat a missing PR as a raise.
+  log(`open-pr produced no PR URL — nothing to hand to the human; not claiming a pass`)
+  return { goalId: GOAL_ID, outcome: 'ship-failed', contract: contractPath,
+           snapshot: snap ? snap.snapshot_id : null, pr: null,
+           review: { must: musts, should: review.should || [], summary: review.summary },
+           merge: 'blocked' }
+}
 
 return {
   goalId: GOAL_ID,
   outcome: musts.length === 0 ? 'passed-awaiting-merge' : 'blocked-on-must',
   contract: contractPath,
   snapshot: snap ? snap.snapshot_id : null,
-  pr: pr ? pr.url : null,
+  pr: pr.url,
   review: { must: musts, should: review.should || [], summary: review.summary },
   merge: 'awaiting-human',   // §9: the merge is the human's, always
 }

@@ -29,13 +29,15 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          pip install -e ".[dev]"     # pytest lives in the dev extra, not core
 
       - name: Test suite (embeddings off — deterministic, no model download)
         run: ATELIER_EMBED=off python -m pytest -q
 
       - name: PII guard over the PR diff
-        # Layer 2 of scripts/git-hooks/pre-commit, run authoritatively. The
+        # Layer 1 (structural large-file guard) of scripts/git-hooks/pre-commit,
+        # run authoritatively. Layer 2 (user PII regexes) needs the per-machine
+        # pattern file, absent in CI, so only the structural half runs here. The
         # pattern file is per-machine and absent in CI, so this enforces the
         # STRUCTURAL half (no bulk/large export) — the half that protects a
         # public repo regardless of any user config, and the half `--no-verify`

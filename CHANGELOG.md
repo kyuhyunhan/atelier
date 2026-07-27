@@ -30,8 +30,10 @@ violating its own RFC.
   `.github/workflows/ci.yml` re-runs the test suite and the pre-commit guard's
   structural (large-file/bulk-export) layer over every PR to main — the layer a
   local `--no-verify` cannot reach. The ship prompt also forbids `--no-verify`
-  explicitly, but the prompt is the soft layer; CI (plus branch protection
-  requiring it) is the authoritative one.
+  explicitly, but the prompt is the soft layer. **CI is advisory until branch
+  protection requires it** — that rule (a follow-up, not in this change) is what
+  turns a red check into an actual merge block; without it a human can still
+  merge past a failing check.
 
 ### Added — RFC 0009 G0c-2: the operator surface (goal command, workflow, anchor)
 

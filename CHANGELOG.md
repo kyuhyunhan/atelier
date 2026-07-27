@@ -26,14 +26,32 @@ violating its own RFC.
 - **"No independent review" is a RAISE, not a FAIL.** If the reviewer cannot run,
   the bar is unmeetable, so no PR claims review and nothing ships — the same
   never-reaches-merge semantics as an abort, rather than a self-review fallback.
-- **`--no-verify` prevention is a stated follow-up, not in this change.** The
-  ship prompt now forbids `--no-verify` explicitly, but that is the soft layer.
-  The authoritative layer — a CI job re-running the suite + the structural guard
-  over every PR, plus branch protection requiring it — needs the CI environment
-  to reproduce the full suite (the `serve` extra, the embedding backend, a git
-  identity, an `~/.atelier` config). A first attempt exposed that the suite is
-  not green under `pip install -e ".[dev]"` alone; that environment work is its
-  own task and lands separately rather than shipping a knowingly-red gate here.
+- **`--no-verify` prevention is now authoritative, not just a prompt.** The ship
+  prompt forbids `--no-verify` (the soft layer), and the enforcing layer landed:
+  a CI PR gate (`.github/workflows/ci.yml`) whose deps-free **guard** job re-runs
+  the structural large-file/bulk-export check server-side — where a local
+  `--no-verify` cannot reach — plus a **test** job running the full suite under
+  `.[dev,serve,semantic]` + a git identity. Branch protection on `main` requires
+  the guard check with `enforce_admins` on, so nothing (agent or maintainer) can
+  merge without a PR and a green guard: the self-merge the first goal run
+  performed is now mechanically impossible, not merely discouraged.
+
+### Fixed — test isolation and honest skips on a fresh checkout
+
+Standing up CI exposed that the suite was not self-contained: it passed locally
+only because the maintainer's machine had every optional extra and a primed
+`~/.atelier`.
+
+- `test_atelier_think_tool_returns_contract` lacked the `atelier_env` fixture, so
+  it read the real `~/.atelier/config.yaml` — passing only after `scripts/setup`
+  had ever run, failing on any fresh checkout. Now isolated like its siblings.
+- The vector-sidecar (`test_vecstore`, `test_vec_semantic`, `test_reindex_embed`)
+  and MCP-transport (`test_mcp_http`, and the one stdio test in
+  `test_tools_registry`) suites now `pytest.importorskip` their optional deps
+  (`sqlite_vec`, `mcp`/`starlette`) — so a contributor without the `semantic` or
+  `serve` extra gets a clean SKIP, not a hard failure, mirroring the engine's own
+  "degrades to lexical-only" contract. CI installs every extra, so it still runs
+  them; the skip is for machines that opted out of the extra.
 
 ### Added — RFC 0009 G0c-2: the operator surface (goal command, workflow, anchor)
 

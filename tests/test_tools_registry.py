@@ -96,6 +96,9 @@ def test_invoke_write_tool_serializes_on_role_lock(atelier_env: Dict) -> None:
 def test_mcp_stdio_builds_without_running(atelier_env: Dict) -> None:
     """build_app() should construct a FastMCP with all tools registered
     — but we don't start the stdio loop (that needs real stdin)."""
+    # Only THIS test needs the `serve` extra; the dispatch tests (the load-bearing
+    # invoke() contract) are dep-free, so skip per-test rather than the module.
+    pytest.importorskip("mcp")
     from runtime.service import mcp_stdio
     app = mcp_stdio.build_app()
     # FastMCP exposes list_tools() as async; use call_tool's metadata.

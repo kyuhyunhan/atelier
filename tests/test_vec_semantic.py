@@ -10,6 +10,11 @@ from typing import Dict
 
 import pytest
 
+# Needs the sqlite-vec extension (`semantic` extra); skip cleanly without it —
+# placed before the runtime and cross-test imports so this module never reaches
+# `from tests.test_vecstore import CountingGateway` when the dep is absent.
+pytest.importorskip("sqlite_vec")
+
 from runtime.search.engine import RetrievalEngine, FtsLexical, VecSemantic, VecStore, Scope, Candidate
 from runtime.search.engine.semantic import SemanticSearcher
 from runtime.util import db

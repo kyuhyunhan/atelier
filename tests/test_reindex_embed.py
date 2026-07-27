@@ -9,6 +9,13 @@ from __future__ import annotations
 
 from typing import Dict
 
+import pytest
+
+# The embed-pass assertions need the sqlite-vec extension (`semantic` extra) to
+# store vectors; skip cleanly without it. Placed before the CountingGateway
+# cross-import from test_vecstore, which also skips on the same dep.
+pytest.importorskip("sqlite_vec")
+
 from runtime.index import reindex as _reindex
 from runtime.util import config as _config
 from tests.conftest import write_page

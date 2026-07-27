@@ -162,6 +162,37 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
     return out
 
 
+# ── dangling links (enables G5 wiki-link repair) ────────────────────────────
+
+def dangling_links() -> Optional[Dict[str, Any]]:
+    """Count of unresolved `[[wikilinks]]` — a link whose target page does not
+    exist. Wraps the production `broken_links` view (`links.to_page_id IS NULL`),
+    the same referential-integrity definition doctor and `atelier_links` use, so
+    the counter cannot drift from what a repair actually has to fix (§3.2 rule 1).
+
+    Projection-only, and it ABSTAINS by returning None (→ the `metrics()` block
+    omits the key) on a cold or unreadable DB. There is no filesystem fallback:
+    link resolution is a reindex operation, not a per-file fact, so a
+    fabricated `0` here would let a `{eq: 0}` repair bound pass vacuously against
+    an un-rebuilt projection (the §5.4 rule, as for `pending_age`).
+    """
+    from ...util import db as _db
+    try:
+        conn = _db.connect()
+    except Exception:
+        return None
+    try:
+        total = _db.fetchall(conn, "SELECT COUNT(*) AS n FROM broken_links")[0]["n"]
+        by_type = {r["link_type"]: r["n"] for r in _db.fetchall(
+            conn, "SELECT link_type, COUNT(*) AS n FROM links "
+                  "WHERE to_page_id IS NULL GROUP BY link_type")}
+    except Exception:
+        return None
+    finally:
+        conn.close()
+    return {"total": int(total), "by_type": by_type}
+
+
 # ── 5.3 guard liveness ──────────────────────────────────────────────────────
 
 def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -300,4 +331,7 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
     lens = lens_param_present()
     if lens is not None:
         out["lens_param_present"] = lens
+    dangling = dangling_links()
+    if dangling is not None:
+        out["dangling_links"] = dangling
     return out

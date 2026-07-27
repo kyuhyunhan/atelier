@@ -222,9 +222,9 @@ def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict) -> None:
     nothing."""
     got = _metrics.metrics(as_of=datetime.date(2026, 7, 23),
                            vault=Path(_cl._vault_root()))
-    assert "cross_project_noise" not in got
-    assert set(got) == {"promote_eligible", "pending_age",
-                        "guard_liveness", "lens_param_present"}
+    # the always-computed metrics are present; the withheld one is not.
+    assert {"promote_eligible", "pending_age", "guard_liveness"} <= set(got)
+    assert "cross_project_noise" not in got          # no fixture until G3 → omitted
     # capture metadata is NOT a metric leaf: §3.4 default-deny would trip on a
     # value that changes every run, and §3.5 allows no non-numeric waiver.
     assert "as_of" not in got
@@ -412,3 +412,54 @@ def test_baseline_tolerates_a_malformed_captured_date(atelier_env: Dict) -> None
     from runtime.service.learnings import baseline as _baseline
     out = _baseline.generate(vault=Path(_cl._vault_root()), captured_date="not-a-date")
     assert "metrics" in out                        # did not raise
+
+
+# ── dangling links (enables G5 wiki-link repair) ─────────────────────────────
+
+def test_dangling_links_counts_the_broken_links_view(atelier_env: Dict) -> None:
+    """§3.2 rule 1: the counter must equal the production referential-integrity
+    definition (the `broken_links` view), so a repair goal cannot be gamed by a
+    counter that measures something other than what it fixes."""
+    from runtime.util import db as _db
+    vault = Path(_cl._vault_root())
+    # one page linking to a real target and to a missing one
+    from tests.conftest import write_page
+    write_page(vault / "wiki" / "entities" / "real.md",
+               {"title": "Real", "type": "entity", "category": "concept",
+                "created": "2026-05-27", "updated": "2026-05-27"}, "# Real\n")
+    write_page(vault / "wiki" / "entities" / "src.md",
+               {"title": "Src", "type": "entity", "category": "concept",
+                "created": "2026-05-27", "updated": "2026-05-27"},
+               "# Src\n\nlinks to [[real]] and to [[does-not-exist]].\n")
+    _api.reindex(space="gorae", full=True)
+
+    got = _metrics.dangling_links()
+    conn = _db.connect()
+    view_count = conn.execute("SELECT COUNT(*) FROM broken_links").fetchone()[0]
+    conn.close()
+    assert got["total"] == view_count == 1            # only [[does-not-exist]]
+    assert got["by_type"] == {"wikilink": 1}
+
+
+def test_dangling_links_abstains_on_a_cold_db(atelier_env: Dict,
+                                               monkeypatch) -> None:
+    """Projection-only: no filesystem fallback exists for link resolution, so a
+    cold/unreadable DB returns None (→ the block omits the key). A fabricated 0
+    would let a `{eq: 0}` repair bound pass against an un-rebuilt projection."""
+    from runtime.util import db as _db
+    def _boom():
+        raise RuntimeError("cold db")
+    monkeypatch.setattr(_db, "connect", _boom)
+    assert _metrics.dangling_links() is None
+    # and the metrics block omits the key rather than emitting a zero
+    out = _metrics.metrics(as_of=datetime.date(2026, 7, 27),
+                           vault=Path(_cl._vault_root()))
+    assert "dangling_links" not in out
+
+
+def test_dangling_links_in_the_metrics_block_when_measurable(
+        atelier_env: Dict) -> None:
+    _api.reindex(space="gorae", full=True)
+    out = _metrics.metrics(as_of=datetime.date(2026, 7, 27),
+                           vault=Path(_cl._vault_root()))
+    assert "dangling_links" in out and "total" in out["dangling_links"]

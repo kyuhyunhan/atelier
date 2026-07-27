@@ -153,9 +153,14 @@ def test_think_empty_query_is_a_gap_not_a_crash(atelier_env: Dict):
     assert out["result_count"] == 0 and out["gaps"]
 
 
-def test_atelier_think_tool_returns_contract():
+def test_atelier_think_tool_returns_contract(atelier_env: Dict):
     """The MCP tool surfaces the bundle — citations, gaps, and the contract — so
-    the calling agent has everything to compose a contract-conformant answer."""
+    the calling agent has everything to compose a contract-conformant answer.
+
+    Takes `atelier_env` like every other test here: without it, `config.load()`
+    reads the real `~/.atelier/config.yaml` instead of the faked one, so the test
+    passed only on a machine that had run `scripts/setup` and failed in CI (and
+    on any fresh checkout) — a test-isolation leak, not a real failure."""
     import asyncio as _a
     from runtime.service import tools as _tools
     out = _a.run(_tools.invoke("atelier_think", query="anything"))

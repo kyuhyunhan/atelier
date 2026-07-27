@@ -37,20 +37,27 @@ jobs:
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
           if [ -n "$base" ] && [ -n "$head" ]; then
-            files=$(git diff --name-only --diff-filter=ACM "$base..$head")
+            range="$base..$head"                       # PR: base..head
           else
-            files=$(git show --name-only --diff-filter=ACM --format= HEAD)   # push: last commit
+            range="HEAD~1..HEAD"                        # push: first-parent diff.
+            # NOT `git show HEAD` — on a two-parent merge commit (how this repo
+            # merges PRs) `git show` prints a combined diff that lists no files,
+            # so the guard would pass vacuously on exactly the commits reaching main.
           fi
           max="${ATELIER_MAX_STAGED_BYTES:-524288}"
           viol=0
-          for f in $files; do
-            [ -f "$f" ] || continue
+          # `while IFS= read -r` on a NUL/newline stream, never `for f in $files`:
+          # the unquoted expansion word-splits a space-named file into tokens that
+          # both fail `[ -f ]`, skipping the very bulk export the guard exists to
+          # catch — the fail-open the pre-commit hook is careful to avoid.
+          while IFS= read -r f; do
+            [ -n "$f" ] && [ -f "$f" ] || continue
             sz=$(wc -c < "$f" | tr -d ' ')
             if [ "${sz:-0}" -gt "$max" ]; then
               echo "::error file=$f::exceeds ${max} bytes — likely a bulk export (PII risk in a public repo)"
               viol=1
             fi
-          done
+          done < <(git diff --name-only --diff-filter=ACM "$range")
           exit $viol
 
   test:

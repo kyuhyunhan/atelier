@@ -48,14 +48,18 @@ def _repo(tmp_path: Path) -> Path:
 
 
 def _write_claim(vault: Path, name: str, *, surfacing: str = "query",
-                 sensitivity: str = "public", ac_status: str = "") -> None:
+                 sensitivity: str = "public", domain: str = "operational",
+                 ac_status: str = "passed") -> None:
+    # G2 (RFC 0009): eligibility is the operational lane, so an eligible fixture
+    # is a passed operational claim (knowledge born-accepted is no longer
+    # promote-eligible). Defaults produce an eligible claim; callers override.
     eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"claim-{name}"))
     d = vault / "graph" / "atomic"
     d.mkdir(parents=True, exist_ok=True)
     ac = f"ac_status: {ac_status}\n" if ac_status else ""
     (d / f"{name}.md").write_text(
         f"---\nschema_version: 7\nentry_id: {eid}\nkind: claim\n"
-        f"domain: knowledge\nsensitivity: {sensitivity}\nsurfacing: {surfacing}\n"
+        f"domain: {domain}\nsensitivity: {sensitivity}\nsurfacing: {surfacing}\n"
         f"{ac}created_at: 2026-07-01T00:00:00+00:00\n"
         f"statement: statement of {name}\n---\n\nbody\n", encoding="utf-8")
 
@@ -148,14 +152,14 @@ def test_a_declared_reduction_passes_end_to_end(atelier_env: Dict,
     before_path = _freeze_round_baseline(vault, tmp_path)
     repo = _repo(tmp_path)
 
-    # both leaves of promote_eligible move (total AND by_domain.knowledge), so a
-    # complete contract declares both — the RFC's own G2 example has exactly two
-    # promote_eligible clauses. The envelope catching an undeclared second leaf
-    # is default-deny doing its job, not a bug.
+    # both leaves of promote_eligible move (total AND by_domain.operational), so
+    # a complete contract declares both — the RFC's own G2 example has exactly
+    # two promote_eligible clauses. The envelope catching an undeclared second
+    # leaf is default-deny doing its job, not a bug.
     contract = {"id": "G-narrow",
                 "intent": [{"metric": "metrics.promote_eligible.total",
                             "to": {"delta": -1}},
-                           {"metric": "metrics.promote_eligible.by_domain.knowledge",
+                           {"metric": "metrics.promote_eligible.by_domain.operational",
                             "to": {"delta": -1}}],
                 "envelope": {"mode": "default-deny",
                              "waivers": [{"release": "vault.content_fingerprint",

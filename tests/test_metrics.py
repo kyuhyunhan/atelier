@@ -51,10 +51,15 @@ def test_promote_eligible_matches_the_production_predicate(
         atelier_env: Dict) -> None:
     """§3.2 rule 1 + §11.2: the counter must EQUAL the path the feature uses.
 
-    This is the divergence test. The attack it blocks: implement the counter as
-    `ac_status == 'passed'` only, dropping the born-accepted branch. That
-    reports a small number and passes every contract clause on a vault whose
-    promote proposal is still enormous.
+    This is the divergence test. The attack it blocks: re-implement the counter
+    instead of wrapping `claims_io.is_promote_eligible`, so the reported total
+    drifts from what `promote.propose` would actually list.
+
+    G2 (RFC 0009) narrowed eligibility to the operational lane: an atomize-born
+    knowledge claim (no ac_status) is NO LONGER eligible — but the counter must
+    still surface it in `by_domain` as a candidate that scored `0`, never drop
+    its key (an absent domain key is a raise in the contract evaluator, not a
+    satisfied zero).
     """
     vault = Path(_cl._vault_root())
     _write_claim(vault, "born-accepted", domain="knowledge", sensitivity="public")
@@ -69,8 +74,9 @@ def test_promote_eligible_matches_the_production_predicate(
     rows = _propose._eligible(limit=10_000)
     assert len(rows) < 10_000, "cap is binding — the comparison would be vacuous"
     assert got["total"] == len(rows)
-    # and the born-accepted branch is genuinely counted, not silently dropped
-    assert got["by_domain"] == {"knowledge": 1, "operational": 1}
+    # born-accepted knowledge is gated OUT (0) but stays a visible domain key;
+    # only the reviewed operational claim counts toward the total.
+    assert got["by_domain"] == {"knowledge": 0, "operational": 1}
     # one tally: the split must always reconstruct the total (§ census discipline)
     assert sum(got["by_domain"].values()) == got["total"]
 
@@ -80,11 +86,12 @@ def test_promote_eligible_falls_back_on_a_cold_db(atelier_env: Dict) -> None:
     abstain rule a None would become key-absence and abort the run. The counter
     must route through the filesystem fallback instead."""
     vault = Path(_cl._vault_root())
-    _write_claim(vault, "one", domain="knowledge", sensitivity="public")
+    _write_claim(vault, "one", domain="operational", sensitivity="public",
+                 ac_status="passed")
     # deliberately NOT reindexed — the projection cannot answer
     got = _metrics.promote_eligible(vault=vault)
     assert got["total"] == 1
-    assert got["by_domain"] == {"knowledge": 1}
+    assert got["by_domain"] == {"operational": 1}
 
 
 # ── 5.2 pending age ─────────────────────────────────────────────────────────

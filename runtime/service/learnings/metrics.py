@@ -51,13 +51,25 @@ def _tally_eligible(fms: Any) -> Dict[str, Any]:
     An earlier revision took `total` from one projection query and `by_domain`
     from a second, so a DB hiccup between them yielded `total: N` with an empty
     split.
+
+    `by_domain` is keyed by every promotion CANDIDATE's domain (query-tier +
+    public — `is_promote_candidate`), each counting how many of that domain's
+    candidates the eligibility gate actually passes. Seeding the candidate
+    domains at 0 keeps a domain that is gated fully out (G2: `knowledge`, now 0
+    eligible) PRESENT as `0` rather than dropping its key: the contract scores
+    `by_domain.<domain>` by an exact/delta bound, and an absent key is a hard
+    raise in `contract._eval_intent`, not a satisfied zero. `total` stays
+    `sum(by_domain.values())`, unaffected by the zero seeds.
     """
     from . import claims_io as _claims
     by_domain: Dict[str, int] = {}
     for fm in fms:
+        if not _claims.is_promote_candidate(fm):
+            continue
+        d = str(fm.get("domain") or "(absent)")
+        by_domain.setdefault(d, 0)
         if _claims.is_promote_eligible(fm):
-            d = str(fm.get("domain") or "(absent)")
-            by_domain[d] = by_domain.get(d, 0) + 1
+            by_domain[d] += 1
     return {"total": sum(by_domain.values()), "by_domain": by_domain}
 
 

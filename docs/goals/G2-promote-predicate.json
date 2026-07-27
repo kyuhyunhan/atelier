@@ -1,0 +1,24 @@
+{
+  "id": "G2-promote-predicate",
+  "goal": "Narrow promote eligibility to the operational lane: atomize-born knowledge claims (domain=knowledge, born-accepted, no ac_status) are no longer promote-eligible and reach proactive/always only via dream synthesis; operational claims still require ac_status:passed.",
+  "baseline": "docs/rfc/0009-baseline.json",
+  "pins": {
+    "before_sha256": "051d40a11179f3d4339bcc4a8cc5e3831a742292465f763b151dd1b576433471",
+    "captured_at_head": "344099e990303b9a1946a9c309ad19d20fd98e8c",
+    "fixture_sha256": null
+  },
+  "intent": [
+    {"metric": "metrics.promote_eligible.total", "from": 830, "to": {"max": 30}},
+    {"metric": "metrics.promote_eligible.by_domain.knowledge", "from": 807, "to": {"eq": 0}}
+  ],
+  "envelope": {"mode": "default-deny", "waivers": []},
+  "supersedes": [],
+  "rubric": "P0",
+  "critic": {
+    "accepted": true,
+    "by": "gorae",
+    "at": "2026-07-27",
+    "verdict": "Bound is not satisfiable without achieving the goal. INTENT carries two exact numeric bounds matching round-baseline actuals (total 830, knowledge 807); neither is a rubber stamp — an unchanged predicate lands 830 (fails max:30) and 807 (fails eq:0). default-deny envelope with no waivers pins operational at 23 (proving operational still requires ac_status:passed) and pins vault.content_fingerprint + every census/surfacing/eval marginal, so knowledge=0 can only be reached by the predicate edit — a vault-mutation or over-narrowing route raises. supersedes=[] confirmed correct: INV-1 (_census_kind_totals) is census-only and _metric_not_regressed guards only eval.*.recall_at_k, so driving metrics.promote_eligible 830->23 trips no monotone gate. Pins verified: before_sha256 and captured_at_head match on-disk before.json and HEAD; captured_at_head will be this commit's first parent. Residual counter-gaming path (report 23 while propose still 830) is out of this contract's reach by design and covered by the standing §11.2 divergence test."
+  },
+  "_note": "Single-predicate edit in runtime/service/learnings/claims_io.py:is_promote_eligible, shared by promote.propose, projection_counts, and the metrics counter (§5.1 wrapper-not-reimpl). No vault content is touched, so census/surfacing/eval and vault.content_fingerprint stay unchanged under strict default-deny (§3.4) with no waiver (task envelope constraint). No invariant is released: the promote_eligible counter lives in the sibling metrics block, outside INV-1's census-only reach (§3.3), so supersedes is empty. metrics.promote_eligible.by_domain.operational is intentionally left to the envelope (must stay 23), which is how the contract proves operational eligibility still requires ac_status:passed. total is derived from by_domain, so knowledge=0 + operational=23 => total=23, satisfying the <=30 bound."
+}

@@ -26,14 +26,14 @@ violating its own RFC.
 - **"No independent review" is a RAISE, not a FAIL.** If the reviewer cannot run,
   the bar is unmeetable, so no PR claims review and nothing ships — the same
   never-reaches-merge semantics as an abort, rather than a self-review fallback.
-- **`--no-verify` is blocked structurally, not by prompt.** A new
-  `.github/workflows/ci.yml` re-runs the test suite and the pre-commit guard's
-  structural (large-file/bulk-export) layer over every PR to main — the layer a
-  local `--no-verify` cannot reach. The ship prompt also forbids `--no-verify`
-  explicitly, but the prompt is the soft layer. **CI is advisory until branch
-  protection requires it** — that rule (a follow-up, not in this change) is what
-  turns a red check into an actual merge block; without it a human can still
-  merge past a failing check.
+- **`--no-verify` prevention is a stated follow-up, not in this change.** The
+  ship prompt now forbids `--no-verify` explicitly, but that is the soft layer.
+  The authoritative layer — a CI job re-running the suite + the structural guard
+  over every PR, plus branch protection requiring it — needs the CI environment
+  to reproduce the full suite (the `serve` extra, the embedding backend, a git
+  identity, an `~/.atelier` config). A first attempt exposed that the suite is
+  not green under `pip install -e ".[dev]"` alone; that environment work is its
+  own task and lands separately rather than shipping a knowingly-red gate here.
 
 ### Added — RFC 0009 G0c-2: the operator surface (goal command, workflow, anchor)
 

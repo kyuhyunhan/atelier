@@ -33,6 +33,7 @@ export const meta = {
     { title: 'Contract', detail: 'author the delta contract; a critic accepts it' },
     { title: 'Implement', detail: 'the builder makes the change' },
     { title: 'Verify', detail: 'independent verify → fix loop, max 3 rounds' },
+    { title: 'Commit', detail: 'land the verified tree on the branch, before review' },
     { title: 'Ship', detail: 'ship-pr on convergence' },
   ],
 }
@@ -217,6 +218,30 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     { label: `fix:r${round}`, phase: 'Verify' })
 }
 
+// ── Commit — the verified tree lands on the branch BEFORE review ────────────────
+//
+// Verify runs `atelier goal-verify` against the WORKING TREE (files on disk), so on
+// convergence the implementation is correct but UNCOMMITTED — only the contract JSON
+// is committed (by the critic). If review ran now it would diff `main...HEAD`, see
+// only the contract, and raise a false "empty diff: nothing was implemented" MUST
+// while the real code sat uncommitted — then the open-pr agent would commit it when
+// it pushed, so a PASSING goal shipped blocked-on-a-stale-must (the first G5 run hit
+// exactly this). Commit the converged tree HERE, once, so the reviewer audits
+// precisely what will merge. This also turns the review's empty-diff check into a
+// true backstop: a genuinely empty implementation commits nothing, leaving only the
+// contract on the branch, and the MUST fires for real.
+phase('Commit')
+await agent(
+  `Commit the verified implementation for goal ${GOAL_ID} onto the feature branch ` +
+  `feat/rfc-0009-${GOAL_ID}. The contract is already committed by the critic; stage and ` +
+  `commit the implementation and its tests (\`git add -A\` on the repo — ~/.atelier is ` +
+  `out of tree, so nothing there is staged). Author gorae <kyuhyunhaan@gmail.com>, no ` +
+  `Co-Authored-By, a Conventional message naming the goal. NEVER pass --no-verify — the ` +
+  `pre-commit PII guard is mandatory. Do NOT modify the contract or the round baseline. ` +
+  `If there is nothing to commit (no implementation change on disk), say so plainly and ` +
+  `commit nothing — never fabricate a change to make the tree non-empty.`,
+  { label: 'commit', phase: 'Commit' })
+
 // ── Ship — review by the ORCHESTRATOR, merge by a HUMAN ─────────────────────────
 //
 // RFC 0009 §9 lists "autonomous merging of a goal" as a non-goal; the first live
@@ -236,9 +261,11 @@ const review = await agent(
   `You are the INDEPENDENT reviewer for goal ${GOAL_ID}. You did NOT build this change. ` +
   `Read-only audit of \`git diff main...HEAD\` against the ship-pr rubric and the ` +
   `CLAUDE.md invariants. Tag findings [MUST]/[SHOULD]/[NIT]/[Q] with file:line. Verify ` +
-  `the delta matches contract ${contractPath}. FIRST run \`git diff --quiet main...HEAD\`: ` +
-  `if it exits 0 (EMPTY diff) the run produced no change on a branch — return that as a ` +
-  `[MUST] ("empty diff: nothing was implemented"), never a clean pass. Do NOT fix, ` +
+  `the delta matches contract ${contractPath}. FIRST run \`git diff --stat main...HEAD\` ` +
+  `and confirm it changes implementation files, NOT just the contract: \`main...HEAD\` ` +
+  `always carries the critic's ${contractPath} commit, so a diff that touches ONLY that ` +
+  `file means the implementation was never committed — return that as a [MUST] ("no ` +
+  `implementation committed: diff is contract-only"), never a clean pass. Do NOT fix, ` +
   `commit, push, or merge.`,
   { label: 'review', phase: 'Ship', schema: REVIEW_SCHEMA })
 
@@ -250,9 +277,10 @@ if (!review) {
 }
 const musts = review.must || []
 const pr = await agent(
-  `Open a PR for goal ${GOAL_ID} (verified delta per ${contractPath}). Push the feature ` +
-  `branch \`feat/rfc-0009-${GOAL_ID}\` and \`gh pr create\` describing the goal and its ` +
-  `delta${musts.length ? ' AS A DRAFT (open MUST findings remain)' : ''}. Post the ` +
+  `Open a PR for goal ${GOAL_ID} (verified delta per ${contractPath}). The implementation ` +
+  `is ALREADY committed (Commit stage) — do NOT create new commits; just \`git push\` the ` +
+  `feature branch \`feat/rfc-0009-${GOAL_ID}\` and \`gh pr create\` describing the goal and ` +
+  `its delta${musts.length ? ' AS A DRAFT (open MUST findings remain)' : ''}. Post the ` +
   `independent review findings as a PR comment. Do NOT merge — merge is a human act. ` +
   `NEVER pass --no-verify (the pre-commit guard is mandatory). Author gorae ` +
   `<kyuhyunhaan@gmail.com>, no Co-Authored-By. Return the PR URL.`,

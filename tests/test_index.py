@@ -207,6 +207,111 @@ def test_ambiguous_basename_does_not_resolve(atelier_env):
         conn.close()
 
 
+# ── G6: session-id fallback for timestamp-identity migration scars (RFC 0009) ──
+
+def _write_claim(vault, entry_id, body, *, session_id=None):
+    """A v7 atomic claim (classify keys off schema_version>=7 + kind=claim, so
+    the path is incidental). `session_id` is the OLD learning-note timestamp
+    identity the RFC 0005 migration stamped onto the frontmatter."""
+    fm = {"entry_id": entry_id, "schema_version": 7, "kind": "claim",
+          "statement": f"claim {entry_id}", "derived_from": [],
+          "surfacing": "query", "domain": "operational",
+          "sensitivity": "private",
+          "created": "2026-05-27", "updated": "2026-05-27"}
+    if session_id is not None:
+        fm["session_id"] = session_id
+    write_page(vault / "graph" / "atomic" / f"{entry_id}.md", fm, body)
+
+
+def test_bare_timestamp_wikilink_resolves_via_session_id(atelier_env):
+    """A sibling claim referencing a migrated learning by its OLD bare timestamp
+    identity `[[20260514T0530]]` must bind to the content-hash-slugged claim
+    whose frontmatter carries `session_id: 20260514T0530`."""
+    from runtime.service import api
+    from runtime.util import db
+
+    gorae = atelier_env["gorae"]
+    _write_claim(gorae, "c0ffee", "## Observation\n\nthe target.\n",
+                 session_id="20260514T0530")
+    _write_claim(gorae, "beef00",
+                 "## Observation\n\nrefines [[20260514T0530]].\n")
+
+    api.reindex(space="gorae", full=True)
+
+    conn = db.connect()
+    try:
+        row = conn.execute(
+            "SELECT p.slug AS slug FROM links l JOIN pages p ON p.id = l.to_page_id "
+            "WHERE l.to_target = ?", ("20260514T0530",),
+        ).fetchone()
+        assert row is not None, "bare-timestamp link did not resolve"
+        assert row["slug"] == "graph/atomic/c0ffee.md"
+    finally:
+        conn.close()
+
+
+def test_path_form_provenance_timestamp_resolves_via_session_id(atelier_env):
+    """The path-form scar `[[provenance/learning/notes/2026-05/20260514T0530-slug.md]]`
+    (no such page exists post-migration) resolves to the same claim by the
+    \\d{8}T\\d{4} stamp extracted from its basename prefix."""
+    from runtime.service import api
+    from runtime.util import db
+
+    gorae = atelier_env["gorae"]
+    _write_claim(gorae, "c0ffee", "## Observation\n\nthe target.\n",
+                 session_id="20260514T0530")
+    link = "[[provenance/learning/notes/2026-05/20260514T0530-some-slug.md]]"
+    _write_claim(gorae, "beef00", f"## Observation\n\nrefines {link}.\n")
+
+    api.reindex(space="gorae", full=True)
+
+    conn = db.connect()
+    try:
+        row = conn.execute(
+            "SELECT p.slug AS slug FROM links l JOIN pages p ON p.id = l.to_page_id "
+            "WHERE l.to_target = ?",
+            ("provenance/learning/notes/2026-05/20260514T0530-some-slug.md",),
+        ).fetchone()
+        assert row is not None, "path-form timestamp link did not resolve"
+        assert row["slug"] == "graph/atomic/c0ffee.md"
+    finally:
+        conn.close()
+
+
+def test_ambiguous_or_absent_session_id_stays_null(atelier_env):
+    """Collision-safe: a session_id owned by >1 claim is DROPPED from the index
+    (never guessed), and a stamp no claim owns has no entry — both leave the
+    body wikilink dangling (to_page_id NULL) rather than binding arbitrarily."""
+    from runtime.service import api
+    from runtime.util import db
+
+    gorae = atelier_env["gorae"]
+    # Two claims share the SAME session_id → ambiguous → dropped.
+    _write_claim(gorae, "aaaa11", "## Observation\n\ndup a.\n",
+                 session_id="20260514T0530")
+    _write_claim(gorae, "bbbb22", "## Observation\n\ndup b.\n",
+                 session_id="20260514T0530")
+    # Referencer points at the ambiguous stamp AND an orphan stamp no claim owns.
+    _write_claim(
+        gorae, "cccc33",
+        "## Observation\n\nsee [[20260514T0530]] and [[20991231T2359]].\n")
+
+    api.reindex(space="gorae", full=True)
+
+    conn = db.connect()
+    try:
+        for target in ("20260514T0530", "20991231T2359"):
+            row = conn.execute(
+                "SELECT to_page_id AS tid FROM links WHERE to_target = ?",
+                (target,),
+            ).fetchone()
+            assert row is not None, f"the [[{target}]] link row should exist"
+            assert row["tid"] is None, (
+                f"[[{target}]] must NOT bind (ambiguous/absent session_id)")
+    finally:
+        conn.close()
+
+
 def test_candidate_slugs_treats_rename_prefixes_as_exact():
     """A slug already under a known prefix (incl. the new graph/ and provenance/)
     is an exact path, never re-expanded under graph//wiki/."""

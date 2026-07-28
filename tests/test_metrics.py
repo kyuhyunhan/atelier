@@ -572,6 +572,27 @@ def test_dangling_new_abstains_without_a_baseline(atelier_env: Dict, tmp_path) -
     assert _metrics.dangling_new(baseline_path=missing) is None
 
 
+def test_dangling_new_abstains_on_a_present_but_shapeless_baseline(
+        atelier_env: Dict, tmp_path) -> None:
+    """A file that exists but has no recoverable `categories` mapping (a
+    truncated/empty write, a renamed key, `categories: null`, a top-level list)
+    must ABSTAIN — an empty accepted-set would read every current dangler as a
+    regression, the same fabricated alarm as a missing file. Only an EXPLICIT
+    `categories: {…}` mapping declares the accepted set."""
+    _seed_two_danglers(Path(_cl._vault_root()))
+    for body in ("", "   \n", "- just\n- a list\n", "schema_version: 1\n",
+                 "categories: null\n"):
+        p = tmp_path / "b.yaml"
+        p.write_text(body, encoding="utf-8")
+        assert _metrics.dangling_new(baseline_path=p) is None, repr(body)
+    # an EXPLICIT empty categories mapping is a real (empty) accepted-set, not an
+    # abstain: the author is saying "nothing is accepted yet" → all read as new.
+    p = tmp_path / "explicit-empty.yaml"
+    p.write_text("categories: {}\n", encoding="utf-8")
+    got = _metrics.dangling_new(baseline_path=p)
+    assert got is not None and got["new"] == got["_current_distinct"] > 0
+
+
 def test_dangling_new_abstains_on_an_un_reindexed_projection(
         atelier_env: Dict, tmp_path) -> None:
     """Mirrors dangling_links: an empty projection abstains rather than reporting

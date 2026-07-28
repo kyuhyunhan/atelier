@@ -247,12 +247,18 @@ def _accepted_dangling_targets(path: Path) -> Optional[set]:
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
         return None
     cats = doc.get("categories") if isinstance(doc, dict) else None
+    if not isinstance(cats, dict):
+        # Present but shapeless (empty/truncated file, `categories` absent or
+        # null, top-level list) — abstain like the malformed-YAML path, NOT an
+        # empty accepted-set. An empty set would read every current dangler as a
+        # regression: the fabricated alarm §5.4 forbids. Only an EXPLICIT
+        # `categories: {…}` mapping (possibly `{}`) declares the accepted set.
+        return None
     accepted: set = set()
-    if isinstance(cats, dict):
-        for entry in cats.values():
-            targets = entry.get("targets") if isinstance(entry, dict) else None
-            if isinstance(targets, list):
-                accepted.update(t for t in targets if isinstance(t, str))
+    for entry in cats.values():
+        targets = entry.get("targets") if isinstance(entry, dict) else None
+        if isinstance(targets, list):
+            accepted.update(t for t in targets if isinstance(t, str))
     return accepted
 
 

@@ -149,8 +149,32 @@ def D6_orphan_chunks(cfg: config.Config) -> Diagnosis:
 # learnings are a flat, facet-classified store, so there is no mirror to drift.
 
 
+def D8_dangling_regressions(cfg: config.Config) -> Diagnosis:
+    """D8: NEW broken wikilinks — targets that dangle but are NOT in the accepted
+    baseline (`graph/meta/dangling-baseline.yaml`). The RFC 0009 dangling arc
+    closed with a documented residual (references outside the vault boundary, plus
+    entries handed to the RFC 0008 / index_regen tracks); this surfaces only a
+    REGRESSION — a link that broke AFTER that residual was accepted — and stays
+    silent on the accepted set. WARN, not FAIL: a new dangler is worth seeing, not
+    a rebuild-now condition. Abstains to OK when the baseline is absent or the
+    projection is un-reindexed: it cannot assert a regression it cannot measure."""
+    from ..service.learnings import metrics
+    dn = metrics.dangling_new()
+    if dn is None:
+        return Diagnosis("D8", "dangling-regressions", "OK",
+                         "no accepted baseline / un-reindexed — nothing to compare")
+    n = dn["new"]
+    if n > 0:
+        return Diagnosis("D8", "dangling-regressions", "WARN",
+                         f"{n} new broken wikilink(s) not in the accepted baseline",
+                         {"new": n, "sample": dn.get("_new_targets", [])[:10]})
+    return Diagnosis("D8", "dangling-regressions", "OK",
+                     f"0 new broken wikilinks ({dn['_accepted']} accepted)")
+
+
 ALL_CHECKS = [D1_db_present, D2_filesystem_drift, D3_voice_overlay,
-              D4_git_remote, D5_asset_index, D6_orphan_chunks]
+              D4_git_remote, D5_asset_index, D6_orphan_chunks,
+              D8_dangling_regressions]
 
 
 def run_all(cfg: config.Config) -> List[Diagnosis]:

@@ -227,7 +227,7 @@ def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict) -> None:
     # assertion used to give, while tolerating conditionally-present metrics).
     assert {"promote_eligible", "pending_age", "guard_liveness"} <= set(got)
     assert set(got) <= {"promote_eligible", "pending_age", "guard_liveness",
-                        "lens_param_present", "dangling_links"}
+                        "lens_param_present", "dangling_links", "dangling_new"}
     assert "cross_project_noise" not in got          # no fixture until G3 → omitted
     # capture metadata is NOT a metric leaf: §3.4 default-deny would trip on a
     # value that changes every run, and §3.5 allows no non-numeric waiver.
@@ -514,3 +514,124 @@ def test_dangling_links_in_the_metrics_block_when_measurable(
     out = _metrics.metrics(as_of=datetime.date(2026, 7, 27),
                            vault=Path(_cl._vault_root()))
     assert "dangling_links" in out and "total" in out["dangling_links"]
+
+
+# ── dangling_new — the accepted-baseline regression signal ───────────────────
+
+def _write_dangling_baseline(path: Path, accepted: Dict[str, list]) -> None:
+    """Author a baseline of {category: [targets]} at `path`."""
+    import yaml
+    path.parent.mkdir(parents=True, exist_ok=True)
+    doc = {"schema_version": 1,
+           "categories": {c: {"targets": t} for c, t in accepted.items()}}
+    path.write_text(yaml.safe_dump(doc, allow_unicode=True), encoding="utf-8")
+
+
+def _seed_two_danglers(vault: Path) -> None:
+    """A page whose body breaks two wikilinks: [[does-not-exist]] and [[also-missing]]."""
+    from tests.conftest import write_page
+    write_page(vault / "wiki" / "entities" / "src.md",
+               {"title": "Src", "type": "entity", "category": "concept",
+                "created": "2026-05-27", "updated": "2026-05-27"},
+               "# Src\n\nlinks to [[does-not-exist]] and [[also-missing]].\n")
+    _api.reindex(space="gorae", full=True)
+
+
+def test_dangling_new_is_set_difference_not_count(atelier_env: Dict, tmp_path) -> None:
+    """`new` = current dangling TARGETS minus accepted — so accepting one of two
+    leaves exactly the other, by identity, not by count."""
+    _seed_two_danglers(Path(_cl._vault_root()))
+    baseline = tmp_path / "dangling-baseline.yaml"
+    _write_dangling_baseline(baseline, {"boundary-external": ["does-not-exist"]})
+    got = _metrics.dangling_new(baseline_path=baseline)
+    assert got is not None
+    assert got["new"] == 1
+    assert got["_new_targets"] == ["also-missing"]     # by identity, not just count
+    assert got["_accepted"] == 1
+
+
+def test_dangling_new_zero_when_all_current_are_accepted(
+        atelier_env: Dict, tmp_path) -> None:
+    """The closed-arc state: every current dangler is in the baseline → new = 0,
+    even though the raw dangling count is non-zero."""
+    _seed_two_danglers(Path(_cl._vault_root()))
+    baseline = tmp_path / "dangling-baseline.yaml"
+    _write_dangling_baseline(
+        baseline, {"boundary-external": ["does-not-exist", "also-missing"]})
+    got = _metrics.dangling_new(baseline_path=baseline)
+    assert got is not None and got["new"] == 0 and got["_new_targets"] == []
+    # raw dangling_links still reports the residual — the two signals are distinct
+    assert _metrics.dangling_links()["by_type"]["wikilink"] == 2
+
+
+def test_dangling_new_abstains_without_a_baseline(atelier_env: Dict, tmp_path) -> None:
+    """No baseline → every target would read as 'new'; that fabricated alarm is
+    the §5.4 abstain case, so it returns None (key omitted) rather than alarm."""
+    _seed_two_danglers(Path(_cl._vault_root()))
+    missing = tmp_path / "nope.yaml"
+    assert _metrics.dangling_new(baseline_path=missing) is None
+
+
+def test_dangling_new_abstains_on_an_un_reindexed_projection(
+        atelier_env: Dict, tmp_path) -> None:
+    """Mirrors dangling_links: an empty projection abstains rather than reporting
+    a fabricated 0-new against a DB that was never built."""
+    from runtime.util import db as _db
+    baseline = tmp_path / "dangling-baseline.yaml"
+    _write_dangling_baseline(baseline, {"boundary-external": ["x"]})
+    conn = _db.connect()
+    assert conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0] == 0   # cold
+    conn.close()
+    assert _metrics.dangling_new(baseline_path=baseline) is None
+
+
+def test_dangling_new_in_metrics_block_reads_the_vault_baseline(
+        atelier_env: Dict) -> None:
+    """End-to-end through the default path: a baseline authored at the vault's
+    graph/meta/ is picked up by metrics(); `new` is the one numeric (bound-able)
+    leaf, the rest are `_`-prefixed diagnostics (§5.1.1)."""
+    vault = Path(_cl._vault_root())
+    _seed_two_danglers(vault)
+    _write_dangling_baseline(
+        vault / "graph" / "meta" / "dangling-baseline.yaml",
+        {"boundary-external": ["does-not-exist", "also-missing"]})
+    out = _metrics.metrics(as_of=datetime.date(2026, 7, 27), vault=vault)
+    assert "dangling_new" in out
+    dnew = out["dangling_new"]
+    assert dnew["new"] == 0
+    numeric_bare = [k for k, v in dnew.items()
+                    if not k.startswith("_") and isinstance(v, (int, float))
+                    and not isinstance(v, bool)]
+    assert numeric_bare == ["new"]                     # only `new` is envelope-bound
+
+
+def test_doctor_d8_warns_on_a_new_dangler_then_ok_once_accepted(
+        atelier_env: Dict) -> None:
+    """D8 surfaces a broken wikilink absent from the accepted baseline as WARN,
+    and returns to OK once the baseline accepts it — the ratchet in the human
+    health readout."""
+    from runtime.doctor import diagnostics
+    from runtime.util import config
+    vault = Path(_cl._vault_root())
+    _seed_two_danglers(vault)                          # [[does-not-exist]], [[also-missing]]
+    baseline = vault / "graph" / "meta" / "dangling-baseline.yaml"
+    _write_dangling_baseline(baseline, {"boundary-external": ["does-not-exist"]})
+    cfg = config.load()
+    d8 = next(d for d in diagnostics.run_all(cfg) if d.id == "D8")
+    assert d8.severity == "WARN" and d8.details["new"] == 1
+    assert d8.details["sample"] == ["also-missing"]
+    # accept the second one → the ratchet closes, D8 goes OK
+    _write_dangling_baseline(
+        baseline, {"boundary-external": ["does-not-exist", "also-missing"]})
+    d8b = next(d for d in diagnostics.run_all(cfg) if d.id == "D8")
+    assert d8b.severity == "OK"
+
+
+def test_doctor_d8_ok_without_a_baseline(atelier_env: Dict) -> None:
+    """No baseline → D8 cannot assert a regression, so it abstains to OK rather
+    than flag every boundary reference (mirrors the metric's abstain)."""
+    from runtime.doctor import diagnostics
+    from runtime.util import config
+    _seed_two_danglers(Path(_cl._vault_root()))        # danglers present, no baseline authored
+    d8 = next(d for d in diagnostics.run_all(config.load()) if d.id == "D8")
+    assert d8.severity == "OK"

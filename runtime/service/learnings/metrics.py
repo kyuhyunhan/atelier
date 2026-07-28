@@ -217,6 +217,94 @@ def dangling_links() -> Optional[Dict[str, Any]]:
     return {"total": sum(by_type.values()), "by_type": by_type}
 
 
+# ── 5.3b new (unaccepted) dangling wikilinks — the regression signal ─────────
+
+_DANGLING_BASELINE_REL = ("graph", "meta", "dangling-baseline.yaml")
+
+
+def _default_dangling_baseline_path() -> Optional[Path]:
+    """The vault's accepted-dangling baseline path, or None if config is
+    unreadable. Vault-held (not the engine repo) because some accepted targets
+    are personal titles — hard rule #1."""
+    try:
+        from ...util import config as _config
+        cfg = _config.load()
+        root = (cfg.vault.local if cfg.vault is not None
+                else cfg.space_by_role("librarian-territory").local)
+        return root.joinpath(*_DANGLING_BASELINE_REL)
+    except Exception:
+        return None
+
+
+def _accepted_dangling_targets(path: Path) -> Optional[set]:
+    """The accepted target strings from the baseline's `categories.*.targets`,
+    or None if the file is absent/unreadable (→ `dangling_new` abstains rather
+    than treat every target as a regression)."""
+    if not path.is_file():
+        return None
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return None
+    cats = doc.get("categories") if isinstance(doc, dict) else None
+    accepted: set = set()
+    if isinstance(cats, dict):
+        for entry in cats.values():
+            targets = entry.get("targets") if isinstance(entry, dict) else None
+            if isinstance(targets, list):
+                accepted.update(t for t in targets if isinstance(t, str))
+    return accepted
+
+
+def dangling_new(*, baseline_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """NEW (unaccepted) broken wikilinks — the regression signal that stays quiet
+    on the accepted residual. `new` = current dangling wikilink TARGETS minus the
+    accepted set in the vault baseline (`graph/meta/dangling-baseline.yaml`), a
+    SET-DIFFERENCE on target strings — never a count subtraction, so a fresh break
+    plus a coincidental fix of an accepted one cannot cancel out.
+
+    The RFC 0009 dangling arc closed with a documented residual: references outside
+    the vault boundary, plus entries transferred to the RFC 0008 / index_regen
+    tracks. Driving the raw count to zero would force fabricating pages or deleting
+    valid cross-references — the exact ENVELOPE violation a `{eq: 0}` goal forbids.
+    So the HEADLINE reads this — a link that broke AFTER the residual was accepted
+    — while the accepted residual stays silent (the lint-baseline/ratchet pattern).
+
+    Abstains (None) when it cannot make the judgment: an empty/un-reindexed
+    projection (mirrors `dangling_links`), or an absent/unreadable baseline (every
+    target would read as 'new' — a fabricated alarm §5.4 forbids). `new` is the one
+    numeric (bound-able) leaf; the `_`-prefixed leaves are diagnostic (§5.1.1).
+    """
+    path = baseline_path if baseline_path is not None else _default_dangling_baseline_path()
+    if path is None:
+        return None
+    accepted = _accepted_dangling_targets(path)
+    if accepted is None:
+        return None                              # no baseline → abstain, never alarm
+    from ...util import db as _db
+    try:
+        conn = _db.connect()
+        try:
+            pages = _db.fetchall(conn, "SELECT COUNT(*) AS n FROM pages")[0]["n"]
+            if not pages:
+                return None                      # un-reindexed → abstain (mirror dangling_links)
+            rows = _db.fetchall(
+                conn, "SELECT DISTINCT to_target FROM links "
+                      "WHERE to_page_id IS NULL AND link_type='wikilink'")
+        finally:
+            conn.close()
+    except Exception:
+        return None
+    current = {str(r["to_target"]) for r in rows}
+    new = sorted(current - accepted)
+    return {
+        "new": len(new),
+        "_new_targets": new,
+        "_accepted": len(accepted),
+        "_current_distinct": len(current),
+    }
+
+
 # ── 5.3 guard liveness ──────────────────────────────────────────────────────
 
 def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -358,4 +446,7 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
     dangling = dangling_links()
     if dangling is not None:
         out["dangling_links"] = dangling
+    dnew = dangling_new()
+    if dnew is not None:
+        out["dangling_new"] = dnew
     return out

@@ -771,3 +771,53 @@ RFC 0008's PII defect was a one-sided check that had never been shown to fail.
    looping or merging, and restores both mechanisms (§4.2).
 13. **Full suite green** — `ATELIER_EMBED=off python3 -m pytest -q` (731 at the
     time of writing).
+
+## Appendix — worked arc: dangling wikilinks (closed at 128 / 0-new)
+
+The first end-to-end use of this machine on a real backlog, recorded because its
+shape generalizes.
+
+**The goals.** Two pure-projection resolver fixes, each the same pattern — body
+prose links a page by a *human-facing* identity while the page is keyed by a
+*migrated machine* identity; the fix is a collision-safe alias index tried as a
+last-resort resolver fallback, no content edited:
+
+- **G5** — bare `[[basename]]` ↛ full-path slug. `387 → 147`.
+- **G6** — `[[session-timestamp]]` ↛ content-hash claim (`session_id` alias).
+  `147 → 128`.
+
+A third PR mid-arc hardened the workflow itself: the ship review ran *before* the
+implementation was committed, so it diffed `main...HEAD`, saw only the contract,
+and raised a false empty-diff MUST. Fixed by committing the verified tree between
+Verify and Ship (and a clean-tree preflight so the commit stage can't absorb
+foreign files). G6 then dog-fooded that fix — the stale MUST did not recur.
+
+**Why the arc closed at 128, not 0.** The residual is not a defect to erase.
+Every remaining dangling link is one of: a reference to content outside the vault
+(a separate private repo, planned, or retired — no machine identity to alias to);
+a personal-title long-tail (cost > value); or an entry belonging to another
+track. Driving it to zero would fabricate stub pages or delete valid
+cross-references — the ENVELOPE violation this system exists to prevent. **A
+metric floor is a design decision, not a failure**: below it, the number stops
+measuring resolver correctness and starts demanding content fabrication.
+
+**How the arc is *closed*, not just stopped** (the metric-trap fix). A dashboard
+makes every non-zero number look like a task; a note-only closure leaves 128 on
+the board and re-arms next month. Instead, the lint-baseline/ratchet pattern:
+
+- a vault-held `graph/meta/dangling-baseline.yaml` categorizes all residual
+  targets with their disposition (boundary / accepted / → RFC 0008 / →
+  index_regen). Vault-held, because some targets are personal (hard rule #1).
+- `metrics.dangling_new` = current dangling targets − baseline (set-difference on
+  strings), and doctor `D8` surfaces `new > 0` as a WARN. The headline reads the
+  **regression**; the accepted residual stays silent.
+
+**Transfers (open tracks, not this arc's exit criteria).** `provenance/learning/
+notes/…` phantoms → **RFC 0008** (absorb-lifecycle). The 35 index-only stale
+entries → a new **index_regen repair-or-retire** track: `index_regen._scan` still
+globs the pre-RFC-0005 `graph/<section>/` layout (pages moved to `graph/atomic/`),
+so a live regen writes an *empty* index (`page_count: 0`) — the 35 danglers are
+one symptom of that drift, and repairing (or retiring) the generator is that
+track's work. The fingerprint-waiver path (still unexercised) travels with it:
+`graph/index.md` is hashed into `vault.content_fingerprint`, so whichever way that
+track goes, it's the natural first waiver test.

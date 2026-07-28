@@ -4,6 +4,37 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009: dangling arc closure (`dangling_new` + accepted baseline)
+
+The dangling-wikilink arc closes here. G5 (basename↔full-path) and G6
+(session-timestamp↔content-hash) drove the raw count **387 → 128** by fixing the
+two identity-migration scars — pure-projection resolver fallbacks, no content
+edited. The residual 128 is **not a backlog to burn down**: driving it to zero
+would force fabricating pages or deleting valid cross-references (the exact
+ENVELOPE violation a `{eq: 0}` goal forbids). It decomposes into documented
+judgments — references outside the vault boundary + a personal long-tail
+(accepted), and entries **transferred** to the RFC 0008 (absorb-lifecycle) and a
+new *index_regen repair-or-retire* track (RFC 0005 layout drift).
+
+So the arc closes not at a number but at "no unexamined numbers", with a
+ratchet that alarms only on regressions:
+
+- **`metrics.dangling_new()`** — `new` = current dangling wikilink **targets**
+  minus the accepted set in a vault-held baseline
+  (`graph/meta/dangling-baseline.yaml`), a **set-difference on target strings**,
+  never a count subtraction, so a fresh break plus a coincidental fix cannot
+  cancel. `new` is the one numeric (envelope-bound) leaf; the rest are
+  `_`-prefixed diagnostics. Abstains (key omitted) on an un-reindexed projection
+  or an absent baseline — an absent baseline would read every target as "new", a
+  fabricated alarm §5.4 forbids.
+- **The baseline lives in the vault, not this repo** — some accepted targets are
+  personal titles (hard rule #1). It categorizes all residual targets with their
+  disposition (boundary / accepted / → RFC 0008 / → index_regen).
+- **Doctor `D8` (`dangling-regressions`)** surfaces `new > 0` as a WARN with a
+  sample; 0-new (the closed state) and the abstain cases read OK. This is the
+  human-facing headline: the accepted residual stays silent, a newly-broken link
+  shows up.
+
 ### Added — RFC 0009: the `dangling_links` metric (enables the G5 wiki-link goal)
 
 A goal cannot ship its own metric — a counter present in the after-baseline but

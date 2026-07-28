@@ -3,17 +3,22 @@
 // A goal declares a machine-checkable delta contract BEFORE any code is written,
 // then converges the change against it. The shape is deliberate:
 //
-//   Snapshot   rollback point + round baseline (the current before-picture)
+//   Snapshot   clean-tree preflight, then rollback point + round baseline. The
+//              tree MUST start clean: the before baseline, the vault fingerprint,
+//              and the isolatable commit delta all assume the only later changes
+//              are the goal's own.
 //   Contract   author the contract → a CRITIC (distinct agent) must accept it,
 //              because a bad contract cannot be caught after the fact — by then
 //              the implementation defines the target
 //   Implement  builder
 //   Verify     independent verifier runs `atelier goal-verify`
-//     ├ PASS ────────────────────────────────────────────→ Ship
+//     ├ PASS ────────────────────────────────────────────→ Commit → Ship
 //     ├ FAIL, round < 3 → FIXER gets ONLY the failing checks → Verify
 //     ├ FAIL, round = 3 → abort (git discard + snapshot restore) + escalate
 //     └ HARD ABORT (exit 2) → never retried in-round; a broken pin or unknown
 //                             metric key means the harness is untrustworthy
+//   Commit     the converged working tree lands on the branch, ONCE, so the
+//              reviewer audits exactly what will merge
 //   Ship       ship-pr (its own independent review loop)
 //
 // The critic gates the CONTRACT, not the code; the fixer receives failing checks
@@ -103,6 +108,30 @@ const PR_SCHEMA = {
 
 // ── Snapshot ────────────────────────────────────────────────────────────────
 phase('Snapshot')
+// Clean-tree preflight. The Commit stage stages the converged tree with `git add
+// -A`; on a dirty checkout that would absorb foreign in-tree files (a stray doc,
+// prior WIP) into the goal's implementation commit. The before baseline and vault
+// fingerprint are likewise computed over the current tree. All three assume the
+// only changes by commit time are the goal's own — so refuse to start dirty rather
+// than silently commit or measure someone else's uncommitted work. (~/.atelier is
+// out of tree, so its churn never counts.)
+const preflight = await agent(
+  `Preflight for goal ${GOAL_ID}: run \`git status --porcelain\` in the repo. Return ` +
+  `clean=true iff the output is EMPTY — no staged, unstaged, or untracked in-tree ` +
+  `changes. If not empty, list the offending paths. Do NOT modify, stage, commit, or ` +
+  `clean anything.`,
+  { label: 'preflight', phase: 'Snapshot',
+    schema: { type: 'object',
+              properties: { clean: { type: 'boolean' },
+                            paths: { type: 'array', items: { type: 'string' } } },
+              required: ['clean'] } })
+if (!preflight || !preflight.clean) {
+  const dirty = preflight ? (preflight.paths || []).join(', ') : 'preflight agent failed'
+  log(`preflight: working tree not clean — refusing to start (${dirty})`)
+  return { goalId: GOAL_ID, stage: 'preflight', outcome: 'dirty-tree',
+           paths: preflight ? preflight.paths || [] : [] }
+}
+
 const snap = await agent(
   `Freeze a rollback point and capture the round baseline for goal ${GOAL_ID}.\n` +
   `1. Run: atelier snapshot create — parse the snapshot id.\n` +

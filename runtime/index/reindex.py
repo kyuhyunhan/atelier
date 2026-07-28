@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -251,6 +252,7 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
 
     alias_index = _build_alias_index(conn, by_space)
     basename_index = _build_basename_index(conn)
+    session_index = _build_session_index(conn)
 
     n = 0
     pages = list(conn.execute(
@@ -270,7 +272,7 @@ def _rebuild_links(conn: sqlite3.Connection, space: str, cfg: config.Config) -> 
         )
         for link in linker.extract_links(body, default_space=space):
             target_id = _resolve(by_space, link.to_space, link.to_slug,
-                                 alias_index, basename_index)
+                                 alias_index, basename_index, session_index)
             conn.execute(
                 "INSERT INTO links(from_page, to_target, to_page_id, link_type) "
                 "VALUES (?, ?, ?, ?)",
@@ -475,9 +477,49 @@ def _build_basename_index(conn: sqlite3.Connection) -> dict[str, int]:
     return {b: pid for b, pid in first.items() if counts[b] == 1}
 
 
+# A learning-note session stamp: 8 digits, 'T', 4 digits (e.g. 20260514T0530).
+_SESSION_TOKEN_RE = re.compile(r"\d{8}T\d{4}")
+
+
+def _build_session_index(conn: sqlite3.Connection) -> dict[str, int]:
+    """Map a claim's frontmatter `session_id` → page_id (RFC 0009 G6).
+
+    A learning captured in session `20260514T0530` became a content-hash-slugged
+    claim carrying `session_id: 20260514T0530`, but the RFC 0005 migration left
+    sibling claims referencing its OLD timestamp identity in prose — bare
+    `[[20260514T0530]]` or path-form `[[.../20260514T0530-slug.md]]` — so those
+    body wikilinks dangle. This index restores the edge at reindex time.
+
+    Parses frontmatter the same way `_rebuild_links` does (the pages.frontmatter
+    JSON blob). Only `claim` pages carry a `session_id`; a wiki_index or any
+    non-claim page has none and is skipped.
+
+    Collision-safe by construction: a `session_id` owned by >1 claim is DROPPED
+    from the index — never guessed — so an ambiguous stamp stays unresolved
+    rather than binding to an arbitrary claim. Mirrors `_build_basename_index`.
+    """
+    counts: dict[str, int] = {}
+    first: dict[str, int] = {}
+    for r in conn.execute(
+        "SELECT id, frontmatter FROM pages WHERE page_type='claim'"
+    ):
+        try:
+            fm = json.loads(r["frontmatter"] or "{}")
+        except (TypeError, ValueError):          # pragma: no cover
+            continue
+        sid = fm.get("session_id") if isinstance(fm, dict) else None
+        if not isinstance(sid, str) or not sid.strip():
+            continue
+        key = sid.strip()
+        counts[key] = counts.get(key, 0) + 1
+        first.setdefault(key, r["id"])
+    return {s: pid for s, pid in first.items() if counts[s] == 1}
+
+
 def _resolve(by_space: dict, to_space: str, to_slug: str,
              alias_index: Optional[dict] = None,
-             basename_index: Optional[dict] = None) -> Optional[int]:
+             basename_index: Optional[dict] = None,
+             session_index: Optional[dict] = None) -> Optional[int]:
     candidates = _candidate_slugs(to_slug)
     # Try the named space first, then every other space. Single-vault has one
     # space (no-op); this makes cross-space links resolve in any config.
@@ -501,6 +543,18 @@ def _resolve(by_space: dict, to_space: str, to_slug: str,
         pid = basename_index.get(_norm(basename))
         if pid is not None:
             return pid
+    # Session-id fallback (RFC 0009 G6, most specific / last resort): a wikilink
+    # left at a learning's OLD timestamp identity by the RFC 0005 migration —
+    # bare `[[20260514T0530]]` or path-form `[[.../20260514T0530-slug.md]]`.
+    # Extract the \d{8}T\d{4} stamp from the basename and bind it to the claim
+    # whose frontmatter carries that session_id. Ambiguous stamps were dropped
+    # from the index, so a collision resolves to None (stays dangling).
+    if session_index:
+        m = _SESSION_TOKEN_RE.search(basename)
+        if m is not None:
+            pid = session_index.get(m.group(0))
+            if pid is not None:
+                return pid
     return None
 
 

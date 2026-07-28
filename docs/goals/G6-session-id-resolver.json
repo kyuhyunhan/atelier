@@ -1,0 +1,33 @@
+{
+  "id": "G6-session-id-resolver",
+  "goal": "Resolve dangling wikilinks that are timestamp-identity migration scars from the RFC 0005 learning-note -> atomic-claim migration. A learning captured in session 20260514T0530 became a content-hash-slugged claim whose frontmatter carries session_id: 20260514T0530, but sibling claims still reference it in PROSE by its old identity -- either bare [[20260514T0530]] or path-form [[provenance/learning/notes/2026-05/20260514T0530-....md]]. The migration rewrote the structured frontmatter links[].to to the new entry_id but left the body wikilinks at the old timestamp identity, so they dangle. PURE PROJECTION fix in the exact mold of the just-merged G5 basename fallback: add _build_session_index to runtime/index/reindex.py (map claim frontmatter session_id -> page_id; parse frontmatter the same way _rebuild_links already does; a wiki_index or non-claim page has no session_id and is skipped), and a resolve fallback that extracts a \\d{8}T\\d{4} timestamp token from the wikilink basename (covers both the bare [[20260514T0530]] form and the path-form .../20260514T0530-slug.md prefix) and looks it up in the session index. Collision-safe by construction: a session_id owned by >1 claim is dropped from the index, never guessed. Tried AFTER _candidate_slugs, the entity alias_index, and the basename_index (most specific/last resort). No vault markdown is edited; only links.to_page_id is recomputed at reindex time.",
+  "baseline": "docs/rfc/0009-baseline.json",
+  "pins": {
+    "before_sha256": "3de5bceede53de1f35817e02fbda922713f89e3be2da833341f60d15ed3af62c",
+    "captured_at_head": "5e42f63ef23b98831140a8d4ac241a1823839f69",
+    "fixture_sha256": null
+  },
+  "intent": [
+    {"metric": "metrics.dangling_links.by_type.wikilink", "from": 147, "to": {"max": 130}},
+    {"metric": "metrics.dangling_links.total", "from": 147, "to": {"max": 130}}
+  ],
+  "envelope": {"mode": "default-deny", "waivers": []},
+  "supersedes": [],
+  "rubric": "P0",
+  "critic": {
+    "accepted": true,
+    "agent": "critic (RFC 0009 §6)",
+    "accepted_at_head": "5e42f63ef23b98831140a8d4ac241a1823839f69",
+    "checks": {
+      "intent_bounds_exact": "Both intended metrics carry an exact bound. by_type.wikilink and total each bind {max:130} from a verified round-baseline actual of 147. total is a derived sibling of by_type and is named in INTENT (not left to the envelope) because it moves with wikilink.",
+      "not_a_rubber_stamp": "A no-op/regression lands 147, which fails {max:130} (verified empirically: evaluate() over before==after returns passed=false, '147 <= 130' on both clauses). The counter is a thin wrapper over the production broken_links view (links.to_page_id IS NULL, metrics.py:180), so the number cannot be redefined to pass (§3.2 rule 1). ~4-unit round-guard headroom over the ~126 simulated target is a real ceiling, not a meaningless one.",
+      "bound_requires_the_goal": "The only lever that lowers by_type.wikilink is resolving wikilink danglers; default-deny pins concept/gorae/workshop at 0 so they cannot be moved to game it. Collision safety is by construction (a session_id owned by >1 claim is dropped, never guessed) and the simulation shows all 86 session_ids unique -> 0 dropped, so a token [[YYYYMMDDThhmm]] resolves to the unique claim carrying that frontmatter session_id: correct by construction, not a guess. The metric's blindness to wrong-target resolution is a structurally-excluded, honestly-disclosed residual, identical to the merged G5 sibling and enforced by this review per §3.2 rule 3.",
+      "waivers": "None declared (default-deny, waivers=[]). No waiver is needed: the fix recomputes links.to_page_id at reindex time and writes no vault markdown, so vault.content_fingerprint holds under strict equality (§5.7 hashes content only; INDEX.md is derived and excluded).",
+      "supersedes": "Empty, and validate_supersedes() returns []. Justified: resolving danglers only ADDS graph edges. INV-1 census node counts are untouched (edges are not nodes); INV-4 surfacing.visible cannot fall and eval recall cannot regress (connectivity only improves). No monotone gate is tripped, so no clause needs releasing.",
+      "metric_diff": "No new metric introduced by G6. dangling_links shipped with G5 and was verified to wrap the production broken_links view; there is no metric diff to accept at this stage (§3.2 rule 3).",
+      "pins": "All present and correct. before_sha256 (3de5bce...) recomputed and matches the on-disk round baseline; captured_at_head (5e42f63) is the current main HEAD and will be this contract commit's first parent (§3.1.1); fixture_sha256 is null (no §5.4 probe fixture for this goal)."
+    },
+    "note": "Recorded by the committing agent from the critic's verdict per the run's orchestration directive (§6 assigns authorship of this block to the orchestrator, never the builder)."
+  },
+  "_note": "Pure-projection resolver in runtime/index/reindex.py, a direct sibling of the merged G5 basename fallback. It wraps the same broken_links definition metrics.dangling_links counts (links.to_page_id IS NULL), so the counter cannot drift from what the repair fixes (§3.2 rule 1). A read-only simulation over the current 147 dangling wikilinks: all 86 session_ids are unique, so the collision-safe index drops 0 entries and 21 of the 147 danglers resolve via the \\d{8}T\\d{4} token fallback, landing both by_type.wikilink and total at ~126. The {max:130} bound carries ~4-unit round-guard headroom over the ~126 target: an unchanged _resolve lands 147 and fails max:130, so the bound is not satisfiable without the resolver. total is derived from by_type and moves with wikilink, so it is named in INTENT rather than left to trip the envelope. concept/gorae/workshop danglers stay 0 (untouched by a session_id->page fallback) and are held by default-deny. vault.content_fingerprint stays under strict equality (no markdown is written), so NO waiver is declared -- the fallback changes only how links.to_page_id is computed at reindex time. supersedes is empty: no invariant is released. INV-1 census node counts (pages/claims/entities/sources) are unchanged -- the fix creates or deletes no pages, only edges. INV-4 surfacing.visible does not fall and eval recall does not regress: resolving previously-dangling links only ADDS graph edges, monotonically improving connectivity, so no monotone gate is tripped and no clause needs releasing."
+}

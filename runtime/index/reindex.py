@@ -497,6 +497,14 @@ def _build_session_index(conn: sqlite3.Connection) -> dict[str, int]:
     Collision-safe by construction: a `session_id` owned by >1 claim is DROPPED
     from the index — never guessed — so an ambiguous stamp stays unresolved
     rather than binding to an arbitrary claim. Mirrors `_build_basename_index`.
+
+    The collision guard is CLAIM-SCOPED by design: it counts only `claim` pages,
+    so a stamp shared by a claim and a surviving non-claim page (e.g. an
+    un-migrated `learning_*` note) would not be seen as a collision. This is safe
+    under RFC 0005 — the migration replaced the learning notes with claims, so no
+    non-claim page carries a session stamp — and the token fallback is a last
+    resort tried only after the exact-slug candidates. Revisit the scope if a page
+    type that also carries `session_id` is ever reintroduced.
     """
     counts: dict[str, int] = {}
     first: dict[str, int] = {}

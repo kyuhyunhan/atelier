@@ -363,11 +363,14 @@ def _extract_transcript_tail(path: Optional[str], *, max_msgs: int = 3,
 
 async def _h_learning_review_pending(limit: int = 20,
                                      project: Optional[str] = None,
-                                     since: Optional[str] = None
+                                     since: Optional[str] = None,
+                                     as_of: Optional[str] = None
                                      ) -> Dict[str, Any]:
-    """List learning candidates with self-checked AC results."""
+    """List learning candidates with self-checked AC results. `limit` pages
+    `items`; `total`/`max_age_days` always describe the whole queue (G4)."""
     from .learnings import review as _rev
-    return _rev.review_pending(limit=limit, project=project, since=since)
+    return _rev.review_pending(limit=limit, project=project, since=since,
+                               as_of=as_of)
 
 
 async def _h_learning_accept(candidate_slug: str,

@@ -265,7 +265,28 @@ def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
         bv, av = _leaf(before, metric), _leaf(after, metric)
         if bv is _MISSING or av is _MISSING:
             # union membership with one side absent → raise (§3.4). Dropping a
-            # counter must not be a way out of the envelope.
+            # counter must not be a way out of the envelope. ONE carve-out,
+            # the same §5.4 disambiguation the INTENT layer applies: a leaf
+            # measured at capture whose BLOCK persists in after but whose
+            # value is withheld is a yield-conditional sibling of an
+            # under-delivered change (e.g. `own`/`unowned` vanish with
+            # `foreign_ratio` when `returned` drops below the floor). That is
+            # the same fixer-addressable state — an envelope FAIL — not a
+            # harness failure; raising here would re-collapse §5.4's middle
+            # row one layer down unless the author INTENT-bound every
+            # conditional leaf (an undocumented trap). Absent-from-both and
+            # block-gone stay raises.
+            parent = metric.rsplit(".", 1)[0] if "." in metric else None
+            block_present = (parent is not None
+                             and isinstance(_leaf(after, parent), dict))
+            if bv is not _MISSING and av is _MISSING and block_present:
+                results.append({
+                    "layer": "envelope", "metric": metric, "waived": False,
+                    "ok": False,
+                    "detail": ("leaf omitted from after while its block "
+                               "remains — under-delivered sibling "
+                               "(precondition unmet)")})
+                continue
             raise ContractError(
                 f"{metric!r} is in the namespace but absent from "
                 f"{'before' if bv is _MISSING else 'after'}")

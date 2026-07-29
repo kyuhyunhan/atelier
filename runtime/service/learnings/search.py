@@ -77,12 +77,35 @@ def _facet_clause(project: Optional[str], topic: Optional[str],
     return sql, params
 
 
+def _lens_ok(fm: Dict[str, Any], lens: Optional[str]) -> bool:
+    """RFC 0006 ③ admission for one hit's frontmatter. `None` (internal
+    callers) skips the filter; a named lens delegates to the ONE predicate
+    (`structure.lenses.lens_admits_fm`) — never a re-implementation."""
+    if lens is None:
+        return True
+    from ...structure import lenses as _lenses
+    return _lenses.lens_admits_fm(lens, fm)
+
+
+def _lens_ok_json(frontmatter: str, lens: Optional[str]) -> bool:
+    """`_lens_ok` over a pages-row JSON frontmatter string (the DB paths)."""
+    if lens is None:
+        return True
+    import json as _json
+    try:
+        fm = _json.loads(frontmatter or "{}")
+    except (TypeError, ValueError):              # pragma: no cover
+        fm = {}
+    return _lens_ok(fm if isinstance(fm, dict) else {}, lens)
+
+
 def _grep_walk(root: Path, query: str,
                *, types: Iterable[str],
                project: Optional[str],
                topic: Optional[str],
                aspect: Optional[str],
-               limit: int) -> List[Dict[str, Any]]:
+               limit: int,
+               lens: Optional[str] = None) -> List[Dict[str, Any]]:
     """Filesystem-side fallback when FTS hasn't indexed learnings yet. No DB, so
     facets are read straight from frontmatter here (the index is unavailable).
     Facet comparison delegates to recall._fm_has_facet so it is case-insensitive
@@ -101,6 +124,8 @@ def _grep_walk(root: Path, query: str,
         if aspect and not _recall._fm_has_facet(fm, "aspect", aspect):
             continue
         if rx is not None and not rx.search(body) and not rx.search(str(fm)):
+            continue
+        if not _lens_ok(fm, lens):
             continue
         out.append({
             "path": str(p),
@@ -188,7 +213,8 @@ def _claim_ac_ok(frontmatter: str, allowed: Optional[tuple]) -> bool:
 def _resolve_search(query: str, types: tuple, *, project: Optional[str],
                     topic: Optional[str], aspect: Optional[str],
                     limit: int,
-                    ac_allowed: Optional[tuple] = None) -> List[Dict[str, Any]]:
+                    ac_allowed: Optional[tuple] = None,
+                    lens: Optional[str] = None) -> List[Dict[str, Any]]:
     """Text-query search via the hybrid resolver (RFC 0002 P3).
 
     The resolver fuses lexical + (when available) semantic by RRF, scoped to the
@@ -230,6 +256,8 @@ def _resolve_search(query: str, types: tuple, *, project: Optional[str],
                 continue
             if not _claim_ac_ok(r["frontmatter"], ac_allowed):
                 continue                    # claim in the wrong lifecycle state
+            if not _lens_ok_json(r["frontmatter"], lens):
+                continue                    # RFC 0006 ③: lens does not admit
             out.append(_hit_from_row(r))
             if len(out) >= limit:
                 break
@@ -240,7 +268,8 @@ def _resolve_search(query: str, types: tuple, *, project: Optional[str],
 
 def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
                   limit: int,
-                  ac_allowed: Optional[tuple] = None) -> List[Dict[str, Any]]:
+                  ac_allowed: Optional[tuple] = None,
+                  lens: Optional[str] = None) -> List[Dict[str, Any]]:
     """Facet-only listing (no text query): a straight `pages` scan filtered by
     page_type + facets. NOT routed through the resolver — there is no query to
     fuse on. This is the 'list every accepted learning in project X' path."""
@@ -260,6 +289,8 @@ def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
                 continue
             if not _claim_ac_ok(row["frontmatter"], ac_allowed):
                 continue
+            if not _lens_ok_json(row["frontmatter"], lens):
+                continue                    # RFC 0006 ③: lens does not admit
             seen.add(row["slug"])
             out.append(_hit_from_row(row))
             if len(out) >= limit:
@@ -274,7 +305,8 @@ def search(*, query: str = "",
            project: Optional[str] = None,
            topic: Optional[str] = None,
            aspect: Optional[str] = None,
-           limit: int = 20) -> Dict[str, Any]:
+           limit: int = 20,
+           lens: Optional[str] = None) -> Dict[str, Any]:
     from ...search import fts as _fts
     vault = _vault_root()
     types = _STATUS_TO_TYPES.get(status, _STATUS_TO_TYPES["accepted"])
@@ -288,12 +320,12 @@ def search(*, query: str = "",
             # Text query → hybrid resolver (RFC 0002 P3), facets post-filtered.
             hits = _resolve_search(query, types, project=project, topic=topic,
                                    aspect=aspect, limit=limit,
-                                   ac_allowed=ac_allowed)
+                                   ac_allowed=ac_allowed, lens=lens)
         else:
             # No text query → facet-only listing scan (untouched by P3).
             facet_sql, facet_params = _facet_clause(project, topic, aspect)
             hits = _listing_scan(types, facet_sql, facet_params, limit,
-                                 ac_allowed=ac_allowed)
+                                 ac_allowed=ac_allowed, lens=lens)
     except Exception:
         # Schema not initialized or pages table empty — fall through to grep.
         hits = []
@@ -303,7 +335,7 @@ def search(*, query: str = "",
         # listing, so don't regex-match the raw punctuation in the fallback.
         hits = _grep_walk(vault, query if match else "",
                           types=types, project=project, topic=topic,
-                          aspect=aspect, limit=limit)
+                          aspect=aspect, limit=limit, lens=lens)
     return {"count": len(hits), "items": hits, "vault": str(vault)}
 
 

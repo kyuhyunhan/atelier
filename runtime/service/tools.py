@@ -95,10 +95,25 @@ async def invoke(name: str, **params: Any) -> Dict[str, Any]:
 # ── Read-side handlers ─────────────────────────────────────────────────────
 
 
+def _validate_lens(lens: str) -> None:
+    """Reject an unknown lens BEFORE any retrieval work (RFC 0006 ③ / RFC 0009
+    §5.5): every content-returning surface validates against the single lens
+    vocabulary (`structure.lenses.lens_names()`), never a hardcoded list."""
+    from ..structure import lenses as _lenses
+    if lens not in _lenses.lens_names():
+        raise ValueError(
+            f"unknown lens {lens!r}; valid: {sorted(_lenses.lens_names())}")
+
+
 async def _h_search(query: str, space: Optional[str] = None,
-                    limit: int = 20, fallback: bool = False) -> Dict[str, Any]:
-    """Full-text search over indexed pages. Returns ranked hits."""
-    return {"hits": _api.search(query, space=space, limit=limit, fallback=fallback)}
+                    limit: int = 20, fallback: bool = False,
+                    lens: str = "dev") -> Dict[str, Any]:
+    """Full-text search over indexed pages. Returns ranked hits, scoped by the
+    serving `lens` (RFC 0006 ③): 'dev' (default) excludes personal-domain
+    pages; 'full' is the wall-less cross-domain view."""
+    _validate_lens(lens)
+    return {"hits": _api.search(query, space=space, limit=limit,
+                                fallback=fallback, lens=lens)}
 
 
 async def _h_links(slug: str, direction: str = "both") -> Dict[str, Any]:
@@ -112,11 +127,18 @@ async def _h_links(slug: str, direction: str = "both") -> Dict[str, Any]:
 
 
 async def _h_list_pages(space: Optional[str] = None,
-                        page_type: Optional[str] = None) -> Dict[str, Any]:
-    """List indexed pages, optionally filtered by space or page_type."""
+                        page_type: Optional[str] = None,
+                        lens: str = "dev") -> Dict[str, Any]:
+    """List indexed pages, optionally filtered by space or page_type. The
+    serving `lens` (RFC 0006 ③) scopes the LISTING itself: a personal page
+    listed is a personal page disclosed, so the dev lens drops rows its
+    (kind, domain) frontmatter is not admitted for."""
+    import json as _json
+    from ..structure import lenses as _lenses
     from ..util import db
+    _validate_lens(lens)
     conn = db.connect_shared()
-    sql = "SELECT slug, page_type, space FROM pages WHERE 1=1"
+    sql = "SELECT slug, page_type, space, frontmatter FROM pages WHERE 1=1"
     params: List[Any] = []
     if page_type:
         sql += " AND page_type=?"
@@ -125,7 +147,16 @@ async def _h_list_pages(space: Optional[str] = None,
         sql += " AND space=?"
         params.append(space)
     sql += " ORDER BY space, slug"
-    rows = [dict(r) for r in conn.execute(sql, params)]
+    rows: List[Dict[str, Any]] = []
+    for r in conn.execute(sql, params):
+        try:
+            fm = _json.loads(r["frontmatter"] or "{}")
+        except (TypeError, ValueError):      # pragma: no cover - corrupt row
+            fm = {}
+        if not _lenses.lens_admits_fm(lens, fm if isinstance(fm, dict) else {}):
+            continue
+        rows.append({"slug": r["slug"], "page_type": r["page_type"],
+                     "space": r["space"]})
     return {"pages": rows}
 
 
@@ -414,11 +445,15 @@ async def _h_learning_search(query: str = "",
                              status: str = "accepted",
                              project: Optional[str] = None,
                              topic: Optional[str] = None,
-                             limit: int = 20) -> Dict[str, Any]:
-    """Search the learnings domain (accepted by default)."""
+                             limit: int = 20,
+                             lens: str = "dev") -> Dict[str, Any]:
+    """Search the learnings domain (accepted by default). `lens` (RFC 0006 ③)
+    scopes the result set — the claim pool is domain-mixed, so a dev-lens
+    search never returns a personal-domain claim."""
+    _validate_lens(lens)
     from .learnings import search as _ls
     return _ls.search(query=query, status=status, project=project,
-                      topic=topic, limit=limit)
+                      topic=topic, limit=limit, lens=lens)
 
 
 async def _h_learning_relink(slug: str, links: List[str],
@@ -524,9 +559,7 @@ async def _h_recall(query: str,
     filter is applied to the v7 claim path where personal claims can appear."""
     from .learnings import recall as _rc
     from .learnings import recall_v7 as _rv
-    from ..structure import lenses as _lenses
-    if lens not in _lenses.lens_names():
-        raise ValueError(f"unknown lens {lens!r}; valid: {sorted(_lenses.lens_names())}")
+    _validate_lens(lens)
     sess = current_session()
     if project is None and sess.working_dir:
         # Route through the shared accessor so recall's project key matches
@@ -554,17 +587,21 @@ async def _h_recall(query: str,
 async def _h_think(query: str,
                    project: Optional[str] = None,
                    top_k: int = 5,
-                   include_candidates: bool = False) -> Dict[str, Any]:
+                   include_candidates: bool = False,
+                   lens: str = "dev") -> Dict[str, Any]:
     """Query-time synthesis evidence over the learnings memory: the top-k cited
     passages + an explicit gap signal, for the caller to compose into an answer
-    (RFC 0003 P5 — the engine assembles evidence; the agent synthesises prose)."""
+    (RFC 0003 P5 — the engine assembles evidence; the agent synthesises prose).
+    `lens` (RFC 0006 ③) scopes the CITED evidence: a dev-session bundle never
+    quotes a personal-domain node."""
+    _validate_lens(lens)
     from .learnings import think as _think
     sess = current_session()
     if project is None and sess.working_dir:
         from .learnings import project as _proj
         project = _proj.resolve_project(sess.working_dir).slug
     return _think.think(query=query, project=project, top_k=top_k,
-                        include_candidates=include_candidates)
+                        include_candidates=include_candidates, lens=lens)
 
 
 async def _h_surfacing_audit(probe_k: int = 10) -> Dict[str, Any]:
@@ -708,15 +745,20 @@ async def _h_nudges() -> Dict[str, Any]:
 
 
 async def _h_session_bootstrap(working_dir: Optional[str] = None,
-                                max_chars: int = 6000
-                                ) -> Dict[str, Any]:
+                                max_chars: int = 6000,
+                                lens: str = "dev") -> Dict[str, Any]:
     """Return a markdown block intended for the *first turn* of a
-    Claude Code session: always-inject principles + this project's learnings."""
+    Claude Code session: always-inject principles + this project's learnings.
+    `lens` (RFC 0006 ③) scopes the injected pool — this surface pushes content
+    the caller never asked for, so the dev default must actually exclude
+    personal-domain nodes from the block, not merely accept the parameter."""
+    _validate_lens(lens)
     from .learnings import bootstrap as _bs
     sess = current_session()
     return _bs.bootstrap(
         working_dir=working_dir or sess.working_dir,
         max_chars=max_chars,
+        lens=lens,
     )  # `now` defaults to wall-clock inside bootstrap()
 
 

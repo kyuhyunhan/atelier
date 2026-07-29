@@ -1,0 +1,56 @@
+{
+  "id": "G3-lens-coverage",
+  "goal": "Extend the serving lens to every declared content-returning MCP surface (lens_param_present 1/6 -> 6/6) with each wired surface actually FILTERING its results by the lens map (not merely accepting the parameter), and cut cross-project recall noise for a dev session by making the dev serving path project-aware: foreign_ratio 0.6986 -> <= 0.15 with foreign sharply down and own not below baseline. A behavioural gate (verify._check_dev_lens_no_personal shape) proves at least one newly-wired surface returns DIFFERENT result sets under lens='dev' vs lens='full' on a seeded corpus, plus a dev-session project-scoping test.",
+  "baseline": "docs/rfc/0009-baseline.json",
+  "fixture_path": "~/.atelier/fixtures/project_probes.json",
+  "pins": {
+    "before_sha256": "aba1ba7f0f454c0385ffc128fe1afe23cecf022b920b495879ba0a8774eccaf8",
+    "captured_at_head": "1fcfbf9f08c37c89d3840e0db52a5acb7768d7e2",
+    "fixture_sha256": "458a262e82c2d700ca244bc6dad44926fa7b223410122a74d9d1e52178815de3"
+  },
+  "intent": [
+    {"metric": "metrics.lens_param_present.covered", "from": 1, "to": {"eq": 6}},
+    {"metric": "metrics.lens_param_present.total", "from": 6, "to": {"eq": 6}},
+    {"metric": "metrics.cross_project_noise.foreign_ratio", "from": 0.6986, "to": {"max": 0.15}},
+    {"metric": "metrics.cross_project_noise.foreign", "from": 51, "to": {"max": 10}},
+    {"metric": "metrics.cross_project_noise.own", "from": 14, "to": {"min": 14}},
+    {"metric": "metrics.cross_project_noise.returned", "from": 73, "to": {"min": 20}},
+    {"metric": "metrics.cross_project_noise.unowned", "from": 8, "to": {"max": 12}}
+  ],
+  "envelope": {
+    "mode": "default-deny",
+    "waivers": [
+      {"release": "eval.self_probe.recall_at_k",
+       "bound": {"to": {"min": 1.0}},
+       "reason": "the project-aware serving path reranks the same pipeline eval probes run through; floor pinned at the exact round-baseline value (invariant eval/self_probe.recall_at_k forbids fall and stays live) — improvement allowed, regression fails both layers"},
+      {"release": "eval.paraphrase.recall_at_k",
+       "bound": {"to": {"min": 0.6363636363636364}},
+       "reason": "same reranking exposure; floor at the exact round-baseline value (invariant eval/paraphrase.recall_at_k forbids fall and stays live) — improvement allowed"},
+      {"release": "eval.self_probe.mrr",
+       "bound": {"to": {"min": 0.9477653631284917}},
+       "reason": "no invariant clause guards mrr, so the waiver floor is the exact round-baseline value — any headroom below baseline on an un-gated metric is an undetectable regression window; improvement allowed"},
+      {"release": "eval.paraphrase.mrr",
+       "bound": {"to": {"min": 0.5833333333333333}},
+       "reason": "no invariant clause guards mrr; floor at the exact round-baseline value — improvement allowed, regression fails"},
+      {"release": "eval.self_probe.dark_count",
+       "bound": {"to": {"max": 0}},
+       "reason": "no invariant clause guards eval.self_probe.dark_count (INV-4 covers surfacing.dark_count only); cap at the exact round-baseline value 0 — a rise is a regression, and 0 is already the floor of the metric"}
+    ]
+  },
+  "supersedes": [],
+  "critic": {
+    "accepted": true,
+    "agent": "critic (independent of the contract author, RFC 0009 §6)",
+    "date": "2026-07-29",
+    "accepted_what": [
+      "pins: before_sha256, fixture_sha256 recomputed from the live artifacts and byte-matched; captured_at_head equals the pre-contract main HEAD this branch forked from",
+      "intent: all 7 `from` values byte-match the round baseline; contract.evaluate re-run independently as a no-op (before==before) raises no ContractError and FAILs on exactly covered (1!=6), foreign_ratio (0.6986>0.15), foreign (51>10) — the bound is not satisfiable without achieving the goal; own/returned/unowned/total pass on no-op as guard-rail bounds (anti-dilution, anti-shrink, anti-redefinition), the G2-accepted pattern",
+      "waivers: all 5 floors/caps byte-match the round-baseline values at full float precision — no sub-baseline headroom on any un-gated eval leaf; cross-checked against the live invariant table: both recall_at_k waivers are backstopped by live eval-recall clauses, mrr and eval.self_probe.dark_count are un-gated so exact-baseline pinning is the correct posture",
+      "supersedes []: correct — no waiver permits movement against a live invariant (INV-4 covers surfacing.visible/surfacing.dark_count only; default-deny holds surfacing.visible at exact equality 179, strictly stronger than its forbids-fall clause)",
+      "behavioural gate: bound in goal text and _note as a required deliverable, closing §5.5's accept-and-discard dodge; matches the G3 catalogue row (§7)",
+      "PII posture: contract carries counts, metric names, and this repo's own name only"
+    ]
+  },
+  "rubric": "P0",
+  "_note": "Two halves, one serving-path change-set in runtime/service/tools.py and the recall scoring path. (A) LENS COVERAGE: wire `lens` (default 'dev', validated against structure.lenses.lens_names()) into the 5 handlers listed in the round baseline's lens_param_present._absent (learning_search, list_pages, search, session_bootstrap, think) and thread the value so each surface's RESULT SET is filtered by the lens map — reuse lenses.lens_admits_fm / the recall_v7 rank_claims pattern, never a parallel reimplementation. The counter tracks wiring only (RFC 0009 §5.5 names it for its limit), so the behavioural gate is a required deliverable of this goal, not optional test hygiene: on a seeded corpus, at least one newly-wired surface called under lens='dev' vs lens='full' must return DIFFERING result sets (dev excludes personal, full includes), in the shape of verify._check_dev_lens_no_personal; plus a dev-session project-scoping test asserting foreign operational claims are absent/deprioritized. metrics.lens_param_present.unimplemented is a numeric non-underscore leaf, IS in the envelope namespace, and stays default-denied at 0 — a wired-but-unimplementable surface cannot hide there. (B) CROSS-PROJECT NOISE: the dev-session claim path for this repo's session returns 73 claims of which 51 are foreign (foreign_ratio 0.6986, own 14, unowned 8). The fix is project-awareness in the SERVING path (e.g. strengthen/gate the project prior in recall_v7.score_claim, or scope operational claims to the session project in the dev lens path) — never a vault edit, never a fixture edit, never special-casing the fixture's probe queries (the fixture is content-pinned by pins.fixture_sha256 and its path recorded in fixture_path for the verifier's --fixture). The ratio is dilution-prone, so the contract binds the absolutes too: foreign <= 10 (sharply down from 51), own >= 14 (not below its round-baseline value), returned >= 20 (the §5.4 minimum-yield floor stated as INTENT so an under-delivering lens FAILs on a named clause), unowned <= 12 (near the round value 8 plus small headroom, so unattributed claims cannot become the dilution channel). If a round under-delivers (returned < 20) the counter omits foreign_ratio and the composition leaves while returned stays — per §5.4's outcome table that lands as a fixer-addressable FAIL, not an abort. ENVELOPE: default-deny with NO waiver on vault.content_fingerprint — the vault is not touched, so census/surfacing/fingerprint must be byte-identical; in particular surfacing.visible is held at exact equality (179), strictly stronger than its forbids-fall invariant, which forces the project prior to be session-scoped rather than a global reranking that darkens foreign claims' own-concept surfacing. The five eval waivers exist because eval probes run through the same retrieval pipeline the goal reranks: the two recall_at_k leaves have live invariant backstops and floor at the exact round-baseline values; the three un-gated leaves (both mrr, self_probe.dark_count) are pinned at their exact round-baseline values (full float precision) so no sub-baseline headroom exists — floors/caps, not equality, so improvement remains legal. supersedes is empty: nothing here may fall or rise against an invariant clause; the eval-engine guard (§6 hybrid canary) raises on any engine mismatch between snapshots so these comparisons cannot be phantoms of a degraded provider. Pins: before_sha256 over the round baseline at ~/.atelier/cache/goals/G3-lens-coverage/before.json; captured_at_head is the pre-contract main HEAD and must be this contract commit's first parent; fixture_sha256 over the out-of-tree probe fixture (counts-and-shape pin, §5.6 — the contract itself carries no vault strings or adopter project names)."
+}

@@ -39,15 +39,46 @@ def reindex_path(path: str, *, embed: bool = False,
     return vars(_reindex.reindex_path(cfg, Path(path), embed_gateway=gw))
 
 
+def _lens_admitted_slugs(conn, slugs: List[str], lens: str) -> set:
+    """The subset of `slugs` whose page frontmatter the lens admits (RFC 0006
+    ③, via `structure.lenses.lens_admits_fm` — the ONE admission predicate).
+    Reads the pages projection; a missing/corrupt frontmatter row falls back to
+    `{}` (fail-open, matching `lens_admits_fm`'s unknown-kind rule)."""
+    import json as _json
+    from ..structure import lenses as _lenses
+    if not slugs:
+        return set()
+    ph = ",".join("?" * len(slugs))
+    admitted: set = set()
+    for r in db.fetchall(conn, "SELECT slug, frontmatter FROM pages "
+                               "WHERE slug IN (" + ph + ")", *slugs):
+        try:
+            fm = _json.loads(r["frontmatter"] or "{}")
+        except (TypeError, ValueError):      # pragma: no cover - corrupt row
+            fm = {}
+        if _lenses.lens_admits_fm(lens, fm if isinstance(fm, dict) else {}):
+            admitted.add(r["slug"])
+    return admitted
+
+
 def search(query: str, space: Optional[str] = None, limit: int = 20,
-           fallback: bool = False, token: Optional[str] = None) -> List[Dict[str, Any]]:
+           fallback: bool = False, token: Optional[str] = None,
+           lens: Optional[str] = None) -> List[Dict[str, Any]]:
     from ..search import fts
     conn = db.connect()
     try:
-        hits = fts.search(conn, query, space=space, limit=limit)
+        # When a lens will filter the pool, over-fetch so the admitted set can
+        # still fill `limit` (the recall_v7.rank_claims pattern): filtering a
+        # truncated list would silently starve dev-lens results.
+        fetch = limit if lens is None else limit * 4
+        hits = fts.search(conn, query, space=space, limit=fetch)
         if not hits and fallback:
-            hits = fts.search_like_fallback(conn, query, space=space, limit=limit)
-        return [vars(h) for h in hits]
+            hits = fts.search_like_fallback(conn, query, space=space, limit=fetch)
+        rows = [vars(h) for h in hits]
+        if lens is not None:
+            admitted = _lens_admitted_slugs(conn, [r["slug"] for r in rows], lens)
+            rows = [r for r in rows if r["slug"] in admitted][:limit]
+        return rows
     finally:
         conn.close()
 

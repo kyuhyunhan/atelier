@@ -243,8 +243,10 @@ def test_lens_param_reads_the_live_handler_signature() -> None:
     assert got["covered"] + len(got["_absent"]) + len(got["_unimplemented"]) \
         == got["total"]
     assert got["unimplemented"] == 0            # every declared surface exists
-    # today exactly one surface takes a lens (RFC 0009 §2); G3 moves this to 6/6
-    assert got["_present"] == ["recall"]
+    # RFC 0009 G3: every declared content-returning surface takes a lens (6/6)
+    assert got["_present"] == ["learning_search", "list_pages", "recall",
+                               "search", "session_bootstrap", "think"]
+    assert got["_absent"] == []
 
 
 def test_lens_param_cannot_be_claimed_by_the_schema_file(monkeypatch) -> None:
@@ -484,12 +486,15 @@ def test_lens_param_separates_a_yaml_typo_from_a_missing_lens(
         monkeypatch) -> None:
     """A declared surface with no handler caps `covered` permanently; folding it
     into `_absent` leaves nothing in the output to say why."""
+    # `links` is a real handler that (correctly) takes no lens — it is not a
+    # content-search surface — so it stands in for the lens-less case now that
+    # G3 wired all six declared surfaces.
     monkeypatch.setattr(_metrics, "_declared_surfaces",
-                        lambda: [{"name": "recall"}, {"name": "search"},
+                        lambda: [{"name": "recall"}, {"name": "links"},
                                  {"name": "typo_here"}])
     got = _metrics.lens_param_present()
     assert got["covered"] == 1 and got["total"] == 3
-    assert got["_absent"] == ["search"]
+    assert got["_absent"] == ["links"]
     assert got["unimplemented"] == 1 and got["_unimplemented"] == ["typo_here"]
 
 

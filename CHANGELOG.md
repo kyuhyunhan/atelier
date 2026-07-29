@@ -4,6 +4,41 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Closed — RFC 0009 G1: the PII guard is live (`pii_active_patterns: 0 → 4`, probe green)
+
+The oldest open §7 goal closed end-to-end under the contract discipline (G3 —
+`lens_param_present` at 1/6 — and G4 remain open), in three acts:
+
+1. **The contract critic earned its keep twice.** The first G1 run hard-aborted
+   on a pinned-but-absent fixture (the §6 broken-pin path, exercised for real:
+   abort + snapshot restore worked, down to reverting `~/.atelier`). The second
+   run's critic **rejected the contract** — a count-only bound (`≥ 1`) is
+   rubber-stampable with one junk regex, exactly as §7 warns — and demanded the
+   probe be machine-checked, the approved core content-pinned, and the RFC
+   re-scope land as its own reviewed change, not inside the goal that benefits.
+2. **The engine half landed first** (PR #89, per "a goal cannot ship its own
+   metric"): `guard_liveness.seeded_probe_blocked` (§5.3c — executes the shipped
+   hook hermetically; 1 only if a seeded match blocks AND a clean stage passes),
+   the `ATELIER_PII_PATTERNS` override, hook-contract tests, the 홍길동 name
+   hygiene + CLAUDE.md hard rule #8, and the §7 L1→ratchet supersession. Review
+   round 1 found a real [MUST] by attacking the probe: inherited `GIT_*` env made
+   it write into the caller's repo, and an inherited size knob fabricated a
+   defect verdict — fixed with a full env scrub, reproduced as regression tests.
+3. **The user file was authored verbatim** (4 static patterns; derived lists,
+   allowlists, and Hangul class rules deliberately rejected — enumeration rots,
+   and functional Hangul is legitimate here). Verified live:
+   `{pii_active_patterns: 4, seeded_probe_blocked: 1}`, plus an end-to-end
+   staged-leak block by the installed hook. Content pinned by
+   `sha256 ebcc07dd…3fd69d` in the §7 row. Closed as verified work rather than a
+   goal run: the remaining artifact was out-of-tree user config, and the
+   workflow's verification unit — a reviewable repo diff — had nothing to carry.
+
+Alongside: `mcp` pinned `<2` (mcp 2.0.0 removed `mcp.server.fastmcp` and broke
+fresh-install CI), and `test` joined `guard` as a **required** status check —
+a red test job can no longer merge (PR #89 slipped through on the old
+guard-only requirement; the gap is closed mechanically, and the ship-pr lesson
+— assert each check's *conclusion*, not "no longer pending" — is captured).
+
 ### Added — RFC 0009: dangling arc closure (`dangling_new` + accepted baseline)
 
 The dangling-wikilink arc closes here. G5 (basename↔full-path) and G6

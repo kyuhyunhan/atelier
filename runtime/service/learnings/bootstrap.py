@@ -121,14 +121,24 @@ def _bullet(vault: Path, it: Dict[str, Any]) -> str:
             f"[[{it['path'].relative_to(vault).as_posix()}]]")
 
 
-def _render_project_section(vault: Path, project: str) -> str:
+def _render_project_section(vault: Path, project: str,
+                            lens: Optional[str] = None) -> str:
     """§B — this session's relevant learnings, retrieved by *facet*, not folder.
     Own = learnings whose `target_project` is this project; a `related by
     concept` group adds cross-project learnings that explicitly `touches` a
-    concept this project's learnings also touch."""
+    concept this project's learnings also touch.
+
+    `lens` (RFC 0006 ③) scopes the pool BEFORE selection: this surface pushes
+    content unprompted, so the dev lens must exclude e.g. a personal-domain
+    node from the injected block, not merely be accepted upstream (RFC 0009
+    §5.5's accept-and-discard dodge). Delegates to the ONE admission predicate
+    (`structure.lenses.lens_admits_fm`)."""
     if not project:
         return ""
     items = _scan_accepted(vault)
+    if lens is not None:
+        from ...structure import lenses as _lenses
+        items = [it for it in items if _lenses.lens_admits_fm(lens, it["fm"])]
     if not items:
         return ""
     own = [it for it in items if it["fm"].get("target_project") == project]
@@ -194,7 +204,8 @@ def _absorb_nudge_line() -> str:
 
 def bootstrap(*, working_dir: Optional[str] = None,
               max_chars: int = 6000,
-              now: Optional[str] = None) -> Dict[str, Any]:
+              now: Optional[str] = None,
+              lens: Optional[str] = None) -> Dict[str, Any]:
     cfg = _config.load()
     vault = _vault_root(cfg)
     resolution = _project.resolve_project(working_dir, cfg=cfg)
@@ -227,7 +238,8 @@ def bootstrap(*, working_dir: Optional[str] = None,
     principles_md = _render_principles(items)
     if principles_md:
         content_parts.append(principles_md)
-    project_md = _render_project_section(vault, project) if project else ""
+    project_md = (_render_project_section(vault, project, lens=lens)
+                  if project else "")
     if project_md:
         content_parts.append(project_md)
 

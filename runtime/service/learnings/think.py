@@ -54,7 +54,8 @@ an index absent from the bundle; (4) zero-coverage -> honest "no memory", not a 
 
 
 def think(*, query: str, project: str | None = None, top_k: int = 5,
-          include_candidates: bool = False) -> Dict[str, Any]:
+          include_candidates: bool = False,
+          lens: str | None = None) -> Dict[str, Any]:
     """Assemble a synthesis bundle over the hybrid resolver: cited evidence,
     gaps, and the composition contract.
 
@@ -71,7 +72,17 @@ def think(*, query: str, project: str | None = None, top_k: int = 5,
         return {"query": query, "citations": [], "gaps": ["empty query"],
                 "contract": SYNTHESIS_CONTRACT, "result_count": 0}
 
-    hits = _recall.rank_hits(query, project, types, top_k=top_k)
+    # RFC 0006 ③: when a lens is named, over-fetch (the recall_v7.rank_claims
+    # pattern) then keep only admitted hits, so a filtered bundle still fills
+    # top_k rather than being a truncated-then-filtered stub. `lens_admits_fm`
+    # is the ONE admission predicate — never re-implemented here.
+    if lens is not None:
+        from ...structure import lenses as _lenses
+        pool = _recall.rank_hits(query, project, types, top_k=top_k * 4)
+        hits = [h for h in pool
+                if _lenses.lens_admits_fm(lens, h.get("fm") or {})][:top_k]
+    else:
+        hits = _recall.rank_hits(query, project, types, top_k=top_k)
     citations: List[Dict[str, Any]] = []
     for idx, h in enumerate(hits, start=1):
         fm = h.get("fm") or {}

@@ -73,33 +73,37 @@ def test_low_yield_reports_returned_but_omits_ratio(
         atelier_env: Dict, tmp_path: Path) -> None:
     """§5.4's middle row: a lens change that under-delivers is a FAIL the fixer
     can address — `returned` present, `foreign_ratio` absent — never a raise,
-    and never a fabricated 0.0 that would pass the bound."""
+    and never a fabricated 0.0 that would pass the bound. Since G3, the
+    production path also GATES foreign-owned claims at the push tier, so only
+    the 2 own claims come back (the 3 foreign seeds are scoped out)."""
     vault = Path(_cl._vault_root())
-    _seed_claims(vault, own=2, foreign=3)          # 5 << 20
+    _seed_claims(vault, own=2, foreign=3)          # 2 admitted << 20
     fx = tmp_path / "probes.json"
     _write_fixture(fx)
     got = _metrics.cross_project_noise(fixture_path=fx)
     assert got is not None
-    assert got["returned"] == 5
+    assert got["returned"] == 2
     assert "foreign_ratio" not in got
 
 
-def test_measures_foreign_ratio_at_yield(atelier_env: Dict,
-                                         tmp_path: Path) -> None:
-    """The real measurement, through the PRODUCTION dev-recall path: 25
-    recallable claims, 20 foreign → ratio 0.8."""
+def test_measures_composition_at_yield_with_the_g3_gate(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """The real measurement, through the PRODUCTION dev-recall path. G3's
+    project-scope gate removes foreign-owned claims from the push tier, so a
+    corpus with 20 foreign seeds measures `foreign: 0` — the metric proves the
+    gate through the same path a session serves, not around it."""
     vault = Path(_cl._vault_root())
-    _seed_claims(vault, own=5, foreign=20)
+    _seed_claims(vault, own=25, foreign=20)
     fx = tmp_path / "probes.json"
     _write_fixture(fx)
     got = _metrics.cross_project_noise(fixture_path=fx)
     assert got is not None
     assert got["returned"] == 25
     assert got["project"] == "projA"
-    assert abs(got["foreign_ratio"] - 0.8) < 1e-9
+    assert abs(got["foreign_ratio"] - 0.0) < 1e-9
     # the composition leaves (review MUST): the absolutes a contract pins so
     # the ratio cannot be satisfied by displacement alone
-    assert (got["own"], got["foreign"], got["unowned"]) == (5, 20, 0)
+    assert (got["own"], got["foreign"], got["unowned"]) == (25, 0, 0)
 
 
 def test_unowned_dilution_is_visible_in_the_composition(
@@ -111,9 +115,9 @@ def test_unowned_dilution_is_visible_in_the_composition(
     would wave through."""
     import uuid
     vault = Path(_cl._vault_root())
-    _seed_claims(vault, own=2, foreign=8)
+    _seed_claims(vault, own=5, foreign=8)     # the 8 foreign are gated (G3)
     d = vault / "graph" / "atomic"
-    for i in range(15):                       # flood with unowned knowledge
+    for i in range(20):                       # flood with unowned knowledge
         eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"kn-{i}"))
         (d / f"kn-{i}.md").write_text(
             f"---\nschema_version: 7\nentry_id: {eid}\nkind: claim\n"
@@ -127,9 +131,9 @@ def test_unowned_dilution_is_visible_in_the_composition(
     _write_fixture(fx)
     got = _metrics.cross_project_noise(fixture_path=fx)
     assert got is not None and got["returned"] == 25
-    assert abs(got["foreign_ratio"] - 8 / 25) < 1e-9   # diluted to 0.32
-    assert got["own"] == 2                             # …but own did NOT rise
-    assert got["unowned"] == 15                        # the dilution, visible
+    assert abs(got["foreign_ratio"] - 0.0) < 1e-9      # foreign gated out (G3)
+    assert got["own"] == 5                             # …but own did NOT rise
+    assert got["unowned"] == 20                        # the dilution, visible
 
 
 def test_metrics_block_omits_the_key_without_a_fixture(

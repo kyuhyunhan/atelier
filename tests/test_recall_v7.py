@@ -164,9 +164,15 @@ def test_domain_prior_orders_proactive_push(vault_env: Dict) -> None:
 
 
 def test_current_project_match_lifts_a_claim(vault_env: Dict) -> None:
+    """The project prior lifts an own-project claim over an UNOWNED peer; a
+    FOREIGN-project peer is not ranked lower but GATED out of the push tier
+    entirely (RFC 0009 G3 `project_scope_gate`) — it stays on-query-reachable
+    (covered in test_g3_lens_surfaces)."""
     vault = vault_env["vault"]
     _claim(vault, "mine", "auth token refresh race condition fix",
            surfacing="proactive", domain="knowledge", project="lexio")
+    _claim(vault, "noproj", "auth token refresh race condition fix",
+           surfacing="proactive", domain="knowledge")
     _claim(vault, "other", "auth token refresh race condition fix",
            surfacing="proactive", domain="knowledge", project="bht")
     api.reindex(full=True)
@@ -174,8 +180,10 @@ def test_current_project_match_lifts_a_claim(vault_env: Dict) -> None:
     out = _rv.recall_claims(query="auth token refresh race",
                             tier=_rv.TIER_PROACTIVE, project="lexio", top_k=10)
     order = [it["slug"] for it in out["items"]]
-    assert order.index("mine") < order.index("other"), \
-        "current-project claim must outrank an off-project peer of equal relevance"
+    assert "other" not in order, \
+        "a foreign-project claim must not be pushed into another project's session"
+    assert order.index("mine") < order.index("noproj"), \
+        "current-project claim must outrank an unowned peer of equal relevance"
 
 
 def test_query_tier_is_universal_prior_ignored(vault_env: Dict) -> None:

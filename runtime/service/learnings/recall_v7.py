@@ -115,6 +115,29 @@ def sensitivity_gate(fm: Dict[str, Any], tier: str) -> bool:
     return (fm.get("sensitivity") or "").lower() != "private"
 
 
+def project_scope_gate(fm: Dict[str, Any], tier: str,
+                       project: Optional[str]) -> bool:
+    """HARD gate (RFC 0009 G3): when the session's project is known, a claim
+    OWNED by a *different* project is never PUSHED (T1/T0). It stays reachable
+    by explicit on-query (T2) — same shape as the sensitivity gate: push is
+    context-scoped, query is universal.
+
+    Rationale: `project` on a claim marks ownership. Before this gate the dev
+    serving path returned ~70% other-projects' operational claims for a
+    session (round baseline: 51 foreign of 73 returned) — another project's
+    "how we fixed X there" is noise here, and a per-turn push the caller never
+    asked for must not spend the context budget on it. UNOWNED claims (no
+    `project`, e.g. knowledge) are nobody's project and pass; an unknown
+    session project (`project=None`) disables the gate — there is no scope to
+    enforce. A ranking *penalty* was rejected: on a sparse pool low-scored
+    foreign claims still fill the push budget, so only a hard gate actually
+    removes them (the §6 gates are factors of 0, not discounts)."""
+    if tier == TIER_QUERY or not project:
+        return True
+    p = fm.get("project")
+    return not p or p == project
+
+
 # ── scorer ────────────────────────────────────────────────────────────────────
 
 
@@ -123,8 +146,9 @@ def score_claim(hit: Dict[str, Any], *, tier: str, project: Optional[str]) -> fl
 
         gate(surfacing) × domain_prior(context) × vector_relevance × sensitivity_gate
 
-    Returns 0.0 when either hard gate (surfacing eligibility, sensitivity) blocks
-    the claim — a zero is dropped by the caller. `vector_relevance` is the fused
+    Returns 0.0 when any hard gate (surfacing eligibility, sensitivity,
+    project scope at push tiers) blocks the claim — a zero is dropped by the
+    caller. `vector_relevance` is the fused
     RRF magnitude already on the hit (positive, larger = better). The domain
     prior is IGNORED at T2 (on-query is universal, §6)."""
     fm = hit.get("fm") or {}
@@ -133,6 +157,8 @@ def score_claim(hit: Dict[str, Any], *, tier: str, project: Optional[str]) -> fl
     if not gate(surfacing_level(fm), tier):
         return 0.0
     if not sensitivity_gate(fm, tier):
+        return 0.0
+    if not project_scope_gate(fm, tier, project):
         return 0.0
 
     if tier == TIER_QUERY:

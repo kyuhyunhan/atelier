@@ -4,6 +4,35 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Closed — RFC 0009 G3, and with it the entire §7 goal catalogue (G1–G5)
+
+The last open goal, landed through the full workflow (PR #95): the serving
+lens went **1/6 → 6/6** surfaces (each newly-wired handler validates against
+the single lens vocabulary and filters its RESULT set through
+`lenses.lens_admits_fm` — the §5.5 vacuous-signature attack is closed by
+dev-vs-full differing-result tests on four surfaces), and
+`recall_v7.project_scope_gate` made the dev push-tier project-aware:
+`cross_project_noise.foreign_ratio` **0.6986 → 0.0** (foreign 51 → 0, own held
+at 14, returned 26 ≥ 20) against the content-pinned §5.6 fixture. On-query
+(T2) stays universal; the vault was untouched.
+
+The road there exercised nearly every §6 edge the RFC specifies: the critic
+rejected two contracts before accepting the third (a count-only bound; then
+waiver floors *below* baseline on metrics with **no invariant backstop** —
+mrr, dark_count — an undetectable regression window; the accepted contract
+floors them at full-precision baseline values). One run non-converged on a
+provider outage that silently degraded eval to lexical against a hybrid
+baseline — fixed as the eval measure-or-abstain guard (PR #94), which then
+**fired its first live abort** during this goal's independent re-verification
+when deliberately invoked engine-mismatched. Two session-limit deaths resumed
+losslessly from the workflow's agent cache.
+
+With G3 closed, **RFC 0009 §7 now carries no open goal**: G1 (guard live),
+G2 (promote predicate), G3 (lens + project axis), G4 (pending surface), G5
+(wiki-links, closed at the ratchet — see the worked-arc appendix). One bound
+landed with zero headroom (`cross_project_noise.unowned` at its cap of 12) —
+that is where the next regression will surface first.
+
 ### Closed — RFC 0009 G1: the PII guard is live (`pii_active_patterns: 0 → 4`, probe green)
 
 The oldest open §7 goal closed end-to-end under the contract discipline (G3 —

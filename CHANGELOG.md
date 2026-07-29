@@ -27,10 +27,11 @@ baseline — fixed as the eval measure-or-abstain guard (PR #94), which then
 when deliberately invoked engine-mismatched. Two session-limit deaths resumed
 losslessly from the workflow's agent cache.
 
-With G3 closed, **every goal RFC 0009 §7 declares is landed**: G1 (guard
-live), G2 (promote predicate), G3 (lens + project axis), G4 (pending
-surface), G5 (wiki-links, extended by G6). No RFC in this repository carries
-an unimplemented machine-checkable item.
+With G3 closed, **RFC 0009 §7 now carries no open goal**: G1 (guard live),
+G2 (promote predicate), G3 (lens + project axis), G4 (pending surface), G5
+(wiki-links, closed at the ratchet — see the worked-arc appendix). One bound
+landed with zero headroom (`cross_project_noise.unowned` at its cap of 12) —
+that is where the next regression will surface first.
 
 ### Closed — RFC 0009 G1: the PII guard is live (`pii_active_patterns: 0 → 4`, probe green)
 

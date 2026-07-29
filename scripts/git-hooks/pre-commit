@@ -13,7 +13,10 @@
 # Override a known-safe commit with: git commit --no-verify
 set -u
 
-PATTERN_FILE="$HOME/.atelier/pii_patterns.txt"
+# ATELIER_PII_PATTERNS overrides the pattern-file path so the seeded-match
+# probe (RFC 0009 G1) can execute this hook hermetically against a test-local
+# fixture — never the user's real file. Production default unchanged.
+PATTERN_FILE="${ATELIER_PII_PATTERNS:-$HOME/.atelier/pii_patterns.txt}"
 MAX_BYTES="${ATELIER_MAX_STAGED_BYTES:-524288}"   # 512 KB; raise via env if a large file is genuinely intended
 
 files=$(git diff --cached --name-only --diff-filter=ACM)

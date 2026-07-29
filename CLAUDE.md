@@ -54,6 +54,16 @@ tooling. Content (the actual user IP) lives in separate private repos.
    its vault. Dedup records may be kept to prevent re-import without
    touching the source.
 
+8. **Never borrow live vault names or content as examples.** Engine code,
+   tests, docs, and commit messages must not quote names, titles, or bodies
+   from the live vault — even as a docstring example or test fixture. Use
+   synthetic placeholders (`홍길동`-class fictional names, invented titles).
+   Public figures appearing as *knowledge-domain subjects* are acceptable in
+   fixtures; personal-scheme people never are. This is the authoring-side
+   control behind the PII guard (RFC 0009 G1): the guard catches the static
+   core identities; this rule closes the long tail at the source, because
+   agents author most engine code and read this file every session.
+
 ## Source-of-truth pointers
 
 | Need | Path |

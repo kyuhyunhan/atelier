@@ -154,6 +154,50 @@ def test_guard_liveness_on_an_absent_file(tmp_path: Path) -> None:
     assert got == {"pii_active_patterns": 0, "_file_present": False}
 
 
+# ── 5.3c seeded probe — liveness by execution, not by count (G1) ────────────
+
+def test_seeded_probe_blocked_is_1_on_the_real_hook() -> None:
+    """The shipped hook, executed hermetically: seeded match blocks AND a clean
+    stage passes → 1. This is what pii_active_patterns alone cannot prove."""
+    import shutil
+    if shutil.which("git") is None:
+        import pytest
+        pytest.skip("probe needs git")
+    assert _metrics.seeded_probe_blocked() == 1
+
+
+def test_seeded_probe_reports_0_when_the_guard_is_gutted(tmp_path: Path) -> None:
+    """Reverse test: a hook that always passes must score 0 (a REAL defect
+    reading, §5.4 — never an abstain), else the metric can't fail."""
+    import shutil
+    if shutil.which("git") is None:
+        import pytest
+        pytest.skip("probe needs git")
+    gutted = tmp_path / "pre-commit"
+    gutted.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    assert _metrics.seeded_probe_blocked(hook=gutted) == 0
+
+
+def test_seeded_probe_abstains_without_a_hook(tmp_path: Path) -> None:
+    """No hook script → the probe cannot measure → None (leaf omitted), the
+    same abstain-not-fabricate rule every other metric follows."""
+    assert _metrics.seeded_probe_blocked(hook=tmp_path / "missing") is None
+
+
+def test_metrics_block_merges_probe_into_guard_liveness(atelier_env: Dict) -> None:
+    """The contract-facing shape: metrics().guard_liveness carries the
+    seeded_probe_blocked leaf when measurable, alongside pii_active_patterns."""
+    import shutil
+    if shutil.which("git") is None:
+        import pytest
+        pytest.skip("probe needs git")
+    out = _metrics.metrics(as_of=datetime.date(2026, 7, 29),
+                           vault=Path(_cl._vault_root()))
+    gl = out["guard_liveness"]
+    assert gl.get("seeded_probe_blocked") == 1
+    assert "pii_active_patterns" in gl
+
+
 # ── 5.5 lens surface coverage ───────────────────────────────────────────────
 
 def test_lens_param_reads_the_live_handler_signature() -> None:

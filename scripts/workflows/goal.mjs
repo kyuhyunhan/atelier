@@ -205,9 +205,14 @@ let verdict = null
 for (let round = 1; round <= MAX_ROUNDS; round++) {
   verdict = await agent(
     `You are the INDEPENDENT verifier for goal ${GOAL_ID}, round ${round}. Do NOT trust ` +
-    `the implementer.\n1. Reindex the vault.\n2. Run: atelier goal-verify --contract ${contractPath} ` +
-    `--before ${snap ? snap.before_path : '<before.json>'}. Exit 0 = PASS, 1 = FAIL, 2 = HARD ABORT.\n` +
-    `3. Read the printed JSON. Return outcome (pass|fail|abort), the failing check keys, and a ` +
+    `the implementer.\n1. Reindex the vault.\n2. Read the contract at ${contractPath}: if its ` +
+    `pins block carries a non-null fixture_sha256, the contract MUST also record the fixture's ` +
+    `path (a fixture_path field beside the pins); expand ~ and pass it as --fixture. A pinned ` +
+    `fixture with no locatable path is itself a hard abort — report it, do not guess a path.\n` +
+    `3. Run: atelier goal-verify --contract ${contractPath} ` +
+    `--before ${snap ? snap.before_path : '<before.json>'} [--fixture <path if pinned>]. ` +
+    `Exit 0 = PASS, 1 = FAIL, 2 = HARD ABORT.\n` +
+    `4. Read the printed JSON. Return outcome (pass|fail|abort), the failing check keys, and a ` +
     `one-line summary. Do NOT fix anything.`,
     { label: `verify:r${round}`, phase: 'Verify', schema: VERIFY_SCHEMA })
 

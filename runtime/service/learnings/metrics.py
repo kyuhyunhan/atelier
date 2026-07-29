@@ -347,6 +347,78 @@ def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any
     return {"pii_active_patterns": active, "_file_present": True}
 
 
+# ── 5.3c seeded probe — liveness by execution (RFC 0009 G1) ──────────────────
+
+_HOOK_PATH = (Path(__file__).resolve().parents[3]
+              / "scripts" / "git-hooks" / "pre-commit")
+_PROBE_TOKEN = "SEEDED-PII-XYZZY"
+
+
+def seeded_probe_blocked(*, hook: Optional[Path] = None) -> Optional[int]:
+    """1 iff the shipped pre-commit guard, executed in a hermetic scratch repo,
+    BLOCKS a staged seeded match AND passes a clean stage; 0 if either half
+    fails (a live defect — the guard is present but not guarding); None when
+    the probe cannot run (no git, no hook script).
+
+    This is the half of G1's bar a pattern *count* cannot carry (§7): one junk
+    regex makes `pii_active_patterns ≥ 1` true while blocking nothing real.
+    Execution is hermetic by construction — `ATELIER_PII_PATTERNS` points the
+    hook at a probe-local fixture and HOME is isolated, so the user's real
+    pattern file is never read and its content never influences the score.
+
+    0 vs None follows §5.4 exactly: "ran and failed to block" is a REAL
+    measurement (a floor bound must be able to fail on it); "could not run"
+    abstains (the leaf is omitted, never a fabricated pass/fail).
+    """
+    import subprocess
+    import tempfile
+    hook_src = hook if hook is not None else _HOOK_PATH
+    if not hook_src.is_file() or _shutil_which("git") is None:
+        return None
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            repo = root / "repo"
+            repo.mkdir()
+            env = dict(_os_environ())
+            env["HOME"] = str(root)                    # isolate ~/.atelier
+            env["GIT_CONFIG_NOSYSTEM"] = "1"
+            patterns = root / "probe_patterns.txt"
+            patterns.write_text(f"# probe fixture\n{_PROBE_TOKEN}\n",
+                                encoding="utf-8")
+            env["ATELIER_PII_PATTERNS"] = str(patterns)
+
+            def _git(*args: str) -> None:
+                subprocess.run(["git", *args], cwd=repo, env=env, check=True,
+                               capture_output=True)
+
+            def _hook() -> int:
+                return subprocess.run(["bash", str(hook_src)], cwd=repo,
+                                      env=env, capture_output=True).returncode
+
+            _git("init", "-q")
+            (repo / "leak.md").write_text(f"body with {_PROBE_TOKEN}\n",
+                                          encoding="utf-8")
+            _git("add", "leak.md")
+            blocked = _hook() != 0
+            (repo / "leak.md").write_text("clean body\n", encoding="utf-8")
+            _git("add", "leak.md")
+            clean_passes = _hook() == 0
+            return 1 if (blocked and clean_passes) else 0
+    except Exception:
+        return None                                    # probe environment broke
+
+
+def _shutil_which(cmd: str) -> Optional[str]:
+    import shutil
+    return shutil.which(cmd)
+
+
+def _os_environ() -> Dict[str, str]:
+    import os
+    return dict(os.environ)
+
+
 # ── 5.5 lens surface coverage ───────────────────────────────────────────────
 
 def _declared_surfaces() -> Optional[List[Dict[str, Any]]]:
@@ -441,10 +513,14 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
     fabricated zero. Any counter that cannot measure omits its key the same way.
     """
     stamp = as_of or datetime.now(timezone.utc).date()
+    gl = guard_liveness(pii_patterns_path=pii_patterns_path)
+    probe = seeded_probe_blocked()
+    if probe is not None:                # abstain → leaf omitted (§5.4)
+        gl["seeded_probe_blocked"] = probe
     out: Dict[str, Any] = {
         "promote_eligible": promote_eligible(vault=vault),
         "pending_age": pending_age(as_of=stamp, vault=vault),
-        "guard_liveness": guard_liveness(pii_patterns_path=pii_patterns_path),
+        "guard_liveness": gl,
     }
     lens = lens_param_present()
     if lens is not None:

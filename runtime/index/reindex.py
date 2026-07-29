@@ -431,7 +431,7 @@ def _build_alias_index(conn: sqlite3.Connection,
                        by_space: dict) -> dict[str, int]:
     """Map normalized entity name/alias → page_id of the canonical entity page.
 
-    Lets a bare `[[Some Person]]` / `[[김현주]]` (which the slug-form candidates
+    Lets a bare `[[Some Person]]` / `[[홍길동]]` (which the slug-form candidates
     miss, since they don't probe wiki/entities/) bind to the canonical entity
     regardless of which domain references it."""
     index: dict[str, int] = {}
@@ -440,7 +440,7 @@ def _build_alias_index(conn: sqlite3.Connection,
         pid = next((m[slug] for m in by_space.values() if slug in m), None)
         if pid is None:
             continue
-        # the entity's own basename: wiki/entities/김현주.md → 김현주
+        # the entity's own basename: wiki/entities/홍길동.md → 홍길동
         index.setdefault(_norm(slug.split("/")[-1].rsplit(".", 1)[0]), pid)
         try:
             aliases = json.loads(r["aliases"] or "[]")

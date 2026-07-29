@@ -143,6 +143,20 @@ def surfacing_of(fm: Dict[str, Any]) -> str:
     return s if s in _LADDER else TIER_QUERY
 
 
+def is_pending_review(fm: Dict[str, Any]) -> bool:
+    """The ONE definition of "in the pending review queue" (RFC 0009 G4):
+    an operational claim whose ac_status is pending. Shared by the review
+    surface (`review.review_pending`) and the metric (`metrics.pending_age`)
+    so the two can be ASSERTED equal — before this, the metric counted
+    any-domain pendings while the surface filtered to operational, equal on
+    the live vault only by coincidence (§3.2 rule 1: one definition, no
+    drift). Knowledge/personal claims never pass through the acceptance
+    gate, so a hypothetical pending one is not reviewable and is counted by
+    neither side."""
+    return (str(fm.get("domain") or "") == "operational"
+            and str(fm.get("ac_status") or "").lower() == "pending")
+
+
 def is_promote_candidate(fm: Dict[str, Any]) -> bool:
     """The domain-INDEPENDENT prerequisites for query→proactive promotion: the
     claim is still on the query tier and is public. A claim that clears this but

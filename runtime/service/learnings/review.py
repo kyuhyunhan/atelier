@@ -47,14 +47,17 @@ def _is_operational(fm: Dict[str, Any]) -> bool:
 
 
 def _iter_pending(vault: Path) -> Iterable[tuple]:
-    """(path, fm, body) for every operational claim still awaiting acceptance
-    (ac_status pending). These are what review surfaces — the old candidates/."""
+    """(path, fm, body) for every claim in the pending review queue — the ONE
+    shared predicate (`claims_io.is_pending_review`, RFC 0009 G4). This closes
+    PREDICATE drift with `metrics.pending_age`; store drift remains possible
+    (the metric prefers the projection DB, this reads files — equal once
+    reindexed)."""
     for p in _claims.iter_claim_files(vault):
         got = _claims.read_claim(p)
         if got is None:
             continue
         fm, body = got
-        if _is_operational(fm) and str(fm.get("ac_status") or "") == "pending":
+        if _claims.is_pending_review(fm):
             yield p, fm, body
 
 
@@ -96,35 +99,80 @@ def _now_iso() -> str:
 
 
 def review_pending(*, limit: int = 20, project: Optional[str] = None,
-                   since: Optional[str] = None) -> Dict[str, Any]:
+                   since: Optional[str] = None,
+                   as_of: Optional[str] = None) -> Dict[str, Any]:
+    """The pending review queue (RFC 0009 G4).
+
+    `limit` pages `items` only — `total` and `max_age_days` always describe the
+    WHOLE (filtered) queue, so a truncated page can never read as a small
+    backlog (the pre-G4 defect: `count` was the page size, and 41 pending
+    looked like 20 with no signal more existed). On an unfiltered call,
+    `total` == `metrics.pending_age(as_of).count` and `max_age_days` == its
+    `.max` — asserted by test, provable because both sides share
+    `claims_io.is_pending_review`. Ages are days from `created_at` (the same
+    field the metric reads) to `as_of` (ISO date; today when omitted); an
+    undated item stays in the queue with `age_days: None`, and `max_age_days`
+    abstains (key omitted) when any queue item is undated — mirroring
+    `pending_age`'s dated/count split (§5.4). A DRAINED queue is the opposite
+    case: zero undated items and zero ages is a *measurable* max of 0 (there is
+    no tail), reported as `max_age_days: 0` exactly as the metric does —
+    abstaining there would fabricate "could not measure" on the queue's most
+    desirable state.
+
+    Shared predicate, not shared store: the metric prefers the projection DB
+    while this surface reads the markdown files, so between an edit and the
+    next reindex the two can legitimately disagree — the equality holds on a
+    reindexed vault."""
+    from datetime import datetime as _dt, timezone as _tz
+    from .metrics import _as_date
     vault = _vault_root()
     accepted_ids = _accepted_entry_ids(vault)
     criteria = _crit.load(vault)
+    # UTC date, matching metrics()' as_of stamp — a local-midnight default
+    # would let an unfiltered call disagree with the metric by a day.
+    ref = _as_date(as_of) if as_of else _dt.now(_tz.utc).date()
 
+    total = 0
+    ages: List[int] = []
+    undated = 0
     items: List[Dict[str, Any]] = []
     for p, fm, body in _iter_pending(vault):
         if project and fm.get("project_hint") != project:
             continue
         if since and str(fm.get("captured_at", "")) < since:
             continue
-        check = _crit.check(fm, body, accepted_index=accepted_ids,
-                            criteria=criteria)
-        items.append({
-            "slug": p.stem,
-            "path": str(p),
-            "captured_at": fm.get("captured_at"),
-            "project_hint": fm.get("project_hint"),
-            "hook": fm.get("hook"),
-            "entry_id": fm.get("entry_id"),
-            "must_pass": check.must_pass(),
-            "forbidden_clear": check.forbidden_clear(),
-            "must": check.must,
-            "should": check.should,
-            "forbidden": check.forbidden,
-        })
-        if len(items) >= limit:
-            break
-    return {"count": len(items), "items": items, "vault": str(vault)}
+        total += 1
+        d = _as_date(fm.get("created_at") or fm.get("created"))
+        age = max(0, (ref - d).days) if (d is not None and ref is not None) else None
+        if age is None:
+            undated += 1
+        else:
+            ages.append(age)
+        if len(items) < limit:
+            check = _crit.check(fm, body, accepted_index=accepted_ids,
+                                criteria=criteria)
+            items.append({
+                "slug": p.stem,
+                "path": str(p),
+                "captured_at": fm.get("captured_at"),
+                "age_days": age,
+                "project_hint": fm.get("project_hint"),
+                "hook": fm.get("hook"),
+                "entry_id": fm.get("entry_id"),
+                "must_pass": check.must_pass(),
+                "forbidden_clear": check.forbidden_clear(),
+                "must": check.must,
+                "should": check.should,
+                "forbidden": check.forbidden,
+            })
+    out: Dict[str, Any] = {"count": len(items), "total": total,
+                           "items": items, "vault": str(vault)}
+    if undated == 0:
+        # Empty ages with zero undated == a drained queue: max 0 is a REAL
+        # measurement (no tail), mirroring pending_age's `ages[-1] if ages
+        # else 0`. Only an undated item makes the tail unmeasurable.
+        out["max_age_days"] = max(ages) if ages else 0
+    return out
 
 
 # ── accept (the acceptance gate: ac_status pending → passed) ──────────────────

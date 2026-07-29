@@ -125,11 +125,19 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
     from . import claims_io as _claims
     from . import projection_counts as _pc
 
+    # The ONE queue predicate (RFC 0009 G4): shared with the review surface so
+    # `pending_age.count/.max` can be ASSERTED equal to what review_pending
+    # serves (on a reindexed vault — the predicate is shared, the store is
+    # not: this prefers the projection, the surface reads files). Before G4
+    # this counted any-domain pendings while the surface filtered to
+    # operational — equal on the live vault only by coincidence. NOTE the
+    # frozen program anchor (docs/rfc/0009-baseline.json) captured its
+    # pending_age under the old any-domain definition; values coincide (all
+    # live pendings are operational) but the semantics changed here.
     fms: List[Dict[str, Any]]
     nodes = _pc._load_nodes()
     if nodes is not None:
-        fms = [fm for fm in nodes["claims"]
-               if str(fm.get("ac_status") or "").lower() == "pending"]
+        fms = [fm for fm in nodes["claims"] if _claims.is_pending_review(fm)]
     else:
         fms = []
         for p in _claims.iter_claim_files(vault):
@@ -137,7 +145,7 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
             if got is None:
                 continue
             fm, _ = got
-            if str(fm.get("ac_status") or "").lower() == "pending":
+            if _claims.is_pending_review(fm):
                 fms.append(fm)
 
     ages: List[int] = []

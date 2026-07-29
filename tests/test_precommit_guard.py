@@ -29,14 +29,19 @@ def _scratch_repo(tmp_path: Path) -> Path:
 
 
 def _run_hook(repo: Path, patterns: Path | None) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    # Point the guard at the TEST-LOCAL pattern file; isolate HOME so the
-    # user's real ~/.atelier can never leak into the probe.
+    # Hermetic env, mirroring metrics.seeded_probe_blocked (review [MUST]):
+    # scrub inherited GIT_* (a dev running tests from inside a git hook must
+    # not have this stage the wrong repo) and the size knob (an exported
+    # ATELIER_MAX_STAGED_BYTES would spuriously fail test_clean_stage_passes);
+    # isolate HOME so the user's real ~/.atelier can never leak in.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.pop("XDG_CONFIG_HOME", None)
+    env.pop("ATELIER_MAX_STAGED_BYTES", None)
     env["HOME"] = str(repo.parent)
     if patterns is not None:
         env["ATELIER_PII_PATTERNS"] = str(patterns)
     return subprocess.run(["bash", str(HOOK)], cwd=repo, env=env,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, timeout=10)
 
 
 def _stage(repo: Path, name: str, body: str) -> None:

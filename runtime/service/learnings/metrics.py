@@ -370,19 +370,34 @@ def seeded_probe_blocked(*, hook: Optional[Path] = None) -> Optional[int]:
     measurement (a floor bound must be able to fail on it); "could not run"
     abstains (the leaf is omitted, never a fabricated pass/fail).
     """
+    import os
+    import shutil
     import subprocess
     import tempfile
     hook_src = hook if hook is not None else _HOOK_PATH
-    if not hook_src.is_file() or _shutil_which("git") is None:
+    if not hook_src.is_file() or shutil.which("git") is None:
         return None
     try:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             repo = root / "repo"
             repo.mkdir()
-            env = dict(_os_environ())
+            # Hermetic environment — review [MUST]: a copied caller env leaks.
+            # Inherited GIT_DIR/GIT_INDEX_FILE (standard inside any git hook)
+            # made the scratch `git init`/`add` target the CALLER'S repo — a
+            # write to a repo atelier does not own; an inherited
+            # ATELIER_MAX_STAGED_BYTES tripped layer 1 on the clean stage and
+            # fabricated a 0 against a healthy guard. So: scrub every GIT_*,
+            # drop XDG_CONFIG_HOME (git prefers $XDG_CONFIG_HOME/git/config
+            # over $HOME, defeating HOME isolation) and the size knob, and
+            # sever global/system git config explicitly.
+            env = {k: v for k, v in os.environ.items()
+                   if not k.startswith("GIT_")}
+            env.pop("XDG_CONFIG_HOME", None)
+            env.pop("ATELIER_MAX_STAGED_BYTES", None)  # pin layer 1 to default
             env["HOME"] = str(root)                    # isolate ~/.atelier
             env["GIT_CONFIG_NOSYSTEM"] = "1"
+            env["GIT_CONFIG_GLOBAL"] = os.devnull
             patterns = root / "probe_patterns.txt"
             patterns.write_text(f"# probe fixture\n{_PROBE_TOKEN}\n",
                                 encoding="utf-8")
@@ -390,11 +405,14 @@ def seeded_probe_blocked(*, hook: Optional[Path] = None) -> Optional[int]:
 
             def _git(*args: str) -> None:
                 subprocess.run(["git", *args], cwd=repo, env=env, check=True,
-                               capture_output=True)
+                               capture_output=True, timeout=10)
 
             def _hook() -> int:
+                # No check=True here — a nonzero exit is the MEASUREMENT
+                # (blocked), never an exception; only scaffolding may raise.
                 return subprocess.run(["bash", str(hook_src)], cwd=repo,
-                                      env=env, capture_output=True).returncode
+                                      env=env, capture_output=True,
+                                      timeout=10).returncode
 
             _git("init", "-q")
             (repo / "leak.md").write_text(f"body with {_PROBE_TOKEN}\n",
@@ -407,16 +425,6 @@ def seeded_probe_blocked(*, hook: Optional[Path] = None) -> Optional[int]:
             return 1 if (blocked and clean_passes) else 0
     except Exception:
         return None                                    # probe environment broke
-
-
-def _shutil_which(cmd: str) -> Optional[str]:
-    import shutil
-    return shutil.which(cmd)
-
-
-def _os_environ() -> Dict[str, str]:
-    import os
-    return dict(os.environ)
 
 
 # ── 5.5 lens surface coverage ───────────────────────────────────────────────

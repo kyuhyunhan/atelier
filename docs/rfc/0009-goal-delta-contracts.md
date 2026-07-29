@@ -449,7 +449,34 @@ specified the absent-file case deliberately (a no-op pass); the case it left
 **unspecified** is a file that exists with zero active lines — which both
 enforcement points and `scripts/setup` report healthy on. This metric closes that
 gap. Because the file is untracked and per-machine, the count alone is not
-auditable by anyone else, so G1 pairs it with a seeded-match probe (§7).
+auditable by anyone else, so G1 pairs it with a seeded-match probe (§5.3c).
+
+### 5.3c `guard_liveness.seeded_probe_blocked` — liveness by execution
+
+*(added 2026-07-29, with the G1 re-scope; landed ahead of the goal per §3.2)*
+
+The half of G1's bar a pattern count cannot carry: one junk regex makes
+`pii_active_patterns ≥ 1` true while blocking nothing. `seeded_probe_blocked`
+executes the **shipped hook script** in a hermetic scratch git repo and scores:
+
+- **1** — a staged seeded match BLOCKS (nonzero exit) **and** a clean stage
+  passes. Both halves are required: a guard that blocks everything is as dead
+  as one that blocks nothing.
+- **0** — either half fails. A *real measurement* (§5.4's floor-bound rule):
+  the guard is present but not guarding.
+- **leaf omitted** — the probe cannot run (no git, no hook script). Abstain,
+  never a fabricated verdict.
+
+Hermeticity is load-bearing and *severed from the caller's environment*, not
+just from the user's pattern file: the probe scrubs every inherited `GIT_*`
+variable (else a probe invoked from inside any git hook operates on the
+caller's repo — a write to a repo atelier does not own), drops
+`XDG_CONFIG_HOME` and pins `ATELIER_MAX_STAGED_BYTES` (an inherited size knob
+tripped layer 1 on the clean stage and fabricated a 0 against a healthy
+guard), isolates `HOME`, and severs global/system git config. The probe's
+pattern fixture is its own (`ATELIER_PII_PATTERNS` override); the user's real
+file never influences the score. The leaf lives under `guard_liveness` in the
+ENVELOPE namespace; on any machine with git it is stable across baselines.
 
 ### 5.4 `cross_project_noise{project, foreign_ratio, returned}`
 Run a dev-session recall for a given project; report the fraction of returned

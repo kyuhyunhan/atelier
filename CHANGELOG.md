@@ -15,9 +15,7 @@ queue reads `why_status` 39 present / 4 missing (all four stray manual
 captures — G4-review items, not curation inputs), and the in-session capture
 disposition carries the write half with a mandatory `why` at capture time.
 Building it would curate an empty queue. Closed with a reopen condition in
-the RFC's closing note. With this, **every RFC in the repository carries an
-explicit disposition** — implemented, optional-by-its-own-text, or formally
-superseded.
+the RFC's closing note.
 
 ### Closed — RFC 0009 G3, and with it the entire §7 goal catalogue (G1–G5)
 

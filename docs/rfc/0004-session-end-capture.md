@@ -99,14 +99,17 @@ Measured against the live vault:
   39 present / 4 missing — and all four are stray *manual* captures, review-queue
   items for the human acceptance gate (RFC 0009 G4's surface), not inputs for an
   LLM curation pass.
-- **The problem moved upstream and was solved there.** This RFC's premise was
-  that durable material is lost at session boundaries because in-session capture
-  cannot be relied on. Since then, the SessionStart capture disposition
-  instructs the live agent to capture DURING the session with a mandatory `why`
-  (`require_why=true`; `why_status` is tracked per claim) — the write half of
-  the loop is carried by agent judgment at capture time, which is precisely the
-  "don't ghostwrite judgment" outcome Phase 2 was designed to approximate after
-  the fact. Phase 1's hook path remains as the deterministic backstop it is,
+- **The problem moved upstream and is being solved there — positively
+  evidenced, not just by the empty queue.** This RFC's premise was that durable
+  material is lost at session boundaries because in-session capture cannot be
+  relied on. Since then, the SessionStart capture disposition instructs the
+  live agent to capture DURING the session with a mandatory `why`
+  (`require_why=true`; `why_status` is tracked per claim) — and the disposition
+  is demonstrably honored: in-session captures landed on 2026-07-27, -28 (×2),
+  and -29 (×2), all `why_status: present`. (An empty no-why queue alone would
+  be equally consistent with "nothing is captured at all"; the recent honored
+  captures are what rule that reading out.) This is the "don't ghostwrite
+  judgment" outcome Phase 2 was designed to approximate after the fact. Phase 1's hook path remains as the deterministic backstop it is,
   with the substance gate keeping it honest.
 
 Building Phase 2 today would curate an empty queue. If the population ever

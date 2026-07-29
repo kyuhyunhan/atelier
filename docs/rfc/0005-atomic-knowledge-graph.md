@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft (proposed 2026-06-18) |
+| **Status** | Implemented (proposed 2026-06-18) — the v7 atomic graph is the live model (`schema_version: 7` claims/entities/sources) |
 | **Scope** | the whole content model (`raw/` → `graph/` → projection); the node ontology; `entry_id` derivation; structure single-sourcing; every ingest / derive / recall pipeline |
 | **Builds on** | RFC 0001 (facets-not-paths), RFC 0003 (one graph, deterministic ingest, LLM off the write path) |
 | **Revises** | RFC 0003 directory naming (`provenance/` → `raw/`); extends the entity layer from per-source pages to **atomic claims + entities** |

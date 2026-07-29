@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft (proposed 2026-07-23) |
+| **Status** | Implemented (proposed 2026-07-23) — engine + operator surface landed; the §7 goal catalogue closed 2026-07-29 (G1–G5, PR #96) |
 | **Scope** | the verification protocol for the work that remains after RFC 0006's four pillars — a **delta contract** (declare the intended change, then gate on it), a third snapshot class (the per-run *round baseline*), five new census counters, and a **convergence loop** that re-verifies after a fix instead of failing once. Adds the `goal` command as the operator surface. |
 | **Builds on** | RFC 0006 (the rubric-gated protocol, `verify.py`, `baseline.py`, `census.py`, `scripts/workflows/memory-pillar.mjs`), RFC 0008 (absorb perimeter — the source of several goals here) |
 | **Revises** | RFC 0006 §6. Its *baseline-diffing* gates are all monotone ("did not shrink / did not regress"), which cannot express a deliberate reduction. This RFC adds an orthogonal axis and defines the one narrow way a contract may supersede a monotone invariant (§3.3); it removes no invariant. |

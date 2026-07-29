@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Proposed |
+| **Status** | Implemented — landed 2026-06 (see CHANGELOG); §6 lock-role rename live (`wiki-write`/`learnings-write`); §6 accessor collapse landed 2026-07-30 (#98, PR #99) |
 | **Scope** | `learnings/` domain; workshop retirement; persona removal |
 | **Schema** | v4 → v5 (additive + one demotion, auto-migrated) |
 | **Supersedes** | the `by-topic` / `by-project` mirror-tree layout |

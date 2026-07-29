@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Proposed |
+| **Status** | Implemented — P1–P4 (the §7 contract) live, engine `hybrid`; P5–P7 optional/deferred by the RFC's own text (§7, risks table) |
 | **Scope** | the retrieval layer (`runtime/search/`, `runtime/index/`, recall/search) |
 | **Builds on** | RFC 0001 (flat facet store) — facets become *filters* layered on hybrid retrieval |
 | **Reference** | `github.com/garrytan/gbrain` — atelier's lineage (`atelier:gbrain`); this RFC brings atelier's retrieval up to gbrain's model |

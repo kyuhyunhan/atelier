@@ -110,3 +110,42 @@ def test_vault_local_placeholder_rejected(atelier_env: Dict) -> None:
     })
     with pytest.raises(ValueError, match="placeholder"):
         _config.load()
+
+
+# ── the ONE vault-root accessor (RFC 0001 §6, closed via issue #98) ──────────
+
+def test_vault_root_prefers_the_vault_block(atelier_env: Dict) -> None:
+    """Single-vault config: `vault_root()` is `vault.local` — the accessor the
+    22 per-module `_vault_root()` helpers duplicated before the collapse."""
+    from runtime.util import config as _config
+    vault_path = _base_workspace(atelier_env)
+    _write_config(atelier_env["home"], {
+        "vault": {"local": str(vault_path),
+                  "remote": {"type": "github", "url": "github.com/test/vault",
+                             "branch": "main"}},
+        "subtrees": {"raw": {"writer": "human-only"}},
+    })
+    cfg = _config.load()
+    assert cfg.vault_root() == vault_path
+    assert _config.vault_root() == vault_path        # module-level convenience
+
+
+def test_vault_root_falls_back_to_the_librarian_space(atelier_env: Dict) -> None:
+    """Legacy two-space config: the fallback is the librarian-territory space's
+    local root — byte-identical to what every duplicated helper computed."""
+    from runtime.util import config as _config
+    ws = atelier_env["home"] / "ws"
+    (ws / "gorae").mkdir(parents=True)
+    (ws / "workshop").mkdir(parents=True)
+    _write_config(atelier_env["home"], {
+        "spaces": {
+            "gorae": {"role": "librarian-territory", "local": str(ws / "gorae"),
+                      "remote": {"type": "github", "url": "github.com/t/g",
+                                 "branch": "main"}},
+            "workshop": {"role": "builder-territory", "local": str(ws / "workshop"),
+                         "remote": {"type": "github", "url": "github.com/t/w",
+                                    "branch": "main"}},
+        },
+    })
+    cfg = _config.load()
+    assert cfg.vault_root() == ws / "gorae"

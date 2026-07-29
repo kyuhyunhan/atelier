@@ -19,10 +19,7 @@ from . import content_id as _content_id
 
 
 def _vault_root() -> Path:
-    cfg = _config.load()
-    if cfg.vault is not None:
-        return cfg.vault.local
-    return cfg.space_by_role("librarian-territory").local
+    return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 def fix_pending(*, dry_run: bool = False,

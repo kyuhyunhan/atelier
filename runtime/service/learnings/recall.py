@@ -35,10 +35,7 @@ from ...util import db as _db
 
 
 def _vault_root() -> Path:
-    cfg = _config.load()
-    if cfg.vault is not None:
-        return cfg.vault.local
-    return cfg.space_by_role("librarian-territory").local
+    return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 _DEFAULT_TYPES = ("learning_principle", "learning_accepted",

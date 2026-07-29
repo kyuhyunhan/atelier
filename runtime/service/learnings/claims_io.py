@@ -45,10 +45,7 @@ _LADDER = {TIER_QUERY: 0, TIER_PROACTIVE: 1, TIER_ALWAYS: 2}
 
 
 def vault_root() -> Path:
-    cfg = _config.load()
-    if cfg.vault is not None:
-        return cfg.vault.local
-    return cfg.space_by_role("librarian-territory").local
+    return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 def claims_dir(vault: Optional[Path] = None) -> Path:

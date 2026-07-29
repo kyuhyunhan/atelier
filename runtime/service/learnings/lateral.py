@@ -41,10 +41,7 @@ _TAG_SPLIT = re.compile(r"[\s\-_/]+")
 
 def _vault_root() -> Path:
     from ...util import config as _config
-    cfg = _config.load()
-    if cfg.vault is not None:
-        return cfg.vault.local
-    return cfg.space_by_role("librarian-territory").local
+    return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 def _body_tokens(path: Path) -> Set[str]:

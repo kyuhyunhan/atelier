@@ -121,6 +121,18 @@ class Config:
             raise KeyError(f"unknown space: {name!r}; known: {list(self.spaces)}")
         return self.spaces[name]
 
+    def vault_root(self) -> Path:
+        """THE vault root — the one accessor RFC 0001 §6 promised (closed via
+        issue #98). `vault.local` in the single-vault model; the
+        librarian-territory space's local root under a legacy two-space config
+        (both point at one root in the synthesized model). Before this landed,
+        22 modules each carried a private `_vault_root()` duplicating exactly
+        this fallback — the recurring "one definition, many private copies"
+        failure mode. Add call sites here; never re-derive the fallback."""
+        if self.vault is not None:
+            return self.vault.local
+        return self.space_by_role("librarian-territory").local
+
     def space_by_role(self, role: str) -> SpaceConfig:
         """Resolve a space by its declared role (e.g. 'librarian-territory').
 
@@ -380,3 +392,11 @@ def _validate_strict(cfg: "Config", path: Path) -> None:
 def ensure_cache_dir() -> Path:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return CACHE_DIR
+
+
+def vault_root(path: Optional[Path] = None) -> Path:
+    """Module-level convenience: load config and return THE vault root.
+
+    The single accessor for "where is the vault" (RFC 0001 §6 / issue #98).
+    Modules that used to define a private `_vault_root()` delegate here."""
+    return load(path).vault_root()

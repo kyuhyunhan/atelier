@@ -29,8 +29,7 @@ def _cmd_setup(args: argparse.Namespace) -> int:
 
     # Ground the vault: ensure it self-describes (RFC 0006 ①). Idempotent.
     from .structure import manifest as _manifest
-    vault = cfg.vault.local if getattr(cfg, "vault", None) is not None \
-        else cfg.space_by_role("librarian-territory").local
+    vault = cfg.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
     if vault.exists():
         m = _manifest.ensure(vault)
         print(f"  manifest: {vault / _manifest.MANIFEST_FILENAME}  "

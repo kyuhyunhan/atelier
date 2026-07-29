@@ -143,7 +143,8 @@ def _concept_block(vault: Path, k: int) -> Dict[str, Any]:
 
 
 def _vault_root() -> Path:
-    return _surfacing._vault_root()
+    from ...util import config as _config
+    return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 # ── paraphrase probe set (frozen authored fixture) ──────────────────────────

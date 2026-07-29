@@ -127,8 +127,13 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
 
     # The ONE queue predicate (RFC 0009 G4): shared with the review surface so
     # `pending_age.count/.max` can be ASSERTED equal to what review_pending
-    # serves. Before G4 this counted any-domain pendings while the surface
-    # filtered to operational — equal on the live vault only by coincidence.
+    # serves (on a reindexed vault — the predicate is shared, the store is
+    # not: this prefers the projection, the surface reads files). Before G4
+    # this counted any-domain pendings while the surface filtered to
+    # operational — equal on the live vault only by coincidence. NOTE the
+    # frozen program anchor (docs/rfc/0009-baseline.json) captured its
+    # pending_age under the old any-domain definition; values coincide (all
+    # live pendings are operational) but the semantics changed here.
     fms: List[Dict[str, Any]]
     nodes = _pc._load_nodes()
     if nodes is not None:

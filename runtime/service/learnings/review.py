@@ -48,8 +48,10 @@ def _is_operational(fm: Dict[str, Any]) -> bool:
 
 def _iter_pending(vault: Path) -> Iterable[tuple]:
     """(path, fm, body) for every claim in the pending review queue — the ONE
-    shared predicate (`claims_io.is_pending_review`, RFC 0009 G4), so this
-    surface and `metrics.pending_age` can never drift apart."""
+    shared predicate (`claims_io.is_pending_review`, RFC 0009 G4). This closes
+    PREDICATE drift with `metrics.pending_age`; store drift remains possible
+    (the metric prefers the projection DB, this reads files — equal once
+    reindexed)."""
     for p in _claims.iter_claim_files(vault):
         got = _claims.read_claim(p)
         if got is None:
@@ -111,13 +113,24 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
     field the metric reads) to `as_of` (ISO date; today when omitted); an
     undated item stays in the queue with `age_days: None`, and `max_age_days`
     abstains (key omitted) when any queue item is undated — mirroring
-    `pending_age`'s dated/count split (§5.4)."""
-    from datetime import date as _date
+    `pending_age`'s dated/count split (§5.4). A DRAINED queue is the opposite
+    case: zero undated items and zero ages is a *measurable* max of 0 (there is
+    no tail), reported as `max_age_days: 0` exactly as the metric does —
+    abstaining there would fabricate "could not measure" on the queue's most
+    desirable state.
+
+    Shared predicate, not shared store: the metric prefers the projection DB
+    while this surface reads the markdown files, so between an edit and the
+    next reindex the two can legitimately disagree — the equality holds on a
+    reindexed vault."""
+    from datetime import datetime as _dt, timezone as _tz
     from .metrics import _as_date
     vault = _vault_root()
     accepted_ids = _accepted_entry_ids(vault)
     criteria = _crit.load(vault)
-    ref = _as_date(as_of) if as_of else _date.today()
+    # UTC date, matching metrics()' as_of stamp — a local-midnight default
+    # would let an unfiltered call disagree with the metric by a day.
+    ref = _as_date(as_of) if as_of else _dt.now(_tz.utc).date()
 
     total = 0
     ages: List[int] = []
@@ -154,8 +167,11 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
             })
     out: Dict[str, Any] = {"count": len(items), "total": total,
                            "items": items, "vault": str(vault)}
-    if undated == 0 and ages:
-        out["max_age_days"] = max(ages)
+    if undated == 0:
+        # Empty ages with zero undated == a drained queue: max 0 is a REAL
+        # measurement (no tail), mirroring pending_age's `ages[-1] if ages
+        # else 0`. Only an undated item makes the tail unmeasurable.
+        out["max_age_days"] = max(ages) if ages else 0
     return out
 
 

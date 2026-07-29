@@ -107,6 +107,20 @@ def test_g4_knowledge_pending_is_counted_by_neither(atelier_env: Dict) -> None:
     assert surface["total"] == metric["count"] == 3
 
 
+def test_g4_empty_queue_measures_zero_on_both_sides(atelier_env: Dict) -> None:
+    """Review [MUST] regression: a DRAINED queue is a measurable max of 0 on
+    BOTH sides — the surface must not abstain (omitting the key fabricates
+    'could not measure' on the queue's most desirable state, and breaks the
+    asserted equality with the metric's `max: 0`)."""
+    vault = Path(_cl._vault_root())
+    _write_claim(vault, "p-passed", domain="operational", ac_status="passed")
+    _api.reindex(space="gorae", full=True)
+    surface = _rev.review_pending(as_of=AS_OF)
+    metric = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
+    assert surface["total"] == metric["count"] == 0
+    assert surface["max_age_days"] == metric["max"] == 0
+
+
 def test_g4_undated_pending_still_counts_and_age_is_none(
         atelier_env: Dict) -> None:
     """An undated pending must not vanish from the queue (that would hide it

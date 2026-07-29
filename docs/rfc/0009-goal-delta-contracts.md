@@ -601,19 +601,31 @@ Verify      independent verifier: INTENT + ENVELOPE + INVARIANT
       ├─ FAIL, round < 3 → FIXER agent gets ONLY the failing checks → Verify
       ├─ FAIL, round = 3 → discard the branch (code) + snapshot restore if the
       │                    run mutated the vault → escalate, never merge
-      └─ RAISE (broken pin, unknown metric key, absent blob) → HARD ABORT
-                           does not consume a round, is never retried in-run,
-                           and never reaches Ship
+      └─ RAISE (broken pin, unknown metric key, absent blob, eval-engine
+                           mismatch) → HARD ABORT — does not consume a round, is
+                           never retried in-run, and never reaches Ship
 Ship        ship-pr (which runs its own independent review loop)
 ```
 
 **A raise is not a FAIL.** A failing check means the change missed its target and
 a fixer may try again. A raise means the *harness* cannot be trusted for this run
 — a pin that does not match, a metric key that does not exist, a contract blob
-that is not in the repo. Retrying inside the run would let a builder convert a
-broken integrity check into three chances at a green one, so the run aborts and
-escalates to a human. Amending the contract mid-run is therefore not a path: a new
-contract is a new run, with a new round baseline.
+that is not in the repo, or an **eval-engine mismatch** between the two snapshots.
+The last was learned the hard way (G3, 2026-07-29): the embedding provider went
+down mid-run, so `resolver._embed_query` silently degraded every eval probe to
+lexical while the engine label still read `hybrid`, and the paraphrase-recall
+invariant compared lexical-after against hybrid-before and reported a regression
+that never happened — three fixer rounds chasing a phantom, then a passing
+implementation discarded. The fix is measure-or-abstain applied to the eval
+layer: `eval._engine_label` now *earns* the `hybrid` label with a canary
+embedding (an unreachable provider records `hybrid-degraded`), and
+`goal._guard_eval_engine` raises on any engine mismatch while an eval invariant
+is live — recall is not comparable across engines, so the run aborts for a
+re-run rather than failing the fixer onto an un-measurable comparison. Retrying
+inside the run would let a builder convert a broken integrity check into three
+chances at a green one, so the run aborts and escalates to a human. Amending the
+contract mid-run is therefore not a path: a new contract is a new run, with a new
+round baseline.
 
 Three properties, each deliberate:
 

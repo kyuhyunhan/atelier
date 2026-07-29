@@ -204,12 +204,24 @@ def gate(before: Dict[str, Dict[str, Any]],
 
 
 def _engine_label() -> str:
-    """The live retrieval mode, so a frozen baseline records *what* it measured.
+    """The retrieval mode this run ACTUALLY measured under — so a frozen
+    baseline, and any later cross-run comparison, knows what it is comparing.
 
-    Reflects what the resolver actually wires right now: `hybrid` when the
-    semantic mode is available (embeddings on + sqlite-vec), else `lexical-rrf`
-    (RRF over lexical alone — the degrade path, and what CI measures under
-    `ATELIER_EMBED=off`)."""
+    `hybrid` when the semantic mode is wired (embeddings on + sqlite-vec) AND a
+    canary embedding through the same gateway the probes use succeeds;
+    `lexical-rrf` when semantic is not wired (`ATELIER_EMBED=off`, no
+    sqlite-vec); `hybrid-degraded` when semantic IS wired but the provider is
+    unreachable right now.
+
+    The canary is load-bearing. `resolver._embed_query` swallows a per-query
+    provider failure and degrades to lexical — CORRECT for serving (atelier
+    stays lexical-only when the provider is down), CORRUPTING for measurement:
+    every probe would then score lexical while the label still read `hybrid`,
+    and a verify comparing that against a `hybrid` round baseline fabricates a
+    recall regression (the G3 phantom, 2026-07-29). A `hybrid` label must be
+    EARNED by a provider that answers, so the honest `hybrid-degraded` label
+    lets the verifier abort on the engine mismatch instead of failing on
+    lexical-vs-hybrid numbers."""
     from ...search import resolver as _resolver
     from ...util import db as _db
     try:
@@ -219,7 +231,14 @@ def _engine_label() -> str:
     try:
         ctx = _resolver.build_context(conn)
         try:
-            return "hybrid" if ctx.engine.semantic is not None else "lexical-rrf"
+            if ctx.engine.semantic is None or ctx.gateway is None:
+                return "lexical-rrf"        # not wired for hybrid (e.g. EMBED=off)
+            try:
+                vecs = ctx.gateway.embed(["_engine_label_canary_"])
+                healthy = bool(vecs) and bool(vecs[0])
+            except Exception:               # provider down / timeout / bad dim
+                healthy = False
+            return "hybrid" if healthy else "hybrid-degraded"
         finally:
             ctx.close()
     finally:

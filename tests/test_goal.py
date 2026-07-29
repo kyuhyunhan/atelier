@@ -63,6 +63,69 @@ def test_an_unintended_vault_change_fails_the_envelope():
     assert fp and fp[0]["ok"] is False
 
 
+# ── eval engine guard (§6, the G3 phantom-regression fix) ────────────────────
+
+def _eval(engine, para_recall):
+    return {"engine": engine,
+            "self_probe": {"recall_at_k": 1.0},
+            "paraphrase": {"recall_at_k": para_recall}}
+
+
+def test_eval_engine_mismatch_raises_not_fails():
+    """A hybrid round baseline vs a lexical after-run (a provider outage
+    degraded the after-measurement) is un-measurable, not a regression. It must
+    hard-abort (§6), never FAIL the fixer onto a phantom."""
+    before = _base(metrics={"x": 830}, eval=_eval("hybrid", 0.77))
+    after = _base(metrics={"x": 23}, eval=_eval("hybrid-degraded", 0.64))
+    ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}]}
+    with pytest.raises(ContractError, match="eval engine mismatch"):
+        _goal.verify_contract(ct, before, after)
+
+
+def test_same_engine_still_fails_a_genuine_recall_regression():
+    """The guard must not mask real regressions: within ONE engine, a recall
+    drop still FAILs the invariant (the guard only fires on a mismatch)."""
+    before = _base(metrics={"x": 830}, eval=_eval("hybrid", 0.77))
+    after = _base(metrics={"x": 23}, eval=_eval("hybrid", 0.64))   # same engine
+    ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}]}
+    res = _goal.verify_contract(ct, before, after)
+    assert res["passed"] is False
+    assert any(c["id"] == "eval/paraphrase.recall_at_k" and not c["ok"]
+               for c in res["invariants"])
+
+
+def test_eval_engine_missing_on_one_side_does_not_raise():
+    """Back-compat: a baseline pre-dating the `eval.engine` field (or one side
+    absent) is not a mismatch — the guard only fires when both are present and
+    differ."""
+    before = _base(metrics={"x": 830})                    # no eval.engine
+    after = _base(metrics={"x": 23}, eval=_eval("hybrid", 0.6))
+    ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}]}
+    res = _goal.verify_contract(ct, before, after)        # must not raise
+    assert res["passed"] is True
+
+
+def test_superseded_eval_clause_allows_an_engine_change():
+    """A goal that INTENDS to change the engine releases the eval clause; then
+    the cross-engine numbers are the point, and the guard stands down for the
+    released clauses."""
+    before = _base(metrics={"x": 830}, eval=_eval("lexical-rrf", 0.60))
+    after = _base(metrics={"x": 23}, eval=_eval("hybrid", 0.90))
+    ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}},
+                     {"metric": "eval.self_probe.recall_at_k", "to": {"min": 0.9}},
+                     {"metric": "eval.paraphrase.recall_at_k", "to": {"min": 0.75}}],
+          "supersedes": [{"invariant": "eval-recall",
+                          "metric": "eval.self_probe.recall_at_k",
+                          "direction": "may-fall",
+                          "reason": "turning embeddings on lifts recall"},
+                         {"invariant": "eval-recall",
+                          "metric": "eval.paraphrase.recall_at_k",
+                          "direction": "may-fall",
+                          "reason": "turning embeddings on lifts recall"}]}
+    res = _goal.verify_contract(ct, before, after)        # must not raise
+    assert res["passed"] is True
+
+
 # ── supersession (§3.3) ──────────────────────────────────────────────────────
 
 def test_supersedes_releases_exactly_the_named_clause():

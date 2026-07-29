@@ -143,3 +143,51 @@ def test_run_reports_both_probe_sets(vault_env: Dict):
     cg = report["concept_grouped"]
     assert "precision_at_k" in cg and "recall_at_k" in cg
     assert cg["probes"] == 1          # one shared concept (`caching`)
+
+
+# ── engine label must be EARNED by a working provider (G3 phantom fix) ────────
+
+def test_engine_label_is_lexical_when_semantic_unwired(monkeypatch):
+    """EMBED=off / no sqlite-vec → the label is honestly lexical, no canary."""
+    from runtime.search import resolver as _resolver
+
+    class _Ctx:
+        engine = type("E", (), {"semantic": None})()
+        gateway = None
+        def close(self): pass
+    monkeypatch.setattr(_resolver, "build_context", lambda conn: _Ctx())
+    assert _eval._engine_label() == "lexical-rrf"
+
+
+def test_engine_label_degrades_when_the_provider_is_down(monkeypatch):
+    """The load-bearing case: semantic IS wired but the canary embedding fails
+    (provider unreachable). The label must be `hybrid-degraded`, NOT `hybrid` —
+    else a lexical-scored run is compared against a hybrid baseline and
+    fabricates a recall regression (the G3 non-convergence, 2026-07-29)."""
+    from runtime.search import resolver as _resolver
+
+    class _DownGateway:
+        def embed(self, texts):
+            raise OSError("provider down")
+
+    class _Ctx:
+        engine = type("E", (), {"semantic": object()})()
+        gateway = _DownGateway()
+        def close(self): pass
+    monkeypatch.setattr(_resolver, "build_context", lambda conn: _Ctx())
+    assert _eval._engine_label() == "hybrid-degraded"
+
+
+def test_engine_label_is_hybrid_when_the_canary_embeds(monkeypatch):
+    from runtime.search import resolver as _resolver
+
+    class _UpGateway:
+        def embed(self, texts):
+            return [[0.1, 0.2, 0.3]]
+
+    class _Ctx:
+        engine = type("E", (), {"semantic": object()})()
+        gateway = _UpGateway()
+        def close(self): pass
+    monkeypatch.setattr(_resolver, "build_context", lambda conn: _Ctx())
+    assert _eval._engine_label() == "hybrid"

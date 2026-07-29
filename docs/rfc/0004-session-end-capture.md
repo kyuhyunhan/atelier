@@ -1,6 +1,7 @@
 # RFC 0004 — Deterministic session-end capture
 
-Status: **Phase 1 implemented** (capture wiring). Phase 2 (curation/backfill) proposed.
+Status: **Phase 1 implemented** (capture wiring). Phase 2 **CLOSED — superseded
+without implementation** (2026-07-30, see the closing note at the end).
 
 ## Problem
 
@@ -84,3 +85,30 @@ SessionEnd / PreCompact
 
 Remove the two `settings.json` entries (instant); revert `mcp_call.py`. The
 adapter becomes inert.
+
+## Closing note — Phase 2 superseded without implementation (2026-07-30)
+
+Phase 2 (an LLM curation pass that backfills `why` over no-why hook candidates)
+is formally closed unbuilt, because its target population no longer exists.
+Measured against the live vault:
+
+- **Zero hook-born no-why candidates.** The `no-substance` gate drops the
+  transcript-tail captures at the door (the engine log shows repeated
+  `skip reason=no-substance hook=SessionEnd`); nothing why-less from the hook
+  path ever becomes a pending claim. The pending queue's `why_status` reads
+  39 present / 4 missing — and all four are stray *manual* captures, review-queue
+  items for the human acceptance gate (RFC 0009 G4's surface), not inputs for an
+  LLM curation pass.
+- **The problem moved upstream and was solved there.** This RFC's premise was
+  that durable material is lost at session boundaries because in-session capture
+  cannot be relied on. Since then, the SessionStart capture disposition
+  instructs the live agent to capture DURING the session with a mandatory `why`
+  (`require_why=true`; `why_status` is tracked per claim) — the write half of
+  the loop is carried by agent judgment at capture time, which is precisely the
+  "don't ghostwrite judgment" outcome Phase 2 was designed to approximate after
+  the fact. Phase 1's hook path remains as the deterministic backstop it is,
+  with the substance gate keeping it honest.
+
+Building Phase 2 today would curate an empty queue. If the population ever
+reappears (e.g. the disposition stops being honored and no-why candidates
+accumulate), reopen from this note — the design above still stands.

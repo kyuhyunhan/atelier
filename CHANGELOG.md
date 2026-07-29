@@ -4,6 +4,21 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Closed — RFC 0004 Phase 2, superseded without implementation
+
+The last RFC item without a disposition (surfaced by PR #96's fact-check —
+the earlier RFC audit had missed 0004 entirely). Phase 2 proposed an LLM
+curation pass backfilling `why` over no-why hook candidates; measured today,
+its target population does not exist: the `no-substance` gate drops
+transcript-tail captures at the door (zero hook-born no-why pendings), the
+queue reads `why_status` 39 present / 4 missing (all four stray manual
+captures — G4-review items, not curation inputs), and the in-session capture
+disposition carries the write half with a mandatory `why` at capture time.
+Building it would curate an empty queue. Closed with a reopen condition in
+the RFC's closing note. With this, **every RFC in the repository carries an
+explicit disposition** — implemented, optional-by-its-own-text, or formally
+superseded.
+
 ### Closed — RFC 0009 G3, and with it the entire §7 goal catalogue (G1–G5)
 
 The last open goal, landed through the full workflow (PR #95): the serving

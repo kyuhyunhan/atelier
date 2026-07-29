@@ -56,6 +56,81 @@ def test_unknown_metric_key_raises_not_passes():
         evaluate(ct, _b(x=1), after)
 
 
+def test_under_delivery_fails_instead_of_aborting():
+    """§5.4's middle row (review MUST on PR #93): a metric that measured at
+    capture but withholds the bound leaf now — while its sibling block is
+    still present — is the change UNDER-DELIVERING (e.g. `returned: 18` below
+    the yield floor omits `foreign_ratio`). That is a fixer-addressable FAIL,
+    never a hard abort: aborting would escalate 'the change missed its
+    target' as a harness-integrity failure and the fixer would never run."""
+    ct = {"intent": [{"metric": "metrics.noise.ratio", "to": {"max": 0.15}}]}
+    before = {"metrics": {"noise": {"returned": 73, "ratio": 0.69}}}
+    after = {"metrics": {"noise": {"returned": 18}}}      # leaf withheld
+    out = evaluate(ct, before, after)
+    assert out["passed"] is False                          # FAIL, not raise
+    clause = next(c for c in out["intent"] if c["metric"] == "metrics.noise.ratio")
+    assert clause["ok"] is False
+
+
+def test_environmental_absence_still_raises():
+    """§5.4 row 1: the WHOLE metric block gone from after (fixture vanished
+    mid-run) is environmental — the harness cannot be trusted; raise, do not
+    hand it to the fixer."""
+    ct = {"intent": [{"metric": "metrics.noise.ratio", "to": {"max": 0.15}}]}
+    before = {"metrics": {"noise": {"returned": 73, "ratio": 0.69}}}
+    after = {"metrics": {}}                                # block gone entirely
+    with pytest.raises(ContractError, match="absent"):
+        evaluate(ct, before, after)
+
+
+def test_typo_key_with_present_siblings_still_raises():
+    """§8.1.3 regression guard for the FAIL carve-out: a typo'd leaf has
+    present SIBLINGS too — what distinguishes it from under-delivery is that
+    the leaf never existed in the BEFORE snapshot either. Absent-from-both
+    stays a raise."""
+    ct = {"intent": [{"metric": "metrics.noise.ratio_TYPO", "to": {"max": 1}}]}
+    before = {"metrics": {"noise": {"returned": 73, "ratio": 0.69}}}
+    after = {"metrics": {"noise": {"returned": 73, "ratio": 0.10}}}
+    with pytest.raises(ContractError, match="absent"):
+        evaluate(ct, before, after)
+
+
+def test_under_delivery_reaches_fail_through_the_envelope_too():
+    """Round-2 review MUST (PR #93): with only SOME conditional leaves
+    INTENT-bound (the realistic G3 shape — ratio + foreign), the unbound
+    siblings (`own`/`unowned`) vanish together on under-delivery and the
+    envelope's union check re-escalated the §5.4 FAIL row into a hard abort.
+    The envelope now applies the same disambiguation: measured-at-capture +
+    block-persists + leaf-withheld → envelope FAIL, and the run reaches the
+    fixer with `passed: False`."""
+    ct = {"intent": [
+              {"metric": "metrics.noise.foreign_ratio", "to": {"max": 0.15}},
+              {"metric": "metrics.noise.foreign", "to": {"max": 10}},
+          ],
+          "envelope": {"mode": "default-deny", "waivers": []}}
+    before = {"metrics": {"noise": {"returned": 73, "own": 14, "foreign": 51,
+                                    "unowned": 8, "foreign_ratio": 0.6986}}}
+    after = {"metrics": {"noise": {"returned": 18}}}       # below the floor
+    out = evaluate(ct, before, after)                      # must NOT raise
+    assert out["passed"] is False
+    env_fails = [c for c in out["envelope"] if not c["ok"]]
+    assert {c["metric"] for c in env_fails} >= {"metrics.noise.own",
+                                                "metrics.noise.unowned"}
+
+
+def test_envelope_union_still_raises_when_the_block_is_gone():
+    """The carve-out must not soften §3.4: a metric whose whole BLOCK vanished
+    from after (environmental — e.g. the fixture disappeared) stays a raise,
+    as does a leaf absent from BEFORE (a counter added mid-run)."""
+    ct = {"intent": [], "envelope": {"mode": "default-deny", "waivers": []}}
+    before = {"metrics": {"noise": {"returned": 73}}}
+    after = {"metrics": {}}                                # block gone
+    with pytest.raises(ContractError, match="absent"):
+        evaluate(ct, before, after)
+    with pytest.raises(ContractError, match="absent"):     # before-absent side
+        evaluate(ct, {"metrics": {}}, {"metrics": {"noise": {"returned": 5}}})
+
+
 def test_a_malformed_bound_raises():
     for bad in ({"max": 1, "min": 2}, {}, {"max": "lots"}, {"nope": 1}):
         with pytest.raises(ContractError):
@@ -103,12 +178,20 @@ def test_envelope_passes_when_only_intent_metrics_move():
     assert evaluate(ct, _b(x=830, y=5), _b(x=23, y=5))["passed"] is True
 
 
-def test_dropping_a_counter_raises_it_cannot_dodge_the_envelope():
-    """§3.4 union semantics: a metric in before and absent from after is not
-    silently unchanged — removing it is the very dodge default-deny closes."""
+def test_dropping_a_counter_cannot_dodge_the_envelope():
+    """§3.4's PURPOSE, kept under the §5.4 carve-out: a metric in before and
+    absent from after is never silently unchanged. In snapshots, "the counter
+    was dropped" and "a yield-conditional leaf was withheld" are the SAME
+    observable state (leaf gone, block present) — so it lands as an envelope
+    FAIL rather than a raise. The dodge still fails (`passed: False`); what
+    changed is the route — the fixer gets its rounds, and its only true fix
+    for a dropped counter is restoring it. Block-gone / absent-from-before
+    remain raises (see the sibling tests)."""
     ct = {"intent": [{"metric": "metrics.x", "to": {"max": 30}}]}
-    with pytest.raises(ContractError, match="absent from after"):
-        evaluate(ct, _b(x=830, y=5), _b(x=23))       # y vanished
+    out = evaluate(ct, _b(x=830, y=5), _b(x=23))     # y vanished, block stays
+    assert out["passed"] is False
+    assert any(c["metric"] == "metrics.y" and not c["ok"]
+               for c in out["envelope"])
 
 
 def test_a_same_metric_waiver_releases_exactly_one_metric():

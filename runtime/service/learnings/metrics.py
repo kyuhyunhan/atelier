@@ -319,6 +319,107 @@ def dangling_new(*, baseline_path: Optional[Path] = None) -> Optional[Dict[str, 
     }
 
 
+# ── 5.4 cross-project noise (G3) ─────────────────────────────────────────────
+
+_PROBES_PATH = Path.home() / ".atelier" / "fixtures" / "project_probes.json"
+_NOISE_MIN_YIELD = 20      # §5.4: below this, foreign_ratio is OMITTED (FAIL)
+_NOISE_PER_PROBE_TOPK = 25
+
+
+def cross_project_noise(*, fixture_path: Optional[Path] = None
+                        ) -> Optional[Dict[str, Any]]:
+    """§5.4 — dev-session recall noise along the PROJECT axis.
+
+    Runs the PRODUCTION dev-recall path (`recall_v7.rank_claims`, tier
+    `proactive`, lens `dev`) once per fixture probe for the fixture's project,
+    dedups by entry_id, and reports the fraction of returned claims whose
+    `project` is some OTHER project (§3.2 rule 1: the counter is the ranking
+    path the session actually uses). A claim with no project (e.g. knowledge)
+    is not "some other project's work" and does not count as foreign; it does
+    count toward `returned` — and because that dilutes the ratio, the
+    absolute composition (`own`/`foreign`/`unowned`) is reported alongside so
+    a contract can pin it (a displacement/dilution pass on the ratio alone
+    leaves own-project context exactly as unserved as before).
+
+    Two DISCLOSED divergences from what a live session sees: the metric
+    measures the union of top-25 per probe (to clear the §5.4 yield floor)
+    while a session is served top-5 — so a bound here reads "noise in the
+    retrieval pool", not "≤15% of what a session displays"; and the legacy
+    `recall.recall` merge (`_h_recall`'s migration-era side channel) is not
+    measured — this counter tracks the v7 claim path a lens change actually
+    scopes.
+
+    The three §5.4 signals, distinguished:
+    - fixture absent / unreadable / shapeless → **None** (metric omitted —
+      environmental; a fresh clone's CI neither fails nor reports green). Only
+      an explicit, well-formed fixture measures — a truncated write must not
+      fabricate a verdict (the dangling-baseline rule).
+    - `returned < 20` → `returned` present, `foreign_ratio` OMITTED — the
+      change under-delivered; fixer-addressable FAIL, never a raise, and never
+      a `0.0` that would pass the `≤ 0.15` bound on a lens returning nothing.
+    - at yield → `foreign_ratio` present, a real measurement.
+
+    The fixture lives OUT OF TREE (`~/.atelier/fixtures/project_probes.json`,
+    §5.6 — real project names are hard-rule-#1 material) and is pinned by
+    content in a goal contract's `pins.fixture_sha256`.
+    """
+    import json as _json
+    path = fixture_path if fixture_path is not None else _PROBES_PATH
+    if not path.is_file():
+        return None
+    try:
+        doc = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    project = doc.get("project")
+    probes = doc.get("probes")
+    if not isinstance(project, str) or not project.strip():
+        return None
+    if not isinstance(probes, list):
+        return None
+    queries = [q for q in probes if isinstance(q, str) and q.strip()]
+    if not queries:
+        return None
+
+    from . import recall_v7 as _rv
+    seen: Dict[str, Dict[str, Any]] = {}
+    try:
+        for q in queries:
+            for h in _rv.rank_claims(q, project, tier="proactive",
+                                     top_k=_NOISE_PER_PROBE_TOPK, lens="dev"):
+                fm = h.get("fm") or {}
+                key = str(fm.get("entry_id") or h.get("slug"))
+                seen[key] = h
+    except Exception:
+        return None                    # recall path broke → environmental abstain
+    returned = len(seen)
+    out: Dict[str, Any] = {"project": project, "returned": returned}
+    if returned >= _NOISE_MIN_YIELD:
+        own = foreign = unowned = 0
+        for h in seen.values():
+            p = str((h.get("fm") or {}).get("project") or "")
+            if not p:
+                unowned += 1               # e.g. knowledge — nobody's project
+            elif p == project:
+                own += 1
+            else:
+                foreign += 1
+        # The ratio alone is dilutable (review MUST, PR #93): a ranking change
+        # that floods recall with UNOWNED claims displaces foreign ones from
+        # the per-probe top-k and drops the ratio under the bound while not
+        # one additional own-project claim is served. The absolute leaves let
+        # a contract pin the composition (e.g. bind `foreign` down AND `own`
+        # up), closing the displacement pass. Conditional on yield, same as
+        # the ratio — the subtree is new, so the keyset stays stable.
+        out["own"] = own
+        out["foreign"] = foreign
+        out["unowned"] = unowned
+        out["foreign_ratio"] = round(foreign / returned, 4)
+    return out
+
+
 # ── 5.3 guard liveness ──────────────────────────────────────────────────────
 
 def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -505,7 +606,8 @@ def lens_param_present() -> Optional[Dict[str, Any]]:
 # ── the block ───────────────────────────────────────────────────────────────
 
 def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
-            pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
+            pii_patterns_path: Optional[Path] = None,
+            probes_path: Optional[Path] = None) -> Dict[str, Any]:
     """The `metrics` block of a baseline (RFC 0009 §5).
 
     Two shape rules follow from §3.4, which makes ENVELOPE default-deny over
@@ -523,10 +625,11 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
       unprefixed non-numeric leaves (`eval.engine`, `eval.paraphrase.stale`)
       that can never be renamed.
 
-    `cross_project_noise` (§5.4) is deliberately ABSENT until its out-of-tree
-    probe fixture lands in G3 — under the abstain rule that absence is the
-    honest signal, and a contract naming it raises rather than reading a
-    fabricated zero. Any counter that cannot measure omits its key the same way.
+    `cross_project_noise` (§5.4) is present iff its out-of-tree probe fixture
+    exists (`~/.atelier/fixtures/project_probes.json`, §5.6) — on a fresh
+    clone the key is simply absent, so CI neither fails nor reports green, and
+    a contract naming it there raises rather than reading a fabricated zero.
+    Any counter that cannot measure omits its key the same way.
     """
     stamp = as_of or datetime.now(timezone.utc).date()
     gl = guard_liveness(pii_patterns_path=pii_patterns_path)
@@ -547,4 +650,7 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
     dnew = dangling_new()
     if dnew is not None:
         out["dangling_new"] = dnew
+    noise = cross_project_noise(fixture_path=probes_path)
+    if noise is not None:
+        out["cross_project_noise"] = noise
     return out

@@ -293,20 +293,24 @@ def test_lens_param_abstains_when_the_declaration_is_unreadable(
 
 # ── the block ───────────────────────────────────────────────────────────────
 
-def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict) -> None:
-    """§5.4: abstention is key-absence, never a zero. `cross_project_noise` has
-    no fixture until G3, so its key must simply not be there — a `0.0` would
+def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict,
+                                                    tmp_path: Path) -> None:
+    """§5.4: abstention is key-absence, never a zero. With no probe fixture
+    (the fresh-clone / CI state, pinned here via monkey-free probes_path), the
+    `cross_project_noise` key must simply not be there — a `0.0` would
     silently PASS a `≤ 0.15` ceiling and report green on a lens returning
     nothing."""
     got = _metrics.metrics(as_of=datetime.date(2026, 7, 23),
-                           vault=Path(_cl._vault_root()))
+                           vault=Path(_cl._vault_root()),
+                           probes_path=tmp_path / "absent.json")
     # the always-computed metrics are present; the withheld one is not; and no
     # UNKNOWN key leaks in (subset-of-allowed keeps the leak guard the exact-set
     # assertion used to give, while tolerating conditionally-present metrics).
     assert {"promote_eligible", "pending_age", "guard_liveness"} <= set(got)
     assert set(got) <= {"promote_eligible", "pending_age", "guard_liveness",
-                        "lens_param_present", "dangling_links", "dangling_new"}
-    assert "cross_project_noise" not in got          # no fixture until G3 → omitted
+                        "lens_param_present", "dangling_links", "dangling_new",
+                        "cross_project_noise"}
+    assert "cross_project_noise" not in got          # absent fixture → omitted
     # capture metadata is NOT a metric leaf: §3.4 default-deny would trip on a
     # value that changes every run, and §3.5 allows no non-numeric waiver.
     assert "as_of" not in got

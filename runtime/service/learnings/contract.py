@@ -177,8 +177,30 @@ def _eval_intent(clauses: List[Dict[str, Any]], before: Dict, after: Dict,
             raise ContractError(f"malformed INTENT clause: {clause!r}")
         value = _leaf(after, metric)
         if value is _MISSING:
-            # §8.1.3: a clause naming a key no counter emits is a broken
-            # contract, not a satisfied one. RAISE.
+            # Three distinct absences (§5.4's outcome table):
+            #   1. absent from BOTH snapshots → the clause names a key no
+            #      counter emits (a typo'd leaf has present siblings too, so
+            #      sibling-presence alone cannot excuse it). RAISE (§8.1.3).
+            #   2. measured at capture, but the whole metric BLOCK is gone
+            #      from after → environmental (e.g. the probe fixture
+            #      vanished mid-run). The harness cannot be trusted. RAISE.
+            #   3. measured at capture, sibling block still present, only the
+            #      bound leaf withheld → the change UNDER-DELIVERED a
+            #      precondition (e.g. yield below the §5.4 floor omits
+            #      `foreign_ratio` while `returned` stays). Fixer-addressable
+            #      FAIL — aborting here would escalate "the change missed its
+            #      target" as harness failure and the fixer would never run.
+            was_measured = _leaf(before, metric) is not _MISSING
+            parent = metric.rsplit(".", 1)[0] if "." in metric else None
+            block_present = (parent is not None
+                             and isinstance(_leaf(after, parent), dict))
+            if was_measured and block_present:
+                results.append({
+                    "layer": "intent", "metric": metric, "ok": False,
+                    "detail": ("leaf omitted from after while its block "
+                               "remains — precondition unmet "
+                               "(under-delivered); measured at capture")})
+                continue
             raise ContractError(
                 f"INTENT names {metric!r}, absent from the after-snapshot")
         before_value = _leaf(before, metric)
@@ -243,7 +265,28 @@ def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
         bv, av = _leaf(before, metric), _leaf(after, metric)
         if bv is _MISSING or av is _MISSING:
             # union membership with one side absent → raise (§3.4). Dropping a
-            # counter must not be a way out of the envelope.
+            # counter must not be a way out of the envelope. ONE carve-out,
+            # the same §5.4 disambiguation the INTENT layer applies: a leaf
+            # measured at capture whose BLOCK persists in after but whose
+            # value is withheld is a yield-conditional sibling of an
+            # under-delivered change (e.g. `own`/`unowned` vanish with
+            # `foreign_ratio` when `returned` drops below the floor). That is
+            # the same fixer-addressable state — an envelope FAIL — not a
+            # harness failure; raising here would re-collapse §5.4's middle
+            # row one layer down unless the author INTENT-bound every
+            # conditional leaf (an undocumented trap). Absent-from-both and
+            # block-gone stay raises.
+            parent = metric.rsplit(".", 1)[0] if "." in metric else None
+            block_present = (parent is not None
+                             and isinstance(_leaf(after, parent), dict))
+            if bv is not _MISSING and av is _MISSING and block_present:
+                results.append({
+                    "layer": "envelope", "metric": metric, "waived": False,
+                    "ok": False,
+                    "detail": ("leaf omitted from after while its block "
+                               "remains — under-delivered sibling "
+                               "(precondition unmet)")})
+                continue
             raise ContractError(
                 f"{metric!r} is in the namespace but absent from "
                 f"{'before' if bv is _MISSING else 'after'}")

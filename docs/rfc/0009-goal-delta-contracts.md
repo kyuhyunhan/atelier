@@ -779,8 +779,14 @@ RFC 0008's PII defect was a one-sided check that had never been shown to fail.
    `--allow-uncommitted` is refused in contract mode.
 6. **Envelope namespace** — a metric that moves in `census`, `surfacing`, `eval`,
    or `metrics` without an INTENT clause or a waiver FAILs; a key present in one
-   snapshot and absent from the other raises (union semantics, §3.4), so dropping
-   a counter cannot dodge the envelope.
+   snapshot and absent from the other cannot dodge the envelope (union
+   semantics, §3.4). *Refined 2026-07-29 with the §5.4 outcome table:* a leaf
+   measured at capture whose **block persists** in after but whose value is
+   withheld — observationally identical whether a counter was dropped or a
+   yield-conditional sibling abstained — lands as an envelope **FAIL**
+   (fixer-addressable; the only true fix for a dropped counter is restoring
+   it), while absent-from-both and block-gone remain **raises**. Either way
+   the dodge fails; only the route differs.
 7. **Waivers are bounded** — a waiver without a bound is rejected at the Contract
    stage; a bounded fingerprint waiver FAILs when `vault.changed_paths` exceeds
    its count or escapes its prefixes.

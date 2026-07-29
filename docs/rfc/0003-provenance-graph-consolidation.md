@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Implemented (ratified 2026-06-12; GP phases landed — see CHANGELOG; P6 relocation tracked in its own doc with per-item status) |
+| **Status** | Implemented (ratified 2026-06-12) — P0–P4 landed 2026-06 (structure migration, issue #17); P5 optional/deferred by §8; P6 relocation tracked in its own doc with per-item status |
 | **Scope** | the content model across `raw/`, `wiki/`, `learnings/`; the link graph; directory normalization; the role of the LLM |
 | **Builds on** | RFC 0001 (facets-not-paths) extended vault-wide; RFC 0002 (the page-type-agnostic resolver) |
 | **Reference** | `github.com/garrytan/gbrain` — deterministic ingest, LLM only at query time |

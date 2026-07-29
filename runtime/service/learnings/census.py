@@ -120,6 +120,6 @@ def census(vault: Optional[Path] = None) -> Dict[str, Dict[str, Dict[str, int]]]
     reindexed vault (locked by the parity test)."""
     rows = _projection_rows()
     if rows is None:
-        from . import cluster as _cl        # local import: _vault_root lives there
-        rows = _fs_rows(vault if vault is not None else Path(_cl._vault_root()))
+        from ...util import config as _config
+        rows = _fs_rows(vault if vault is not None else _config.vault_root())
     return _tally(rows)

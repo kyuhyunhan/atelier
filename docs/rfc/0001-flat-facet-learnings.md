@@ -202,9 +202,10 @@ serialized; folding them would block captures behind curation.
 **Re-key in lockstep** (one commit, or config validation rejects every subtree):
 `config.py` `_VALID_WRITERS` + the `space_by_role("librarian-territory" /
 "builder-territory")` synthesis (collapse to one `vault-write` accessor — both already
-point at one root) across ~28 callers *(landed 2026-07-30 as `Config.vault_root()` /
-`config.vault_root()`, issue #98: 23 call sites and 22 duplicated per-module
-`_vault_root()` helpers collapsed; the fallback now exists in exactly one place)*; `auth.py` default bearer claims; `tools.py`
+point at one root) across ~28 callers *(landed 2026-07-30 as
+`Config.vault_root()` / `config.vault_root()`, issue #98: runtime call
+sites and 22 duplicated per-module `_vault_root()` helpers collapsed —
+within `runtime/` the fallback now exists in exactly one place)*; `auth.py` default bearer claims; `tools.py`
 claim/`lock_role` bindings (11 librarian-write tools, 1 builder-write).
 
 **Delete** (no runtime consumer): `schema/data/librarian.overlay.yaml`,

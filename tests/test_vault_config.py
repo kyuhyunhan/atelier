@@ -149,3 +149,4 @@ def test_vault_root_falls_back_to_the_librarian_space(atelier_env: Dict) -> None
     })
     cfg = _config.load()
     assert cfg.vault_root() == ws / "gorae"
+    assert _config.vault_root() == ws / "gorae"      # module entry point too

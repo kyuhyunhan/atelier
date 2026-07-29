@@ -6,7 +6,8 @@ All notable changes to atelier.
 
 ### Closed — RFC 0009 G1: the PII guard is live (`pii_active_patterns: 0 → 4`, probe green)
 
-The last unimplemented RFC item with a machine bar, closed in three acts:
+The oldest open §7 goal closed end-to-end under the contract discipline (G3 —
+`lens_param_present` at 1/6 — and G4 remain open), in three acts:
 
 1. **The contract critic earned its keep twice.** The first G1 run hard-aborted
    on a pinned-but-absent fixture (the §6 broken-pin path, exercised for real:

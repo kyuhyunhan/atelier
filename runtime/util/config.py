@@ -132,9 +132,10 @@ class Config:
 
         Scope of the collapse (measured 2026-07-30): within `runtime/` the
         fallback logic lives ONLY here. Deliberately out of scope: the frozen
-        one-shot migration scripts under `scripts/` (archival artifacts of the
-        runs they performed), and the two role-*parameterized* accessors
-        (`validate_v4`, `api.validate`) whose role argument is real API."""
+        one-shot migration scripts under `scripts/` (records of the runs they
+        performed — frozen, but still test-covered and executable), and the two
+        role-*parameterized* accessors (`validate_v4`, `api.validate`) whose
+        role argument is real API."""
         if self.vault is not None:
             return self.vault.local
         return self.space_by_role("librarian-territory").local

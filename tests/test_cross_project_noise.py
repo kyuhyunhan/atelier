@@ -97,6 +97,39 @@ def test_measures_foreign_ratio_at_yield(atelier_env: Dict,
     assert got["returned"] == 25
     assert got["project"] == "projA"
     assert abs(got["foreign_ratio"] - 0.8) < 1e-9
+    # the composition leaves (review MUST): the absolutes a contract pins so
+    # the ratio cannot be satisfied by displacement alone
+    assert (got["own"], got["foreign"], got["unowned"]) == (5, 20, 0)
+
+
+def test_unowned_dilution_is_visible_in_the_composition(
+        atelier_env: Dict, tmp_path: Path) -> None:
+    """The dilution vector, pinned: project-less (knowledge) claims lower the
+    RATIO without serving one more own-project claim. The composition leaves
+    expose it — `own` stays flat while `unowned` absorbs the denominator, so
+    a contract binding `own`/`foreign` absolutes catches what the ratio alone
+    would wave through."""
+    import uuid
+    vault = Path(_cl._vault_root())
+    _seed_claims(vault, own=2, foreign=8)
+    d = vault / "graph" / "atomic"
+    for i in range(15):                       # flood with unowned knowledge
+        eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"kn-{i}"))
+        (d / f"kn-{i}.md").write_text(
+            f"---\nschema_version: 7\nentry_id: {eid}\nkind: claim\n"
+            f"domain: knowledge\nsensitivity: public\nsurfacing: proactive\n"
+            f"created_at: 2026-07-01T00:00:00+00:00\n"
+            f"statement: alpha beta gamma insight {i}\n---\n\n"
+            f"alpha beta gamma body {i}\n",
+            encoding="utf-8")
+    _api.reindex(space="gorae", full=True)
+    fx = tmp_path / "probes.json"
+    _write_fixture(fx)
+    got = _metrics.cross_project_noise(fixture_path=fx)
+    assert got is not None and got["returned"] == 25
+    assert abs(got["foreign_ratio"] - 8 / 25) < 1e-9   # diluted to 0.32
+    assert got["own"] == 2                             # …but own did NOT rise
+    assert got["unowned"] == 15                        # the dilution, visible
 
 
 def test_metrics_block_omits_the_key_without_a_fixture(

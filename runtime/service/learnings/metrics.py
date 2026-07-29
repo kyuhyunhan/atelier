@@ -333,10 +333,21 @@ def cross_project_noise(*, fixture_path: Optional[Path] = None
     Runs the PRODUCTION dev-recall path (`recall_v7.rank_claims`, tier
     `proactive`, lens `dev`) once per fixture probe for the fixture's project,
     dedups by entry_id, and reports the fraction of returned claims whose
-    `project` is some OTHER project (§3.2 rule 1: the counter is the path the
-    session actually uses, so it cannot drift from what a lens change fixes).
-    A claim with no project (e.g. knowledge) is not "some other project's
-    work" and does not count as foreign; it does count toward `returned`.
+    `project` is some OTHER project (§3.2 rule 1: the counter is the ranking
+    path the session actually uses). A claim with no project (e.g. knowledge)
+    is not "some other project's work" and does not count as foreign; it does
+    count toward `returned` — and because that dilutes the ratio, the
+    absolute composition (`own`/`foreign`/`unowned`) is reported alongside so
+    a contract can pin it (a displacement/dilution pass on the ratio alone
+    leaves own-project context exactly as unserved as before).
+
+    Two DISCLOSED divergences from what a live session sees: the metric
+    measures the union of top-25 per probe (to clear the §5.4 yield floor)
+    while a session is served top-5 — so a bound here reads "noise in the
+    retrieval pool", not "≤15% of what a session displays"; and the legacy
+    `recall.recall` merge (`_h_recall`'s migration-era side channel) is not
+    measured — this counter tracks the v7 claim path a lens change actually
+    scopes.
 
     The three §5.4 signals, distinguished:
     - fixture absent / unreadable / shapeless → **None** (metric omitted —
@@ -386,9 +397,25 @@ def cross_project_noise(*, fixture_path: Optional[Path] = None
     returned = len(seen)
     out: Dict[str, Any] = {"project": project, "returned": returned}
     if returned >= _NOISE_MIN_YIELD:
-        foreign = sum(
-            1 for h in seen.values()
-            if str((h.get("fm") or {}).get("project") or "") not in ("", project))
+        own = foreign = unowned = 0
+        for h in seen.values():
+            p = str((h.get("fm") or {}).get("project") or "")
+            if not p:
+                unowned += 1               # e.g. knowledge — nobody's project
+            elif p == project:
+                own += 1
+            else:
+                foreign += 1
+        # The ratio alone is dilutable (review MUST, PR #93): a ranking change
+        # that floods recall with UNOWNED claims displaces foreign ones from
+        # the per-probe top-k and drops the ratio under the bound while not
+        # one additional own-project claim is served. The absolute leaves let
+        # a contract pin the composition (e.g. bind `foreign` down AND `own`
+        # up), closing the displacement pass. Conditional on yield, same as
+        # the ratio — the subtree is new, so the keyset stays stable.
+        out["own"] = own
+        out["foreign"] = foreign
+        out["unowned"] = unowned
         out["foreign_ratio"] = round(foreign / returned, 4)
     return out
 

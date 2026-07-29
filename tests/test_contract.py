@@ -56,6 +56,45 @@ def test_unknown_metric_key_raises_not_passes():
         evaluate(ct, _b(x=1), after)
 
 
+def test_under_delivery_fails_instead_of_aborting():
+    """§5.4's middle row (review MUST on PR #93): a metric that measured at
+    capture but withholds the bound leaf now — while its sibling block is
+    still present — is the change UNDER-DELIVERING (e.g. `returned: 18` below
+    the yield floor omits `foreign_ratio`). That is a fixer-addressable FAIL,
+    never a hard abort: aborting would escalate 'the change missed its
+    target' as a harness-integrity failure and the fixer would never run."""
+    ct = {"intent": [{"metric": "metrics.noise.ratio", "to": {"max": 0.15}}]}
+    before = {"metrics": {"noise": {"returned": 73, "ratio": 0.69}}}
+    after = {"metrics": {"noise": {"returned": 18}}}      # leaf withheld
+    out = evaluate(ct, before, after)
+    assert out["passed"] is False                          # FAIL, not raise
+    clause = next(c for c in out["intent"] if c["metric"] == "metrics.noise.ratio")
+    assert clause["ok"] is False
+
+
+def test_environmental_absence_still_raises():
+    """§5.4 row 1: the WHOLE metric block gone from after (fixture vanished
+    mid-run) is environmental — the harness cannot be trusted; raise, do not
+    hand it to the fixer."""
+    ct = {"intent": [{"metric": "metrics.noise.ratio", "to": {"max": 0.15}}]}
+    before = {"metrics": {"noise": {"returned": 73, "ratio": 0.69}}}
+    after = {"metrics": {}}                                # block gone entirely
+    with pytest.raises(ContractError, match="absent"):
+        evaluate(ct, before, after)
+
+
+def test_typo_key_with_present_siblings_still_raises():
+    """§8.1.3 regression guard for the FAIL carve-out: a typo'd leaf has
+    present SIBLINGS too — what distinguishes it from under-delivery is that
+    the leaf never existed in the BEFORE snapshot either. Absent-from-both
+    stays a raise."""
+    ct = {"intent": [{"metric": "metrics.noise.ratio_TYPO", "to": {"max": 1}}]}
+    before = {"metrics": {"noise": {"returned": 73, "ratio": 0.69}}}
+    after = {"metrics": {"noise": {"returned": 73, "ratio": 0.10}}}
+    with pytest.raises(ContractError, match="absent"):
+        evaluate(ct, before, after)
+
+
 def test_a_malformed_bound_raises():
     for bad in ({"max": 1, "min": 2}, {}, {"max": "lots"}, {"nope": 1}):
         with pytest.raises(ContractError):

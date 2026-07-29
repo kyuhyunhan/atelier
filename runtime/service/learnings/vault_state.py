@@ -44,8 +44,8 @@ def _is_derived(name: str) -> bool:
 def _vault_root(vault: Optional[Path]) -> Path:
     if vault is not None:
         return Path(vault)
-    from . import cluster as _cl
-    return Path(_cl._vault_root())
+    from ...util import config as _config
+    return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 def file_digests(vault: Optional[Path] = None) -> Dict[str, str]:

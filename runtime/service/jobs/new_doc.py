@@ -25,10 +25,7 @@ _TEMPLATES = ("product", "raw", "note", "learning")
 
 
 def _vault_root() -> Path:
-    cfg = _config.load()
-    if cfg.vault is not None:
-        return cfg.vault.local
-    return cfg.space_by_role("librarian-territory").local
+    return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 def _builder_root() -> Path:

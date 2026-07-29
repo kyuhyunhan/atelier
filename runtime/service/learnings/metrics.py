@@ -236,9 +236,7 @@ def _default_dangling_baseline_path() -> Optional[Path]:
     are personal titles — hard rule #1."""
     try:
         from ...util import config as _config
-        cfg = _config.load()
-        root = (cfg.vault.local if cfg.vault is not None
-                else cfg.space_by_role("librarian-territory").local)
+        root = _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
         return root.joinpath(*_DANGLING_BASELINE_REL)
     except Exception:
         return None

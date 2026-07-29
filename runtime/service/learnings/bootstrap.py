@@ -32,9 +32,7 @@ from . import store as _store
 
 def _vault_root(cfg: Optional[_config.Config] = None) -> Path:
     cfg = cfg or _config.load()
-    if cfg.vault is not None:
-        return cfg.vault.local
-    return cfg.space_by_role("librarian-territory").local
+    return cfg.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 def _unknown_project_banner(res: "_project.ProjectResolution") -> str:

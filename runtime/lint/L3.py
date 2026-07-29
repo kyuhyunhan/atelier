@@ -48,8 +48,7 @@ def fix_source_count_recount(conn: sqlite3.Connection, f: Finding) -> bool:
     if not f.page_slug or "actual" not in f.details:
         return False
     cfg = config.load()
-    sp = cfg.space_by_role("librarian-territory")
-    path = sp.local / f.page_slug
+    path = cfg.vault_root() / f.page_slug   # the ONE accessor (RFC 0001 §6 / #98)
     if not path.exists():
         return False
     return writeback.patch_frontmatter(path, {"source_count": f.details["actual"]})

@@ -52,7 +52,7 @@ def capture(
     claims.require(ctx, claims.Claim.MOBILE_CLAIM)
 
     cfg = config.load()
-    librarian_root = cfg.space_by_role("librarian-territory").local
+    librarian_root = cfg.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
     # Canonical inbox intake dir (raw/inbox) from the resolver; fall back to the
     # legacy un-renamed content root (provenance/inbox) only when it alone exists
     # (mirrors youtube._knowledge_root — never resurrect a dead tree).

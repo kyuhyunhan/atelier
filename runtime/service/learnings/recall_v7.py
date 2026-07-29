@@ -185,7 +185,8 @@ def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
     (score 0) → sort descending → dedup by entry_id → tier budget. T0 enforces a
     hard count cap (`T0_CAP`) AFTER ranking, so the most relevant `always` claims
     fill the small budget."""
-    vault = vault if vault is not None else _recall._vault_root()
+    from ...util import config as _config
+    vault = vault if vault is not None else _config.vault_root()
     # Over-fetch: normally top_k*4, but when a lens will filter the pool, fetch
     # far more so the admitted set (post-filter) can still fill top_k. Personal
     # is ~80% of claims, so a dev lens can drop most candidates — a 4× pool would

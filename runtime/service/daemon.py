@@ -140,7 +140,9 @@ def install() -> Dict[str, Any]:
     without a manual Full Disk Access grant."""
     from ..util import config as _config
     try:
-        vault_local = _config.load().vault.local
+        # the ONE accessor — also fixes a latent AttributeError under a
+        # legacy spaces:-only config, where cfg.vault is None
+        vault_local = _config.vault_root()
     except Exception:  # unconfigured / unloadable — nothing to warn about
         vault_local = None
     if vault_local is not None and is_tcc_protected(vault_local):

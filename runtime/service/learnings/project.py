@@ -64,9 +64,7 @@ def _vault_root(cfg: Optional[_config.Config]) -> Optional[Path]:
     if cfg is None:
         return None
     try:
-        if cfg.vault is not None:
-            return cfg.vault.local
-        return cfg.space_by_role("librarian-territory").local
+        return cfg.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
     except Exception:                        # pragma: no cover - misconfigured env
         return None
 

@@ -49,9 +49,7 @@ if TYPE_CHECKING:
 def _resolve_vault_root(cfg: _config.Config) -> Path:
     """Return the single vault root. Works with both the new vault: model
     and the legacy spaces: model (librarian-territory acts as the vault)."""
-    if cfg.vault is not None:
-        return cfg.vault.local
-    return cfg.space_by_role("librarian-territory").local
+    return cfg.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
 def _resolve_project_hint(working_dir: Optional[str],

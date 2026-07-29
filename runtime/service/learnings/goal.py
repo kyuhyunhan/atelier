@@ -143,6 +143,36 @@ def _with_changed_paths(before: Dict[str, Any], after: Dict[str, Any],
     return out
 
 
+def _guard_eval_engine(before: Dict[str, Any], after: Dict[str, Any],
+                       superseded: set) -> None:
+    """RAISE when the two snapshots' eval runs used different retrieval engines
+    and any eval invariant is still live.
+
+    `eval.*.recall_at_k`/`.mrr` are only comparable within one engine: a hybrid
+    round baseline vs a lexical after-run (a provider outage degraded the
+    after-measurement — see `eval._engine_label`) is not a regression, it is an
+    un-measurable comparison. Left to the fall/rise gate it FAILs and sends the
+    fixer chasing a phantom (the G3 non-convergence, 2026-07-29); it must be an
+    environmental hard-abort (§6) — re-run with the provider healthy.
+
+    Superseded eval clauses are exempt: a goal that INTENDS to change the engine
+    (e.g. turning embeddings on) releases them explicitly, and then the
+    cross-engine numbers are the point, not an accident."""
+    be = _contract._leaf(before, "eval.engine")
+    ae = _contract._leaf(after, "eval.engine")
+    if be is _contract._MISSING or ae is _contract._MISSING or be == ae:
+        return
+    live = [c["id"] for c in _clauses()
+            if str(c.get("metric", "")).startswith("eval.")
+            and c["id"] not in superseded]
+    if live:
+        raise ContractError(
+            f"eval engine mismatch: before={be!r} after={ae!r} — retrieval "
+            f"recall is not comparable across engines (a provider outage during "
+            f"measurement silently degrades hybrid→lexical). Re-run with the "
+            f"embedding provider healthy. Live eval clauses: {', '.join(live)}")
+
+
 def verify_contract(contract: Dict[str, Any], before: Dict[str, Any],
                     after: Dict[str, Any]) -> Dict[str, Any]:
     """Score a contract's three layers against a (before, after) pair. Pure.
@@ -153,9 +183,10 @@ def verify_contract(contract: Dict[str, Any], before: Dict[str, Any],
     `passed` False — a FAIL the fixer may address.
     """
     after = _with_changed_paths(before, after)
+    superseded = _superseded_clause_ids(contract)
+    _guard_eval_engine(before, after, superseded)
     scored = _contract.evaluate(contract, before, after)
 
-    superseded = _superseded_clause_ids(contract)
     invariants = [_check_no_data_loss(before, after)]
     invariants += apply_invariants(before, after, superseded)
 

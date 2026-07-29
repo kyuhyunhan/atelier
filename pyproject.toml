@@ -19,7 +19,7 @@ dev = [
     "pytest>=7.0",
 ]
 serve = [
-    "mcp>=1.0",
+    "mcp>=1.0,<2",
     "httpx>=0.28",
 ]
 youtube = [

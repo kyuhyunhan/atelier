@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft (proposed 2026-07-20; revised post-review) |
+| **Status** | Implemented (proposed 2026-07-20; revised post-review) — M0–M4 landed; M3b out of scope by §5 |
 | **Scope** | the operational-learning write path (`capture` + `absorb`); the `raw/` intake invariant; the `source` domain enum; a **content-addressed** `raw/operational/` Source; freezing (not deleting) the shared `operational-capture` anchor; physical removal of the vestigial `_new/` dir |
 | **Builds on** | RFC 0005 (atomic graph, three layers, single-sourced structure), RFC 0006 (memory north-star — one graph, no silent bypass) |
 | **Revises** | RFC 0005 §7.1 — an operational learning is no longer *"born directly as a Claim"* on a single shared anchor; it is **born as its own content-addressed Source** in `raw/operational/`, then a **deterministic 1:1 mint** produces the Claim. RFC 0005 §7.2 capture-trigger row restated. Freezes P10's anchor to legacy — see §6. A forward pointer is added to 0005 §7.1/§7.2. |

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft (proposed 2026-07-22) |
+| **Status** | Implemented (proposed 2026-07-22) — M1 discovery, M4 safety, M2 supersession, M3 depth all landed (CHANGELOG “RFC 0008 complete”) |
 | **Scope** | the `absorb` ingest path (`~/.claude/projects/*/memory/` → vault): a fourth nudge (**absorb**), a path-indexed dedup ledger with **supersede-on-path**, the depth policy for long memories (mint stays 1:1; deep atomize is additive + human-gated), and sensitivity defaults + a PII demotion gate at ingest |
 | **Builds on** | RFC 0005 (atomic graph; nudge posture §7.2), RFC 0007 (born-as-Source + deterministic mint — absorb already rides this path) |
 | **Revises** | nothing structurally. The mint path, the content-addressed `raw/operational/` Source, and the body-hash ledger all stand. This RFC adds the *perimeter*: when absorb runs, what happens when upstream edits, how depth is handled, and what lands private. |

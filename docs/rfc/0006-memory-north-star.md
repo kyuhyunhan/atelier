@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft (proposed 2026-07-03) |
+| **Status** | Implemented (proposed 2026-07-03) — program complete: all four pillars built, reviewed, verified (CHANGELOG “RFC 0006 program complete”) |
 | **Scope** | the memory system as a whole — the truth→projection change feed; the MCP serving boundary; retrieval curation; data topology and self-description. This RFC is an **umbrella**: it sets goals, invariants, and a rubric-gated verification protocol; each pillar ships under its own follow-up RFC/phase. |
 | **Builds on** | RFC 0005 (atomic graph, single-sourced structure), RFC 0002 (hybrid retrieval — **landed**), RFC 0001 (facets-not-paths) |
 | **Reference** | `runtime/service/learnings/eval.py` (metric harness), `runtime/service/learnings/surfacing.py` (omission gate), `docs/rfc/0002-baseline.json` (frozen retrieval baseline) |

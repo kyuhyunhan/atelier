@@ -153,11 +153,14 @@ const author = await agent(
   `waivers, supersedes entries only if an invariant must be released (each with a ` +
   `matching INTENT bound), and the pins block (before_sha256 = sha256 of before.json; ` +
   `captured_at_head = the CURRENT HEAD on main, which becomes the contract commit's first ` +
-  `parent; fixture_sha256 ONLY when a probe fixture is a measurement input for this run — ` +
-  `and when you pin it you MUST also write a sibling top-level "fixture_path" field holding ` +
-  `that fixture's path. The verifier reads fixture_path to pass --fixture; a pin with no ` +
-  `machine-readable path is a HARD ABORT (prose in a note does not count), and a pin with ` +
-  `no fixture at all is likewise fatal. Omit both fields when no fixture applies.) ` +
+  `parent; fixture_sha256 whenever an out-of-tree fixture backs ANY metric in this run's ` +
+  `namespace — INTENT *or* ENVELOPE, since --fixture feeds only the pin check and a metric ` +
+  `is measured from the default fixture either way, so an unpinned enveloped leaf can be ` +
+  `moved by a mid-run fixture edit with nothing to catch it. When you pin it you MUST also ` +
+  `write a top-level "fixture_path" field BESIDE (not inside) the pins block, holding that ` +
+  `fixture's path. The verifier reads fixture_path to pass --fixture, and check_pins RAISES ` +
+  `on a pin with no declared path — prose in a note does not count. Omit both when no ` +
+  `out-of-tree fixture applies.) ` +
   `Do NOT implement anything yet. Summarize the contract for the critic.`,
   { label: 'author', phase: 'Contract' })
 
@@ -167,7 +170,10 @@ const critic = await agent(
   `Check: every intended change has an INTENT clause with an exact bound; no bound is ` +
   `a rubber stamp (a meaningless min/max that a regression would still pass); every ` +
   `waiver names a real reason and a real bound; every supersedes entry has a matching ` +
-  `INTENT bound; the pins are present. If it holds: FIRST create and switch to a fresh ` +
+  `INTENT bound; the pins are present — and if pins.fixture_sha256 is non-null, a top-level ` +
+  `"fixture_path" field must sit BESIDE the pins block (check_pins raises without it, so a ` +
+  `contract missing it burns the whole Implement stage before aborting at verify). ` +
+  `If it holds: FIRST create and switch to a fresh ` +
   `feature branch \`feat/rfc-0009-${GOAL_ID}\` off the current main HEAD ` +
   `(\`git switch -c\`; if it already exists from an aborted prior run, delete it first ` +
   `with \`git branch -D\` so this run starts clean) — so the contract ` +

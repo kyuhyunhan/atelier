@@ -47,11 +47,16 @@ def _commit(repo: Path, relpath: str, data: dict, msg: str) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
-def _contract(before_sha: str, head: str, *, fixture_sha=None) -> dict:
-    return {"id": "G-test",
-            "pins": {"before_sha256": before_sha, "captured_at_head": head,
-                     "fixture_sha256": fixture_sha},
-            "intent": [], "envelope": {"mode": "default-deny"}}
+def _contract(before_sha: str, head: str, *, fixture_sha=None,
+              fixture_path="~/.atelier/fixtures/probes.json") -> dict:
+    ct = {"id": "G-test",
+          "pins": {"before_sha256": before_sha, "captured_at_head": head,
+                   "fixture_sha256": fixture_sha},
+          "intent": [], "envelope": {"mode": "default-deny"}}
+    if fixture_sha and fixture_path is not None:
+        # §5.6: a pinned fixture must declare a machine-readable path
+        ct["fixture_path"] = fixture_path
+    return ct
 
 
 # ── reading the committed blob, not the working tree ─────────────────────────
@@ -160,6 +165,25 @@ def test_a_declared_fixture_that_is_absent_raises(tmp_path: Path):
     with pytest.raises(ContractError, match="fixture is absent"):
         _f.check_pins(ct, repo=repo, contract_path=repo / "g.json",
                       before_path=before, fixture_path=None)
+
+
+def test_a_pinned_fixture_without_a_declared_path_raises(tmp_path: Path):
+    """§5.6 shape check: pinning a fixture the contract never LOCATES is a
+    hard abort at the pin layer, not something the verifier agent has to
+    notice. Two runs aborted on fixture pins before this was structural."""
+    repo = _repo(tmp_path)
+    before = tmp_path / "before.json"
+    before.write_text('{"metrics": {}}', encoding="utf-8")
+    fixture = tmp_path / "probes.json"
+    fixture.write_text('{"probes": ["v1"]}', encoding="utf-8")
+    parent = _git(repo, "rev-parse", "HEAD")
+    ct = _contract(_f.sha256_file(before), parent,
+                   fixture_sha=_f.sha256_file(fixture),
+                   fixture_path=None)          # pinned, but never located
+    _commit(repo, "g.json", ct, "add contract")
+    with pytest.raises(ContractError, match="no.*fixture_path"):
+        _f.check_pins(ct, repo=repo, contract_path=repo / "g.json",
+                      before_path=before, fixture_path=fixture)
 
 
 def test_missing_pins_block_raises(tmp_path: Path):

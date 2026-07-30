@@ -352,11 +352,47 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
     misdescription the parameter exists to prevent."""
     from .service.learnings import baseline as _bl
     import json as _json
+    import sys as _sys
+    def _refuse(why: str) -> int:
+        # BOTH sinks on purpose: the log for the record, stderr because the
+        # primary caller is a non-TTY subprocess (a workflow agent), and the
+        # console handler is TTY-gated — a reason only in the log file is a
+        # reason the caller cannot act on.
+        log.error("baseline.refused", reason=why)
+        print(f"REFUSED: {why}", file=_sys.stderr)
+        return 2
+
+    if args.strict_engine:
+        # Cheap half FIRST: the env switch is knowable at entry, and generate()
+        # is an eval + surfacing + census + metrics pass (minutes on a real
+        # vault). Paying that to report an env var would make every mistake
+        # expensive.
+        pre = _bl.engine_capture_precheck()
+        if pre:
+            return _refuse(pre)
+    bl = _bl.generate(k=args.k, about=args.about)
+    if args.strict_engine:
+        # The rest needs the measurement: a provider that did not answer, or a
+        # projection that would not open, is only visible in the engine label.
+        why = _bl.degraded_engine_reason(bl)
+        if why:
+            return _refuse(why)
+    if args.with_file_digests:
+        # The round baseline needs the per-file map or a fingerprint waiver is
+        # unscorable: `goal._with_changed_paths` returns silently when either
+        # side lacks it, so `vault.changed_paths.count` never materializes and
+        # the waiver's bound cannot be checked. `generate()` omits it by design
+        # (7k entries would bloat the committed program anchor), which made the
+        # round capture a two-step the caller had to remember — now one command.
+        from .service.learnings import vault_state as _vs
+        bl["_file_digests"] = _vs.file_digests()
     if args.out:
-        bl = _bl.write(Path(args.out), k=args.k, about=args.about)
-        print(f"baseline written: {args.out}  engine={bl.get('engine')}")
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(_bl.serialize(bl), encoding="utf-8")
+        print(f"baseline written: {args.out}  engine={bl.get('engine')}"
+              + (f"  file_digests={len(bl['_file_digests'])}"
+                 if args.with_file_digests else ""))
     else:
-        bl = _bl.generate(k=args.k, about=args.about)
         print(_json.dumps(bl, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
 
@@ -573,6 +609,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", help="write baseline JSON here (default: stdout)")
     s.add_argument("--about",
                    help="what program this anchor serves (default: the RFC 0006 text)")
+    s.add_argument("--strict-engine", action="store_true",
+                   help="refuse (exit 2, nothing written) when the measured "
+                        "retrieval engine will not be reproduced at verify — "
+                        "ATELIER_EMBED=off set, provider unreachable, or an "
+                        "unopenable projection. Use for a goal ROUND baseline "
+                        "(RFC 0009 §4.2)")
+    s.add_argument("--with-file-digests", action="store_true",
+                   help="include the per-file digest map (_file_digests) — "
+                        "REQUIRED for a goal round baseline, else a fingerprint "
+                        "waiver's changed_paths bound cannot be scored (§3.5)")
     s.set_defaults(func=_cmd_baseline)
 
     s = sub.add_parser("daemon",

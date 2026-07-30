@@ -88,10 +88,88 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
     }
 
 
-def _serialize(baseline: Dict[str, Any]) -> str:
+def _config_disables_embeddings() -> bool:
+    """True when the config BLOCK itself turns embeddings off (not the env
+    switch). Such a machine is structurally lexical at both ends, so the
+    `ATELIER_EMBED=off` check is provably redundant there — refusing would tell
+    the operator to unset something that changes nothing for them."""
+    try:
+        from ...util import config as _config
+        emb = (_config.load().raw or {}).get("embedding") or {}
+        return not bool(emb.get("enabled", True))
+    except Exception:                        # pragma: no cover - unloadable env
+        return False                         # cannot prove redundancy → check
+
+
+def engine_capture_precheck() -> Optional[str]:
+    """The part of the round-baseline gate knowable BEFORE measuring — today,
+    the env kill switch. Callers run this first so a refusal costs nothing: a
+    full `generate()` is an eval + surfacing + census + metrics pass (minutes on
+    a real vault), and paying it to report an env var is pure waste. Returns the
+    same reason string `degraded_engine_reason` would, or None."""
+    return degraded_engine_reason({})      # no engine known yet, by design
+
+
+def degraded_engine_reason(baseline: Dict[str, Any], *,
+                           env_override: Optional[str] = None
+                           ) -> Optional[str]:
+    """Why this capture must NOT be pinned as a round baseline — or None.
+
+    A round baseline is comparable to a later verify run only under the SAME
+    retrieval engine (RFC 0009 §4.2; `goal._guard_eval_engine` raises on a
+    mismatch). The failure this closes: G7 captured its baseline with
+    `ATELIER_EMBED=off` — the convention every test invocation here uses — so
+    `eval.engine` froze as `lexical-rrf` while verify measured `hybrid`. The
+    guard caught it, but only after the Implement stage had run, and the run was
+    unscorable against its own pin. Refusing at CAPTURE is cheap.
+
+    The question is not "is this engine the best one?" but **"will verify
+    reproduce this engine?"** — so the discriminator is whether the degrade is
+    TRANSIENT or STRUCTURAL:
+
+    - `ATELIER_EMBED=off` in this invocation's env → refuse. A per-invocation
+      kill switch is not reproducible: verify runs without it. This is the G7
+      case, and an earlier draft of this guard excused it by reading intent
+      through `gateway.settings_from` (which honours the switch) — so the guard
+      did not fire on the very case it exists to catch.
+    - `hybrid-degraded` / `unknown` → refuse. The provider was unreachable, or
+      the projection would not open; scores are lexical while the config asks
+      for hybrid, and a later run with a healthy provider will not match.
+    - `hybrid`, or `lexical-rrf` with no env override → accept. The latter is a
+      machine with no semantic wiring at all (no provider, no sqlite-vec, or
+      config disables embeddings): stable, so verify measures it too and the
+      §4.2 gate passes. Refusing it would be a false alarm on an adopter who
+      never asked for semantic retrieval.
+    """
+    import os as _os
+    override = (env_override if env_override is not None
+                else _os.environ.get("ATELIER_EMBED", ""))
+    engine = str(baseline.get("engine") or "")
+    if str(override).lower() == "off" and not _config_disables_embeddings():
+        # Deliberately does NOT name the engine: this branch is also reached
+        # from `engine_capture_precheck`, before any measurement exists, and a
+        # placeholder label in an operator-facing message is worse than none.
+        return ("ATELIER_EMBED=off was set for this capture — a per-invocation "
+                "kill switch is not reproducible at verify, which runs without "
+                "it, so the pin would make the run unscorable (§4.2). That "
+                "switch is this repo's convention for TEST runs; unset it and "
+                "recapture")
+    if engine in ("hybrid-degraded", "unknown"):
+        return (f"engine={engine!r} — the embedding provider did not answer (or "
+                "the projection would not open), so these scores are lexical "
+                "while config asks for hybrid. A later verify with a healthy "
+                "provider will not match this pin (§4.2). Confirm the provider "
+                "answers, then recapture")
+    return None
+
+
+def serialize(baseline: Dict[str, Any]) -> str:
     """Stable serialization: sorted keys + trailing newline, so regenerating an
     unchanged vault yields a byte-identical file (clean git diffs)."""
     return json.dumps(baseline, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+_serialize = serialize          # back-compat alias for existing callers
 
 
 def write(path: Path, *, k: int = 5, vault: Optional[Path] = None,

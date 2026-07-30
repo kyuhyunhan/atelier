@@ -153,8 +153,12 @@ const author = await agent(
   `waivers, supersedes entries only if an invariant must be released (each with a ` +
   `matching INTENT bound), and the pins block (before_sha256 = sha256 of before.json; ` +
   `captured_at_head = the CURRENT HEAD on main, which becomes the contract commit's first ` +
-  `parent; fixture_sha256 if a probe fixture is used). Do NOT implement anything yet. ` +
-  `Summarize the contract for the critic.`,
+  `parent; fixture_sha256 ONLY when a probe fixture is a measurement input for this run — ` +
+  `and when you pin it you MUST also write a sibling top-level "fixture_path" field holding ` +
+  `that fixture's path. The verifier reads fixture_path to pass --fixture; a pin with no ` +
+  `machine-readable path is a HARD ABORT (prose in a note does not count), and a pin with ` +
+  `no fixture at all is likewise fatal. Omit both fields when no fixture applies.) ` +
+  `Do NOT implement anything yet. Summarize the contract for the critic.`,
   { label: 'author', phase: 'Contract' })
 
 const critic = await agent(

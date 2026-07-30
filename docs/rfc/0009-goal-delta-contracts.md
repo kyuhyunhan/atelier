@@ -554,6 +554,17 @@ strings if left unspecified:
   into `pins.fixture_sha256` in the committed, counts-only contract, and the
   verifier recomputes it.
 
+  **The round baseline must be captured under the engine verify will use.**
+  §4.2's engine pin is enforced at BOTH ends now: `atelier baseline
+  --strict-engine` refuses (exit 2, nothing written) when the measured engine is
+  degraded relative to the config block, and `goal._guard_eval_engine` raises on
+  a mismatch at verify. Capture-side refusal is the cheap end — G7 pinned a
+  baseline captured with `ATELIER_EMBED=off` (this repo's TEST convention,
+  copied into a goal capture), froze `eval.engine` as `lexical-rrf`, and only
+  discovered it at verify, after the implementation was written and with the run
+  unscorable against its own pin. Intent is read from the config block ONLY: the
+  env kill switch being set is not a statement of intent here, it is the mistake.
+
   **A pin must also be LOCATABLE.** `pins.fixture_sha256` is paired with a
   top-level `fixture_path` field (beside the pins block, not inside it) —
   the path is the fixture's identity for a verifier that must hash it, and

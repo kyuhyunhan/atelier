@@ -1,0 +1,65 @@
+{
+  "id": "G7-index-regen-retire",
+  "goal": "RETIRE the graph/index.md catalog and its generator (engine issue #87; maintainer decision 2026-07-30: retire, not repair). The generator has been BROKEN since the RFC 0005 atomic-layout migration — index_regen._scan globs the pre-atomic graph/<section>/ path, so a live regen writes an EMPTY index (page_count 0) — and the file has been stale since 2026-06-13, six weeks unnoticed. It has zero code consumers (recall_v7 serves only `claim`; legacy recall serves only `learning_*`; no code path reads a wiki_index page — the generator is its only toucher), zero human consumers (the Obsidian workspace has never opened it), and Obsidian's native graph view / search / backlinks supersede a static 50KB catalog. ENGINE: delete runtime/service/jobs/index_regen.py; remove the `atelier_index_regen` MCP handler + its registration in runtime/service/tools.py; remove or adapt the index_regen assertions in tests/test_capability_ports.py; delete index_regen-only tests. KEEP the `wiki_index` page_type in schema/data/gorae.overlay.yaml (reasoning in _decision_wiki_index below). VAULT (exactly two files): delete graph/index.md, and edit graph/meta/dangling-baseline.yaml to prune the 35 `rfc-0005-index` entries (rewriting that category's disposition to record the retire) AND add the newly revealed target to `boundary-external`. DOCS: a CHANGELOG entry recording the retire, its evidence, the false-resolution finding, and that this is the fingerprint-waiver path's first real exercise.",
+  "baseline": "docs/rfc/0009-baseline.json",
+  "pins": {
+    "before_sha256": "c08118cde39c47a5da0a2382f6f965fc9acfbf2ec4480954decf1da41b8fa00e",
+    "captured_at_head": "bbc194e2fcd95b105af4859d56a5c24ed4fee9e5",
+    "fixture_sha256": "458a262e82c2d700ca244bc6dad44926fa7b223410122a74d9d1e52178815de3"
+  },
+  "fixture_path": "~/.atelier/fixtures/project_probes.json",
+  "intent": [
+    {
+      "metric": "metrics.dangling_links.by_type.wikilink",
+      "from": 128,
+      "to": {
+        "eq": 95
+      }
+    },
+    {
+      "metric": "metrics.dangling_links.total",
+      "from": 128,
+      "to": {
+        "eq": 95
+      }
+    }
+  ],
+  "envelope": {
+    "mode": "default-deny",
+    "waivers": [
+      {
+        "release": "vault.content_fingerprint",
+        "bound": {
+          "metric": "vault.changed_paths.count",
+          "to": {
+            "max": 1
+          }
+        },
+        "reason": "Deleting graph/index.md is the run's only fingerprinted change: file_digests walks *.md only, so the graph/meta/dangling-baseline.yaml edit contributes nothing to changed_paths. The fingerprint is a hash and cannot carry a numeric bound (§3.5), so it is released and the sibling count is bounded at exactly one path. Prefix scoping to `graph/` is NOT declared because the mechanism does not support it: vault_state.changed_paths returns a flat relpath list and contract.py accepts only {release, bound{metric,to}, reason} — no scope field exists. max:1 is the tightest bound this mechanism can express, and it is tighter than a prefix scope would be."
+      }
+    ]
+  },
+  "supersedes": [],
+  "rubric": "P0",
+  "_arithmetic": "128 − 35 + 2 = 95, NOT 93. The 35 `rfc-0005-index` dangling edges are carried BY graph/index.md and leave entirely with it. The +2 are the two inbound edges the retire reveals: raw/personal/diary/2023/10/14.md and raw/personal/diary/2023/12/20.md both link [[_archive/projects/_archive/German Working Holiday/1-3.계획/index]]. Two edges, ONE new distinct target.",
+  "_false_resolution_finding": "Those two links resolve to graph/index.md (page 6522) today ONLY because reindex._build_basename_index maps the basename `index` and 6522 is the vault's sole page with that basename. The resolution is SEMANTICALLY FALSE — an archived German-Working-Holiday folder index has nothing to do with the graph catalog. So the retire REMOVES A WRONG EDGE (a correctness improvement) and the two edges correctly become dangling: the content they name genuinely is not in this vault. Finding for the CHANGELOG: for a partial-key fallback, UNIQUENESS IS NOT RELEVANCE — a collision-safe basename index is safe against ambiguity but not against a unique-yet-unrelated match. Scale check already performed and not to be redone: 24 path-form wikilinks resolve to a page not matching their claimed path; 23 are LEGITIMATE migration-scar resolutions (wiki/entities/X → graph/atomic/X; G6's timestamp → claim). The `index` case is the only semantic mismatch, and it disappears with this retire.",
+  "_baseline_edit_must_add_as_well_as_prune": "The revealed target `_archive/projects/_archive/German Working Holiday/1-3.계획/index` is NOT in graph/meta/dangling-baseline.yaml. A pure prune would push metrics.dangling_new.new 0 → 1 and break the RFC 0009 ratchet / doctor D8. metrics.dangling_new.new is default-denied at 0 by the envelope — no waiver — which is precisely why the baseline step must BOTH prune the 35 `rfc-0005-index` entries AND add the revealed target to `boundary-external` with a one-line note that it names content outside this vault and was masked until the retire by a basename false-resolution. The `_`-prefixed diagnostics (_accepted, _current_distinct: 87 → 53) do move, but they are outside the numeric namespace (§5.1.1) and are unwaivable by construction.",
+  "_decision_wiki_index": "KEEP the `wiki_index` page_type in schema/data/gorae.overlay.yaml. Disclosed reasoning: (a) an adopter's legacy vault may still hold wiki/index.md, and dropping the classification would make such a file classify as unknown or trip lint; (b) tests/test_regression_gorae_vault.py already asserts wiki/index.md → wiki_index, so removal is not a no-op even inside this repo; (c) the page_type is a classification rule in schema data, decoupled from the generator being deleted — retiring a producer does not require retiring the type it produced. The conservative choice costs one inert overlay entry; the aggressive one risks breaking a vault this contract has no measurement over.",
+  "_envelope_reasoning": "Default-deny over the §3.4 namespace with exactly one waiver. Explicitly expected UNCHANGED and left default-denied: metrics.dangling_new.new (0), metrics.cross_project_noise.* (measured from the pinned out-of-tree fixture), census.* (the census counts only claim/entity/source, so wiki_index is not a census kind and INV-1 is unaffected by deleting the page), guard_liveness, pending_age, promote_eligible, lens_param_present, surfacing.*, eval.*.",
+  "_pins_reasoning": "before_sha256 c08118cd… is the sha256 of ~/.atelier/cache/goals/G7-index-regen-retire/before.json, whose metrics.dangling_links reads by_type.wikilink 128 / total 128 — the FRESH round baseline both INTENT clauses bind from. captured_at_head bbc194e2… is the current main HEAD and becomes this contract commit's first parent (§3.1.1). fixture_sha256 458a262e… is pinned because metrics.cross_project_noise.* lives in this run's ENVELOPE namespace and is measured from ~/.atelier/fixtures/project_probes.json; --fixture feeds only the pin check and the metric is measured from the default fixture either way, so an unpinned enveloped leaf could be moved by a mid-run fixture edit with nothing to catch it. fixture_path is a TOP-LEVEL field BESIDE the pins block, not inside it: freeze.check_pins raises when pins.fixture_sha256 is set and no top-level fixture_path is declared (prose in a note does not count). Two prior runs aborted on exactly this — G1 r1 pinned a fixture that did not exist; G7 r2 pinned a real one but wrote its path only in prose.",
+  "_supersedes_reasoning": "Empty. INV-4 surfacing.visible must not fall and eval recall must not regress — no recall path serves a wiki_index page (recall_v7 serves only `claim`, legacy recall only `learning_*`), so neither moves and there is nothing to release. INV-1 is untouched: the census counts only claim/entity/source, and graph/index.md is none of those. The embedding provider is healthy and eval._engine_label() reads `hybrid`, so the §4.2 engine gate holds.",
+  "_out_of_scope": "Do NOT touch any other vault file; do NOT edit the two diary bodies (their links are honestly broken — that is the true state this retire reveals); do NOT alter other dangling-baseline categories; do NOT 'fix' the remaining accepted dangling residual.",
+  "critic": {
+    "verdict": "accepted",
+    "reviewed_at_head": "bbc194e2fcd95b105af4859d56a5c24ed4fee9e5",
+    "checks": [
+      "INTENT: both clauses carry an exact {eq:95} bound, no rubber stamp. Verified INDEPENDENTLY against the live projection, not by re-reading the author summary: broken wikilink edges total 128 (matches pins/before.json); links FROM graph/index.md (page 7312) with to_page_id IS NULL = 35; links INTO graph/index.md = exactly 2, both from raw/personal/diary/2023/{10/14,12/20}.md targeting the same archived German-Working-Holiday path. graph/index.md is the vault SOLE page with basename index.md, so both inbound edges necessarily break on deletion. 128 - 35 + 2 = 95 is exact, and eq (not max) is therefore the correct form.",
+      "NOT SATISFIABLE WITHOUT THE GOAL: an untouched tree measures 128 and fails eq:95. A prune-only baseline edit reaches 95 on both INTENT clauses but pushes metrics.dangling_new.new from 0 to 1 (accepted 87-35=52 vs current distinct 87-35+1=53), and that metric is default-denied at 0 with no waiver. Confirmed the revealed target is absent from graph/meta/dangling-baseline.yaml (zero matches), so the ADD is mechanically forced, not merely narrated.",
+      "ENVELOPE: default-deny with exactly one waiver. vault.content_fingerprint is a hash and cannot carry a numeric bound, so the release/bound split onto vault.changed_paths.count {max:1} is the canonical §3.5 pattern (contract.py:233-259). max:1 is exact, not slack: before.json _file_digests holds 7304 entries and ZERO .yaml paths, so the dangling-baseline.yaml edit contributes nothing to changed_paths and graph/index.md is the single changed path. Verified the disclosed limitation is real: vault_state.changed_paths returns a flat relpath list and the waiver schema accepts only {release, bound, reason} with no scope field, so a graph/ prefix scope is genuinely inexpressible and max:1 is strictly tighter.",
+      "PINS: all three recomputed, not trusted. before_sha256 c08118cd... matches shasum of the round baseline; captured_at_head bbc194e2... is current main HEAD and becomes this commit first parent; fixture_sha256 458a262e... matches shasum of ~/.atelier/fixtures/project_probes.json. fixture_path is a TOP-LEVEL sibling of pins, not nested inside it — the exact shape freeze.check_pins:167 requires before it will proceed (the abort that burned G7 r2).",
+      "SUPERSEDES: empty, and correctly so. No recall path serves a wiki_index page, and the census counts only claim/entity/source kinds, so no INTENT bound is owed.",
+      "JUDGEMENT CALL RULED ON — keep wiki_index page_type: UPHELD. tests/test_regression_gorae_vault.py already asserts the wiki/index.md -> wiki_index mapping, so removal is not a no-op in-repo, and the page_type is a schema-data classification rule decoupled from the deleted producer. Retiring a generator does not require retiring the type it produced."
+    ],
+    "noted_not_blocking": "No metric in the §3.4 namespace measures the engine tool surface, so the ENGINE half of the goal (delete index_regen.py, drop the atelier_index_regen handler and registration, adapt/delete its tests) carries no expressible bound. This is a namespace limit, not a contract defect — there is no bound the author could have written. It falls to the independent reviewer diffing main...HEAD and to the test suite."
+  }
+}

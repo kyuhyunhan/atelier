@@ -4,6 +4,33 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — RFC 0009 §4.2: refuse a round baseline verify cannot reproduce
+
+`atelier baseline` gains two flags for capturing a goal's round baseline:
+
+- **`--strict-engine`** — measures the retrieval engine and refuses (exit 2,
+  reason on stderr, nothing written) when verify will not reproduce it. The
+  discriminator is *transient vs structural*: `ATELIER_EMBED=off` set for the
+  capture (a per-invocation switch verify runs without), an unreachable provider
+  (`hybrid-degraded`), or an unopenable projection (`unknown`) are refused;
+  `hybrid` and a structurally lexical machine — no provider, no sqlite-vec, or
+  embeddings off in config — are accepted, because those measure the same label
+  at both ends. The env check runs *before* the measurement, so a refusal costs
+  nothing instead of a full eval+census pass.
+- **`--with-file-digests`** — includes the per-file digest map. Required for a
+  round baseline: without it `goal._with_changed_paths` returns silently,
+  `vault.changed_paths.count` never materializes, and a §3.5 fingerprint waiver
+  cannot be scored at all.
+
+Why: a goal run pinned a baseline captured with `ATELIER_EMBED=off` — this
+repo's convention for *test* invocations, copied into a *goal* capture — which
+froze `eval.engine` as `lexical-rrf` while verify measured `hybrid`. The §4.2
+guard caught the mismatch, but only at verify, after the implementation was
+written, leaving the run unscorable against its own pin. The verify-side guard
+remains the closed end; this is a cheaper one, and the workflow's Snapshot stage
+now captures with both flags in a single command.
+
+
 ### Closed — RFC 0004 Phase 2, superseded without implementation
 
 The last RFC item without a disposition (surfaced by PR #96's fact-check —

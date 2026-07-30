@@ -67,3 +67,68 @@ def test_reads_the_live_env_when_no_override_is_passed(atelier_env: Dict,
                                                       monkeypatch) -> None:
     monkeypatch.delenv("ATELIER_EMBED", raising=False)
     assert _bl.degraded_engine_reason({"engine": "lexical-rrf"}) is None
+
+
+# ── CLI wiring — the surface that actually broke, twice ──────────────────────
+#
+# Both round-1 review MUSTs were WIRING defects, not logic ones: a refusal reason
+# that never reached stderr (log console handler is TTY-gated, and the primary
+# caller is a non-TTY agent subprocess), and a prescribed command that silently
+# dropped `_file_digests` so a fingerprint waiver could not be scored. The pure
+# `degraded_engine_reason` tests above would have missed either. These cover it.
+
+def test_cli_refuses_before_measuring_and_reports_on_stderr(
+        atelier_env: Dict, tmp_path, monkeypatch, capsys) -> None:
+    from runtime import cli as _cli
+    calls = {"generate": 0}
+
+    def _boom(*a, **k):                      # must NOT be reached
+        calls["generate"] += 1
+        raise AssertionError("generate() ran before the cheap env check")
+    monkeypatch.setattr(_bl, "generate", _boom)
+    monkeypatch.setenv("ATELIER_EMBED", "off")
+
+    out = tmp_path / "before.json"
+    code = _cli.main(["baseline", "--strict-engine", "--out", str(out)])
+    assert code == 2
+    assert calls["generate"] == 0             # refusal is cheap, not a full pass
+    assert not out.exists()                   # a bad capture never becomes a pin
+    assert "REFUSED" in capsys.readouterr().err
+
+
+def test_cli_writes_file_digests_when_asked(atelier_env: Dict, tmp_path,
+                                            monkeypatch) -> None:
+    """Without this key `goal._with_changed_paths` returns silently and a
+    fingerprint waiver's changed_paths bound cannot be scored — the failure the
+    prescribed Snapshot command used to walk into."""
+    import json
+    from runtime import cli as _cli
+    monkeypatch.setattr(_bl, "generate",
+                        lambda **k: {"engine": "hybrid", "metrics": {}})
+    out = tmp_path / "before.json"
+    assert _cli.main(["baseline", "--with-file-digests", "--out", str(out)]) == 0
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert isinstance(written.get("_file_digests"), dict)
+
+
+def test_cli_omits_file_digests_by_default(atelier_env: Dict, tmp_path,
+                                           monkeypatch) -> None:
+    """The committed program anchor must stay small — 7k entries belong only in a
+    round baseline, so the key is opt-in."""
+    import json
+    from runtime import cli as _cli
+    monkeypatch.setattr(_bl, "generate",
+                        lambda **k: {"engine": "hybrid", "metrics": {}})
+    out = tmp_path / "anchor.json"
+    assert _cli.main(["baseline", "--out", str(out)]) == 0
+    assert "_file_digests" not in json.loads(out.read_text(encoding="utf-8"))
+
+
+def test_config_disabled_embeddings_makes_the_switch_redundant(
+        atelier_env: Dict, monkeypatch) -> None:
+    """RFC §5.6's parenthetical, enforced: on a machine whose CONFIG disables
+    embeddings, `ATELIER_EMBED=off` changes nothing — both ends measure
+    lexical-rrf — so refusing would tell the operator to unset a no-op."""
+    monkeypatch.setenv("ATELIER_EMBED", "off")
+    monkeypatch.setattr(_bl, "_config_disables_embeddings", lambda: True)
+    assert _bl.degraded_engine_reason({"engine": "lexical-rrf"}) is None

@@ -88,6 +88,28 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
     }
 
 
+def _config_disables_embeddings() -> bool:
+    """True when the config BLOCK itself turns embeddings off (not the env
+    switch). Such a machine is structurally lexical at both ends, so the
+    `ATELIER_EMBED=off` check is provably redundant there — refusing would tell
+    the operator to unset something that changes nothing for them."""
+    try:
+        from ...util import config as _config
+        emb = (_config.load().raw or {}).get("embedding") or {}
+        return not bool(emb.get("enabled", True))
+    except Exception:                        # pragma: no cover - unloadable env
+        return False                         # cannot prove redundancy → check
+
+
+def engine_capture_precheck() -> Optional[str]:
+    """The part of the round-baseline gate knowable BEFORE measuring — today,
+    the env kill switch. Callers run this first so a refusal costs nothing: a
+    full `generate()` is an eval + surfacing + census + metrics pass (minutes on
+    a real vault), and paying it to report an env var is pure waste. Returns the
+    same reason string `degraded_engine_reason` would, or None."""
+    return degraded_engine_reason({})      # no engine known yet, by design
+
+
 def degraded_engine_reason(baseline: Dict[str, Any], *,
                            env_override: Optional[str] = None
                            ) -> Optional[str]:
@@ -123,12 +145,15 @@ def degraded_engine_reason(baseline: Dict[str, Any], *,
     override = (env_override if env_override is not None
                 else _os.environ.get("ATELIER_EMBED", ""))
     engine = str(baseline.get("engine") or "")
-    if str(override).lower() == "off":
-        return (f"ATELIER_EMBED=off was set for this capture (engine={engine!r}) "
-                "— a per-invocation kill switch is not reproducible at verify, "
-                "which runs without it, so the pin would make the run "
-                "unscorable (§4.2). That switch is this repo's convention for "
-                "TEST runs; unset it and recapture")
+    if str(override).lower() == "off" and not _config_disables_embeddings():
+        # Deliberately does NOT name the engine: this branch is also reached
+        # from `engine_capture_precheck`, before any measurement exists, and a
+        # placeholder label in an operator-facing message is worse than none.
+        return ("ATELIER_EMBED=off was set for this capture — a per-invocation "
+                "kill switch is not reproducible at verify, which runs without "
+                "it, so the pin would make the run unscorable (§4.2). That "
+                "switch is this repo's convention for TEST runs; unset it and "
+                "recapture")
     if engine in ("hybrid-degraded", "unknown"):
         return (f"engine={engine!r} — the embedding provider did not answer (or "
                 "the projection would not open), so these scores are lexical "

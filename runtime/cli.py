@@ -353,19 +353,30 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
     from .service.learnings import baseline as _bl
     import json as _json
     import sys as _sys
+    def _refuse(why: str) -> int:
+        # BOTH sinks on purpose: the log for the record, stderr because the
+        # primary caller is a non-TTY subprocess (a workflow agent), and the
+        # console handler is TTY-gated — a reason only in the log file is a
+        # reason the caller cannot act on.
+        log.error("baseline.refused", reason=why)
+        print(f"REFUSED: {why}", file=_sys.stderr)
+        return 2
+
+    if args.strict_engine:
+        # Cheap half FIRST: the env switch is knowable at entry, and generate()
+        # is an eval + surfacing + census + metrics pass (minutes on a real
+        # vault). Paying that to report an env var would make every mistake
+        # expensive.
+        pre = _bl.engine_capture_precheck()
+        if pre:
+            return _refuse(pre)
     bl = _bl.generate(k=args.k, about=args.about)
     if args.strict_engine:
-        # A round baseline captured under a degraded engine is unscorable
-        # (§4.2). Measured BEFORE any write, so a bad capture never becomes a pin.
+        # The rest needs the measurement: a provider that did not answer, or a
+        # projection that would not open, is only visible in the engine label.
         why = _bl.degraded_engine_reason(bl)
         if why:
-            # BOTH sinks on purpose: the log for the record, stderr because the
-            # primary caller is a non-TTY subprocess (a workflow agent), and the
-            # console handler is TTY-gated — a reason only in the log file is a
-            # reason the caller cannot act on.
-            log.error("baseline.refused", reason=why)
-            print(f"REFUSED: {why}", file=_sys.stderr)
-            return 2
+            return _refuse(why)
     if args.with_file_digests:
         # The round baseline needs the per-file map or a fingerprint waiver is
         # unscorable: `goal._with_changed_paths` returns silently when either

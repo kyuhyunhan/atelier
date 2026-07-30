@@ -563,8 +563,11 @@ strings if left unspecified:
   measured engine will not be reproduced — `ATELIER_EMBED=off` set for the
   capture, an unreachable provider (`hybrid-degraded`), or an unopenable
   projection (`unknown`). A structurally lexical machine (no provider, no
-  sqlite-vec, embeddings off in config) is NOT refused: it measures
-  `lexical-rrf` at both ends and is perfectly scorable. G7 pinned a baseline
+  sqlite-vec) is NOT refused: it measures `lexical-rrf` at both ends and is
+  perfectly scorable. Config-disabled embeddings are structural too — and the
+  guard skips the switch check when config already disables them, since the
+  switch then changes nothing and refusing would tell the operator to unset
+  something that is provably redundant for their machine. G7 pinned a baseline
   captured with `ATELIER_EMBED=off` — this repo's TEST convention, copied into a
   goal capture — froze `eval.engine` as `lexical-rrf`, and discovered it only at
   verify, after the implementation was written, with the run unscorable against

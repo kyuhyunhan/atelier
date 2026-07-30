@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -56,9 +57,13 @@ def test_fix_pending_apply(atelier_env: Dict) -> None:
 
 
 def test_index_regen_module_is_gone() -> None:
-    """The job module must stay deleted — no quiet resurrection."""
-    with pytest.raises(ImportError):
-        importlib.import_module("runtime.service.jobs.index_regen")
+    """The job module must stay deleted — no quiet resurrection.
+
+    Asserts on find_spec, not on ImportError: `pytest.raises(ImportError)` also
+    passes when the module IS present but raises internally (a bad relative
+    import), so it cannot distinguish "absent" from "back but broken" — and the
+    second is the case a retirement guard most needs to fail on."""
+    assert importlib.util.find_spec("runtime.service.jobs.index_regen") is None
 
 
 def test_index_regen_tool_is_unregistered() -> None:

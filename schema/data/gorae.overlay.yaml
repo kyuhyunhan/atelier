@@ -39,7 +39,12 @@ page_types:
       classification-only after G7 retired the generator (engine issue #87):
       nothing writes this type anymore, but an adopter's legacy vault may still
       hold wiki/index.md, and dropping the rule would make such a file classify
-      as unknown and trip lint. Classification is decoupled from production."
+      as unknown and trip lint. Classification is decoupled from production.
+      The `writer` field above is inert for page_types — nothing reads it
+      (page_type_rules() extracts only (pattern, type); enforced write-locks come
+      from the `subtrees` config block) — and is kept because all 21 page_types
+      across the overlays carry it, so omitting it here would read as an
+      oversight rather than a statement."
 
   wiki_log:
     path_patterns: ["graph/log.md", "wiki/log.md"]

@@ -899,8 +899,7 @@ the board and re-arms next month. Instead, the lint-baseline/ratchet pattern:
 
 **Transfers (open tracks, not this arc's exit criteria).** `provenance/learning/
 notes/…` phantoms → **RFC 0008** (absorb-lifecycle). The 35 index-only stale
-entries → an **index_regen repair-or-retire** track, *closed 2026-07-30 by
-RETIRING the catalog and its generator (issue #87) — the 35 left with it*: `index_regen._scan` still
+entries → an **index_regen repair-or-retire** track: `index_regen._scan` still
 globs the pre-RFC-0005 `graph/<section>/` layout (pages moved to `graph/atomic/`),
 so a live regen writes an *empty* index (`page_count: 0`) — the 35 danglers are
 one symptom of that drift, and repairing (or retiring) the generator is that

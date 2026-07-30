@@ -554,16 +554,28 @@ strings if left unspecified:
   into `pins.fixture_sha256` in the committed, counts-only contract, and the
   verifier recomputes it.
 
-  **The round baseline must be captured under the engine verify will use.**
-  §4.2's engine pin is enforced at BOTH ends now: `atelier baseline
-  --strict-engine` refuses (exit 2, nothing written) when the measured engine is
-  degraded relative to the config block, and `goal._guard_eval_engine` raises on
-  a mismatch at verify. Capture-side refusal is the cheap end — G7 pinned a
-  baseline captured with `ATELIER_EMBED=off` (this repo's TEST convention,
-  copied into a goal capture), froze `eval.engine` as `lexical-rrf`, and only
-  discovered it at verify, after the implementation was written and with the run
-  unscorable against its own pin. Intent is read from the config block ONLY: the
-  env kill switch being set is not a statement of intent here, it is the mistake.
+  **The round baseline must be captured under an engine verify can reproduce.**
+  `goal._guard_eval_engine` raises on a mismatch at verify — unconditionally,
+  the closed end of §4.2. `atelier baseline --strict-engine` adds a *cheaper*
+  end, not a second closed one: it is opt-in (the workflow's Snapshot stage
+  passes it; a capture without it is still pinnable, and only verify catches
+  that). It refuses (exit 2, reason on stderr, nothing written) when the
+  measured engine will not be reproduced — `ATELIER_EMBED=off` set for the
+  capture, an unreachable provider (`hybrid-degraded`), or an unopenable
+  projection (`unknown`). A structurally lexical machine (no provider, no
+  sqlite-vec, embeddings off in config) is NOT refused: it measures
+  `lexical-rrf` at both ends and is perfectly scorable. G7 pinned a baseline
+  captured with `ATELIER_EMBED=off` — this repo's TEST convention, copied into a
+  goal capture — froze `eval.engine` as `lexical-rrf`, and discovered it only at
+  verify, after the implementation was written, with the run unscorable against
+  its own pin. The switch being set is not a statement of intent here; it is the
+  mistake, which is why the guard keys on the switch and not on config.
+
+  **A round baseline also needs `_file_digests`** — `atelier baseline
+  --with-file-digests`. Without the per-file map, `goal._with_changed_paths`
+  returns silently and `vault.changed_paths.count` never materializes, so a
+  fingerprint waiver (§3.5) is unscorable — and, like the engine mismatch, only
+  at verify.
 
   **A pin must also be LOCATABLE.** `pins.fixture_sha256` is paired with a
   top-level `fixture_path` field (beside the pins block, not inside it) —

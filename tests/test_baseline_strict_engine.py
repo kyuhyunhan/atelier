@@ -15,6 +15,7 @@ perfectly scorable.
 """
 from __future__ import annotations
 
+import pytest
 from typing import Dict
 
 from runtime.service.learnings import baseline as _bl
@@ -132,3 +133,35 @@ def test_config_disabled_embeddings_makes_the_switch_redundant(
     monkeypatch.setenv("ATELIER_EMBED", "off")
     monkeypatch.setattr(_bl, "_config_disables_embeddings", lambda: True)
     assert _bl.degraded_engine_reason({"engine": "lexical-rrf"}) is None
+
+
+@pytest.mark.parametrize("engine", ["hybrid-degraded", "unknown"])
+def test_cli_refuses_after_measuring_a_transient_degrade(
+        engine: str, atelier_env: Dict, tmp_path, monkeypatch, capsys) -> None:
+    """The post-measurement half, through the real CLI: a provider that did not
+    answer (or an unopenable projection) is only visible in the engine label, so
+    this branch runs AFTER generate(). Round-1's defects were both wiring, which
+    is why this path gets a CLI test and not only a unit one."""
+    from runtime import cli as _cli
+    monkeypatch.delenv("ATELIER_EMBED", raising=False)
+    monkeypatch.setattr(_bl, "generate", lambda **k: {"engine": engine})
+    out = tmp_path / "before.json"
+    assert _cli.main(["baseline", "--strict-engine", "--out", str(out)]) == 2
+    assert not out.exists()
+    assert "REFUSED" in capsys.readouterr().err
+
+
+def test_config_disabled_embeddings_read_from_a_real_config(
+        atelier_env: Dict) -> None:
+    """Exercise the config READER itself, not a monkeypatch: round 1's near-miss
+    was exactly a config-reading bug, so the real path needs pinning."""
+    import yaml
+    home = atelier_env["home"]
+    cfg_path = home / "config.yaml"
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    raw["embedding"] = {"enabled": False}
+    cfg_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    assert _bl._config_disables_embeddings() is True
+    raw.pop("embedding")                       # absent block ⇒ gateway default True
+    cfg_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    assert _bl._config_disables_embeddings() is False

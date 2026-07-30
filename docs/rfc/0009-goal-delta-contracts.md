@@ -572,7 +572,7 @@ strings if left unspecified:
   goal capture — froze `eval.engine` as `lexical-rrf`, and discovered it only at
   verify, after the implementation was written, with the run unscorable against
   its own pin. The switch being set is not a statement of intent here; it is the
-  mistake, which is why the guard keys on the switch and not on config.
+  mistake, which is why the guard keys on the switch, consulting config only to prove that switch redundant — never as a licence.
 
   **A round baseline also needs `_file_digests`** — `atelier baseline
   --with-file-digests`. Without the per-file map, `goal._with_changed_paths`

@@ -158,6 +158,18 @@ def check_pins(contract: Dict[str, Any], *, repo: Path, contract_path: Path,
     # 3. fixture hash, only when the goal declares one
     want_fixture = pins.get("fixture_sha256")
     if want_fixture:
+        # SHAPE first, then existence: a pinned fixture the verifier cannot
+        # LOCATE is unusable no matter what path it happened to be handed. The
+        # path must be a machine-readable top-level field — prose in a note is
+        # not addressable, and a verifier that guessed would be hashing some
+        # other file. Structural because prompt-level rules kept failing here:
+        # two runs aborted on fixture pins (G1 r1 pinned a fixture that did not
+        # exist; G7 r2 pinned a real one but wrote its path only in prose).
+        if not str(contract.get("fixture_path") or "").strip():
+            raise ContractError(
+                "pins.fixture_sha256 is set but the contract declares no "
+                "top-level `fixture_path` — a pinned fixture must be locatable "
+                "(§5.6); prose in a note does not count")
         if fixture_path is None or not Path(fixture_path).is_file():
             raise ContractError(
                 "pins.fixture_sha256 is set but the fixture is absent")

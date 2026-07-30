@@ -115,6 +115,7 @@ A contract is a small JSON document committed under `docs/goals/<id>.json`
     "captured_at_head": "2a43ec4…",
     "fixture_sha256": null
   },
+  "fixture_path": null,
   "intent": [
     {"metric": "promote_eligible.total", "from": 830, "to": {"max": 30}},
     {"metric": "promote_eligible.by_domain.knowledge", "to": {"eq": 0}}
@@ -552,6 +553,19 @@ strings if left unspecified:
   minimum-yield pass with no lens change shipped. So the fixture's sha256 goes
   into `pins.fixture_sha256` in the committed, counts-only contract, and the
   verifier recomputes it.
+
+  **A pin must also be LOCATABLE.** `pins.fixture_sha256` is paired with a
+  top-level `fixture_path` field (beside the pins block, not inside it) —
+  the path is the fixture's identity for a verifier that must hash it, and
+  `check_pins` raises when a pin carries no declared path. Prose in a note
+  does not count: a verifier that guessed a path would be hashing some other
+  file. This is structural because it was not: two runs hard-aborted on
+  fixture pins (one pinned a fixture that did not exist, one pinned a real
+  fixture whose path lived only in a note). Pin whenever an out-of-tree
+  fixture backs ANY metric in the run's namespace — INTENT *or* ENVELOPE:
+  `--fixture` feeds only the pin check, so an enveloped fixture-measured leaf
+  is still measured from the default fixture and, unpinned, can be moved by a
+  mid-run edit with nothing to catch it.
 
   The fixture directory is also added to the snapshot's durable set
   (`config.yaml`, `voices`, `secrets`, `pii_patterns.txt` today), so a round-3

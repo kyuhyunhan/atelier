@@ -135,10 +135,17 @@ if (!preflight || !preflight.clean) {
 const snap = await agent(
   `Freeze a rollback point and capture the round baseline for goal ${GOAL_ID}.\n` +
   `1. Run: atelier snapshot create — parse the snapshot id.\n` +
-  `2. Reindex, then capture the round baseline: generate a baseline over the live ` +
-  `vault and write it to ~/.atelier/cache/goals/${GOAL_ID}/before.json, INCLUDING ` +
-  `its per-file digest map (the _file_digests key) so a fingerprint waiver can be ` +
-  `scored. Return the snapshot id and the before.json path. Change nothing else.`,
+  `2. Reindex, then capture the round baseline with the ENGINE GUARD ON:\n` +
+  `   atelier baseline --strict-engine --out ~/.atelier/cache/goals/${GOAL_ID}/before.json\n` +
+  `   Do NOT set ATELIER_EMBED=off for this command. That kill switch is this ` +
+  `repo's convention for TEST runs, and using it here freezes eval.engine as ` +
+  `lexical-rrf while verify measures hybrid — the run then hard-aborts at verify ` +
+  `AFTER the implementation is written (this cost a full G7 round). ` +
+  `--strict-engine refuses (exit 2, nothing written) rather than pin such a ` +
+  `baseline; if it refuses, STOP and report — do not retry with the switch on.\n` +
+  `3. The baseline must include its per-file digest map (the _file_digests key) so ` +
+  `a fingerprint waiver can be scored. Return the snapshot id and the before.json ` +
+  `path. Change nothing else.`,
   { label: 'snapshot', phase: 'Snapshot', schema: SNAP_SCHEMA })
 
 log(`snapshot ${snap ? snap.snapshot_id : '(failed)'}; before at ${snap ? snap.before_path : '?'}`)

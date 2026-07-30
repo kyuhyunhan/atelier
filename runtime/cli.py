@@ -352,6 +352,21 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
     misdescription the parameter exists to prevent."""
     from .service.learnings import baseline as _bl
     import json as _json
+    if args.strict_engine:
+        # A round baseline captured under a degraded engine is unscorable
+        # (§4.2). Measure BEFORE writing so a bad capture never becomes a pin.
+        probe = _bl.generate(k=args.k, about=args.about)
+        why = _bl.degraded_engine_reason(probe)
+        if why:
+            log.error(f"REFUSED: {why}")
+            return 2
+        if args.out:
+            Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.out).write_text(_bl._serialize(probe), encoding="utf-8")
+            print(f"baseline written: {args.out}  engine={probe.get('engine')}")
+        else:
+            print(_json.dumps(probe, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
     if args.out:
         bl = _bl.write(Path(args.out), k=args.k, about=args.about)
         print(f"baseline written: {args.out}  engine={bl.get('engine')}")
@@ -573,6 +588,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", help="write baseline JSON here (default: stdout)")
     s.add_argument("--about",
                    help="what program this anchor serves (default: the RFC 0006 text)")
+    s.add_argument("--strict-engine", action="store_true",
+                   help="refuse (exit 2, nothing written) when the measured "
+                        "retrieval engine is degraded relative to config — use "
+                        "for a goal ROUND baseline, which is unscorable unless "
+                        "verify reproduces the same engine (RFC 0009 §4.2)")
     s.set_defaults(func=_cmd_baseline)
 
     s = sub.add_parser("daemon",

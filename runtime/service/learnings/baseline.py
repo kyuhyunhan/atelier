@@ -88,6 +88,44 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
     }
 
 
+def degraded_engine_reason(baseline: Dict[str, Any], *,
+                           embeddings_enabled: Optional[bool] = None
+                           ) -> Optional[str]:
+    """Why this capture must NOT be pinned as a round baseline — or None.
+
+    A round baseline is only comparable to a later verify run under the SAME
+    retrieval engine (RFC 0009 §4.2; `goal._guard_eval_engine` raises on a
+    mismatch). The failure this closes: G7 captured its baseline with
+    `ATELIER_EMBED=off` — the convention every test invocation here uses — so
+    `eval.engine` froze as `lexical-rrf` while verify measured `hybrid`. The
+    guard caught it, but only after the Implement stage had already run, and the
+    run was unscorable against its own pin. Refusing at CAPTURE is cheap.
+
+    Intent is read from the CONFIG BLOCK ONLY, deliberately ignoring the
+    `ATELIER_EMBED=off` env override: that switch being set is not an excuse
+    here, it is the G7 mistake itself (an agent copied the repo's test
+    convention into a goal capture). A `lexical-rrf` capture is legitimate only
+    for an adopter whose config disables embeddings outright — then capture and
+    verify agree, because lexical is the only engine either can measure.
+    """
+    engine = str(baseline.get("engine") or "")
+    if embeddings_enabled is None:
+        try:
+            from ...util import config as _config
+            emb = (_config.load().raw or {}).get("embedding") or {}
+            embeddings_enabled = bool(emb.get("enabled", True))
+        except Exception:                    # pragma: no cover - unloadable env
+            return None                      # cannot judge intent → do not block
+    if not embeddings_enabled:
+        return None                          # lexical by intent: consistent
+    if engine == "hybrid":
+        return None
+    return (f"round baseline captured at engine={engine!r} while config enables "
+            f"embeddings — pinning it makes the run unscorable (§4.2: verify "
+            f"would measure a different engine and hard-abort). Unset "
+            f"ATELIER_EMBED=off and confirm the provider answers, then recapture")
+
+
 def _serialize(baseline: Dict[str, Any]) -> str:
     """Stable serialization: sorted keys + trailing newline, so regenerating an
     unchanged vault yields a byte-identical file (clean git diffs)."""

@@ -899,10 +899,17 @@ the board and re-arms next month. Instead, the lint-baseline/ratchet pattern:
 
 **Transfers (open tracks, not this arc's exit criteria).** `provenance/learning/
 notes/…` phantoms → **RFC 0008** (absorb-lifecycle). The 35 index-only stale
-entries → a new **index_regen repair-or-retire** track: `index_regen._scan` still
+entries → an **index_regen repair-or-retire** track: `index_regen._scan` still
 globs the pre-RFC-0005 `graph/<section>/` layout (pages moved to `graph/atomic/`),
 so a live regen writes an *empty* index (`page_count: 0`) — the 35 danglers are
 one symptom of that drift, and repairing (or retiring) the generator is that
 track's work. The fingerprint-waiver path (still unexercised) travels with it:
 `graph/index.md` is hashed into `vault.content_fingerprint`, so whichever way that
 track goes, it's the natural first waiver test.
+
+> **RESOLVED (2026-07-30, G7 / engine issue #87): retire, not repair.** The
+> catalog had zero code and zero human consumers, so `graph/index.md` and its
+> generator were deleted rather than fixed; the 35 targets left the vault with
+> their sole referrer (`dangling_links.total` 128 → 95). It did serve as the
+> predicted first fingerprint-waiver test: a deletion-only `*.md` delta, waiving
+> `vault.content_fingerprint` under `changed_paths.count {max: 1}`.

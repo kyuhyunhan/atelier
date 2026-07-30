@@ -193,7 +193,7 @@ See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
   *Learnings domain & dream cycle* in
   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design
   rationale (trigger model, interruption resilience).
-- **Capability ports** — `atelier_{validate, fix_pending, index_regen,
+- **Capability ports** — `atelier_{validate, fix_pending,
   prepare_commit, clip_image, new_doc, youtube}` replace the proto-engine
   scripts inside gorae. See `scripts/gorae_cleanup/CHECKLIST.md` to
   remove them.

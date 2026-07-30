@@ -228,11 +228,8 @@ async def _h_fix_pending(dry_run: bool = False,
     return _jp.fix_pending(dry_run=dry_run, role=role)
 
 
-async def _h_index_regen(role: str = "librarian-territory",
-                          dry_run: bool = False) -> Dict[str, Any]:
-    """Regenerate graph/index.md (wiki/ on un-renamed legacy vaults)."""
-    from .jobs import index_regen as _jir
-    return _jir.regen(role=role, dry_run=dry_run)
+# `atelier_index_regen` was RETIRED here — see the CHANGELOG entry and issue #87
+# for the evidence; two tests pin that it stays gone.
 
 
 async def _h_clip_image(url: str,
@@ -835,11 +832,6 @@ def _register_v01_tools() -> None:
     register(ToolDef("atelier_fix_pending",
                      "Resolve every `entry_id: PENDING` to a stable UUID5.",
                      _h_fix_pending,
-                     claim=_claims.Claim.WIKI_WRITE,
-                     lock_role=_claims.WriterRole.WIKI))
-    register(ToolDef("atelier_index_regen",
-                     "Regenerate graph/index.md (wiki/ on legacy vaults).",
-                     _h_index_regen,
                      claim=_claims.Claim.WIKI_WRITE,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_clip_image",

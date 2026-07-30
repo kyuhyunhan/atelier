@@ -24,7 +24,7 @@ file in the gorae repo:
 |---------------------------------------------|-----------------------------|
 | `scripts/validate_metadata.py`              | `atelier_validate`          |
 | `scripts/fix_pending_entries.py`            | `atelier_fix_pending`       |
-| `scripts/update_wiki_index.py`              | `atelier_index_regen`       |
+| `scripts/update_wiki_index.py`              | (retired, no replacement — the generated catalog had no readers; G7 / issue #87) |
 | `scripts/prepare.py`                        | `atelier_prepare_commit`    |
 | `scripts/pre_commit_update.py`              | (folded into prepare_commit; LLM facets reclass deferred) |
 | `scripts/clip_images.py`                    | `atelier_clip_image`        |

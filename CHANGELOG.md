@@ -4,6 +4,51 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Removed — the `graph/index.md` catalog and `atelier_index_regen` (retired, not repaired)
+
+The last open item from the RFC 0009 dangling arc (issue #87), closed by
+**retiring** the generator rather than teaching it the post-RFC-0005 layout.
+Deleted: `runtime/service/jobs/index_regen.py`, the `atelier_index_regen` MCP
+handler and its registration, and the vault's generated catalog page.
+
+Every line of evidence pointed one way:
+
+- **Zero code consumers.** `recall_v7` serves only `claim`, legacy recall only
+  `learning_*`; no read path anywhere touches a `wiki_index` page — the
+  generator was the file's only toucher.
+- **Zero human consumers.** The Obsidian workspace had never opened it, and
+  Obsidian's native graph view / search / backlinks supersede a static 50 KB
+  catalog.
+- **Broken since the RFC 0005 atomic-layout migration.** `index_regen._scan`
+  globbed the pre-atomic `graph/<section>/` tree, so a live regen would have
+  written an *empty* index (`page_count: 0`) — and the file had been stale for
+  six weeks without anyone noticing, which is itself a consumer census.
+
+The `wiki_index` page_type **stays** in `schema/data/gorae.overlay.yaml` as a
+classification-only rule: nothing writes that type anymore, but an adopter's
+legacy vault may still hold such a file, and dropping the rule would make it
+classify as unknown. Classification is a statement about a path, not a
+dependency on a live producer.
+
+**The finding this surfaced: for a partial-key resolver fallback, uniqueness is
+not relevance.** The catalog's only inbound edges were *semantically false* —
+two prose links naming an unrelated archived folder's own `index` resolved to
+the catalog, because it was the vault's only page whose basename was `index`,
+and the collision guard drops ambiguous basenames but cannot judge relevance. So
+the retire *removes a wrong edge*: those links become correctly dangling (their
+target genuinely is not in this vault), and the authored notes were not touched —
+honestly broken is the true state being revealed. A scale check found this the
+only such case: of 24 path-form wikilinks resolving to a page not matching their
+claimed path, 23 are legitimate migration-scar resolutions (the G5/G6 aliases
+doing their job). `_build_basename_index` now carries the caution where the next
+resolver change will read it.
+
+Dangling wikilinks go 128 → 95 (the catalog's 35 leave with it; 2 arrive as the
+false edges resolve honestly), and `dangling_new` stays 0 — the newly revealed
+target joins the accepted baseline's boundary category, since it names content
+outside this vault.
+
+
 ### Added — RFC 0009 §4.2: refuse a round baseline verify cannot reproduce
 
 `atelier baseline` gains two flags for capturing a goal's round baseline:

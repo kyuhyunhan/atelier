@@ -456,11 +456,22 @@ def _build_basename_index(conn: sqlite3.Connection) -> dict[str, int]:
     """Map normalized page *basename* → page_id, for UNAMBIGUOUS basenames only.
 
     Mirrors the entity `alias_index` pattern (a name→page fallback the slug-form
-    candidates miss). The dominant miss is `graph/index.md`, a machine-generated
-    wiki_index that links ~275 raw/ Source artifacts by basename alone (e.g.
-    `[[2-months-more]]`) while the page's slug is a full space-relative path
-    (`raw/personal/writings/2-months-more.md`). `_candidate_slugs` never probes
-    the deep raw/ tree, so those links dangle.
+    candidates miss). The miss it closes: prose links a page by BASENAME alone
+    (e.g. `[[some-note]]`) while the page's slug is a full space-relative path
+    (`raw/<domain>/<...>/some-note.md`), and `_candidate_slugs` never probes the
+    deep content tree, so those links dangle. (The dominant source at the time
+    was a machine-generated `wiki_index` catalog linking ~275 Source artifacts
+    that way; that catalog was retired in G7, but ordinary prose still links by
+    basename, which is what this index serves.)
+
+    CAUTION — uniqueness is not relevance. The collision guard below only drops a
+    basename owned by >1 page; a GENERIC basename that happens to be unique
+    yields a confident WRONG edge. That is not hypothetical: the retired catalog
+    (`graph/index.md`, the vault's only page whose basename was `index`) absorbed
+    two prose links meant for an unrelated archived folder's own `index`, and no
+    dangling metric could show it — a false edge is invisible to a broken-link
+    count. Before widening this fallback, weigh that failure mode; a generic-key
+    stoplist or a second signal is the shape of the fix.
 
     Collision-safe by construction: a basename owned by >1 page is NEVER guessed
     — it is dropped from the index, so an ambiguous `[[foo]]` stays unresolved

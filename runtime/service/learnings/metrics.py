@@ -276,8 +276,9 @@ def dangling_new(*, baseline_path: Optional[Path] = None) -> Optional[Dict[str, 
     plus a coincidental fix of an accepted one cannot cancel out.
 
     The RFC 0009 dangling arc closed with a documented residual: references outside
-    the vault boundary, plus entries transferred to the RFC 0008 / index_regen
-    tracks. Driving the raw count to zero would force fabricating pages or deleting
+    the vault boundary, plus entries transferred to the RFC 0008 track (the
+    index_regen track since resolved by retiring the catalog — G7). Driving the
+    raw count to zero would force fabricating pages or deleting
     valid cross-references — the exact ENVELOPE violation a `{eq: 0}` goal forbids.
     So the HEADLINE reads this — a link that broke AFTER the residual was accepted
     — while the accepted residual stays silent (the lint-baseline/ratchet pattern).

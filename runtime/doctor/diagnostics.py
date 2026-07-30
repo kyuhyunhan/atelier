@@ -153,7 +153,7 @@ def D8_dangling_regressions(cfg: config.Config) -> Diagnosis:
     """D8: NEW broken wikilinks — targets that dangle but are NOT in the accepted
     baseline (`graph/meta/dangling-baseline.yaml`). The RFC 0009 dangling arc
     closed with a documented residual (references outside the vault boundary, plus
-    entries handed to the RFC 0008 / index_regen tracks); this surfaces only a
+    entries handed to the RFC 0008 track); this surfaces only a
     REGRESSION — a link that broke AFTER that residual was accepted — and stays
     silent on the accepted set. WARN, not FAIL: a new dangler is worth seeing, not
     a rebuild-now condition. Abstains to OK when the baseline is absent or the

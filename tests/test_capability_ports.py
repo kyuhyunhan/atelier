@@ -1,11 +1,12 @@
 """PR-9/10/12/14: ports of proto-engine capabilities into atelier.
 
-Covers fix_pending, index_regen, clip_image, new_doc.
+Covers fix_pending, clip_image, new_doc — plus retirement guards for
+index_regen, whose generator and MCP port were retired in G7 (issue #87).
 """
 from __future__ import annotations
 
 import asyncio
-import shutil
+import importlib
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -13,7 +14,6 @@ import pytest
 import yaml
 
 from runtime.service.jobs import clip as _clip
-from runtime.service.jobs import index_regen as _idx
 from runtime.service.jobs import new_doc as _nd
 from runtime.service.jobs import pending as _pp
 
@@ -46,42 +46,25 @@ def test_fix_pending_apply(atelier_env: Dict) -> None:
     assert out["fixed"][0]["new_entry_id"].count("-") == 4  # UUID shape
 
 
-# ── index_regen (PR-10) ────────────────────────────────────────────────────
+# ── index_regen: RETIRED (G7 / engine issue #87) ───────────────────────────
+#
+# The graph/index.md catalog and its generator were retired, not repaired. The
+# generator had globbed the pre-atomic graph/<section>/ tree since the RFC 0005
+# atomic-layout migration, so a live regen wrote an EMPTY index (page_count 0);
+# no code read a wiki_index page and no human ever opened the file. These
+# guards replace the three behavioural tests that covered the generator.
 
 
-def test_index_regen_creates_file(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
-    _write(vault / "graph" / "entities" / "foo.md",
-           {"schema_version": 4, "entry_id": "abc", "title": "Foo"})
-    out = _idx.regen()
-    assert out["changed"] is True
-    assert out["page_count"] == 1
-    text = (vault / "graph" / "index.md").read_text()
-    assert "entities (1)" in text
-    assert "[[foo]] — Foo" in text
+def test_index_regen_module_is_gone() -> None:
+    """The job module must stay deleted — no quiet resurrection."""
+    with pytest.raises(ImportError):
+        importlib.import_module("runtime.service.jobs.index_regen")
 
 
-def test_index_regen_idempotent_second_run(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
-    _write(vault / "wiki" / "themes" / "bar.md",
-           {"schema_version": 4, "entry_id": "ab", "title": "Bar"})
-    _idx.regen()
-    out2 = _idx.regen()
-    assert out2["changed"] is False
-
-
-def test_index_regen_targets_graph_tree_post_rename(atelier_env: Dict) -> None:
-    """RFC 0003 GP1: on a renamed vault (graph/, no wiki/), regen must scan AND
-    write graph/ — never resurrect the deprecated wiki/ tree (the 1507 bug class:
-    a writer whose target misses a rename re-creates the old tree)."""
-    vault = atelier_env["gorae"]
-    shutil.rmtree(vault / "wiki", ignore_errors=True)
-    _write(vault / "graph" / "entities" / "foo.md",
-           {"schema_version": 4, "entry_id": "abc", "title": "Foo"})
-    out = _idx.regen()
-    assert out["page_count"] == 1
-    assert (vault / "graph" / "index.md").exists()
-    assert not (vault / "wiki").exists(), "must not resurrect the deprecated wiki/ tree"
+def test_index_regen_tool_is_unregistered() -> None:
+    """The MCP surface must not expose a retired capability port."""
+    from runtime.service import tools as _tools
+    assert "atelier_index_regen" not in {t.name for t in _tools.iter_tools()}
 
 
 # ── clip_image (PR-12) ─────────────────────────────────────────────────────
@@ -171,7 +154,7 @@ def test_new_doc_unknown_template_rejected(atelier_env: Dict) -> None:
 def test_all_new_tools_registered() -> None:
     from runtime.service import tools as _tools
     names = {t.name for t in _tools.iter_tools()}
-    assert {"atelier_fix_pending", "atelier_index_regen",
+    assert {"atelier_fix_pending",
             "atelier_clip_image", "atelier_new_doc"} <= names
 
 

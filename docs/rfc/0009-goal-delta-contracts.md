@@ -880,3 +880,10 @@ one symptom of that drift, and repairing (or retiring) the generator is that
 track's work. The fingerprint-waiver path (still unexercised) travels with it:
 `graph/index.md` is hashed into `vault.content_fingerprint`, so whichever way that
 track goes, it's the natural first waiver test.
+
+> **RESOLVED (2026-07-30, G7 / engine issue #87): retire, not repair.** The
+> catalog had zero code and zero human consumers, so `graph/index.md` and its
+> generator were deleted rather than fixed; the 35 targets left the vault with
+> their sole referrer (`dangling_links.total` 128 → 95). It did serve as the
+> predicted first fingerprint-waiver test: a deletion-only `*.md` delta, waiving
+> `vault.content_fingerprint` under `changed_paths.count {max: 1}`.

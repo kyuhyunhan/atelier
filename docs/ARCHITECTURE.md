@@ -446,7 +446,7 @@ runtime/
 │   ├── auth.py         Session + bearer-token validation
 │   ├── claims.py       capability claims + per-role asyncio write locks
 │   ├── capture.py      raw-inbox capture (mobile-reserved)
-│   ├── jobs/           youtube · clip · prepare · pending · index_regen · new_doc
+│   ├── jobs/           youtube · clip · prepare · pending · new_doc
 │   └── learnings/      capture · review · principles · dream · cluster ·
 │                       bootstrap · recall · absorb_claude · indexes ·
 │                       criteria · store (flat notes/ layout, RFC 0001) ·

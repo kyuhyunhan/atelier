@@ -56,7 +56,7 @@ def _knowledge_root(vault: Path) -> Path:
     content_root), falling back to a legacy `provenance/knowledge` tree if
     that's what the vault still has. ONE resolver
     so the writer can't resurrect the old tree (the 1507 bug class: a writer
-    whose path misses a rename re-creates it). Mirrors index_regen._graph_root."""
+    whose path misses a rename re-creates it)."""
     new = vault / _structure.intake_dir("knowledge")
     if new.exists():
         return new

@@ -4,6 +4,63 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Removed — the `graph/index.md` catalog and `atelier_index_regen` (G7, retired not repaired)
+
+The *index_regen repair-or-retire* track — the last open item from the RFC 0009
+dangling arc — closed as **retire**. Deleted:
+`runtime/service/jobs/index_regen.py`, the `atelier_index_regen` MCP handler and
+its registration, and the vault's `graph/index.md`.
+
+The evidence pointed one way. **Zero code consumers**: `recall_v7` serves only
+`claim`, legacy recall only `learning_*`; no read path anywhere touches a
+`wiki_index` page — the generator was the file's only toucher. **Zero human
+consumers**: the Obsidian workspace has never opened it, and Obsidian's native
+graph view, search, and backlinks supersede a static 50KB catalog. And the
+generator had been **broken since the RFC 0005 atomic-layout migration**:
+`index_regen._scan` globbed the pre-atomic `graph/<section>/` path, so a live
+regen would have written an *empty* index (`page_count: 0`). The file had been
+stale since 2026-06-13 — six weeks unnoticed, which is itself the consumer
+census. Repairing a generator for a catalog nobody reads is work that produces
+maintenance, not value.
+
+The `wiki_index` **page_type stays** in `schema/data/gorae.overlay.yaml`,
+classification-only. Nothing writes the type anymore, but an adopter's legacy
+vault may still hold `wiki/index.md`, and dropping the rule would make such a
+file classify as unknown and trip lint. Classification is a schema-data
+statement about what a path *is*; it does not depend on a live producer.
+
+**The finding: uniqueness is not relevance for a partial-key fallback.** The
+catalog's only inbound edges were *semantically false*. Two 2023 diary entries
+link `[[_archive/projects/_archive/German Working Holiday/1-3.계획/index]]`,
+which `reindex._build_basename_index` resolved to `graph/index.md` — solely
+because `index` was the vault's **unique** basename match. An archived
+working-holiday folder index has nothing to do with the graph catalog. The
+fallback was built to heal identity-migration scars (G5/G6), where a unique
+basename hit genuinely names the same artifact; here uniqueness was mistaken for
+relevance and produced a link between unrelated things. So the retire *removed a
+wrong edge* — a correctness improvement — and those two links correctly became
+dangling, because the content they name genuinely is not in this vault. The
+diary bodies were **not** edited: their links are honestly broken, and that is
+the true state being revealed. A scale check confirmed the case is singular — of
+24 path-form wikilinks resolving to a page not matching their claimed path, 23
+are legitimate migration-scar resolutions; this was the only semantic mismatch,
+and it is now gone.
+
+Counts: `dangling_links.total` **128 → 95** (−35 index-carried targets, which
+left the vault entirely with their sole referrer; +2 newly revealed edges to
+one new distinct target). `graph/meta/dangling-baseline.yaml` was edited on
+**both** sides — pruning the 35 `rfc-0005-index` entries *and* adding the
+German-Working-Holiday target to `boundary-external` — because a prune-only edit
+would have pushed `dangling_new.new` 0 → 1 and tripped the RFC 0009 ratchet and
+doctor D8 on a link that is not a regression but a newly *visible* pre-existing
+break. Distinct accepted targets 87 → 53; D8 reads OK.
+
+This was also the **fingerprint-waiver path's first real exercise**: a goal
+whose only `*.md` change is a deletion, so `vault.content_fingerprint` must move
+while `vault.changed_paths.count` is bound at exactly 1. (The baseline edit is
+`.yaml`, which `file_digests` does not fingerprint, so it adds nothing to
+`changed_paths`.)
+
 ### Closed — RFC 0004 Phase 2, superseded without implementation
 
 The last RFC item without a disposition (surfaced by PR #96's fact-check —

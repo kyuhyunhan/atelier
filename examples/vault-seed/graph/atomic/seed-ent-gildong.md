@@ -1,9 +1,9 @@
 ---
-entry_id: f765b350-2ccd-5303-b539-94e676f64dcf
+entry_id: cb8f276a-8e58-51b0-84de-96f06628e3b2
 schema_version: 7
 kind: entity
 created_at: '2026-07-01T09:00:00Z'
-content_hash: bcc8ced6d2ba4b48
+content_hash: 9c6b9b1b1627f312
 sensitivity: private
 pref_label: 홍길동
 type: Person

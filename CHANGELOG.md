@@ -4,6 +4,23 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — `examples/vault-seed/`, a pinned synthetic demo vault
+
+Open-sourcing track item 3. A new adopter's first experience was an empty
+graph; the seed is a 14-page fully synthetic vault (fictional people per hard
+rule #8) that a throwaway config can point at to exercise every node kind,
+every surfacing tier, the lens wall, the learning accept gate, dream/mint
+provenance shapes, and a genuinely-due atomize nudge, in five minutes.
+
+The seed is engine-conventional, not hand-plausible: raw files ARE the L1
+Source nodes (born-as-Source, RFC 0007), every `entry_id` is minted by
+`resolver.entry_id`'s content-addressed templates (so atomizing the seed's own
+notes dedups instead of forking entities), and dream/mint claims carry the
+provenance their real writers produce. `examples/generate_vault_seed.py`
+regenerates it deterministically. Four suite tests pin all of it — including
+that the nudge is DUE and that ids match the live templates — with each guard
+reverse-tested against a deliberately broken seed during authoring.
+
 ### Changed — the default content space is now `vault`, not the maintainer's name
 
 First step of the open-sourcing track: the engine no longer bakes the

@@ -1,15 +1,15 @@
 ---
-entry_id: a71d6365-2570-5ebc-acdf-db854f5679d6
+entry_id: 190756cf-17c6-51e5-b35a-0f4c75513e15
 schema_version: 7
 kind: claim
 created_at: '2026-07-01T09:00:00Z'
-content_hash: c846bc01c6d9c472
+content_hash: a7ff4dca7eb88756
 statement: Copying only the .db file of a WAL-mode SQLite database silently loses
   un-checkpointed transactions — copy the sidecars or use VACUUM INTO.
 is_about:
-- e809742c-49d2-5f61-af38-a754f274a986
+- f04bfa77-f7b9-5d86-b40b-8aef694a7425
 derived_from:
-- c8c79b81-cc9d-5f7c-99f2-3e6c380f0a6e
+- 51377b06-ce3d-5bd5-a290-64fc79752232
 attributed_to: 홍길동
 generated_by: atomize
 surfacing: proactive
@@ -17,4 +17,4 @@ domain: knowledge
 sensitivity: public
 ---
 
-Copying only the .db file of a WAL-mode SQLite database silently loses un-checkpointed transactions — copy the sidecars or use VACUUM INTO.
+Copying only the `.db` file of a WAL-mode [[SQLite]] database silently loses un-checkpointed transactions — copy the sidecars or use `VACUUM INTO`.

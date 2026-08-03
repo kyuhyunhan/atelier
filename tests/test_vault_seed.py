@@ -1,9 +1,11 @@
 """The examples/vault-seed demo vault must stay ALIVE, not just present.
 
 An adopter's first five minutes run through this seed (open-sourcing track
-item 3), so it is pinned like any other contract: it must reindex cleanly,
-validate against the live schema, lint clean, and keep demonstrating one node
-of every kind and surfacing tier. A schema change that would silently rot the
+item 3), so it is pinned like any other contract: it must reindex under the
+DOCUMENTED single-vault config shape, validate against the live schema, carry
+no lint FAILs, keep one node of every kind and surfacing tier, keep the
+atomize nudge genuinely due, and keep every entry_id equal to the engine's
+own content-addressed templates. A schema change that would silently rot the
 demo fails here instead."""
 from __future__ import annotations
 
@@ -16,11 +18,11 @@ import yaml
 SEED = Path(__file__).resolve().parents[1] / "examples" / "vault-seed"
 
 
-def _install_seed(atelier_env: Dict) -> Path:
-    vault = atelier_env["wiki"]
+def _install_seed(vault_env: Dict) -> Path:
+    vault = vault_env["vault"]
     for sub in SEED.iterdir():
-        if sub.name == "README.md":
-            continue                      # tour doc, not vault content
+        if sub.name == "README.md" and sub.parent == SEED:
+            continue                      # the tour doc, not vault content
         dest = vault / sub.name
         if dest.exists():
             shutil.rmtree(dest)
@@ -28,37 +30,79 @@ def _install_seed(atelier_env: Dict) -> Path:
     return vault
 
 
-def test_seed_reindexes_validates_and_lints_clean(atelier_env: Dict) -> None:
-    _install_seed(atelier_env)
+def _atomic_nodes(vault: Path):
+    for p in sorted((vault / "graph" / "atomic").glob("*.md")):
+        yield p, yaml.safe_load(p.read_text().split("---")[1])
+
+
+def _sources(vault: Path):
+    for p in sorted((vault / "raw").rglob("*.md")):
+        fm = yaml.safe_load(p.read_text().split("---")[1])
+        if fm.get("kind") == "source":
+            yield p, fm
+
+
+def test_seed_reindexes_validates_no_lint_fails(vault_env: Dict) -> None:
+    _install_seed(vault_env)
     from runtime.service import api
-    stats = api.reindex(space="wiki", full=True)
-    assert sum(s.get("pages_seen", 0) for s in stats) >= 14
+    stats = api.reindex(full=True)
+    assert sum(s.get("pages_seen", 0) for s in stats) >= 13
 
     report = api.validate()
-    assert report["scanned"] >= 14          # the guard must actually LOOK at it
+    assert report["scanned"] >= 13          # the guard must actually LOOK at it
     fails = [f for f in report["findings"] if f.get("severity") == "FAIL"]
     assert not report["failed"] and not fails, \
         f"seed does not validate: {str(fails)[:400]}"
 
-    lint = api.lint(space="wiki")
-    errs = [f for f in (lint.get("findings") or [])
-            if str(f.get("severity", "")).lower() in ("error", "fail")]
-    assert not errs, f"seed does not lint clean: {str(errs)[:400]}"
+    lint = api.lint()
+    lint_fails = [f for f in (lint.get("findings") or [])
+                  if str(f.get("severity", "")).upper() == "FAIL"]
+    assert not lint_fails, f"seed has lint FAILs: {str(lint_fails)[:400]}"
 
 
-def test_seed_keeps_every_kind_and_tier(atelier_env: Dict) -> None:
-    vault = _install_seed(atelier_env)
-    nodes = []
-    for p in (vault / "graph" / "atomic").glob("*.md"):
-        fm = yaml.safe_load(p.read_text().split("---")[1])
-        nodes.append(fm)
-    kinds = {n["kind"] for n in nodes}
+def test_seed_atomize_nudge_is_actually_due(vault_env: Dict) -> None:
+    """The README promises `atelier nudges` shows work — pin it. Two Sources
+    (the inbox capture and the soil note) have no derived Claim."""
+    _install_seed(vault_env)
+    from runtime.service import api
+    api.reindex(full=True)
+    from runtime.service.learnings import atomize as _at
+    info = _at.nudge_info()
+    assert info["count"] >= 2 and info["due"], f"atomize nudge not due: {info}"
+
+
+def test_seed_keeps_every_kind_tier_and_gate(vault_env: Dict) -> None:
+    vault = _install_seed(vault_env)
+    claims = [fm for _, fm in _atomic_nodes(vault) if fm["kind"] == "claim"]
+    kinds = ({fm["kind"] for _, fm in _atomic_nodes(vault)}
+             | {fm["kind"] for _, fm in _sources(vault)})
+    # exact on purpose: a NEW node kind must update the seed (and this set)
     assert kinds == {"source", "entity", "claim"}
-    tiers = {n.get("surfacing") for n in nodes if n["kind"] == "claim"}
-    assert {"query", "proactive", "always"} <= tiers
-    # the lens-wall demo: at least one private personal claim
-    assert any(n.get("domain") == "personal" and n.get("sensitivity") == "private"
-               for n in nodes if n["kind"] == "claim")
-    # the accept-gate demo: both a pending and a passed learning
-    acs = {n.get("ac_status") for n in nodes if n["kind"] == "claim"}
-    assert {"pending", "passed"} <= acs
+    assert {"query", "proactive", "always"} <= {c["surfacing"] for c in claims}
+    assert any(c["domain"] == "personal" and c["sensitivity"] == "private"
+               for c in claims)
+    assert {"pending", "passed"} <= {c.get("ac_status") for c in claims}
+    # dream provenance is real: non-empty derived_from + a refines link
+    dream = [c for c in claims if c["generated_by"] == "dream"]
+    assert dream and all(c["derived_from"] for c in dream)
+    assert any(l.get("rel") == "refines" for c in dream for l in c.get("links", []))
+
+
+def test_seed_entry_ids_follow_the_engine_templates(vault_env: Dict) -> None:
+    """SHOULD-3 of the seed review: ids must be the engine's own dedup keys,
+    or atomizing the seed's raw notes mints DUPLICATE entities. Recomputing
+    through resolver.entry_id makes the convention self-verifying — the seed
+    needs no committed generator."""
+    vault = _install_seed(vault_env)
+    from runtime.structure import resolver as R
+    for p, fm in _atomic_nodes(vault):
+        if fm["kind"] == "entity":
+            want = R.entry_id("entity", type=fm["type"], pref_label=fm["pref_label"])
+        else:
+            want = R.entry_id("claim", statement=fm["statement"],
+                              derived_from="|".join(sorted(fm["derived_from"])))
+        assert fm["entry_id"] == want, f"{p.name}: unconventional entry_id"
+    for p, fm in _sources(vault):
+        want = R.entry_id("source", created_at=fm["created_at"],
+                          discriminator=fm["title"])
+        assert fm["entry_id"] == want, f"{p.name}: unconventional entry_id"

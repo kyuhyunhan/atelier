@@ -1,9 +1,13 @@
 ---
-schema_version: 4
-entry_id: 75c5dc33-4d14-53fc-823d-79cf97534f13
-sensitivity: public
+entry_id: 51377b06-ce3d-5bd5-a290-64fc79752232
+schema_version: 7
+kind: source
 created_at: '2026-07-01T09:00:00Z'
+content_hash: d853c8c0439beb91
+title: 'Notes: SQLite WAL mode'
+sensitivity: public
 domain: knowledge
+attributed_to: 홍길동
 ---
 
 # Notes: SQLite WAL mode

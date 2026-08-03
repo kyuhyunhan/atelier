@@ -1,9 +1,9 @@
 ---
-entry_id: e809742c-49d2-5f61-af38-a754f274a986
+entry_id: f04bfa77-f7b9-5d86-b40b-8aef694a7425
 schema_version: 7
 kind: entity
 created_at: '2026-07-01T09:00:00Z'
-content_hash: e8c2c22ec9ad7009
+content_hash: 2d2eef3e092af52b
 sensitivity: public
 pref_label: SQLite
 type: Tool

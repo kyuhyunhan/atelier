@@ -25,6 +25,9 @@ from ..util import config as _config
 from ..util import db as _db
 from ..util import logging as log
 
+# Coroutine, not Awaitable: every transport is an `async def` and create_task
+# requires a coroutine — a plain callable returning an awaitable would need
+# ensure_future and has never existed here.
 TransportTask = Callable[["Supervisor"], Coroutine[Any, Any, None]]
 
 
@@ -107,6 +110,8 @@ def _acquire_pidfile() -> Path:
             existing = int(pf.read_text().strip() or "0")
         except (ValueError, OSError):
             existing = 0
+        # from None deliberately: EAGAIN IS "already running" — chaining the
+        # OSError would present the normal case as an error cause.
         raise AlreadyRunning(existing) from None
     os.ftruncate(fd, 0)
     os.write(fd, str(os.getpid()).encode())

@@ -1,9 +1,12 @@
-# PR gate. Two jobs, split by what they need:
+# PR gate. Three jobs, split by what they need:
 #
 #   guard — the structural large-file / bulk-export check. Zero dependencies, so
 #           it always runs and is the one meant to be a REQUIRED status check.
 #           It is the authoritative half of the pre-commit PII guard, re-run
 #           server-side where a local `git commit --no-verify` cannot reach it.
+#
+#   static — ruff + mypy (tree held at zero; versions pinned in pyproject so
+#           a tool release cannot redden an unrelated PR).
 #
 #   test  — the full suite. Needs the optional extras the suite exercises
 #           (`serve` = mcp/starlette, `semantic` = sqlite-vec) plus a git identity
@@ -69,7 +72,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install ruff mypy
+      - name: Install (same extras as the test job — without them
+          # ignore_missing_imports turns starlette/mcp into Any and mypy
+          # goes blind to one of the 13 findings this gate exists to catch)
+        run: pip install -e ".[dev,serve,semantic]"
       - run: ruff check runtime/ tests/ examples/ scripts/
       - run: mypy runtime/
 

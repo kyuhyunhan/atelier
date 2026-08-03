@@ -17,8 +17,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
-    "ruff>=0.6",
-    "mypy>=1.10",
+    "ruff==0.16.1",
+    "mypy==2.3.0",
 ]
 serve = [
     "mcp>=1.0,<2",
@@ -58,16 +58,17 @@ target-version = "py311"
 # except blocks are a design choice (provider flake tolerance), not oversights.
 select = ["F", "E4", "E7", "E9", "I", "UP", "B", "RUF"]
 ignore = [
-  "E741",   # ambiguous single-letter names (l) live in tight comprehensions; rename churn > value
-  "B008",    # function call in default arg — argparse/typer-style defaults used deliberately
-  "RUF001", "RUF002", "RUF003",  # ambiguous-unicode: Korean prose in docstrings trips these
+  # Measured on this tree at ruff 0.16.1 (counts are the evidence the ignore
+  # is load-bearing, not precautionary):
+  "E741",                        # 14× — single-letter vars in tight comprehensions
+  "B008",                        # 9×  — deliberate call-in-default (config loaders)
+  "RUF001", "RUF002", "RUF003",  # 25× — Korean prose + typographic dashes in docstrings
 ]
 
-[tool.ruff.lint.per-file-ignores]
-# tests monkeypatch and re-import mid-function on purpose
-"tests/*" = ["E402"]
 
 [tool.mypy]
+# Scope: runtime/ only, deliberately — tests/scripts/examples are ruff-linted
+# but not typechecked; widen when their annotation density makes it signal.
 python_version = "3.11"
 ignore_missing_imports = true
 no_strict_optional = true

@@ -27,9 +27,17 @@ import sqlite3
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
+
 
 from .engine import Candidate, RetrievalEngine, Scope
+
+
+class EmbedGateway(Protocol):
+    """The one method retrieval needs from an embedding provider."""
+
+    def embed(self, texts: list[str]) -> list[list[float]]: ...
+
 
 # Rank-smoothing constant (Cormack, Clarke & Buettcher 2009). Larger C flattens
 # the 1/(C+rank) curve so rank-1 and rank-2 sit close together — this is what
@@ -88,7 +96,7 @@ def rrf_fuse(rankings: Sequence[Sequence[int]]) -> list[int]:
 
 
 def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
-            gateway: object | None = None, k: int = 10) -> list[Candidate]:
+            gateway: EmbedGateway | None = None, k: int = 10) -> list[Candidate]:
     """Run every wired mode over `query`, fuse with RRF, return top-`k` Candidates.
 
     Modes:
@@ -167,12 +175,12 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
     return out
 
 
-def _embed_query(query: str, gateway: object) -> list[float]:
+def _embed_query(query: str, gateway: EmbedGateway) -> list[float]:
     """One query → one embedding, or `[]` on any gateway failure. A read-path
     embedding failure (provider went down between bundle build and this call)
     must degrade to lexical-only, never raise — same posture as P2's reindex."""
     try:
-        vectors = gateway.embed([query])          # type: ignore[attr-defined]
+        vectors = gateway.embed([query])
     except Exception:                             # provider down / timeout / bad dim
         return []
     return list(vectors[0]) if vectors else []
@@ -195,7 +203,7 @@ class ResolverContext:
     DB connection is the caller's to close, as everywhere else)."""
 
     engine: RetrievalEngine
-    gateway: object | None = None
+    gateway: EmbedGateway | None = None
     _store: Any = None    # duck-typed vec-store handle (open/close)
 
     def close(self) -> None:

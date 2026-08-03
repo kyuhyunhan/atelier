@@ -14,8 +14,8 @@ import sys
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from runtime.service.learnings.claims_io import _content_hash  # noqa: E402
-from runtime.structure import resolver as R  # noqa: E402
+from runtime.service.learnings.claims_io import _content_hash
+from runtime.structure import resolver as R
 
 
 def _body_hash(body: str) -> str:

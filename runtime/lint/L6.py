@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import fnmatch
 import sqlite3
-from typing import List, Optional
 
 from .loader import Rule
 from .runner import Finding, register_check
 
 
-def _matches_any(slug: str, patterns: List[str]) -> bool:
+def _matches_any(slug: str, patterns: list[str]) -> bool:
     return any(_glob(p, slug) for p in patterns)
 
 
@@ -24,8 +23,8 @@ def _glob(pattern: str, slug: str) -> bool:
 
 @register_check("check_stale_sources")
 def check_stale_sources(
-    conn: sqlite3.Connection, rule: Rule, space: Optional[str]
-) -> List[Finding]:
+    conn: sqlite3.Connection, rule: Rule, space: str | None
+) -> list[Finding]:
     exempt_patterns = [
         e.get("path_pattern") for e in (rule.extras.get("exemptions") or [])
     ]
@@ -39,7 +38,7 @@ def check_stale_sources(
         )
     }
 
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     for r in conn.execute(
         "SELECT slug FROM pages WHERE page_type='raw_source' "
         "ORDER BY slug"

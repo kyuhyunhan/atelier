@@ -17,9 +17,10 @@ gateway is shaped. The mechanical fields land in atelier today.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
@@ -46,8 +47,8 @@ def _word_count(body: str) -> int:
     return len(_WORD_RX.findall(stripped))
 
 
-def _detect_assets(body: str) -> List[str]:
-    found: List[str] = []
+def _detect_assets(body: str) -> list[str]:
+    found: list[str] = []
     for m in _ASSET_RX.finditer(body):
         url = m.group(1) or m.group(2)
         if url and url not in found:
@@ -56,10 +57,10 @@ def _detect_assets(body: str) -> List[str]:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
-def _last_edited_value(fm: Dict[str, Any]) -> Optional[str]:
+def _last_edited_value(fm: dict[str, Any]) -> str | None:
     arr = fm.get("edited_at") or []
     if isinstance(arr, list) and arr:
         last = arr[-1]
@@ -68,7 +69,7 @@ def _last_edited_value(fm: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _process_file(path: Path, vault: Path) -> Tuple[bool, Dict[str, Any]]:
+def _process_file(path: Path, vault: Path) -> tuple[bool, dict[str, Any]]:
     # `vault` is retained for call-site stability; the entry_id is now derived
     # from the doc's own content, not its vault-relative path (RFC 0005 P1.3).
     text = path.read_text(encoding="utf-8")
@@ -105,13 +106,13 @@ def _process_file(path: Path, vault: Path) -> Tuple[bool, Dict[str, Any]]:
     return changed, fm
 
 
-def _write(path: Path, fm: Dict[str, Any], body: str) -> None:
+def _write(path: Path, fm: dict[str, Any], body: str) -> None:
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
 
 
-def prepare_commit(*, paths: Optional[List[str]] = None,
-                   dry_run: bool = False) -> Dict[str, Any]:
+def prepare_commit(*, paths: list[str] | None = None,
+                   dry_run: bool = False) -> dict[str, Any]:
     vault = _vault_root()
     targets: Iterable[Path]
     if paths:
@@ -124,7 +125,7 @@ def prepare_commit(*, paths: Optional[List[str]] = None,
             vault / _structure.legacy_content_root())
         targets = sorted(scan_root.rglob("*.md")) if scan_root.exists() else []
 
-    modified: List[Dict[str, Any]] = []
+    modified: list[dict[str, Any]] = []
     for p in targets:
         if not p.exists():
             continue

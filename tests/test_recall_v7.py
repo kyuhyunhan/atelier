@@ -8,12 +8,9 @@ coding-session domain prior ordering.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
-
 from runtime.service import api
 from runtime.service.learnings import recall_v7 as _rv
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 7,
@@ -31,7 +28,7 @@ def _claim(vault, entry_id: str, statement: str, *,
            surfacing: str = "proactive",
            domain: str = "operational",
            sensitivity: str = "public",
-           project: Optional[str] = None) -> None:
+           project: str | None = None) -> None:
     fm = {
         **_BASE, "entry_id": entry_id, "statement": statement,
         "surfacing": surfacing, "domain": domain, "sensitivity": sensitivity,
@@ -95,7 +92,7 @@ def test_score_claim_is_the_product_with_hard_gates() -> None:
 
 
 def test_private_claim_never_pushed_proactively_but_reachable_on_query(
-        vault_env: Dict) -> None:
+        vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "pub", "kafka rebalance storms under load tuning",
            surfacing="always", domain="operational", sensitivity="public")
@@ -117,7 +114,7 @@ def test_private_claim_never_pushed_proactively_but_reachable_on_query(
     assert "secret" in slugs_t2, "private claim must be reachable by explicit query"
 
 
-def test_t0_always_budget_is_hard_capped(vault_env: Dict) -> None:
+def test_t0_always_budget_is_hard_capped(vault_env: dict) -> None:
     vault = vault_env["vault"]
     # More always-claims than the cap, all matching the probe.
     for i in range(_rv.T0_CAP + 4):
@@ -130,7 +127,7 @@ def test_t0_always_budget_is_hard_capped(vault_env: Dict) -> None:
     assert out["count"] == _rv.T0_CAP, "T0 must be hard-capped regardless of top_k"
 
 
-def test_t0_only_admits_always_claims(vault_env: Dict) -> None:
+def test_t0_only_admits_always_claims(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "alw", "shared concept widget lifecycle always",
            surfacing="always", domain="operational")
@@ -145,7 +142,7 @@ def test_t0_only_admits_always_claims(vault_env: Dict) -> None:
     assert "pro" not in slugs, "T0 admits only surfacing:always claims"
 
 
-def test_domain_prior_orders_proactive_push(vault_env: Dict) -> None:
+def test_domain_prior_orders_proactive_push(vault_env: dict) -> None:
     vault = vault_env["vault"]
     # Same statement words → comparable relevance; only domain differs.
     _claim(vault, "op", "render flicker on mount needs stable keys",
@@ -163,7 +160,7 @@ def test_domain_prior_orders_proactive_push(vault_env: Dict) -> None:
         f"coding prior must order operational > knowledge > personal: {order}"
 
 
-def test_current_project_match_lifts_a_claim(vault_env: Dict) -> None:
+def test_current_project_match_lifts_a_claim(vault_env: dict) -> None:
     """The project prior lifts an own-project claim over an UNOWNED peer; a
     FOREIGN-project peer is not ranked lower but GATED out of the push tier
     entirely (RFC 0009 G3 `project_scope_gate`) — it stays on-query-reachable
@@ -186,7 +183,7 @@ def test_current_project_match_lifts_a_claim(vault_env: Dict) -> None:
         "current-project claim must outrank an unowned peer of equal relevance"
 
 
-def test_query_tier_is_universal_prior_ignored(vault_env: Dict) -> None:
+def test_query_tier_is_universal_prior_ignored(vault_env: dict) -> None:
     vault = vault_env["vault"]
     # A personal claim would be dampened at T1, but T2 ignores the prior, so a
     # query-only claim is reachable and not penalised by its domain.
@@ -205,16 +202,17 @@ def test_query_tier_is_universal_prior_ignored(vault_env: Dict) -> None:
     assert "qonly" in {it["slug"] for it in t2["items"]}
 
 
-def test_recall_empty_query_returns_nothing(vault_env: Dict) -> None:
+def test_recall_empty_query_returns_nothing(vault_env: dict) -> None:
     out = _rv.recall_claims(query="  ", tier=_rv.TIER_PROACTIVE)
     assert out["count"] == 0
     assert out["markdown"] == ""
 
 
-def test_mcp_recall_surfaces_v7_claims(vault_env: Dict) -> None:
+def test_mcp_recall_surfaces_v7_claims(vault_env: dict) -> None:
     """End-to-end through the atelier_recall tool: a proactive public claim
     surfaces, and a private one does not."""
     import asyncio
+
     from runtime.service import tools as _tools
 
     vault = vault_env["vault"]
@@ -224,7 +222,7 @@ def test_mcp_recall_surfaces_v7_claims(vault_env: Dict) -> None:
            surfacing="proactive", domain="operational", sensitivity="private")
     api.reindex(full=True)
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_recall",
                                    query="graphql codegen strategy", top_k=10)
     out = asyncio.run(go())

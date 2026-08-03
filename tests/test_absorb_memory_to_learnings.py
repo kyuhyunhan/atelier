@@ -8,7 +8,6 @@ leaves target_topic UNSET, and writes one flat note (no mirror).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
 
 from runtime.index.parse import split_frontmatter
 from runtime.service.learnings import store as _store
@@ -39,11 +38,11 @@ def _seed_workshop(workshop_root: Path) -> None:
     )
 
 
-def _flat_files(vault: Path) -> List[Path]:
+def _flat_files(vault: Path) -> list[Path]:
     return list(_store.iter_accepted_files(vault))
 
 
-def test_dry_run_no_writes(atelier_env: Dict, capsys) -> None:
+def test_dry_run_no_writes(atelier_env: dict, capsys) -> None:
     _seed_workshop(atelier_env["wiki"] / "workshop")
     rc = _ab.absorb(apply=False)
     assert rc == 0
@@ -52,7 +51,7 @@ def test_dry_run_no_writes(atelier_env: Dict, capsys) -> None:
     assert "plans:" in out and "dry-run" in out
 
 
-def test_apply_writes_flat_notes_with_aspects_no_topic(atelier_env: Dict) -> None:
+def test_apply_writes_flat_notes_with_aspects_no_topic(atelier_env: dict) -> None:
     _seed_workshop(atelier_env["wiki"] / "workshop")
     rc = _ab.absorb(apply=True)
     assert rc == 0
@@ -82,7 +81,7 @@ def test_apply_writes_flat_notes_with_aspects_no_topic(atelier_env: Dict) -> Non
     assert "target_topic" not in fm2
 
 
-def test_apply_is_idempotent_via_stable_entry_id(atelier_env: Dict) -> None:
+def test_apply_is_idempotent_via_stable_entry_id(atelier_env: dict) -> None:
     _seed_workshop(atelier_env["wiki"] / "workshop")
     assert _ab.absorb(apply=True) == 0
     # Second run: destinations already exist → reported as conflicts, refuses.
@@ -92,5 +91,5 @@ def test_apply_is_idempotent_via_stable_entry_id(atelier_env: Dict) -> None:
     assert len(_flat_files(atelier_env["wiki"])) == 2
 
 
-def test_missing_workshop_handled(atelier_env: Dict) -> None:
+def test_missing_workshop_handled(atelier_env: dict) -> None:
     assert _ab.absorb(apply=False) == 0

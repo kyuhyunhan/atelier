@@ -18,12 +18,11 @@ just in content. The audit is read-only — it never mutates the vault.
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from ...util import config as _config
 from ...index import parse as _parse
+from ...util import config as _config
 from . import recall as _recall
 from . import store as _store
 
@@ -38,7 +37,7 @@ def _vault_root() -> Path:
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _concept_probe(fm: Dict[str, Any]) -> str:
+def _concept_probe(fm: dict[str, Any]) -> str:
     """The query that asks 'can this learning be found by what it is about?' —
     its `touches` concepts plus `target_topic`. Reuses recall's shared tokenizer
     so the split can't drift.
@@ -59,11 +58,11 @@ def _concept_probe(fm: Dict[str, Any]) -> str:
     return " ".join(toks)
 
 
-def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
+def _enumerate_accepted(vault: Path) -> list[dict[str, Any]]:
     """The accepted pool from the flat notes/ store (RFC 0001) — one row per
     learning, keyed by entry_id. The by-project view is never read (it is a
     projection; store.iter_accepted_files excludes it)."""
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for p in _store.iter_accepted_files(vault):
         # Shared noise predicate with recall: a page recall can never return
         # must not be probed — it would be dark by construction. Name-based
@@ -93,7 +92,7 @@ def _enumerate_accepted(vault: Path) -> List[Dict[str, Any]]:
 
 
 def snapshot(*, probe_k: int = DEFAULT_PROBE_K,
-             vault: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+             vault: Path | None = None) -> dict[str, dict[str, Any]]:
     """Map entry_id → {visible, rank, probe, project, topic, title}. `rank` is
     the 0-based position a learning occupies when searched by its own concept,
     or None when it does not appear within `probe_k` (i.e. it is dark).
@@ -109,10 +108,10 @@ def snapshot(*, probe_k: int = DEFAULT_PROBE_K,
     read the LIVE one for the surfacing block, and RFC 0009 §8.1's end-to-end
     self-test (inject a delta, prove the gate fires) was not implementable."""
     vault = Path(vault) if vault is not None else _vault_root()
-    snap: Dict[str, Dict[str, Any]] = {}
+    snap: dict[str, dict[str, Any]] = {}
     for it in _enumerate_accepted(vault):
         eid, probe = it["entry_id"], it["probe"]
-        rank: Optional[int] = None
+        rank: int | None = None
         if probe.strip():
             hits = _recall.rank_hits(probe, None, _TYPES, top_k=probe_k, vault=vault)
             for i, h in enumerate(hits):
@@ -131,7 +130,7 @@ def snapshot(*, probe_k: int = DEFAULT_PROBE_K,
 
 
 def audit(*, probe_k: int = DEFAULT_PROBE_K,
-          vault: Optional[Path] = None) -> Dict[str, Any]:
+          vault: Path | None = None) -> dict[str, Any]:
     """Standalone diagnostic — which accepted learnings are unreachable by their
     own concept *right now*. Useful even without a reorganization pass: it finds
     memory that has already gone effectively dead."""
@@ -151,15 +150,15 @@ def audit(*, probe_k: int = DEFAULT_PROBE_K,
     }
 
 
-def diff(before: Dict[str, Dict[str, Any]],
-         after: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def diff(before: dict[str, dict[str, Any]],
+         after: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Compare two snapshots — the surfacing delta of whatever happened between
     them (a reorganization pass, an edit, an absorb). `newly_dark` is the one
     that matters most: learnings that *stopped* surfacing for their own concept
     and would otherwise vanish unnoticed."""
-    newly_dark: List[Dict[str, Any]] = []
-    newly_visible: List[Dict[str, Any]] = []
-    rank_drops: List[Dict[str, Any]] = []
+    newly_dark: list[dict[str, Any]] = []
+    newly_visible: list[dict[str, Any]] = []
+    rank_drops: list[dict[str, Any]] = []
 
     for eid, a in after.items():
         b = before.get(eid)

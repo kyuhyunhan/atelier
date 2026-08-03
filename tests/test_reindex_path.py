@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict
 
 from runtime.index import reindex as _reindex
 from runtime.service import api as _api
@@ -17,12 +16,11 @@ def _claim_files(vault: Path):
     return sorted((vault / "graph" / "atomic").rglob("*.md"))
 
 
-def test_reindex_path_matches_full_reindex(atelier_env: Dict) -> None:
+def test_reindex_path_matches_full_reindex(atelier_env: dict) -> None:
     _cap.capture(observation="obs alpha throughput", why="w", rule="r",
                  working_dir="/Users/me/workspaces/lexio", session_id="a", hook="Stop")
     vault = Path(_cl._vault_root())
     claim = _claim_files(vault)[0]
-    cfg = _config.load()
 
     # Full reindex → the parity oracle for this slug.
     _api.reindex(space="wiki", full=True)
@@ -39,8 +37,11 @@ def test_reindex_path_matches_full_reindex(atelier_env: Dict) -> None:
     conn = _db.connect()
     full_page, full_chunks = _snapshot(conn)
     # Wipe the page (chunks cascade), then reindex ONLY that file.
-    conn.execute("DELETE FROM pages WHERE slug=?", (slug,)); conn.commit(); conn.close()
+    conn.execute("DELETE FROM pages WHERE slug=?", (slug,))
+    conn.commit()
+    conn.close()
 
+    cfg = _config.load()
     _reindex.reindex_path(cfg, claim)
 
     conn = _db.connect()
@@ -52,7 +53,7 @@ def test_reindex_path_matches_full_reindex(atelier_env: Dict) -> None:
     assert path_chunks == full_chunks            # chunks parity, not just the page row
 
 
-def test_reindex_path_ignores_non_indexable_file(atelier_env: Dict) -> None:
+def test_reindex_path_ignores_non_indexable_file(atelier_env: dict) -> None:
     # A non-indexable file (wrong suffix) must NOT get a pages row — else the next
     # full reindex would prune it (incremental != full). reindex_path no-ops it.
     vault = Path(_cl._vault_root())
@@ -67,7 +68,7 @@ def test_reindex_path_ignores_non_indexable_file(atelier_env: Dict) -> None:
     assert row["c"] == 0
 
 
-def test_reindex_path_is_the_change_feed(atelier_env: Dict) -> None:
+def test_reindex_path_is_the_change_feed(atelier_env: dict) -> None:
     # A capture writes markdown but does NOT auto-reindex (stale-until-reindex is
     # a deliberate system assumption — dream cadence + cold-DB fallback rely on
     # it). reindex_path is the opt-in change feed: after calling it, the write is
@@ -75,7 +76,6 @@ def test_reindex_path_is_the_change_feed(atelier_env: Dict) -> None:
     cap = _cap.capture(observation="obs bravo", why="w", rule="r",
                        working_dir="/Users/me/workspaces/lexio",
                        session_id="b", hook="Stop")
-    cfg = _config.load()
     conn = _db.connect()
     before = _db.fetchone(conn, "SELECT count(*) c FROM pages WHERE page_type='claim'")["c"]
     conn.close()
@@ -88,7 +88,7 @@ def test_reindex_path_is_the_change_feed(atelier_env: Dict) -> None:
     assert after == before + 1                  # the write is now visible
 
 
-def test_routing_columns_present_and_indexed(atelier_env: Dict) -> None:
+def test_routing_columns_present_and_indexed(atelier_env: dict) -> None:
     _cap.capture(observation="obs charlie", why="w", rule="r",
                  working_dir="/Users/me/workspaces/lexio", session_id="c", hook="Stop")
     _api.reindex(space="wiki", full=True)

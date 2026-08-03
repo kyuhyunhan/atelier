@@ -3,9 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict
-
-import pytest
 
 from runtime.service.learnings import capture as _cap
 from runtime.service.learnings import review as _rev
@@ -31,7 +28,7 @@ def _accept_one(project: str = "lexio",
     return Path(res["path"])
 
 
-def test_search_accepted_default(atelier_env: Dict) -> None:
+def test_search_accepted_default(atelier_env: dict) -> None:
     _accept_one()
     out = _ls.search(query="tilde")
     assert out["count"] == 1
@@ -39,7 +36,7 @@ def test_search_accepted_default(atelier_env: Dict) -> None:
     assert out["items"][0]["project"] == "lexio"
 
 
-def test_search_sanitizes_punctuated_query(atelier_env: Dict) -> None:
+def test_search_sanitizes_punctuated_query(atelier_env: dict) -> None:
     """A hyphenated/operator query must not crash FTS MATCH and silently fall to
     the grep scan — search() sanitizes like fts.search/recall do."""
     from runtime.service import api
@@ -56,7 +53,7 @@ def test_search_sanitizes_punctuated_query(atelier_env: Dict) -> None:
     assert out["items"][0]["project"] == "lexio"
 
 
-def test_grep_fallback_facet_is_case_insensitive(atelier_env: Dict) -> None:
+def test_grep_fallback_facet_is_case_insensitive(atelier_env: dict) -> None:
     """The DB-absent grep fallback must filter facets case-insensitively, exactly
     like the DB path — no silent mismatch (round-2 regression guard)."""
     vault = atelier_env["wiki"]
@@ -72,7 +69,7 @@ def test_grep_fallback_facet_is_case_insensitive(atelier_env: Dict) -> None:
     assert out["count"] == 1 and out["items"][0]["entry_id"] == "g"
 
 
-def test_search_filters_by_project(atelier_env: Dict) -> None:
+def test_search_filters_by_project(atelier_env: dict) -> None:
     _accept_one(project="lexio")
     _accept_one(project="bht")
     out = _ls.search(query="", project="bht")
@@ -80,7 +77,7 @@ def test_search_filters_by_project(atelier_env: Dict) -> None:
     assert out["items"][0]["project"] == "bht"
 
 
-def test_text_query_with_facet_post_filters_fused_set(atelier_env: Dict) -> None:
+def test_text_query_with_facet_post_filters_fused_set(atelier_env: dict) -> None:
     """RFC 0002 P3: a text query routes through the resolver, and project/topic/
     aspect facets are applied as a post-fusion filter on the fused candidate set
     (not in the resolver's Scope). Two projects share the same query terms
@@ -99,7 +96,7 @@ def test_text_query_with_facet_post_filters_fused_set(atelier_env: Dict) -> None
     assert only_bht["items"][0]["project"] == "bht"
 
 
-def test_search_includes_candidates_when_requested(atelier_env: Dict) -> None:
+def test_search_includes_candidates_when_requested(atelier_env: dict) -> None:
     _cap.capture(observation="raw candidate text here", hook="Stop",
                  require_why=False)
     out_accepted = _ls.search(query="raw", status="accepted")
@@ -108,7 +105,7 @@ def test_search_includes_candidates_when_requested(atelier_env: Dict) -> None:
     assert out_candidates["count"] == 1
 
 
-def test_relink_replaces_links(atelier_env: Dict) -> None:
+def test_relink_replaces_links(atelier_env: dict) -> None:
     accepted = _accept_one()
     out = _ls.relink(slug=accepted.stem, links=["wiki/entities/fts5"])
     assert out["links"] == ["wiki/entities/fts5"]
@@ -116,7 +113,7 @@ def test_relink_replaces_links(atelier_env: Dict) -> None:
     assert "wiki/entities/fts5" in accepted.read_text(encoding="utf-8")
 
 
-def test_relink_merge_preserves_existing(atelier_env: Dict) -> None:
+def test_relink_merge_preserves_existing(atelier_env: dict) -> None:
     accepted = _accept_one()
     _ls.relink(slug=accepted.stem, links=["wiki/entities/fts5"])
     out = _ls.relink(slug=accepted.stem,
@@ -132,10 +129,10 @@ def test_mcp_tools_registered_search_relink() -> None:
     assert "atelier_learning_relink" in names
 
 
-def test_mcp_search_dispatch(atelier_env: Dict) -> None:
+def test_mcp_search_dispatch(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
     _accept_one()
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_learning_search", query="tilde")
     out = asyncio.run(go())
     assert out["count"] == 1

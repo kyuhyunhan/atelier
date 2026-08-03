@@ -1,12 +1,9 @@
 """P4 — the on-disk flatten migration (RFC 0001)."""
 from __future__ import annotations
 
-from typing import Dict
-
 from runtime.index.parse import split_frontmatter
 from scripts.migrate_learnings_flat import migrate as _mig
 from tests.conftest import write_page
-
 
 _ACC = {
     "schema_version": 4, "agent_kind": "claude-code", "status": "accepted",
@@ -28,7 +25,7 @@ def _seed(vault) -> None:
                             "type": "learnings_index"}, "generated\n")
 
 
-def test_dry_run_moves_nothing(vault_env: Dict) -> None:
+def test_dry_run_moves_nothing(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _seed(vault)
     rep = _mig.migrate(vault, apply=False)
@@ -38,7 +35,7 @@ def test_dry_run_moves_nothing(vault_env: Dict) -> None:
     assert not (vault / "raw/learning/notes").exists()
 
 
-def test_apply_flattens_by_month_and_bumps_v5(vault_env: Dict) -> None:
+def test_apply_flattens_by_month_and_bumps_v5(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _seed(vault)
     _mig.migrate(vault, apply=True)
@@ -55,7 +52,7 @@ def test_apply_flattens_by_month_and_bumps_v5(vault_env: Dict) -> None:
     assert (vault / "learnings/accepted/by-topic/client/INDEX.md").exists()
 
 
-def test_apply_is_idempotent(vault_env: Dict) -> None:
+def test_apply_is_idempotent(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _seed(vault)
     _mig.migrate(vault, apply=True)
@@ -64,7 +61,7 @@ def test_apply_is_idempotent(vault_env: Dict) -> None:
     assert rep2["counts"]["skipped"] == 0       # sources already gone
 
 
-def test_same_name_distinct_learnings_are_suffixed_not_stranded(vault_env: Dict) -> None:
+def test_same_name_distinct_learnings_are_suffixed_not_stranded(vault_env: dict) -> None:
     """Two distinct learnings sharing a filename (e.g. README.md) in the same
     month shard must BOTH move — the second is suffixed, never skipped/stranded
     (the bug the surfacing gate caught on the live vault)."""
@@ -82,7 +79,7 @@ def test_same_name_distinct_learnings_are_suffixed_not_stranded(vault_env: Dict)
     assert not list((vault / "learnings/accepted/by-topic").rglob("README.md"))
 
 
-def test_apply_twice_same_record_skips_not_suffixes(vault_env: Dict) -> None:
+def test_apply_twice_same_record_skips_not_suffixes(vault_env: dict) -> None:
     """Idempotency guard: re-running must NOT create a -1 duplicate of the same
     record (skip on matching entry_id)."""
     vault = vault_env["vault"]
@@ -97,7 +94,7 @@ def test_apply_twice_same_record_skips_not_suffixes(vault_env: Dict) -> None:
     assert notes == ["n.md"]                          # no n-1.md duplicate
 
 
-def test_readers_find_flattened_notes(vault_env: Dict) -> None:
+def test_readers_find_flattened_notes(vault_env: dict) -> None:
     """End-to-end: after flattening + reindex, recall surfaces a moved note."""
     from runtime.service import api
     from runtime.service.learnings import recall as _rc

@@ -9,9 +9,7 @@ Verifies:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
-import pytest
 import yaml
 
 from scripts.migrate_schema_v3_to_v4 import migrate as _mig
@@ -40,7 +38,7 @@ def _seed_v4_file(root: Path, rel: str) -> Path:
     return p
 
 
-def test_dry_run_makes_no_changes(atelier_env: Dict, capsys) -> None:
+def test_dry_run_makes_no_changes(atelier_env: dict, capsys) -> None:
     wiki = atelier_env["wiki"]
     p = _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")
     before = p.read_text()
@@ -54,7 +52,7 @@ def test_dry_run_makes_no_changes(atelier_env: Dict, capsys) -> None:
     assert "dry-run" in out
 
 
-def test_apply_rewrites_frontmatter(atelier_env: Dict) -> None:
+def test_apply_rewrites_frontmatter(atelier_env: dict) -> None:
     wiki = atelier_env["wiki"]
     p = _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")
 
@@ -69,7 +67,7 @@ def test_apply_rewrites_frontmatter(atelier_env: Dict) -> None:
     assert "body here" in body
 
 
-def test_idempotent_second_run(atelier_env: Dict, capsys) -> None:
+def test_idempotent_second_run(atelier_env: dict, capsys) -> None:
     wiki = atelier_env["wiki"]
     _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")
     assert _mig.migrate(role="librarian-territory", apply=True, force=False) == 0
@@ -80,7 +78,7 @@ def test_idempotent_second_run(atelier_env: Dict, capsys) -> None:
     assert "already migrated" in out
 
 
-def test_already_v4_files_are_skipped(atelier_env: Dict, capsys) -> None:
+def test_already_v4_files_are_skipped(atelier_env: dict, capsys) -> None:
     wiki = atelier_env["wiki"]
     _seed_v4_file(wiki, "wiki/entities/foo.md")
     _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")

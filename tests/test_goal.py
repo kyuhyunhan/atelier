@@ -162,7 +162,7 @@ def test_supersedes_a_clause_that_is_not_a_known_invariant_raises():
     ct = {"intent": [{"metric": "metrics.x", "to": {"max": 1}}],
           "supersedes": [{"invariant": "INV-9", "metric": "metrics.x",
                           "direction": "may-fall", "reason": "r"}]}
-    with pytest.raises(ContractError, match="not\\s+a known invariant clause"):
+    with pytest.raises(ContractError, match=r"not\s+a known invariant clause"):
         _goal.verify_contract(ct, _base(metrics={"x": 5}), _base(metrics={"x": 1}))
 
 

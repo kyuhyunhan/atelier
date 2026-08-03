@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 import signal
-from typing import Dict
 
 import pytest
 
@@ -33,7 +32,7 @@ def _fork_holder(w: int):
     return pid
 
 
-def test_acquire_then_release(atelier_env: Dict) -> None:
+def test_acquire_then_release(atelier_env: dict) -> None:
     pf = _server._acquire_pidfile()
     assert pf.exists()
     assert pf.read_text().strip() == str(os.getpid())
@@ -47,7 +46,7 @@ def test_acquire_then_release(atelier_env: Dict) -> None:
     _server._release_pidfile(reacquired)
 
 
-def test_concurrent_acquire_second_gets_already_running(atelier_env: Dict) -> None:
+def test_concurrent_acquire_second_gets_already_running(atelier_env: dict) -> None:
     """A child process holds the flock; the parent's acquire must lose
     cleanly (AlreadyRunning), never race into overwriting the pidfile."""
     pf = _server._pidfile_path()
@@ -68,7 +67,7 @@ def test_concurrent_acquire_second_gets_already_running(atelier_env: Dict) -> No
             pf.unlink()
 
 
-def test_leftover_pidfile_with_no_lock_is_reclaimed(atelier_env: Dict) -> None:
+def test_leftover_pidfile_with_no_lock_is_reclaimed(atelier_env: dict) -> None:
     """A pidfile can outlive the process that wrote it (crash, kill -9) —
     since no one holds the flock, acquiring it is always safe regardless of
     what stale content is sitting in the file."""
@@ -80,7 +79,7 @@ def test_leftover_pidfile_with_no_lock_is_reclaimed(atelier_env: Dict) -> None:
     _server._release_pidfile(reclaimed)
 
 
-def test_unparsable_pidfile_is_reclaimed(atelier_env: Dict) -> None:
+def test_unparsable_pidfile_is_reclaimed(atelier_env: dict) -> None:
     pf = _server._pidfile_path()
     pf.parent.mkdir(parents=True, exist_ok=True)
     pf.write_text("not-a-pid\n")
@@ -89,7 +88,7 @@ def test_unparsable_pidfile_is_reclaimed(atelier_env: Dict) -> None:
     _server._release_pidfile(reclaimed)
 
 
-def test_run_returns_3_when_flock_held(atelier_env: Dict) -> None:
+def test_run_returns_3_when_flock_held(atelier_env: dict) -> None:
     pf = _server._pidfile_path()
     pf.parent.mkdir(parents=True, exist_ok=True)
     r, w = os.pipe()
@@ -107,7 +106,7 @@ def test_run_returns_3_when_flock_held(atelier_env: Dict) -> None:
             pf.unlink()
 
 
-def test_run_releases_pidfile_on_clean_shutdown(atelier_env: Dict) -> None:
+def test_run_releases_pidfile_on_clean_shutdown(atelier_env: dict) -> None:
     async def stopper(sup: _server.Supervisor) -> None:
         sup.shutdown.set()
 

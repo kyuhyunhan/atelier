@@ -6,10 +6,10 @@ calls LLMs (all fixers are mechanical), so the cap is plumbing only.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
+from ..util import config, db
+from ..util import logging as log
 from .diagnostics import Diagnosis
-from ..util import config, db, logging as log
 
 
 @dataclass
@@ -23,11 +23,11 @@ class RemediationResult:
 
 def remediate(
     cfg: config.Config,
-    diagnoses: List[Diagnosis],
+    diagnoses: list[Diagnosis],
     max_usd: float = 0.0,
-) -> List[RemediationResult]:
+) -> list[RemediationResult]:
     spent = 0.0
-    results: List[RemediationResult] = []
+    results: list[RemediationResult] = []
     for d in diagnoses:
         if d.severity == "OK":
             continue

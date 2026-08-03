@@ -3,9 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict
-
-import pytest
 
 from runtime.service.learnings import capture as _cap
 from runtime.service.learnings import cluster as _cl
@@ -27,7 +24,7 @@ def _accept(observation: str, why: str, rule: str,
 # ── clustering ──────────────────────────────────────────────────────────────
 
 
-def test_cross_project_cluster_detected(atelier_env: Dict) -> None:
+def test_cross_project_cluster_detected(atelier_env: dict) -> None:
     # Two projects, same vocabulary about database mocking → one cluster.
     _accept("integration tests used database mocks and diverged",
             "mocked database schema drifted from production database",
@@ -46,7 +43,7 @@ def test_cross_project_cluster_detected(atelier_env: Dict) -> None:
     assert "database" in c["shared_terms"]
 
 
-def test_single_project_cluster_excluded(atelier_env: Dict) -> None:
+def test_single_project_cluster_excluded(atelier_env: dict) -> None:
     # Both learnings in the SAME project → fails min_projects=2.
     _accept("database mocks diverge from production database schema badly",
             "database mocks hide drift", "use real database in tests always",
@@ -58,7 +55,7 @@ def test_single_project_cluster_excluded(atelier_env: Dict) -> None:
     assert out["cluster_count"] == 0
 
 
-def test_unrelated_learnings_not_clustered(atelier_env: Dict) -> None:
+def test_unrelated_learnings_not_clustered(atelier_env: dict) -> None:
     _accept("react children rerender twice with concurrent batching enabled",
             "concurrent batching", "stabilize react children keys carefully",
             project="lexio", topic="rendering")
@@ -69,7 +66,7 @@ def test_unrelated_learnings_not_clustered(atelier_env: Dict) -> None:
     assert out["cluster_count"] == 0
 
 
-def test_clustering_is_deterministic(atelier_env: Dict) -> None:
+def test_clustering_is_deterministic(atelier_env: dict) -> None:
     _accept("database mocks diverge from production database schema here",
             "database mocks drift", "real database required for integration",
             project="lexio", topic="testing")
@@ -91,6 +88,7 @@ def _proactive(vault: Path, eid: str) -> None:
     """Write a minimal v7 claim at surfacing:proactive — the dream cadence now
     counts the proactive pool (dream's input, any domain), not accepted learnings."""
     import yaml
+
     from runtime.structure import resolver as _structure
     fm = {"entry_id": eid, "schema_version": 7, "kind": "claim",
           "statement": f"claim {eid}", "surfacing": "proactive",
@@ -104,14 +102,14 @@ def _proactive(vault: Path, eid: str) -> None:
         encoding="utf-8")
 
 
-def test_dream_status_counts_since_baseline(atelier_env: Dict) -> None:
+def test_dream_status_counts_since_baseline(atelier_env: dict) -> None:
     _proactive(atelier_env["wiki"], "p1")
     st = _cl.dream_status()
     assert st["proactive_since_last_dream"] >= 1
     assert st["last_dream_at"] is None
 
 
-def test_mark_dream_complete_resets_baseline(atelier_env: Dict) -> None:
+def test_mark_dream_complete_resets_baseline(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     _proactive(vault, "p1")
     _cl.mark_dream_complete(when="2026-05-28T20:00:00+09:00")
@@ -134,7 +132,7 @@ def test_mcp_tools_registered() -> None:
     assert "atelier_dream_status" in names
 
 
-def test_mcp_dispatch_cluster(atelier_env: Dict) -> None:
+def test_mcp_dispatch_cluster(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
     _accept("database mocks diverge from production database schema now",
             "database mocks drift", "real database required for the tests",
@@ -143,7 +141,7 @@ def test_mcp_dispatch_cluster(atelier_env: Dict) -> None:
             "database mocks drift more", "real database needed in the tests",
             project="bht", topic="testing")
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_learning_cluster")
 
     out = asyncio.run(go())

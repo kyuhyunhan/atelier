@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from ...index import parse as _parse
 from ...search.resolver import C_RRF
@@ -56,7 +56,7 @@ _CONCEPT_BOOST = 3.0 * _RANK_GAP                 # concept-overlap (P4: relation
 _PRINCIPLE_BOOST = 2.0 * _RANK_GAP               # principles edge out ties
 
 
-def _facet_clause(facets: Optional[List[tuple]]) -> tuple:
+def _facet_clause(facets: list[tuple] | None) -> tuple:
     """SQL + params for optional facet filtering via the indexed learning_facets
     table (RFC 0001). `facets` is a list of (kind, value) pairs; empty/None adds
     nothing, so the default recall path is unchanged (project stays a *boost*,
@@ -72,8 +72,8 @@ def _facet_clause(facets: Optional[List[tuple]]) -> tuple:
     return sql, params
 
 
-def _resolve_hits(query: str, types: List[str], limit: int,
-                  facets: Optional[List[tuple]] = None) -> List[Dict[str, Any]]:
+def _resolve_hits(query: str, types: list[str], limit: int,
+                  facets: list[tuple] | None = None) -> list[dict[str, Any]]:
     """Hybrid retrieval via the resolver (RFC 0002 P3), shaped back into the
     `dict` hits the ranking pipeline expects.
 
@@ -87,8 +87,8 @@ def _resolve_hits(query: str, types: List[str], limit: int,
     off / Ollama down). A new main-DB connection per call mirrors the old
     `_fts_search`; the per-call `build_context` opens the vec sidecar only when a
     gateway resolves, so the `ATELIER_EMBED=off` path pays nothing extra."""
-    from ...search.engine import Scope
     from ...search import resolver as _resolver
+    from ...search.engine import Scope
 
     try:
         conn = _db.connect()
@@ -119,8 +119,8 @@ def _resolve_hits(query: str, types: List[str], limit: int,
         conn.close()
 
 
-def _rehydrate(conn, cands, facets: Optional[List[tuple]],
-               ac_allowed: Optional[set] = None) -> List[Dict[str, Any]]:
+def _rehydrate(conn, cands, facets: list[tuple] | None,
+               ac_allowed: set | None = None) -> list[dict[str, Any]]:
     """Attach frontmatter to fused candidates, applying the facet post-filter.
 
     One `WHERE id IN (...)` over `pages` (frontmatter is `NOT NULL`), optionally
@@ -136,7 +136,7 @@ def _rehydrate(conn, cands, facets: Optional[List[tuple]],
         "FROM pages p WHERE p.id IN (" + placeholders + ") " + facet_sql
     )
     rows = {r["id"]: r for r in conn.execute(sql, [*ids, *facet_params])}
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for c in cands:
         r = rows.get(c.page_id)
         if r is None:                       # dropped by a facet filter
@@ -165,11 +165,11 @@ _TYPE_TO_AC = {
 }
 
 
-def _claim_ac_allowed(types: List[str]) -> set:
+def _claim_ac_allowed(types: list[str]) -> set:
     return {_TYPE_TO_AC[t] for t in types if t in _TYPE_TO_AC}
 
 
-def _claim_page_type(fm: Dict[str, Any]) -> str:
+def _claim_page_type(fm: dict[str, Any]) -> str:
     """Classify a v7 claim into the legacy learning_* page_type recall renders.
 
     RFC 0005 §7.1 — a principle is a claim carrying the ethos marker
@@ -181,7 +181,7 @@ def _claim_page_type(fm: Dict[str, Any]) -> str:
     return "learning_accepted"
 
 
-def _claim_passes(fm: Dict[str, Any], ac_allowed: set) -> bool:
+def _claim_passes(fm: dict[str, Any], ac_allowed: set) -> bool:
     """A claim row is in scope only when operational AND its ac_status is one the
     requested types allow. Non-claim rows are unaffected."""
     if fm.get("kind") != "claim":
@@ -191,7 +191,7 @@ def _claim_passes(fm: Dict[str, Any], ac_allowed: set) -> bool:
     return str(fm.get("ac_status") or "") in ac_allowed
 
 
-def _fm_has_facet(fm: Dict[str, Any], kind: str, value: str) -> bool:
+def _fm_has_facet(fm: dict[str, Any], kind: str, value: str) -> bool:
     """Frontmatter-side mirror of a learning_facets row, for the no-DB fallback.
     Case-insensitive, matching the lowercased facet rows / query side."""
     v = (value or "").lower()
@@ -213,9 +213,9 @@ def _fm_has_facet(fm: Dict[str, Any], kind: str, value: str) -> bool:
     return False
 
 
-def _fs_scan(query: str, vault: Path, types: List[str],
+def _fs_scan(query: str, vault: Path, types: list[str],
              limit: int,
-             facets: Optional[List[tuple]] = None) -> List[Dict[str, Any]]:
+             facets: list[tuple] | None = None) -> list[dict[str, Any]]:
     """Fallback when the FTS index has no learning_* rows yet.
 
     Token-based match: hit counts when *any* token from the query
@@ -228,11 +228,11 @@ def _fs_scan(query: str, vault: Path, types: List[str],
     if not tokens:
         return []
     facet_pairs = [p for p in (facets or []) if p and p[1]]
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     # (ptype, iterable-of-paths). Accepted learnings live in the flat notes/
     # store (RFC 0001) via store.iter_accepted_files.
     from . import store as _store
-    roots: List[tuple[str, Any]] = []
+    roots: list[tuple[str, Any]] = []
     lroot = _store.learning_root(vault)   # raw/learning/ (content_root/learning) post-P6, else legacy
     if "learning_principle" in types:
         roots.append(("learning_principle",
@@ -287,7 +287,7 @@ def _fs_scan(query: str, vault: Path, types: List[str],
 _CONCEPT_SPLIT = re.compile(r"[\s\-_/]+")
 
 
-def concept_tokens(fm: Dict[str, Any]) -> List[str]:
+def concept_tokens(fm: dict[str, Any]) -> list[str]:
     """Ordered tokens of the concepts a learning is *about* (`touches` +
     `target_topic`), split on slug separators so `dependency-direction` matches
     a query word `dependency`. Deterministic — mirrors reindex's concept edges.
@@ -298,20 +298,20 @@ def concept_tokens(fm: Dict[str, Any]) -> List[str]:
     putting them in the probe recreates the coarse-bucket competition the facet
     redesign set out to break. aspect is for FACET FILTERING, not free-text recall.
     """
-    concepts: List[str] = []
+    concepts: list[str] = []
     raw = fm.get("touches")
     if isinstance(raw, list):
         concepts.extend(c for c in raw if isinstance(c, str))
     topic = fm.get("target_topic")
     if isinstance(topic, str):
         concepts.append(topic)
-    toks: List[str] = []
+    toks: list[str] = []
     for c in concepts:
         toks.extend(t for t in _CONCEPT_SPLIT.split(c.lower()) if t)
     return toks
 
 
-def _boost(hit: Dict[str, Any], project: Optional[str],
+def _boost(hit: dict[str, Any], project: str | None,
            query_tokens: frozenset = frozenset()) -> float:
     """Post-fusion boosts on the resolver's RRF score (RFC 0002 P3).
 
@@ -339,7 +339,7 @@ def _boost(hit: Dict[str, Any], project: Optional[str],
     return score
 
 
-def _summarize_hit(vault: Path, hit: Dict[str, Any]) -> Dict[str, Any]:
+def _summarize_hit(vault: Path, hit: dict[str, Any]) -> dict[str, Any]:
     fm = hit.get("fm") or {}
     title = fm.get("title") or hit["slug"]
     target_project = fm.get("target_project") or fm.get("project_hint") or ""
@@ -355,11 +355,11 @@ def _summarize_hit(vault: Path, hit: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _render(hits: List[Dict[str, Any]], project: Optional[str],
+def _render(hits: list[dict[str, Any]], project: str | None,
             max_chars: int) -> str:
     if not hits:
         return ""
-    lines = [f"## atelier — relevant memory" + (
+    lines = ["## atelier — relevant memory" + (
         f" (project `{project}`)" if project else "")]
     lines.append("")
     for h in hits:
@@ -397,14 +397,14 @@ def is_noise(slug: str) -> bool:
     return stem in _GENERATED_STEMS
 
 
-def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _dedup_by_entry_id(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """An accepted learning has exactly one file in the flat notes/ store
     (RFC 0001), but FTS can still return the same page via several matching
     chunks, and the FTS + fs-scan paths can overlap. Keep the first occurrence
     per entry_id (hits are pre-sorted, so that is the best-ranked one); hits
     without an entry_id pass through unchanged."""
     seen: set[str] = set()
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for h in hits:
         eid = (h.get("fm") or {}).get("entry_id")
         if eid is not None:
@@ -415,11 +415,11 @@ def _dedup_by_entry_id(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def rank_hits(query: str, project: Optional[str], types: List[str], *,
+def rank_hits(query: str, project: str | None, types: list[str], *,
               top_k: int,
-              relevance_threshold: Optional[float] = None,
-              facets: Optional[List[tuple]] = None,
-              vault: Optional[Path] = None) -> List[Dict[str, Any]]:
+              relevance_threshold: float | None = None,
+              facets: list[tuple] | None = None,
+              vault: Path | None = None) -> list[dict[str, Any]]:
     """The shared ranking pipeline: FTS (→ fs fallback) → noise filter → boost
     → sort → dedup → top-K. Returns hits *with* their `fm` (so callers that need
     entry_id — e.g. the surfacing audit — can match), not rendered summaries.
@@ -458,14 +458,14 @@ def rank_hits(query: str, project: Optional[str], types: List[str], *,
 
 
 def recall(*, query: str,
-           project: Optional[str] = None,
+           project: str | None = None,
            top_k: int = 5,
            max_chars: int = 1500,
            include_candidates: bool = False,
-           relevance_threshold: Optional[float] = None,
-           aspect: Optional[str] = None,
-           topic: Optional[str] = None,
-           ) -> Dict[str, Any]:
+           relevance_threshold: float | None = None,
+           aspect: str | None = None,
+           topic: str | None = None,
+           ) -> dict[str, Any]:
     """Return top-K learnings relevant to `query` (one prompt's worth).
 
     `project` boosts the current project's learnings without excluding others.

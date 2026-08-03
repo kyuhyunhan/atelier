@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
@@ -21,7 +20,6 @@ from runtime.service import nudges as _nudges
 from runtime.service import tools as _tools
 from runtime.structure import resolver as _structure
 from tests.conftest import write_page
-
 
 _NOW = "2026-06-19T12:00:00+00:00"
 
@@ -52,14 +50,14 @@ def _claim(vault: Path, eid: str, *, derived_from=None,
                f"## Claim\n\n{eid}\n")
 
 
-def _vault(vault_env: Dict) -> Path:
+def _vault(vault_env: dict) -> Path:
     return vault_env["vault"]
 
 
 # ── atomize normalization ────────────────────────────────────────────────────
 
 
-def test_atomize_not_due_when_empty(vault_env: Dict) -> None:
+def test_atomize_not_due_when_empty(vault_env: dict) -> None:
     by_kind = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}
     a = by_kind["atomize"]
     assert a.kind == "atomize"
@@ -67,9 +65,10 @@ def test_atomize_not_due_when_empty(vault_env: Dict) -> None:
     assert a.short == "" and a.long == ""
 
 
-def test_atomize_due_normalized(vault_env: Dict) -> None:
+def test_atomize_due_normalized(vault_env: dict) -> None:
     v = _vault(vault_env)
-    _source(v, "s1"); _source(v, "s2")
+    _source(v, "s1")
+    _source(v, "s2")
     a = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}["atomize"]
     assert a.due is True
     assert a.count == 2
@@ -81,7 +80,7 @@ def test_atomize_due_normalized(vault_env: Dict) -> None:
 # ── promote normalization (new surface) ──────────────────────────────────────
 
 
-def test_promote_not_due_when_nothing_eligible(vault_env: Dict) -> None:
+def test_promote_not_due_when_nothing_eligible(vault_env: dict) -> None:
     v = _vault(vault_env)
     # query+pending is not eligible; proactive is past the tier.
     _claim(v, "pend", surfacing="query", ac_status="pending")
@@ -92,7 +91,7 @@ def test_promote_not_due_when_nothing_eligible(vault_env: Dict) -> None:
     assert p.long == ""
 
 
-def test_promote_due_counts_eligible_claims(vault_env: Dict) -> None:
+def test_promote_due_counts_eligible_claims(vault_env: dict) -> None:
     v = _vault(vault_env)
     _claim(v, "e1", surfacing="query", ac_status="passed")
     _claim(v, "e2", surfacing="query", ac_status="passed")
@@ -105,7 +104,7 @@ def test_promote_due_counts_eligible_claims(vault_env: Dict) -> None:
     assert p.short
 
 
-def test_promote_singular_noun(vault_env: Dict) -> None:
+def test_promote_singular_noun(vault_env: dict) -> None:
     v = _vault(vault_env)
     _claim(v, "e1", surfacing="query", ac_status="passed")
     p = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}["promote"]
@@ -116,13 +115,13 @@ def test_promote_singular_noun(vault_env: Dict) -> None:
 # ── dream normalization ──────────────────────────────────────────────────────
 
 
-def test_dream_normalized_not_due(vault_env: Dict) -> None:
+def test_dream_normalized_not_due(vault_env: dict) -> None:
     d = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}["dream"]
     assert d.kind == "dream"
     assert d.due is False and d.count == 0
 
 
-def test_dream_due_when_threshold_crossed(vault_env: Dict) -> None:
+def test_dream_due_when_threshold_crossed(vault_env: dict) -> None:
     # Force a low accumulation threshold, then accrue accepted claims.
     home = vault_env["home"]
     cfg_path = home / "config.yaml"
@@ -142,12 +141,12 @@ def test_dream_due_when_threshold_crossed(vault_env: Dict) -> None:
 # ── all_nudges / due_nudges shape ────────────────────────────────────────────
 
 
-def test_all_nudges_returns_four_kinds(vault_env: Dict) -> None:
+def test_all_nudges_returns_four_kinds(vault_env: dict) -> None:
     kinds = [n.kind for n in _nudges.all_nudges(now=_NOW)]
     assert kinds == ["absorb", "atomize", "promote", "dream"]
 
 
-def test_due_nudges_filters(vault_env: Dict) -> None:
+def test_due_nudges_filters(vault_env: dict) -> None:
     v = _vault(vault_env)
     _source(v, "s1")                                   # atomize due
     _claim(v, "e1", surfacing="query", ac_status="passed")  # promote due
@@ -161,7 +160,7 @@ def test_due_nudges_filters(vault_env: Dict) -> None:
 # ── tolerance: a failing probe never crashes the surface ─────────────────────
 
 
-def test_failing_probe_yields_not_due(monkeypatch, vault_env: Dict) -> None:
+def test_failing_probe_yields_not_due(monkeypatch, vault_env: dict) -> None:
     import runtime.service.learnings.atomize as _atomize
 
     def _boom(*a, **k):
@@ -176,7 +175,7 @@ def test_failing_probe_yields_not_due(monkeypatch, vault_env: Dict) -> None:
     assert "promote" in by_kind and "dream" in by_kind
 
 
-def test_failing_absorb_probe_yields_not_due(monkeypatch, vault_env: Dict) -> None:
+def test_failing_absorb_probe_yields_not_due(monkeypatch, vault_env: dict) -> None:
     import runtime.service.learnings.absorb_claude as _absorb
 
     def _boom(*a, **k):
@@ -190,7 +189,7 @@ def test_failing_absorb_probe_yields_not_due(monkeypatch, vault_env: Dict) -> No
     assert {"atomize", "promote", "dream"} <= set(by_kind)
 
 
-def test_failing_promote_probe_is_isolated(monkeypatch, vault_env: Dict) -> None:
+def test_failing_promote_probe_is_isolated(monkeypatch, vault_env: dict) -> None:
     from runtime.promote import propose as _propose
 
     def _boom(*a, **k):
@@ -204,7 +203,7 @@ def test_failing_promote_probe_is_isolated(monkeypatch, vault_env: Dict) -> None
 # ── the MCP tool returns the normalized list ─────────────────────────────────
 
 
-def test_atelier_nudges_tool_returns_list(vault_env: Dict) -> None:
+def test_atelier_nudges_tool_returns_list(vault_env: dict) -> None:
     v = _vault(vault_env)
     _source(v, "s1")
     out = asyncio.run(_tools.invoke("atelier_nudges"))

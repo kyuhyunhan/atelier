@@ -17,9 +17,6 @@ import json
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Dict
-
-import pytest
 
 from runtime.service import api as _api
 from runtime.service.learnings import baseline as _baseline
@@ -92,7 +89,7 @@ def _commit_contract(repo: Path, contract: dict, before_path: Path) -> Path:
 
 # ── the two sides ─────────────────────────────────────────────────────────────
 
-def test_unchanged_vault_passes(atelier_env: Dict, tmp_path: Path) -> None:
+def test_unchanged_vault_passes(atelier_env: dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     _write_claim(vault, "a")
     before_path = _freeze_round_baseline(vault, tmp_path)
@@ -107,7 +104,7 @@ def test_unchanged_vault_passes(atelier_env: Dict, tmp_path: Path) -> None:
     assert report["passed"] is True
 
 
-def test_a_real_injected_delta_fails_end_to_end(atelier_env: Dict,
+def test_a_real_injected_delta_fails_end_to_end(atelier_env: dict,
                                                 tmp_path: Path) -> None:
     """The load-bearing case. A minted claim moves `promote_eligible` AND the
     vault fingerprint; an empty contract declares nothing, so default-deny must
@@ -134,7 +131,7 @@ def test_a_real_injected_delta_fails_end_to_end(atelier_env: Dict,
     assert "vault.content_fingerprint" in metrics_moved
 
 
-def test_a_declared_reduction_passes_end_to_end(atelier_env: Dict,
+def test_a_declared_reduction_passes_end_to_end(atelier_env: dict,
                                                 tmp_path: Path) -> None:
     """The positive control: when the change IS declared (and the vault edit
     waived), the same path PASSes — so the FAIL above is the delta, not the

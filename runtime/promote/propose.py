@@ -18,9 +18,9 @@ curates which gated claims actually earn the proactive tier.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from ..service.learnings import claims_io as _claims
 from ..util import config
@@ -31,13 +31,13 @@ def _promotions_dir() -> Path:
     return config.CACHE_DIR / "promotions"
 
 
-def _eligible(limit: int = 50) -> List[Dict[str, Any]]:
+def _eligible(limit: int = 50) -> list[dict[str, Any]]:
     """Claims eligible for query→proactive promotion (see
     `claims_io.is_promote_eligible` — the domain-aware acceptance gate:
     operational needs ac_status:passed, atomize-born knowledge is born-accepted,
     private is never eligible). Compact rows keyed by the stable entry_id, in
     sorted-path order."""
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for p in _claims.iter_claim_files():
         got = _claims.read_claim(p)
         if got is None:
@@ -74,7 +74,7 @@ def eligible_count(limit: int = 50) -> int:
     return len(_eligible(limit=limit))
 
 
-def propose_all() -> Dict[str, Any]:
+def propose_all() -> dict[str, Any]:
     promotions_dir = _promotions_dir()
     promotions_dir.mkdir(parents=True, exist_ok=True)
     cands = _eligible()
@@ -83,10 +83,10 @@ def propose_all() -> Dict[str, Any]:
         return {"path": None, "candidates": 0,
                 "note": "no query+ac_status:passed claims await promotion"}
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
     path = promotions_dir / f"{ts}-proposal.md"
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append(f"# Promotion proposal — {ts}")
     lines.append("")
     lines.append("Claims that PASSED acceptance (`ac_status: passed`) and are")

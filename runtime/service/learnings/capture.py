@@ -35,9 +35,9 @@ genuinely cannot proceed.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from ...util import config as _config
 from . import claims_io as _claims
@@ -52,9 +52,9 @@ def _resolve_vault_root(cfg: _config.Config) -> Path:
     return cfg.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _resolve_project_hint(working_dir: Optional[str],
-                          explicit: Optional[str],
-                          cfg: _config.Config) -> "ProjectResolution":
+def _resolve_project_hint(working_dir: str | None,
+                          explicit: str | None,
+                          cfg: _config.Config) -> ProjectResolution:
     """Resolve the project tag through the shared accessor so capture,
     bootstrap, and recall cannot diverge (learning `1446`). The layered
     chain still honors an explicit hint first and the vault-self
@@ -65,8 +65,8 @@ def _resolve_project_hint(working_dir: Optional[str],
     return _project.resolve_project(working_dir, explicit=explicit, cfg=cfg)
 
 
-def _build_body(observation: str, why: Optional[str],
-                rule: Optional[str], excerpt: Optional[str]) -> str:
+def _build_body(observation: str, why: str | None,
+                rule: str | None, excerpt: str | None) -> str:
     parts = ["## Observation", observation.strip() or "(no observation)"]
     parts.append("")
     parts.append("## Why this matters")
@@ -81,7 +81,7 @@ def _build_body(observation: str, why: Optional[str],
 _STUB_RX = re.compile(r"^\(hook=\w+\)\s*session_id=", re.I)
 
 
-def _is_substanceless(observation: str, why: Optional[str]) -> bool:
+def _is_substanceless(observation: str, why: str | None) -> bool:
     """True when there is nothing worth capturing: no real observation
     (empty or a bare hook stub like "(hook=Stop) session_id=...") AND no
     why. This is the signature of a blind hook capture that no LLM
@@ -92,7 +92,7 @@ def _is_substanceless(observation: str, why: Optional[str]) -> bool:
     return not (why or "").strip()  # stub/empty obs → substanceless unless why
 
 
-def _claim_statement(observation: str, rule: Optional[str]) -> str:
+def _claim_statement(observation: str, rule: str | None) -> str:
     """The Claim's `statement` — the assertion itself. Prefer the applicable
     rule (the durable lesson) when present; else the observation. One line,
     whitespace-collapsed (it feeds the content-addressed entry_id)."""
@@ -101,17 +101,17 @@ def _claim_statement(observation: str, rule: Optional[str]) -> str:
 
 
 def capture(*, observation: str,
-            why: Optional[str] = None,
-            rule: Optional[str] = None,
-            excerpt: Optional[str] = None,
-            working_dir: Optional[str] = None,
-            project_hint: Optional[str] = None,
-            touches: Optional[List[str]] = None,
-            session_id: Optional[str] = None,
+            why: str | None = None,
+            rule: str | None = None,
+            excerpt: str | None = None,
+            working_dir: str | None = None,
+            project_hint: str | None = None,
+            touches: list[str] | None = None,
+            session_id: str | None = None,
             agent_kind: str = "claude-code",
             hook: str = "manual",
             observation_kind: str = "feedback",
-            require_why: bool = True) -> Dict[str, Any]:
+            require_why: bool = True) -> dict[str, Any]:
     """Born-as-claim: mint a thin session Source and write a v7 operational
     Claim that derives_from it (RFC 0005 §7.1). Returns metadata about the new
     claim, or `{skipped: True, reason: ...}` only for the one remaining hard gate.
@@ -143,7 +143,7 @@ def capture(*, observation: str,
     if not vault_root.exists():
         raise FileNotFoundError(f"vault root missing: {vault_root}")
 
-    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    now = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     resolution = _resolve_project_hint(working_dir, project_hint, cfg)
     project = resolution.slug
 
@@ -151,7 +151,7 @@ def capture(*, observation: str,
     body = _build_body(observation or "", why, rule, excerpt)
 
     # 1) resolve-or-create is_about entities for project + touched subjects.
-    is_about: List[str] = []
+    is_about: list[str] = []
     subjects = list(touches or [])
     if project:
         subjects.append(project)
@@ -197,7 +197,7 @@ def capture(*, observation: str,
         except Exception:                       # pragma: no cover - defensive
             pass
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "path": claim["path"],
         "entry_id": claim["entry_id"],
         "source_entry_id": src["entry_id"],

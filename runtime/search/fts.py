@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass
-from typing import List, Optional
 
 
 @dataclass
@@ -12,7 +11,7 @@ class Hit:
     slug: str
     space: str
     page_type: str
-    title: Optional[str]
+    title: str | None
     snippet: str
     rank: float
 
@@ -35,9 +34,9 @@ def sanitize_match(query: str) -> str:
 def search(
     conn: sqlite3.Connection,
     query: str,
-    space: Optional[str] = None,
+    space: str | None = None,
     limit: int = 20,
-) -> List[Hit]:
+) -> list[Hit]:
     match = sanitize_match(query)
     if not match:
         return []
@@ -60,7 +59,7 @@ def search(
     sql += " ORDER BY rank LIMIT ?"
     params.append(limit * 8)
 
-    out: List[Hit] = []
+    out: list[Hit] = []
     seen: set = set()
     for r in conn.execute(sql, params):
         if r["slug"] in seen:
@@ -78,9 +77,9 @@ def search(
 def search_like_fallback(
     conn: sqlite3.Connection,
     query: str,
-    space: Optional[str] = None,
+    space: str | None = None,
     limit: int = 20,
-) -> List[Hit]:
+) -> list[Hit]:
     """LIKE fallback when FTS tokenizer can't parse the query."""
     sql = """
         SELECT p.slug, p.space, p.page_type, p.title,
@@ -96,7 +95,7 @@ def search_like_fallback(
     sql += " LIMIT ?"
     params.append(limit)
 
-    out: List[Hit] = []
+    out: list[Hit] = []
     for r in conn.execute(sql, params):
         out.append(Hit(
             slug=r["slug"], space=r["space"], page_type=r["page_type"],

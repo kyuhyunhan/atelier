@@ -16,13 +16,11 @@ from __future__ import annotations
 import runpy
 import sys
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
 from runtime.index import parse as _parse
 from runtime.service.learnings import absorb_claude as _ac
-from runtime.service.learnings import claims_io as _claims
 from runtime.structure import resolver as _structure
 
 _SCRIPT = (Path(__file__).resolve().parents[1]
@@ -72,19 +70,19 @@ def _write_entity(vault: Path, *, eid: str, label: str) -> Path:
     return p
 
 
-def _fm(p: Path) -> Dict:
+def _fm(p: Path) -> dict:
     fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
     return fm
 
 
-def _memory_path(atelier_env: Dict, real_dir: Path) -> str:
+def _memory_path(atelier_env: dict, real_dir: Path) -> str:
     """The `source_path` absorb records: a file under a Claude Code project
     directory whose NAME is the working dir with `/` replaced by `-`."""
     encoded = str(real_dir).replace("/", "-")
     return str(atelier_env["claude_projects"] / encoded / "memory" / "m1.md")
 
 
-def _seed(atelier_env: Dict, tmp_path: Path, *, make_real_dir: bool):
+def _seed(atelier_env: dict, tmp_path: Path, *, make_real_dir: bool):
     """A claim absorbed from `<tmp>/org/identity-hub`, mangled to `hub`."""
     vault = atelier_env["wiki"]
     real = tmp_path / "org" / "identity-hub"
@@ -102,7 +100,7 @@ def _seed(atelier_env: Dict, tmp_path: Path, *, make_real_dir: bool):
 
 
 def test_apply_repairs_slug_and_retires_bare_noun_entity(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
     before = _fm(claim)
     _run("--apply")
@@ -124,16 +122,16 @@ def test_apply_repairs_slug_and_retires_bare_noun_entity(
     assert "identity-hub" in labels and target
 
 
-def test_second_apply_is_a_no_op(atelier_env: Dict, tmp_path: Path) -> None:
-    vault, claim, _ = _seed(atelier_env, tmp_path, make_real_dir=True)
+def test_second_apply_is_a_no_op(atelier_env: dict, tmp_path: Path) -> None:
+    _vault, claim, _ = _seed(atelier_env, tmp_path, make_real_dir=True)
     _run("--apply")
     first = claim.read_text(encoding="utf-8")
     _run("--apply")
     assert claim.read_text(encoding="utf-8") == first
 
 
-def test_dry_run_writes_nothing(atelier_env: Dict, tmp_path: Path) -> None:
-    vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
+def test_dry_run_writes_nothing(atelier_env: dict, tmp_path: Path) -> None:
+    _vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
     before = claim.read_text(encoding="utf-8")
     _run()                                             # no --apply
     assert claim.read_text(encoding="utf-8") == before
@@ -141,7 +139,7 @@ def test_dry_run_writes_nothing(atelier_env: Dict, tmp_path: Path) -> None:
 
 
 def test_dry_run_announces_the_entity_it_would_retire(
-        atelier_env: Dict, tmp_path: Path, capsys) -> None:
+        atelier_env: dict, tmp_path: Path, capsys) -> None:
     """The unlink is the one step a dry run most needs to disclose. This
     assertion exists because the first implementation compared Paths by
     object identity — `rglob` returns fresh objects, so the check was always
@@ -154,10 +152,10 @@ def test_dry_run_announces_the_entity_it_would_retire(
 
 
 def test_dry_run_preview_matches_what_apply_retires(
-        atelier_env: Dict, tmp_path: Path, capsys) -> None:
+        atelier_env: dict, tmp_path: Path, capsys) -> None:
     """The preview must not under-report: what it names is exactly what the
     apply run unlinks."""
-    vault, _claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
+    _vault, _claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
     _run()
     previewed = "'hub'" in capsys.readouterr().out
     _run("--apply")
@@ -168,11 +166,11 @@ def test_dry_run_preview_matches_what_apply_retires(
 
 
 def test_absent_project_dir_is_skipped_not_guessed(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """The project directory does not exist here, so the decode cannot be
     verified. The script must leave the claim alone rather than rewrite it
     from a guessed path."""
-    vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=False)
+    _vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=False)
     before = claim.read_text(encoding="utf-8")
     _run("--apply")
     assert claim.read_text(encoding="utf-8") == before
@@ -180,7 +178,7 @@ def test_absent_project_dir_is_skipped_not_guessed(
 
 
 def test_guard_does_not_invert_an_already_repaired_claim(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """The dangerous case: a claim ALREADY carrying the correct slug, on a
     machine missing the project dir. An unguarded run would compute the naive
     basename, see a 'mismatch', and rewrite it back to the mangled value."""
@@ -198,7 +196,7 @@ def test_guard_does_not_invert_an_already_repaired_claim(
 
 
 def test_pre_mint_claims_without_source_path_are_untouched(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """Pre-RFC-0007 absorbs carry no `source_path`, so there is nothing to key
     on — they must be skipped, not guessed at."""
     vault = atelier_env["wiki"]
@@ -223,7 +221,7 @@ def test_pre_mint_claims_without_source_path_are_untouched(
 
 
 def test_entity_still_linked_from_another_entity_is_not_retired(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """Retirement must scan entity→entity `links`, not just claims'
     `is_about` — an entity referenced only from the entity layer would
     otherwise be orphaned."""

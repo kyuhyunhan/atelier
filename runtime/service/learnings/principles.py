@@ -32,17 +32,17 @@ in place (entry_id preserved, content_hash re-derived) via `claims_io`.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 from ...index import parse as _parse
 from ...util import config as _config
 from ...util import logging as _log
 from . import claims_io as _claims
 from . import store as _store
-
 
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
 
@@ -65,7 +65,7 @@ def _vault_root() -> Path:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
 def _slugify(value: str, *, fallback: str = "principle") -> str:
@@ -74,9 +74,9 @@ def _slugify(value: str, *, fallback: str = "principle") -> str:
     return text[:80] or fallback
 
 
-def _evidence_to_links(evidence: Iterable[str]) -> List[str]:
+def _evidence_to_links(evidence: Iterable[str]) -> list[str]:
     """Normalize evidence entries (de-duplicate, preserve order)."""
-    out: List[str] = []
+    out: list[str] = []
     for raw in evidence or []:
         e = str(raw).strip().strip("[]")
         if e:
@@ -84,12 +84,12 @@ def _evidence_to_links(evidence: Iterable[str]) -> List[str]:
     return list(dict.fromkeys(out))
 
 
-def _render_body(rule: Optional[str], why: Optional[str],
-                  evidence_links: List[str],
-                  notes: Optional[str] = None) -> str:
+def _render_body(rule: str | None, why: str | None,
+                  evidence_links: list[str],
+                  notes: str | None = None) -> str:
     rule_s = (rule or "").strip()
     why_s = (why or "").strip()
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("## Rule")
     lines.append(rule_s if rule_s else "(fill in: the principle in one or two sentences)")
     lines.append("")
@@ -110,7 +110,7 @@ def _render_body(rule: Optional[str], why: Optional[str],
 # ── claim enumeration (the principle tier is a query over claims) ─────────────
 
 
-def _is_principle(fm: Dict[str, Any]) -> bool:
+def _is_principle(fm: dict[str, Any]) -> bool:
     """A principle claim carries the ethos marker field. (Back-compat: a v7
     claim that lacks the marker but still carries the legacy `coverage`/
     `priority` shape from an earlier migration also counts.)"""
@@ -121,7 +121,7 @@ def _is_principle(fm: Dict[str, Any]) -> bool:
     return bool(fm.get("coverage") and fm.get("priority"))
 
 
-def _iter_principle_claims(vault: Path) -> Iterable[Tuple[Path, Dict[str, Any], str]]:
+def _iter_principle_claims(vault: Path) -> Iterable[tuple[Path, dict[str, Any], str]]:
     for p in _claims.iter_claim_files(vault):
         got = _claims.read_claim(p)
         if got is None:
@@ -131,7 +131,7 @@ def _iter_principle_claims(vault: Path) -> Iterable[Tuple[Path, Dict[str, Any], 
             yield p, fm, body
 
 
-def _status_of(fm: Dict[str, Any]) -> str:
+def _status_of(fm: dict[str, Any]) -> str:
     """Map the claim's ac_status field back to the legacy status vocabulary the
     MCP surface and bootstrap speak (proposed | accepted | archived)."""
     ac = str(fm.get("ac_status") or "")
@@ -142,7 +142,7 @@ def _status_of(fm: Dict[str, Any]) -> str:
     return "proposed"
 
 
-def _find(vault: Path, slug_or_id: str) -> Tuple[Path, Dict[str, Any], str]:
+def _find(vault: Path, slug_or_id: str) -> tuple[Path, dict[str, Any], str]:
     """Locate a principle claim by its `principle_slug` facet, then by entry_id
     or file stem (the claims_io fallbacks). The MCP surface speaks the slug a
     caller saw in a listing — that is the `principle_slug` field, not the
@@ -161,16 +161,16 @@ def _find(vault: Path, slug_or_id: str) -> Tuple[Path, Dict[str, Any], str]:
 
 
 def add(*, title: str, rule: str, why: str,
-        evidence: Optional[List[str]] = None,
+        evidence: list[str] | None = None,
         coverage: str = "cross-project",
         priority: str = "on-relevant-prompt",
-        target_topic: Optional[str] = None,
-        notes: Optional[str] = None,
-        slug: Optional[str] = None,
+        target_topic: str | None = None,
+        notes: str | None = None,
+        slug: str | None = None,
         status: str = "accepted",
-        source_entry_ids: Optional[List[str]] = None,
-        cluster_key: Optional[str] = None,
-        ) -> Dict[str, Any]:
+        source_entry_ids: list[str] | None = None,
+        cluster_key: str | None = None,
+        ) -> dict[str, Any]:
     """Mint a principle as a v7 operational Claim (RFC 0005 §7.1).
 
     `status=accepted` → `ac_status:passed`; `status=proposed` (the dream draft
@@ -205,7 +205,7 @@ def add(*, title: str, rule: str, why: str,
             if _fm.get("principle_slug") == chosen_slug:
                 raise FileExistsError(str(p))
 
-    extra: Dict[str, Any] = {
+    extra: dict[str, Any] = {
         _PRINCIPLE_FIELD: True,
         "principle_slug": chosen_slug,
         "title": title,
@@ -284,7 +284,7 @@ def add(*, title: str, rule: str, why: str,
 # ── synthesize from existing accepted claims ───────────────────────────────
 
 
-def _resolve_source(vault: Path, slug_or_path: str) -> Optional[Path]:
+def _resolve_source(vault: Path, slug_or_path: str) -> Path | None:
     """Find an accepted learning (now a v7 claim, RFC 0005 §7.1) by entry_id,
     relative path, or file stem. Falls back to the legacy notes/ store on disk."""
     needle = slug_or_path.removesuffix(".md")
@@ -306,20 +306,20 @@ def _resolve_source(vault: Path, slug_or_path: str) -> Optional[Path]:
     return None
 
 
-def synthesize(*, source_slugs: List[str],
-               title: Optional[str] = None,
-               rule: Optional[str] = None,
-               why: Optional[str] = None,
+def synthesize(*, source_slugs: list[str],
+               title: str | None = None,
+               rule: str | None = None,
+               why: str | None = None,
                coverage: str = "cross-project",
                priority: str = "on-relevant-prompt",
-               notes: Optional[str] = None,
-               slug: Optional[str] = None,
+               notes: str | None = None,
+               slug: str | None = None,
                status: str = "proposed",
-               source_entry_ids: Optional[List[str]] = None,
-               cluster_key: Optional[str] = None,
+               source_entry_ids: list[str] | None = None,
+               cluster_key: str | None = None,
                skip_if_covered: bool = True,
                overlap_threshold: float = 0.6,
-               ) -> Dict[str, Any]:
+               ) -> dict[str, Any]:
     """Draft a principle CLAIM from multiple accepted-claim sources (RFC 0005
     §7.1). Default `status="proposed"` → `ac_status:pending` (the dream-cycle
     draft; not injected until a curator approves). Resolves each `source_slugs[i]`
@@ -340,9 +340,9 @@ def synthesize(*, source_slugs: List[str],
             return {"skipped": True, "reason": "already-covered",
                     "covered_by": covering}
 
-    resolved: List[str] = []      # vault-relative paths
-    resolved_ids: List[str] = []  # source claim entry_ids (for derived_from)
-    missing: List[str] = []
+    resolved: list[str] = []      # vault-relative paths
+    resolved_ids: list[str] = []  # source claim entry_ids (for derived_from)
+    missing: list[str] = []
     for s in source_slugs:
         p = _resolve_source(vault, s)
         if p is None:
@@ -385,10 +385,10 @@ def synthesize(*, source_slugs: List[str],
 # ── idempotent dedup ────────────────────────────────────────────────────────
 
 
-def find_covering_principle(member_entry_ids: List[str], *,
+def find_covering_principle(member_entry_ids: list[str], *,
                             overlap_threshold: float = 0.6,
-                            vault: Optional[Path] = None
-                            ) -> Optional[Dict[str, Any]]:
+                            vault: Path | None = None
+                            ) -> dict[str, Any] | None:
     """Return the first existing principle claim (proposed/accepted/archived)
     whose `source_entry_ids` cover >= `overlap_threshold` of `member_entry_ids`,
     else None. Archived ones are checked too, so a rejected cluster is never
@@ -412,7 +412,7 @@ def find_covering_principle(member_entry_ids: List[str], *,
     return None
 
 
-def _suggest_title(vault: Path, resolved_rel_paths: List[str]) -> str:
+def _suggest_title(vault: Path, resolved_rel_paths: list[str]) -> str:
     """Borrow the first source's title/statement when the caller gives none."""
     if not resolved_rel_paths:
         return "principle"
@@ -441,14 +441,14 @@ class PrincipleSummary:
     path: str
 
 
-def list_all(*, priority: Optional[str] = None,
-             coverage: Optional[str] = None,
-             status: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_all(*, priority: str | None = None,
+             coverage: str | None = None,
+             status: str | None = None) -> list[dict[str, Any]]:
     """List principle claims. Filter by priority / coverage / status (the legacy
     status vocabulary mapped from ac_status). `status='accepted'` (passed) is what
     session_bootstrap passes so a `proposed` (pending) draft is never injected."""
     vault = _vault_root()
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     # An archived principle (retracted) is excluded from the default listing,
     # mirroring the old "archived files live elsewhere" behavior.
     for p, fm, _body in _iter_principle_claims(vault):
@@ -476,7 +476,7 @@ def list_all(*, priority: Optional[str] = None,
 # ── archive (FIELD transition: ac_status → retracted) ─────────────────────────
 
 
-def archive(*, slug: str, reason: str) -> Dict[str, Any]:
+def archive(*, slug: str, reason: str) -> dict[str, Any]:
     """Archive a principle: `ac_status → retracted` IN PLACE (RFC 0005 §7.1 — a
     field transition, not a directory move). entry_id preserved, file unmoved."""
     vault = _vault_root()
@@ -504,11 +504,11 @@ def _rule_one_liner(body: str) -> str:
     return ""
 
 
-def review_proposed(*, limit: int = 50) -> Dict[str, Any]:
+def review_proposed(*, limit: int = 50) -> dict[str, Any]:
     """List principle claims awaiting promotion (ac_status:pending) with their
     evidence and a one-line Rule preview, for a fast batch review."""
     vault = _vault_root()
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for p, fm, body in _iter_principle_claims(vault):
         if _status_of(fm) != "proposed":
             continue
@@ -546,8 +546,8 @@ def proposed_count() -> int:
 
 
 def approve(*, slug: str,
-            priority: Optional[str] = None,
-            coverage: Optional[str] = None) -> Dict[str, Any]:
+            priority: str | None = None,
+            coverage: str | None = None) -> dict[str, Any]:
     """Promote a proposed principle to accepted: `ac_status pending → passed` IN
     PLACE (RFC 0005 §7.1). Optionally override priority / coverage at approval
     time (the common edit is priority=always-inject, which also raises the
@@ -593,12 +593,12 @@ def approve(*, slug: str,
             "status": "accepted", "priority": new_fm.get("priority")}
 
 
-def reject(*, slug: str, reason: str = "rejected") -> Dict[str, Any]:
+def reject(*, slug: str, reason: str = "rejected") -> dict[str, Any]:
     """Reject a proposed principle → archived (`ac_status → retracted`). The
     dedup check in synthesize() consults retracted principle claims, so a rejected
     cluster is never re-proposed by a later dream pass."""
     vault = _vault_root()
-    path, fm, _body = _find(vault, slug)
+    _path, fm, _body = _find(vault, slug)
     if _status_of(fm) != "proposed":
         raise ValueError(
             f"{slug}: only proposed principles can be rejected "
@@ -612,7 +612,7 @@ def reject(*, slug: str, reason: str = "rejected") -> Dict[str, Any]:
 # ── helpers ────────────────────────────────────────────────────────────────
 
 
-def _rewrite(path: Path, fm: Dict[str, Any], body: str) -> None:
+def _rewrite(path: Path, fm: dict[str, Any], body: str) -> None:
     """Re-emit a principle claim with re-derived content_hash (facet update)."""
     import yaml
     fm = dict(fm)

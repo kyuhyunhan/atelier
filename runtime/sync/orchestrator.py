@@ -3,14 +3,15 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from ..util import config, logging as log
-from .adapters import github, r2
+from ..util import config
+from ..util import logging as log
+from .adapters import github
 
 
 def _git_targets(cfg: config.Config,
-                 space: Optional[str] = None) -> List[Tuple[str, Path, Optional[str]]]:
+                 space: str | None = None) -> list[tuple[str, Path, str | None]]:
     """Resolve (label, local, remote_type) targets, deduped by local path.
 
     In single-vault mode the config synthesizes two pseudo-spaces that both
@@ -19,7 +20,7 @@ def _git_targets(cfg: config.Config,
     if cfg.vault is not None:
         return [("vault", cfg.vault.local, cfg.vault.remote_type)]
     names = [space] if space else list(cfg.spaces)
-    out: List[Tuple[str, Path, Optional[str]]] = []
+    out: list[tuple[str, Path, str | None]] = []
     seen: set[Path] = set()
     for name in names:
         sp = cfg.space(name)
@@ -30,8 +31,8 @@ def _git_targets(cfg: config.Config,
     return out
 
 
-def status(cfg: config.Config, space: Optional[str] = None) -> List[github.GitStatus]:
-    out: List[github.GitStatus] = []
+def status(cfg: config.Config, space: str | None = None) -> list[github.GitStatus]:
+    out: list[github.GitStatus] = []
     targets = [space] if space else list(cfg.spaces)
     for name in targets:
         sp = cfg.space(name)
@@ -42,7 +43,7 @@ def status(cfg: config.Config, space: Optional[str] = None) -> List[github.GitSt
     return out
 
 
-def pull(cfg: config.Config, space: Optional[str] = None) -> None:
+def pull(cfg: config.Config, space: str | None = None) -> None:
     targets = [space] if space else list(cfg.spaces)
     for name in targets:
         sp = cfg.space(name)
@@ -51,7 +52,7 @@ def pull(cfg: config.Config, space: Optional[str] = None) -> None:
             log.info("sync.pull", space=name, out=out.strip())
 
 
-def push(cfg: config.Config, space: Optional[str] = None) -> None:
+def push(cfg: config.Config, space: str | None = None) -> None:
     targets = [space] if space else list(cfg.spaces)
     for name in targets:
         sp = cfg.space(name)
@@ -69,12 +70,12 @@ def _is_non_fast_forward(text: str) -> bool:
 
 
 def commit_push(cfg: config.Config, message: str, *,
-                space: Optional[str] = None, push: bool = True,
+                space: str | None = None, push: bool = True,
                 on_conflict: str = "surface",
-                split_human_tree: Optional[str] = None,
-                split_prefixes: Tuple[str, str] = ("journal:", "chore(vault):"),
-                timeout: Optional[float] = github._DEFAULT_TIMEOUT,
-                ) -> Dict[str, Any]:
+                split_human_tree: str | None = None,
+                split_prefixes: tuple[str, str] = ("journal:", "chore(vault):"),
+                timeout: float | None = github._DEFAULT_TIMEOUT,
+                ) -> dict[str, Any]:
     """Commit the vault (or a space) and optionally push, with safety gates.
 
     Never raises on a failed push — a flaky network or a diverged remote is
@@ -82,7 +83,7 @@ def commit_push(cfg: config.Config, message: str, *,
     a manual CLI) keep running. ``on_conflict`` is "surface" by default: on a
     non-fast-forward rejection we log and stop — we never auto pull/merge/force
     (that would mutate markdown out from under the DB projection)."""
-    result: Dict[str, Any] = {"committed": False, "pushed": False}
+    result: dict[str, Any] = {"committed": False, "pushed": False}
     targets = _git_targets(cfg, space)
 
     for name, local, remote_type in targets:

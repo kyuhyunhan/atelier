@@ -6,7 +6,6 @@ can depend on the Protocols instead of on fts.py directly.
 """
 from __future__ import annotations
 
-from runtime.search import engine
 from runtime.search.engine import Candidate, FtsLexical, RetrievalEngine, Scope
 from runtime.search.engine.lexical import LexicalSearcher
 from runtime.search.engine.sqlite_scope import scope_where

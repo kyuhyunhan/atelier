@@ -6,13 +6,10 @@ while keeping project as a boost.
 """
 from __future__ import annotations
 
-from typing import Dict
-
 from runtime.service import api
 from runtime.service.learnings import recall as _rc
 from runtime.service.learnings import search as _se
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 5, "agent_kind": "claude-code", "status": "accepted",
@@ -37,28 +34,28 @@ def _seed(vault) -> None:
     api.reindex(full=True)
 
 
-def test_search_aspect_filter_scopes_via_facet_index(vault_env: Dict) -> None:
+def test_search_aspect_filter_scopes_via_facet_index(vault_env: dict) -> None:
     _seed(vault_env["vault"])
     out = _se.search(status="accepted", aspect="server")
     ids = {h["entry_id"] for h in out["items"]}
     assert ids == {"S"}                       # only the server-aspect learning
 
 
-def test_search_project_and_aspect_compose(vault_env: Dict) -> None:
+def test_search_project_and_aspect_compose(vault_env: dict) -> None:
     _seed(vault_env["vault"])
     out = _se.search(status="accepted", project="lexio", aspect="client")
     ids = {h["entry_id"] for h in out["items"]}
     assert ids == {"C"}                        # lexio ∧ client → C only (not B, not S)
 
 
-def test_search_project_filter_uses_facet_table(vault_env: Dict) -> None:
+def test_search_project_filter_uses_facet_table(vault_env: dict) -> None:
     _seed(vault_env["vault"])
     out = _se.search(status="accepted", project="bht")
     ids = {h["entry_id"] for h in out["items"]}
     assert ids == {"B"}
 
 
-def test_facet_match_is_case_insensitive(vault_env: Dict) -> None:
+def test_facet_match_is_case_insensitive(vault_env: dict) -> None:
     """Facet values are stored lowercased; a mixed-case frontmatter aspect must
     still match a lowercase query (and a mixed-case project too)."""
     vault = vault_env["vault"]
@@ -71,7 +68,7 @@ def test_facet_match_is_case_insensitive(vault_env: Dict) -> None:
     assert {h["entry_id"] for h in _se.search(project="lexio")["items"]} == {"M"}
 
 
-def test_recall_aspect_scope_hard_filters(vault_env: Dict) -> None:
+def test_recall_aspect_scope_hard_filters(vault_env: dict) -> None:
     """recall(aspect=…) hard-scopes; without it, project stays a boost (both
     projects' client learnings remain eligible)."""
     _seed(vault_env["vault"])

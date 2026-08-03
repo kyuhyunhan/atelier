@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import yaml as _yaml
 
@@ -21,7 +21,6 @@ from runtime.service import tools as _tools
 from runtime.service.learnings import bootstrap as _bs
 from runtime.service.learnings import cluster as _cl
 from runtime.service.learnings import recall_v7 as _rv
-from runtime.service.learnings import search as _ls
 
 _TERM = "zebrakite"        # distinctive token shared by every seeded node
 
@@ -50,7 +49,7 @@ def _seed_mixed_claims(vault: Path) -> None:
     _api.reindex(space="wiki", full=True)
 
 
-def _run(tool: str, **params: Any) -> Dict[str, Any]:
+def _run(tool: str, **params: Any) -> dict[str, Any]:
     return asyncio.run(_tools.invoke(tool, **params))
 
 
@@ -58,7 +57,7 @@ def _run(tool: str, **params: Any) -> Dict[str, Any]:
 
 
 def test_list_pages_dev_excludes_personal_full_includes(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     _seed_mixed_claims(vault)
     dev = _run("atelier_list_pages", lens="dev")["pages"]
@@ -72,7 +71,7 @@ def test_list_pages_dev_excludes_personal_full_includes(
     assert dev_slugs <= full_slugs                       # full is the superset
 
 
-def test_search_dev_excludes_personal_full_includes(atelier_env: Dict) -> None:
+def test_search_dev_excludes_personal_full_includes(atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     _seed_mixed_claims(vault)
     dev = _run("atelier_search", query=_TERM, lens="dev")["hits"]
@@ -86,7 +85,7 @@ def test_search_dev_excludes_personal_full_includes(atelier_env: Dict) -> None:
 
 
 def test_learning_search_dev_excludes_personal_full_includes(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """The claim pool behind learning_search is domain-mixed (page_type
     `claim` covers every domain), so this surface could leak a personal claim
     before G3 wired the lens through its result set."""
@@ -104,7 +103,7 @@ def test_learning_search_dev_excludes_personal_full_includes(
 
 
 def test_session_bootstrap_dev_excludes_personal_full_includes(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """The highest-leverage surface (§5.5): it pushes content the caller never
     asked for. A personal-domain node in the accepted pool must be absent from
     the dev block and present in the full block — accept-and-discard would
@@ -131,7 +130,7 @@ def test_session_bootstrap_dev_excludes_personal_full_includes(
 
 
 def test_unknown_lens_is_rejected_on_every_wired_surface(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """Validation goes through the ONE vocabulary (`lenses.lens_names()`), on
     every surface — not a per-handler list that can drift."""
     import pytest
@@ -148,7 +147,7 @@ def test_unknown_lens_is_rejected_on_every_wired_surface(
             _run(tool, lens="no-such-lens", **params)
 
 
-def test_think_accepts_and_applies_the_lens(atelier_env: Dict) -> None:
+def test_think_accepts_and_applies_the_lens(atelier_env: dict) -> None:
     """think's legacy pool (learning_principle/learning_accepted) is
     operational by construction, so dev == full there today — the lens is
     still validated and applied to the result set (fail-open on legacy nodes
@@ -177,7 +176,7 @@ def test_project_scope_gate_semantics() -> None:
 
 
 def test_dev_push_excludes_foreign_projects_but_query_reaches_them(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """The serving-path proof: at the push tier a foreign-project operational
     claim is absent from a projA session's results, while the same claim stays
     reachable by explicit on-query (T2) — scoped, not erased."""
@@ -192,7 +191,7 @@ def test_dev_push_excludes_foreign_projects_but_query_reaches_them(
         encoding="utf-8")
     _api.reindex(space="wiki", full=True)
 
-    def _slugs(hits: List[Dict[str, Any]]) -> set:
+    def _slugs(hits: list[dict[str, Any]]) -> set:
         return {h["slug"].rsplit("/", 1)[-1] for h in hits}
 
     push = _slugs(_rv.rank_claims(_TERM, "projA", tier="proactive",

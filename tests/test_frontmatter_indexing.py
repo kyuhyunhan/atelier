@@ -7,11 +7,8 @@ the body-derived links graph.
 """
 from __future__ import annotations
 
-from typing import Dict
-
 from runtime.index import parse as _parse
 from tests.conftest import write_page
-
 
 # ── unit: field selection ───────────────────────────────────────────────────
 
@@ -62,7 +59,7 @@ _BASE = {
 }
 
 
-def test_frontmatter_only_concept_is_now_fts_findable(vault_env: Dict):
+def test_frontmatter_only_concept_is_now_fts_findable(vault_env: dict):
     """A learning whose concept is ONLY in `touches` (body avoids the words) used
     to be dark; with frontmatter indexed it surfaces by its own concept.
 
@@ -87,7 +84,7 @@ def test_frontmatter_only_concept_is_now_fts_findable(vault_env: Dict):
     assert any(str((h.get("fm") or {}).get("entry_id")) == "ghost" for h in hits)
 
 
-def test_frontmatter_wikilink_does_not_pollute_links_graph(vault_env: Dict):
+def test_frontmatter_wikilink_does_not_pollute_links_graph(vault_env: dict):
     """The frontmatter chunk must be excluded from body-derived link extraction —
     a `[[...]]`-looking value in frontmatter must not create a links-table edge."""
     vault = vault_env["vault"]

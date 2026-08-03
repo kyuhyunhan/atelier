@@ -2,14 +2,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
-import pytest
 import yaml
 
 from runtime.cli import main as cli_main
 from runtime.service.learnings import capture as _cap
-from runtime.service.learnings import cluster as _cl
 from runtime.service.learnings import dream as _dr
 from runtime.service.learnings import principles as _pr
 from runtime.service.learnings import review as _rev
@@ -30,7 +27,7 @@ def _accept(seed: str, project: str = "lexio") -> str:
                        rule=f"rule {seed}",
                        working_dir=f"/Users/me/workspaces/{project}",
                        session_id=seed, hook="Stop")
-    out = _rev.accept(candidate_slug=cap["entry_id"],
+    _rev.accept(candidate_slug=cap["entry_id"],
                       target_topic="t", target_project=project)
     # The dream cadence counts the PROACTIVE pool (dream's input) — elevate the
     # accepted claim to proactive so it counts toward the nudge threshold.
@@ -46,7 +43,7 @@ def _accept(seed: str, project: str = "lexio") -> str:
 # ── nudge_info shared decision ──────────────────────────────────────────────
 
 
-def test_nudge_info_not_due_below_threshold(atelier_env: Dict) -> None:
+def test_nudge_info_not_due_below_threshold(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=15, after_days=7)
     _accept("a")
     info = _dr.nudge_info(now="2026-05-29T12:00:00+00:00")
@@ -55,9 +52,10 @@ def test_nudge_info_not_due_below_threshold(atelier_env: Dict) -> None:
     assert info["long"] == ""
 
 
-def test_nudge_info_due_on_count(atelier_env: Dict) -> None:
+def test_nudge_info_due_on_count(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     info = _dr.nudge_info(now="2026-05-29T12:00:00+00:00")
     assert info["due"] is True
     assert info["proactive_since"] == 2
@@ -65,7 +63,7 @@ def test_nudge_info_due_on_count(atelier_env: Dict) -> None:
     assert "💡 **atelier dream**" in info["long"]
 
 
-def test_nudge_info_short_and_long_consistent_with_bootstrap(atelier_env: Dict) -> None:
+def test_nudge_info_short_and_long_consistent_with_bootstrap(atelier_env: dict) -> None:
     """bootstrap's model-context nudge must equal nudge_info.long."""
     from runtime.service.learnings import bootstrap as _bs
     _set_dream_cfg(atelier_env["home"], after_accepted=1, after_days=7)
@@ -76,7 +74,7 @@ def test_nudge_info_short_and_long_consistent_with_bootstrap(atelier_env: Dict) 
     assert info["long"] in out["markdown"]
 
 
-def test_nudge_info_pending_segment(atelier_env: Dict) -> None:
+def test_nudge_info_pending_segment(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=999, after_days=999)
     _pr.add(title="draft", rule="r", why="w", status="proposed", slug="d")
     info = _dr.nudge_info(now="2026-05-29T12:00:00+00:00")
@@ -89,9 +87,10 @@ def test_nudge_info_pending_segment(atelier_env: Dict) -> None:
 # ── CLI `atelier dream --status` ────────────────────────────────────────────
 
 
-def test_cli_status_compact_line(atelier_env: Dict, capsys) -> None:
+def test_cli_status_compact_line(atelier_env: dict, capsys) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     rc = cli_main(["dream", "--status"])
     assert rc == 0
     out = capsys.readouterr().out.strip()
@@ -99,7 +98,7 @@ def test_cli_status_compact_line(atelier_env: Dict, capsys) -> None:
     assert "to dream" in out
 
 
-def test_cli_status_empty_when_nothing_due(atelier_env: Dict, capsys) -> None:
+def test_cli_status_empty_when_nothing_due(atelier_env: dict, capsys) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=99, after_days=99)
     _accept("a")
     rc = cli_main(["dream", "--status"])
@@ -108,10 +107,11 @@ def test_cli_status_empty_when_nothing_due(atelier_env: Dict, capsys) -> None:
     assert out == ""          # statusline shows nothing extra
 
 
-def test_cli_status_json(atelier_env: Dict, capsys) -> None:
+def test_cli_status_json(atelier_env: dict, capsys) -> None:
     import json
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     rc = cli_main(["dream", "--status", "--json"])
     assert rc == 0
     data = json.loads(capsys.readouterr().out)

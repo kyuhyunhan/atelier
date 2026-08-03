@@ -27,9 +27,10 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
@@ -48,17 +49,17 @@ def vault_root() -> Path:
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def claims_dir(vault: Optional[Path] = None) -> Path:
+def claims_dir(vault: Path | None = None) -> Path:
     """The v7 Claim node tree, single-sourced from the structure resolver
     (hard rule #3: no hardcoded paths)."""
     return (vault or vault_root()) / _structure.atomic_claim_dir()
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
-def _content_hash(front: Dict[str, Any]) -> str:
+def _content_hash(front: dict[str, Any]) -> str:
     """sha256 over the frontmatter sans content_hash — same convention as the
     P4 atomize/learnings_to_claims writers, so a re-hash here matches a re-hash
     there."""
@@ -67,7 +68,7 @@ def _content_hash(front: Dict[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
-def _emit(front: Dict[str, Any], body: str) -> str:
+def _emit(front: dict[str, Any], body: str) -> str:
     fm = yaml.safe_dump(front, sort_keys=True, allow_unicode=True,
                         default_flow_style=False)
     return f"---\n{fm}---\n\n{body.rstrip()}\n"
@@ -91,12 +92,12 @@ def _slugify(s: str) -> str:
 # ── read / enumerate ──────────────────────────────────────────────────────────
 
 
-def is_claim(fm: Dict[str, Any]) -> bool:
+def is_claim(fm: dict[str, Any]) -> bool:
     sv = fm.get("schema_version")
     return bool(isinstance(sv, int) and sv >= 7 and fm.get("kind") == "claim")
 
 
-def iter_claim_files(vault: Optional[Path] = None) -> Iterator[Path]:
+def iter_claim_files(vault: Path | None = None) -> Iterator[Path]:
     """Every v7 Claim node file under the atomic claims tree (flat; INDEX
     excluded). Tolerant — unparsable files are skipped by the readers."""
     base = claims_dir(vault)
@@ -108,7 +109,7 @@ def iter_claim_files(vault: Optional[Path] = None) -> Iterator[Path]:
         yield p
 
 
-def read_claim(path: Path) -> Optional[Tuple[Dict[str, Any], str]]:
+def read_claim(path: Path) -> tuple[dict[str, Any], str] | None:
     """(frontmatter, body) for a v7 claim file, or None when it is not a claim
     or fails to parse."""
     try:
@@ -121,8 +122,8 @@ def read_claim(path: Path) -> Optional[Tuple[Dict[str, Any], str]]:
 
 
 def find_claim_by_entry_id(entry_id: str,
-                           vault: Optional[Path] = None
-                           ) -> Optional[Tuple[Path, Dict[str, Any], str]]:
+                           vault: Path | None = None
+                           ) -> tuple[Path, dict[str, Any], str] | None:
     """Locate a claim by its stable entry_id (the link target, path-independent).
     Returns (path, fm, body) or None."""
     for p in iter_claim_files(vault):
@@ -135,12 +136,12 @@ def find_claim_by_entry_id(entry_id: str,
     return None
 
 
-def surfacing_of(fm: Dict[str, Any]) -> str:
+def surfacing_of(fm: dict[str, Any]) -> str:
     s = fm.get("surfacing")
     return s if s in _LADDER else TIER_QUERY
 
 
-def is_pending_review(fm: Dict[str, Any]) -> bool:
+def is_pending_review(fm: dict[str, Any]) -> bool:
     """The ONE definition of "in the pending review queue" (RFC 0009 G4):
     an operational claim whose ac_status is pending. Shared by the review
     surface (`review.review_pending`) and the metric (`metrics.pending_age`)
@@ -154,7 +155,7 @@ def is_pending_review(fm: Dict[str, Any]) -> bool:
             and str(fm.get("ac_status") or "").lower() == "pending")
 
 
-def is_promote_candidate(fm: Dict[str, Any]) -> bool:
+def is_promote_candidate(fm: dict[str, Any]) -> bool:
     """The domain-INDEPENDENT prerequisites for query→proactive promotion: the
     claim is still on the query tier and is public. A claim that clears this but
     not `is_promote_eligible` is a candidate the domain gate rejected.
@@ -167,7 +168,7 @@ def is_promote_candidate(fm: Dict[str, Any]) -> bool:
     return str(fm.get("sensitivity") or "").lower() == "public"
 
 
-def is_promote_eligible(fm: Dict[str, Any]) -> bool:
+def is_promote_eligible(fm: dict[str, Any]) -> bool:
     """Whether a claim may be promoted query→proactive. ONE definition, shared
     by the filesystem scan (`promote.propose._eligible`), the DB projection
     (`projection_counts.promote_eligible`) and the metrics counter
@@ -194,8 +195,8 @@ def is_promote_eligible(fm: Dict[str, Any]) -> bool:
 
 
 def find_claim_by_slug_or_id(needle: str,
-                             vault: Optional[Path] = None
-                             ) -> Optional[Tuple[Path, Dict[str, Any], str]]:
+                             vault: Path | None = None
+                             ) -> tuple[Path, dict[str, Any], str] | None:
     """Locate a claim by entry_id, full file stem, or the bare filename.
 
     The accept/archive/retract callers pass either the claim's entry_id (the
@@ -231,7 +232,7 @@ def _resolve_entity_id(pref_label: str, *, sensitivity: str,
     found = find_entity_by_entry_id(eid, vault)
     if found is not None:
         return eid
-    front: Dict[str, Any] = {
+    front: dict[str, Any] = {
         "entry_id": eid,
         "schema_version": 7,
         "kind": "entity",
@@ -250,7 +251,7 @@ def _resolve_entity_id(pref_label: str, *, sensitivity: str,
     return eid
 
 
-def find_entity_by_entry_id(entry_id: str, vault: Path) -> Optional[Path]:
+def find_entity_by_entry_id(entry_id: str, vault: Path) -> Path | None:
     base = vault / _structure.atomic_entity_dir()
     if not base.exists():
         return None
@@ -308,7 +309,7 @@ def operational_source_id() -> str:
     )
 
 
-def find_source_by_entry_id(entry_id: str, vault: Path) -> Optional[Path]:
+def find_source_by_entry_id(entry_id: str, vault: Path) -> Path | None:
     """Locate a v7 Source node file by its stable entry_id, scanning the content
     tree (a Source is an L1 node in raw/, §3). Returns the path or None."""
     base = vault / _structure.source_scan_root()
@@ -336,15 +337,15 @@ def write_operational_claim(*, statement: str,
                             hook: str = "manual",
                             observation_kind: str = "feedback",
                             why_status: str = "present",
-                            project: Optional[str] = None,
-                            is_about: Optional[List[str]] = None,
+                            project: str | None = None,
+                            is_about: list[str] | None = None,
                             sensitivity: str = "public",
                             surfacing: str = TIER_QUERY,
                             ac_status: str = "pending",
-                            captured_at: Optional[str] = None,
-                            extra: Optional[Dict[str, Any]] = None,
-                            vault: Optional[Path] = None,
-                            ) -> Dict[str, Any]:
+                            captured_at: str | None = None,
+                            extra: dict[str, Any] | None = None,
+                            vault: Path | None = None,
+                            ) -> dict[str, Any]:
     """Write a v7 operational Claim born at `surfacing:query, ac_status:pending`
     (RFC 0005 §7.1 — an operational learning is BORN AS A CLAIM, never a
     candidate file).
@@ -371,7 +372,7 @@ def write_operational_claim(*, statement: str,
     now = captured_at or _now_iso()
     eid = _structure.entry_id("claim", statement=statement,
                               derived_from=source_entry_id)
-    front: Dict[str, Any] = {
+    front: dict[str, Any] = {
         "entry_id": eid,
         "schema_version": 7,
         "kind": "claim",
@@ -457,13 +458,13 @@ def write_operational_source(*, statement: str, body: str,
                              attributed_to: str = "claude-code",
                              agent_kind: str = "claude-code",
                              hook: str = "manual",
-                             session_id: Optional[str] = None,
-                             working_dir: Optional[str] = None,
-                             captured_at: Optional[str] = None,
+                             session_id: str | None = None,
+                             working_dir: str | None = None,
+                             captured_at: str | None = None,
                              sensitivity: str = "public",
-                             source_extra: Optional[Dict[str, Any]] = None,
-                             vault: Optional[Path] = None,
-                             ) -> Dict[str, Any]:
+                             source_extra: dict[str, Any] | None = None,
+                             vault: Path | None = None,
+                             ) -> dict[str, Any]:
     """Create-once a per-item, content-addressed operational Source in
     raw/operational/ (RFC 0007). Returns {path, entry_id}.
 
@@ -484,7 +485,7 @@ def write_operational_source(*, statement: str, body: str,
     # capture). Read the Source's OWN stored entry_id (not _safe_eid, which is
     # claim-specific) so the collision loop only fires for the astronomically-
     # rare case of a distinct statement sharing both slug and id-prefix.
-    def _stored_eid(p: Path) -> Optional[str]:
+    def _stored_eid(p: Path) -> str | None:
         try:
             fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
             return fm.get("entry_id")
@@ -497,7 +498,7 @@ def write_operational_source(*, statement: str, body: str,
     if out.exists():
         return {"path": str(out), "entry_id": eid}   # idempotent no-op
     now = captured_at or _now_iso()
-    front: Dict[str, Any] = {
+    front: dict[str, Any] = {
         "entry_id": eid,
         "schema_version": 7,
         "kind": "source",
@@ -523,7 +524,7 @@ def write_operational_source(*, statement: str, body: str,
 
 
 def inherit_sensitivity_from_claims(sensitivity: str,
-                                    upstream_claim_ids: List[str], *,
+                                    upstream_claim_ids: list[str], *,
                                     vault: Path) -> str:
     """Tighten `sensitivity` to `private` if ANY upstream claim is private.
 
@@ -574,7 +575,7 @@ def operational_claim_id_for(statement: str) -> str:
 
 
 def claim_path_for(statement: str, entry_id: str, *,
-                   vault: Optional[Path] = None) -> Optional[str]:
+                   vault: Path | None = None) -> str | None:
     """Locate an existing claim node by its (statement, entry_id), or None.
 
     O(1): the writer's filename is deterministic — `{slug(statement)}-{eid[:8]}`
@@ -598,10 +599,10 @@ def claim_path_for(statement: str, entry_id: str, *,
 
 
 def refresh_operational_source_body(*, statement: str, body: str,
-                                    body_sha: Optional[str] = None,
-                                    revised_at: Optional[str] = None,
-                                    vault: Optional[Path] = None,
-                                    ) -> Optional[Dict[str, Any]]:
+                                    body_sha: str | None = None,
+                                    revised_at: str | None = None,
+                                    vault: Path | None = None,
+                                    ) -> dict[str, Any] | None:
     """Update an EXISTING operational Source's body in place (RFC 0008 §4 §2).
 
     The Source id is content-addressed by the *statement* alone, so an upstream
@@ -645,21 +646,21 @@ def refresh_operational_source_body(*, statement: str, body: str,
 def mint_operational_claim(*, statement: str, body: str,
                            observation_kind: str = "feedback",
                            why_status: str = "present",
-                           project: Optional[str] = None,
-                           is_about: Optional[List[str]] = None,
+                           project: str | None = None,
+                           is_about: list[str] | None = None,
                            attributed_to: str = "claude-code",
                            agent_kind: str = "claude-code",
                            hook: str = "manual",
-                           session_id: Optional[str] = None,
-                           working_dir: Optional[str] = None,
+                           session_id: str | None = None,
+                           working_dir: str | None = None,
                            sensitivity: str = "public",
                            surfacing: str = TIER_QUERY,
                            ac_status: str = "pending",
-                           captured_at: Optional[str] = None,
-                           extra: Optional[Dict[str, Any]] = None,
-                           source_extra: Optional[Dict[str, Any]] = None,
-                           vault: Optional[Path] = None,
-                           ) -> Dict[str, Any]:
+                           captured_at: str | None = None,
+                           extra: dict[str, Any] | None = None,
+                           source_extra: dict[str, Any] | None = None,
+                           vault: Path | None = None,
+                           ) -> dict[str, Any]:
     """Deterministic (no-LLM) 1:1 mint of an operational Claim from its own
     content-addressed Source (RFC 0007) — the composition
     write_operational_source + write_operational_claim(generated_by='mint').
@@ -676,7 +677,7 @@ def mint_operational_claim(*, statement: str, body: str,
         agent_kind=agent_kind, hook=hook, session_id=session_id,
         working_dir=working_dir, captured_at=now, sensitivity=sensitivity,
         source_extra=source_extra, vault=vault)
-    claim_extra: Dict[str, Any] = {"captured_at": now, "ac_results": {}}
+    claim_extra: dict[str, Any] = {"captured_at": now, "ac_results": {}}
     if session_id:
         claim_extra["session_id"] = session_id
     if working_dir:
@@ -709,7 +710,7 @@ def _entity_types() -> set:
 
 def _resolve_typed_entity(*, type: str, pref_label: str, in_scheme: str,
                           sensitivity: str, created_at: str,
-                          vault: Path) -> Tuple[str, bool]:
+                          vault: Path) -> tuple[str, bool]:
     """Resolve-or-create a *typed* v7 Entity (Model / Person / Organization /
     Tool / Concept / …), returning (entry_id, was_created).
 
@@ -722,7 +723,7 @@ def _resolve_typed_entity(*, type: str, pref_label: str, in_scheme: str,
     eid = _structure.entry_id("entity", type=type, pref_label=pref_label)
     if find_entity_by_entry_id(eid, vault) is not None:
         return eid, False
-    front: Dict[str, Any] = {
+    front: dict[str, Any] = {
         "entry_id": eid, "schema_version": 7, "kind": "entity", "type": type,
         "created_at": created_at, "pref_label": pref_label, "alt_label": [],
         "in_scheme": [in_scheme], "sensitivity": sensitivity, "links": [],
@@ -735,9 +736,9 @@ def _resolve_typed_entity(*, type: str, pref_label: str, in_scheme: str,
 
 
 def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
-                  entities: List[Dict[str, str]],
-                  claims: List[Dict[str, Any]],
-                  vault: Optional[Path] = None) -> Dict[str, Any]:
+                  entities: list[dict[str, str]],
+                  claims: list[dict[str, Any]],
+                  vault: Path | None = None) -> dict[str, Any]:
     """Deterministic write-path for atomizing a knowledge Source into v7 nodes.
 
     The agent supplies only judgement — WHICH entities and claims, their phrasing
@@ -805,7 +806,7 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
         return " ".join(str(s).split()).lower()
 
     # Pass A — resolve-or-create every declared entity; build label → id.
-    label_to_id: Dict[str, str] = {}
+    label_to_id: dict[str, str] = {}
     created_e = reused_e = 0
     for e in entities or []:
         label = " ".join(str(e["pref_label"]).split())
@@ -818,10 +819,10 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
         reused_e += int(not was_created)
 
     # Pass B — write each claim, resolving is_about labels to entity ids.
-    claim_ids: List[str] = []
+    claim_ids: list[str] = []
     for c in claims or []:
         statement = " ".join(str(c["statement"]).split())
-        is_about: List[str] = []
+        is_about: list[str] = []
         for lbl in c.get("is_about") or []:
             key = _key(lbl)
             if key not in label_to_id:            # undeclared → mint a Concept
@@ -835,7 +836,7 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
             is_about.append(label_to_id[key])
         eid = _structure.entry_id("claim", statement=statement,
                                   derived_from=source_entry_id)
-        front: Dict[str, Any] = {
+        front: dict[str, Any] = {
             "entry_id": eid, "schema_version": 7, "kind": "claim",
             "created_at": created_at, "statement": statement,
             "domain": domain, "sensitivity": sensitivity,
@@ -859,17 +860,17 @@ def atomize_write(*, source_entry_id: str, created_at: str, domain: str,
             "claims_written": len(claim_ids), "claim_ids": claim_ids}
 
 
-def _safe_eid(path: Path) -> Optional[str]:
+def _safe_eid(path: Path) -> str | None:
     got = read_claim(path)
     return got[0].get("entry_id") if got else None
 
 
-def set_ac_status(path: Path, fm: Dict[str, Any], body: str, *,
+def set_ac_status(path: Path, fm: dict[str, Any], body: str, *,
                   new_status: str,
-                  archive_reason: Optional[str] = None,
-                  links: Optional[List[str]] = None,
-                  ac_results: Optional[Dict[str, Any]] = None,
-                  ) -> Dict[str, Any]:
+                  archive_reason: str | None = None,
+                  links: list[str] | None = None,
+                  ac_results: dict[str, Any] | None = None,
+                  ) -> dict[str, Any]:
     """Transition a claim's acceptance state IN PLACE (RFC 0005 §7.1 — accept /
     archive / retract are FIELD transitions on the claim, not directory moves).
 
@@ -909,9 +910,9 @@ def set_ac_status(path: Path, fm: Dict[str, Any], body: str, *,
 # ── field transition (the core of promote/dream) ──────────────────────────────
 
 
-def set_surfacing(path: Path, fm: Dict[str, Any], body: str, *,
-                  new_tier: str, generated_by: Optional[str] = None
-                  ) -> Dict[str, Any]:
+def set_surfacing(path: Path, fm: dict[str, Any], body: str, *,
+                  new_tier: str, generated_by: str | None = None
+                  ) -> dict[str, Any]:
     """Transition a claim's `surfacing` tier IN PLACE (RFC 0005 §7.1 — a field
     transition, not a directory move).
 
@@ -948,19 +949,19 @@ def set_surfacing(path: Path, fm: Dict[str, Any], body: str, *,
 
 
 def write_synthesized_claim(*, statement: str,
-                            source_claim_ids: List[str],
-                            source_entry_ids_for_id: Optional[List[str]] = None,
-                            is_about: Optional[List[str]] = None,
+                            source_claim_ids: list[str],
+                            source_entry_ids_for_id: list[str] | None = None,
+                            is_about: list[str] | None = None,
                             rel: str = "refines",
                             why: str = "",
                             domain: str = "operational",
                             sensitivity: str = "public",
                             surfacing: str = TIER_ALWAYS,
-                            project: Optional[str] = None,
-                            context: Optional[str] = None,
-                            body: Optional[str] = None,
-                            vault: Optional[Path] = None,
-                            ) -> Dict[str, Any]:
+                            project: str | None = None,
+                            context: str | None = None,
+                            body: str | None = None,
+                            vault: Path | None = None,
+                            ) -> dict[str, Any]:
     """Mint a NEW v7 Claim that generalizes `source_claim_ids` (RFC 0005 §7.1:
     dream "synthesize[s] new Claims … linked by refines/supports, derived_from
     the source claims").
@@ -1001,7 +1002,7 @@ def write_synthesized_claim(*, statement: str,
     links = [{"to": sid, "rel": rel, "why": why or "generalized by dream"}
              for sid in dict.fromkeys(source_claim_ids)]
 
-    front: Dict[str, Any] = {
+    front: dict[str, Any] = {
         "entry_id": eid,
         "schema_version": 7,
         "kind": "claim",

@@ -31,17 +31,15 @@ import re
 import sys
 import uuid as _uuid
 from collections import Counter
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import yaml
 
 from runtime.index import parse as _parse
 from runtime.service.learnings import store as _store
 from runtime.util import config as _config
-
 
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
 
@@ -53,7 +51,7 @@ def _slugify(value: str, *, fallback: str = "general") -> str:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
 @dataclass
@@ -61,11 +59,11 @@ class Plan:
     src: Path
     dest: Path                 # flat notes/<YYYY-MM>/<name>
     project: str
-    aspects: List[str]         # project-local categories (layer + also_in)
-    new_fm: Dict
+    aspects: list[str]         # project-local categories (layer + also_in)
+    new_fm: dict
 
 
-def _as_list(value) -> List[str]:
+def _as_list(value) -> list[str]:
     if isinstance(value, list):
         return [str(v) for v in value if isinstance(v, (str, int))]
     if isinstance(value, str) and value.strip():
@@ -80,7 +78,7 @@ def _resolve_vault(cfg: _config.Config) -> Path:
 
 
 def _walk_memory(vault_root: Path,
-                 *, workshop_source: Optional[Path]) -> List[Tuple[Path, str, str]]:
+                 *, workshop_source: Path | None) -> list[tuple[Path, str, str]]:
     """Yield (memory_md, project_name, topic) tuples.
 
     workshop_source is either:
@@ -90,7 +88,7 @@ def _walk_memory(vault_root: Path,
     if workshop_source is None or not workshop_source.exists():
         return []
 
-    out: List[Tuple[Path, str, str]] = []
+    out: list[tuple[Path, str, str]] = []
     for product_dir in sorted(workshop_source.iterdir()):
         if not product_dir.is_dir():
             continue
@@ -105,10 +103,10 @@ def _walk_memory(vault_root: Path,
     return out
 
 
-def _build_plan(srcs: List[Tuple[Path, str, str]],
-                vault: Path) -> Tuple[List[Plan], List[str]]:
-    plans: List[Plan] = []
-    conflicts: List[str] = []
+def _build_plan(srcs: list[tuple[Path, str, str]],
+                vault: Path) -> tuple[list[Plan], list[str]]:
+    plans: list[Plan] = []
+    conflicts: list[str] = []
 
     for src, project, topic in srcs:
         project_slug = _slugify(project)
@@ -122,7 +120,7 @@ def _build_plan(srcs: List[Tuple[Path, str, str]],
         # topic here, and flattening one into it is the exact bug being fixed.
         layer = fm.get("layer")
         primary = _slugify(layer) if isinstance(layer, str) and layer else topic_slug
-        aspects: List[str] = []
+        aspects: list[str] = []
         for a in [primary, *(_slugify(x) for x in _as_list(fm.get("also_in")))]:
             if a and a not in aspects:
                 aspects.append(a)
@@ -172,7 +170,7 @@ def _apply(plan: Plan) -> None:
 
 
 def absorb(*, apply: bool,
-           workshop_source: Optional[Path] = None) -> int:
+           workshop_source: Path | None = None) -> int:
     cfg = _config.load()
     vault = _resolve_vault(cfg)
 
@@ -230,7 +228,7 @@ def absorb(*, apply: bool,
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="absorb-workshop-memory-to-learnings",
         description="Migrate workshop per-product memory/ into "

@@ -24,8 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable, Optional, Tuple
 
 from ..structure import resolver as _structure
 from ..sync import orchestrator
@@ -33,12 +33,11 @@ from ..sync.adapters import github
 from ..util import logging as log
 from . import claims, server
 
-
 # ── pure decision core (no async / no IO) ────────────────────────────────────
 
 
-def _decide(status: str, prev: Optional[str], *,
-            require_stable: bool, lock_busy: bool) -> Tuple[bool, Optional[str]]:
+def _decide(status: str, prev: str | None, *,
+            require_stable: bool, lock_busy: bool) -> tuple[bool, str | None]:
     """Decide whether to commit this tick. Returns (should_commit, new_prev).
 
     - clean tree            → no commit, reset memory
@@ -80,9 +79,9 @@ async def _poll_loop(sup: server.Supervisor, *,
                      require_stable: bool,
                      interval_seconds: float,
                      message_prefix: str,
-                     reindex_fn: Optional[Callable[[str], object]] = None,
+                     reindex_fn: Callable[[str], object] | None = None,
                      ) -> None:
-    prev: Optional[str] = None
+    prev: str | None = None
     while not sup.shutdown.is_set():
         proceed = await sleep_fn(interval_seconds)
         if not proceed:
@@ -127,7 +126,7 @@ async def _interruptible_sleep(sup: server.Supervisor, interval: float) -> bool:
     try:
         await asyncio.wait_for(sup.shutdown.wait(), timeout=interval)
         return False                            # shutdown won the race
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return True                             # interval elapsed normally
 
 

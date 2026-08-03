@@ -7,10 +7,7 @@ learnings by-project mirror reconcile (D7).
 """
 from __future__ import annotations
 
-from typing import Dict
-
 from .conftest import write_page
-
 
 # ── 1.1 schema-driven classify (pure; no fixture) ───────────────────────────
 
@@ -50,9 +47,9 @@ def _reindex(cfg) -> None:
     reindex.reindex_all(cfg, full=True)
 
 
-def test_d2_dedup_single_vault_no_phantom_drift(vault_env: Dict) -> None:
-    from runtime.util import config
+def test_d2_dedup_single_vault_no_phantom_drift(vault_env: dict) -> None:
     from runtime.doctor import diagnostics
+    from runtime.util import config
 
     vault = vault_env["vault"]
     write_page(vault / "wiki" / "entities" / "foo.md",
@@ -64,9 +61,9 @@ def test_d2_dedup_single_vault_no_phantom_drift(vault_env: Dict) -> None:
     assert d2.severity == "OK", d2.message
 
 
-def test_lint_space_agnostic_single_vault(vault_env: Dict) -> None:
-    from runtime.util import config, db
+def test_lint_space_agnostic_single_vault(vault_env: dict) -> None:
     from runtime.lint import runner
+    from runtime.util import config, db
 
     vault = vault_env["vault"]
     # a wiki page with a broken [[raw/...]] link → L1 should fire space-agnostically
@@ -94,7 +91,7 @@ def _links_from(conn, slug_like: str):
         (slug_like,)).fetchall()
 
 
-def test_cross_domain_resolve_workshop_to_wiki_entity(vault_env: Dict) -> None:
+def test_cross_domain_resolve_workshop_to_wiki_entity(vault_env: dict) -> None:
     from runtime.util import config, db
 
     vault = vault_env["vault"]
@@ -120,7 +117,7 @@ def test_cross_domain_resolve_workshop_to_wiki_entity(vault_env: Dict) -> None:
         conn.close()
 
 
-def test_alias_resolution(vault_env: Dict) -> None:
+def test_alias_resolution(vault_env: dict) -> None:
     from runtime.util import config, db
 
     vault = vault_env["vault"]

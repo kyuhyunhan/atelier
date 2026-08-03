@@ -17,7 +17,6 @@ This module pins the three properties that makes safe:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 from runtime.index.parse import split_frontmatter
 from runtime.service.learnings import absorb_claude as _ac
@@ -35,12 +34,12 @@ def _seed(root: Path, name: str, *, description: str, body: str,
     return p
 
 
-def _fm(path) -> Dict:
+def _fm(path) -> dict:
     fm, _ = split_frontmatter(Path(path).read_text(encoding="utf-8"))
     return fm
 
 
-def _source_file(env: Dict) -> Path:
+def _source_file(env: dict) -> Path:
     d = env["wiki"] / _structure.operational_source_dir()
     return next(iter(sorted(d.glob("*.md"))))
 
@@ -48,7 +47,7 @@ def _source_file(env: Dict) -> Path:
 # ── 1. the mint keeps a Source out of the atomize backlog ────────────────────
 
 
-def test_minted_source_is_not_in_the_atomize_backlog(atelier_env: Dict) -> None:
+def test_minted_source_is_not_in_the_atomize_backlog(atelier_env: dict) -> None:
     """A minted Source HAS a derived claim, so the un-atomized predicate (a
     Source no Claim is derived_from) excludes it — the deterministic lane never
     generates LLM work for itself."""
@@ -61,7 +60,7 @@ def test_minted_source_is_not_in_the_atomize_backlog(atelier_env: Dict) -> None:
 
 
 def test_long_memories_still_mint_rather_than_route_to_atomize(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """§5's reversal, pinned: length does NOT change the lane. The statement
     comes from the curated description, so a 400-word memory still yields one
     deterministic claim and zero atomize backlog."""
@@ -79,7 +78,7 @@ def test_long_memories_still_mint_rather_than_route_to_atomize(
 
 
 def test_deep_atomize_adds_claims_without_touching_the_mint(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     root = atelier_env["claude_projects"]
     _seed(root, "m1", description="the headline rule",
           body="## Rule\nfirst fact. second fact.\n")
@@ -113,7 +112,7 @@ def test_deep_atomize_adds_claims_without_touching_the_mint(
 # ── 3. derived claims never widen the Source's sensitivity ───────────────────
 
 
-def test_deep_atomize_inherits_a_private_source(atelier_env: Dict) -> None:
+def test_deep_atomize_inherits_a_private_source(atelier_env: dict) -> None:
     """M4 demotes a `type: user` memory to private. Deep-atomizing it must not
     mint PUBLIC claims off its body — that would route the very content M4
     narrowed straight back into proactive push."""
@@ -145,7 +144,7 @@ def test_deep_atomize_inherits_a_private_source(atelier_env: Dict) -> None:
     assert ents and all(e["sensitivity"] == "private" for e in ents)
 
 
-def test_deep_atomize_inherits_a_pii_demoted_source(atelier_env: Dict) -> None:
+def test_deep_atomize_inherits_a_pii_demoted_source(atelier_env: dict) -> None:
     """The same guard for the other M4 trigger: a PII pattern hit."""
     (atelier_env["home"] / "pii_patterns.txt").write_text(
         "SECRETNAME\n", encoding="utf-8")
@@ -169,7 +168,7 @@ def test_deep_atomize_inherits_a_pii_demoted_source(atelier_env: Dict) -> None:
     assert derived and all(fm["sensitivity"] == "private" for fm in derived)
 
 
-def test_public_source_still_yields_public_claims(atelier_env: Dict) -> None:
+def test_public_source_still_yields_public_claims(atelier_env: dict) -> None:
     """The guard tightens only — it must not make everything private."""
     root = atelier_env["claude_projects"]
     _seed(root, "ok", description="a shareable rule", body="nothing secret\n")
@@ -191,7 +190,7 @@ def test_public_source_still_yields_public_claims(atelier_env: Dict) -> None:
 
 
 def test_personal_domain_stays_private_when_the_source_is_public(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """Policy 1 is unchanged: `domain: personal` is private regardless of what
     the Source says. The new inheritance only ADDS a tightening path."""
     vault = atelier_env["wiki"]

@@ -24,16 +24,14 @@ import json
 import re
 import shutil
 import subprocess
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
 from ...structure import resolver as _structure
 from ...util import config as _config
-
 
 _VTT_TIME_RX = re.compile(r"(\d{2}):(\d{2}):(\d{2})\.\d+")
 _VTT_TAG_RX = re.compile(r"<[^>]+>")          # any inline tag (strip): <00:00:06>, <c>, <i>, <v …>
@@ -68,15 +66,15 @@ def _knowledge_root(vault: Path) -> Path:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
-def _which(cmd: str) -> Optional[str]:
+def _which(cmd: str) -> str | None:
     return shutil.which(cmd)
 
 
-def _fetch_metadata(url: str, *, runner: Optional[Any] = None,
-                    cookies_from_browser: Optional[str] = None) -> Dict[str, Any]:
+def _fetch_metadata(url: str, *, runner: Any | None = None,
+                    cookies_from_browser: str | None = None) -> dict[str, Any]:
     """Call yt-dlp -J. Lets tests stub `runner`.
 
     Two flags earn their keep against current YouTube:
@@ -102,18 +100,18 @@ def _fetch_metadata(url: str, *, runner: Optional[Any] = None,
     return json.loads(proc.stdout)
 
 
-def _pick_subtitles(meta: Dict[str, Any], lang: Optional[str]
-                     ) -> Optional[Dict[str, Any]]:
+def _pick_subtitles(meta: dict[str, Any], lang: str | None
+                     ) -> dict[str, Any] | None:
     subs = meta.get("subtitles") or {}
     auto = meta.get("automatic_captions") or {}
 
-    def pick(track_map: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def pick(track_map: dict[str, Any]) -> dict[str, Any] | None:
         if lang and lang in track_map:
             return _select_vtt(track_map[lang])
         for code in ("en", "ko"):
             if code in track_map:
                 return _select_vtt(track_map[code])
-        for code, entries in track_map.items():
+        for _code, entries in track_map.items():
             v = _select_vtt(entries)
             if v:
                 return v
@@ -122,7 +120,7 @@ def _pick_subtitles(meta: Dict[str, Any], lang: Optional[str]
     return pick(subs) or pick(auto)
 
 
-def _select_vtt(entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _select_vtt(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
     for e in entries or []:
         if e.get("ext") == "vtt" and e.get("url"):
             return e
@@ -148,9 +146,9 @@ def _vtt_to_markdown(vtt: str) -> str:
     (`<i>`, `<v Speaker>`) that manual subs legally carry — those are stripped
     for the text but never enable the collapse. "Markdown is truth" — never
     lossy on the exact human track."""
-    cues: List[tuple] = []                 # (mm:ss, cleaned text)
-    block: List[str] = []
-    cue_start: Optional[str] = None
+    cues: list[tuple] = []                 # (mm:ss, cleaned text)
+    block: list[str] = []
+    cue_start: str | None = None
     had_tags = False                       # inline <...> seen ⇒ ASR/rolling
 
     def _flush() -> None:
@@ -182,8 +180,8 @@ def _vtt_to_markdown(vtt: str) -> str:
     if not had_tags:                       # manual subtitles → verbatim, lossless
         return "\n".join(f"[{ts}] {text}" for ts, text in cues) + "\n"
 
-    out: List[str] = []                    # running deduped token stream
-    anchors: List[tuple] = []              # (start_index_in_out, mm:ss)
+    out: list[str] = []                    # running deduped token stream
+    anchors: list[tuple] = []              # (start_index_in_out, mm:ss)
     for ts, text in cues:
         toks = text.split()
         if not toks:
@@ -200,7 +198,7 @@ def _vtt_to_markdown(vtt: str) -> str:
         anchors.append((len(out), ts))
         out.extend(new)
 
-    lines: List[str] = []
+    lines: list[str] = []
     for i, (idx, ts) in enumerate(anchors):
         end = anchors[i + 1][0] if i + 1 < len(anchors) else len(out)
         seg = " ".join(out[idx:end]).strip()
@@ -217,8 +215,9 @@ def _download_text(url: str) -> str:
 
 def _has_openai() -> bool:
     try:
-        import openai  # noqa: F401
         import os
+
+        import openai  # noqa: F401
         return bool(os.environ.get("OPENAI_API_KEY"))
     except ImportError:
         return False
@@ -226,12 +225,12 @@ def _has_openai() -> bool:
 
 def youtube_ingest(*, url: str,
                    role: str = "librarian-territory",
-                   lang: Optional[str] = None,
+                   lang: str | None = None,
                    force_stt: bool = False,
                    staging_subdir: str = "",
-                   metadata_runner: Optional[Any] = None,
-                   text_fetcher: Optional[Any] = None
-                   ) -> Dict[str, Any]:
+                   metadata_runner: Any | None = None,
+                   text_fetcher: Any | None = None
+                   ) -> dict[str, Any]:
     """Best-effort YouTube ingest. Returns a status report.
 
     Returns {"path": <str>, "status": "captioned" | "needs-stt"}.
@@ -254,7 +253,7 @@ def youtube_ingest(*, url: str,
     upload_date = meta.get("upload_date")  # YYYYMMDD
     try:
         precise = (datetime.strptime(upload_date, "%Y%m%d")
-                   .replace(tzinfo=timezone.utc)
+                   .replace(tzinfo=UTC)
                    .isoformat(timespec="seconds"))
         day = precise[:10]
     except (TypeError, ValueError):
@@ -300,7 +299,7 @@ def youtube_ingest(*, url: str,
     # `kind` nor `domain` and hard-coded `sensitivity: private`, so ingested talks
     # were invisible to v7 source accounting.
     channel = meta.get("channel") or meta.get("uploader")
-    fm: Dict[str, Any] = {
+    fm: dict[str, Any] = {
         "schema_version": 7,
         "entry_id": entry_id,
         "kind": "source",

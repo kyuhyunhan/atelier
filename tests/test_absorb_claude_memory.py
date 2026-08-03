@@ -3,9 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict
-
-import pytest
 
 from runtime.service.learnings import absorb_claude as _ac
 
@@ -40,7 +37,7 @@ def test_decode_cwd_dirname_round_trip() -> None:
     ) == "/Users/user/workspaces/project"
 
 
-def test_derive_project_takes_basename(atelier_env: Dict) -> None:
+def test_derive_project_takes_basename(atelier_env: dict) -> None:
     _ac.derive_project.cache_clear()
     assert _ac.derive_project("-Users-user-workspaces-project") == "project"
 
@@ -81,7 +78,7 @@ def test_decode_prefers_longest_component_when_both_readings_exist(
 
 
 def test_unverified_decode_does_not_borrow_a_live_project_slug(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """A GONE project must not inherit a live project's identity. The config
     map matches by path PREFIX, so the guessed path for a deleted `app-fe`
     (`…/app/fe`) would otherwise map onto the real `…/app` project and pollute
@@ -108,7 +105,7 @@ def test_decode_falls_back_when_path_is_gone() -> None:
 
 
 def test_derive_project_agrees_with_the_session_resolver(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """The whole point of routing through `project.resolve_project`: an
     absorbed claim must be keyed the SAME as the live session that produced it,
     or recall's project boost can never match (project.py's documented failure
@@ -137,7 +134,7 @@ def test_derive_project_is_memoized_per_encoded_dir(tmp_path: Path) -> None:
 
 
 def test_derive_project_honors_the_config_project_map(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """resolve_project's config-map layer must reach absorb too — the mapping
     that turns a folder into its real project identity."""
     import yaml
@@ -153,7 +150,7 @@ def test_derive_project_honors_the_config_project_map(
 
 
 def test_unabsorbed_count_skips_project_resolution(
-        atelier_env: Dict, monkeypatch) -> None:
+        atelier_env: dict, monkeypatch) -> None:
     """The nudge count runs at EVERY session start and needs only body hashes.
     Resolving the project per file made it ~4 minutes on a real vault."""
     root = atelier_env["claude_projects"]
@@ -169,7 +166,7 @@ def test_unabsorbed_count_skips_project_resolution(
 # ── absorb ────────────────────────────────────────────────────────────────
 
 
-def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path) -> None:
+def test_absorb_accepts_feedback_and_reference(atelier_env: dict, tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback",
                  description="don't mock the db")
@@ -209,7 +206,7 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
         assert not rel.endswith("operational-capture.md"), rel
 
 
-def test_absorb_routes_user_project_to_candidates(atelier_env: Dict,
+def test_absorb_routes_user_project_to_candidates(atelier_env: dict,
                                                     tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "u1", type_="user",
@@ -222,7 +219,7 @@ def test_absorb_routes_user_project_to_candidates(atelier_env: Dict,
     assert len(out["candidates"]) == 2
 
 
-def test_absorb_dedupes_by_body_hash(atelier_env: Dict, tmp_path: Path) -> None:
+def test_absorb_dedupes_by_body_hash(atelier_env: dict, tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
     out1 = _ac.absorb(dry_run=False, source_root=src_root)
@@ -233,7 +230,7 @@ def test_absorb_dedupes_by_body_hash(atelier_env: Dict, tmp_path: Path) -> None:
     assert len(out2["deduped"]) == 1
 
 
-def test_absorb_dry_run_writes_nothing(atelier_env: Dict, tmp_path: Path) -> None:
+def test_absorb_dry_run_writes_nothing(atelier_env: dict, tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
     vault = Path(_ac._vault_root())
@@ -242,7 +239,7 @@ def test_absorb_dry_run_writes_nothing(atelier_env: Dict, tmp_path: Path) -> Non
     assert not (vault / "learnings" / "accepted" / "by-project" / "lexio").exists()
 
 
-def test_absorbed_frontmatter_carries_source_metadata(atelier_env: Dict,
+def test_absorbed_frontmatter_carries_source_metadata(atelier_env: dict,
                                                        tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     src = _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback",
@@ -257,7 +254,7 @@ def test_absorbed_frontmatter_carries_source_metadata(atelier_env: Dict,
     assert fm["project_hint"] == "lexio"
 
 
-def test_memory_md_index_is_skipped(atelier_env: Dict, tmp_path: Path) -> None:
+def test_memory_md_index_is_skipped(atelier_env: dict, tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
     _seed_index(src_root, "-w-lexio")
@@ -265,7 +262,7 @@ def test_memory_md_index_is_skipped(atelier_env: Dict, tmp_path: Path) -> None:
     assert len(out["accepted"]) == 1     # MEMORY.md not absorbed
 
 
-def test_ledger_is_single_vault_root_json_file(atelier_env: Dict,
+def test_ledger_is_single_vault_root_json_file(atelier_env: dict,
                                                 tmp_path: Path) -> None:
     """The dedup ledger is ONE JSON file at the vault root (keyed by body sha),
     not a directory of per-hash files, and not under a content lane."""
@@ -297,7 +294,7 @@ def test_ledger_is_single_vault_root_json_file(atelier_env: Dict,
     assert not key.startswith("/")
 
 
-def test_dry_run_writes_no_ledger(atelier_env: Dict, tmp_path: Path) -> None:
+def test_dry_run_writes_no_ledger(atelier_env: dict, tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
     vault = Path(_ac._vault_root())
@@ -305,7 +302,7 @@ def test_dry_run_writes_no_ledger(atelier_env: Dict, tmp_path: Path) -> None:
     assert not (vault / ".absorbed-from-claude.json").exists()
 
 
-def test_corrupt_ledger_is_tolerated(atelier_env: Dict, tmp_path: Path) -> None:
+def test_corrupt_ledger_is_tolerated(atelier_env: dict, tmp_path: Path) -> None:
     """A present-but-corrupt ledger must not crash absorb; it is treated as empty
     (and warned — see _load_ledger), the memory is imported, and the ledger is
     rewritten as a valid dict."""
@@ -322,12 +319,12 @@ def test_corrupt_ledger_is_tolerated(atelier_env: Dict, tmp_path: Path) -> None:
     assert len(data["by_sha"]) == 1
 
 
-def test_mcp_dispatch_absorb_claude_memory(atelier_env: Dict, tmp_path: Path) -> None:
+def test_mcp_dispatch_absorb_claude_memory(atelier_env: dict, tmp_path: Path) -> None:
     src_root = tmp_path / "claude"
     _seed_claude(src_root, "-w-lexio", "fb1", type_="feedback")
     from runtime.service import tools as _tools
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke(
             "atelier_absorb_claude_memory",
             dry_run=False, source_root=str(src_root),

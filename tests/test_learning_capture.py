@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
@@ -18,7 +16,7 @@ def _read_fm(path: Path) -> dict:
     return fm
 
 
-def test_capture_is_born_as_a_query_pending_claim(atelier_env: Dict) -> None:
+def test_capture_is_born_as_a_query_pending_claim(atelier_env: dict) -> None:
     """RFC 0005 §7.1: a capture is born DIRECTLY as a v7 Claim
     (domain:operational, surfacing:query, ac_status:pending, generated_by:<hook>)
     under the atomic claims tree — NOT a legacy candidates/ file."""
@@ -54,7 +52,7 @@ def test_capture_is_born_as_a_query_pending_claim(atelier_env: Dict) -> None:
     assert fm["derived_from"] == [result["source_entry_id"]]
 
 
-def test_capture_carries_session_metadata_on_claim(atelier_env: Dict) -> None:
+def test_capture_carries_session_metadata_on_claim(atelier_env: dict) -> None:
     """RFC 0005 P10: the session metadata (session_id / working_dir /
     agent_kind / hook / captured_at) lives ON the claim as §4.3 extension
     fields — NOT on a per-learning session-source stub."""
@@ -71,7 +69,7 @@ def test_capture_carries_session_metadata_on_claim(atelier_env: Dict) -> None:
     assert fm["captured_at"]
 
 
-def test_capture_derives_from_its_own_operational_source(atelier_env: Dict) -> None:
+def test_capture_derives_from_its_own_operational_source(atelier_env: dict) -> None:
     """RFC 0007: each operational claim derives_from its OWN content-addressed
     Source in raw/operational/ (no shared anchor). Different lessons -> different
     Sources; the same lesson re-captured -> the same Source id (idempotency,
@@ -101,7 +99,7 @@ def test_capture_derives_from_its_own_operational_source(atelier_env: Dict) -> N
     assert sources[0].relative_to(vault).as_posix().startswith("raw/operational/")
 
 
-def test_capture_mirrors_session_fields_onto_claim_and_source(atelier_env: Dict) -> None:
+def test_capture_mirrors_session_fields_onto_claim_and_source(atelier_env: dict) -> None:
     """RFC 0007: capture mirrors session provenance onto BOTH the Claim (so the
     promotion acceptance criteria — tied_to_event / has_project_tag — keep
     resolving) AND its Source (first-class lineage). Mirrored, not moved."""
@@ -115,12 +113,12 @@ def test_capture_mirrors_session_fields_onto_claim_and_source(atelier_env: Dict)
     assert cfm.get("working_dir") == "/Users/me/workspaces/lexio"
     assert cfm.get("project_hint") == "lexio"               # has_project_tag
     vault = atelier_env["wiki"]
-    src = [p for p in vault.rglob("*.md")
-           if _read_fm(p).get("entry_id") == result["source_entry_id"]][0]
+    src = next(p for p in vault.rglob("*.md")
+               if _read_fm(p).get("entry_id") == result["source_entry_id"])
     assert _read_fm(src).get("session_id") == "sess-mirror"  # also on the Source
 
 
-def test_capture_source_lands_in_raw_not_graph(atelier_env: Dict) -> None:
+def test_capture_source_lands_in_raw_not_graph(atelier_env: dict) -> None:
     """RFC 0007: the per-item operational Source is an L1 node in the content
     tree (raw/operational), NEVER under graph/. The claim stays flat in graph/."""
     result = _cap.capture(
@@ -145,7 +143,7 @@ def test_capture_source_lands_in_raw_not_graph(atelier_env: Dict) -> None:
     assert "graph/atomic/claims/" not in result["path"]   # kind subdir gone (P9.4)
 
 
-def test_capture_resolves_project_to_is_about_entity(atelier_env: Dict) -> None:
+def test_capture_resolves_project_to_is_about_entity(atelier_env: dict) -> None:
     """project_hint/touches resolve-or-create into is_about Entity ids so the
     claim is wired into the graph at birth (RFC 0005 §7.1)."""
     result = _cap.capture(
@@ -167,7 +165,7 @@ def test_capture_resolves_project_to_is_about_entity(atelier_env: Dict) -> None:
     assert set(fm["is_about"]) <= ent_ids    # every is_about points at a real node
 
 
-def test_capture_inside_vault_tags_atelier_self(atelier_env: Dict) -> None:
+def test_capture_inside_vault_tags_atelier_self(atelier_env: dict) -> None:
     """working_dir under the vault root → project_hint = atelier-self."""
     cwd = atelier_env["wiki"] / "wiki"
     cwd.mkdir(exist_ok=True)
@@ -184,7 +182,7 @@ def test_capture_inside_vault_tags_atelier_self(atelier_env: Dict) -> None:
 # ── substance gate (C) ──────────────────────────────────────────────────────
 
 
-def test_capture_flags_empty_why_but_writes(atelier_env: Dict) -> None:
+def test_capture_flags_empty_why_but_writes(atelier_env: dict) -> None:
     """RFC 0004 phase 2: an observation with no why is NO LONGER rejected.
     It is written, flagged why_status=missing, and the result carries a soft
     why_missing nudge (require_why defaults True)."""
@@ -197,7 +195,7 @@ def test_capture_flags_empty_why_but_writes(atelier_env: Dict) -> None:
     assert _read_fm(path)["why_status"] == "missing"
 
 
-def test_capture_require_why_false_suppresses_nudge(atelier_env: Dict) -> None:
+def test_capture_require_why_false_suppresses_nudge(atelier_env: dict) -> None:
     """With require_why=False (session-end hook / absorbed memory), an empty
     why still writes + flags missing, but emits no why_missing nudge."""
     result = _cap.capture(observation="hook-derived observation",
@@ -207,7 +205,7 @@ def test_capture_require_why_false_suppresses_nudge(atelier_env: Dict) -> None:
     assert Path(result["path"]).exists()
 
 
-def test_capture_present_why_sets_status(atelier_env: Dict) -> None:
+def test_capture_present_why_sets_status(atelier_env: dict) -> None:
     result = _cap.capture(observation="x happens under y",
                           why="because z, which prevents w", hook="manual")
     assert result["why_status"] == "present"
@@ -215,7 +213,7 @@ def test_capture_present_why_sets_status(atelier_env: Dict) -> None:
     assert _read_fm(Path(result["path"]))["why_status"] == "present"
 
 
-def test_capture_rejects_stub_observation(atelier_env: Dict) -> None:
+def test_capture_rejects_stub_observation(atelier_env: dict) -> None:
     """A bare hook stub (no real observation, no why) → no-substance."""
     result = _cap.capture(
         observation="(hook=Stop) session_id=abc-123",
@@ -225,7 +223,7 @@ def test_capture_rejects_stub_observation(atelier_env: Dict) -> None:
     assert result["reason"] == "no-substance"
 
 
-def test_capture_accepts_when_why_present(atelier_env: Dict) -> None:
+def test_capture_accepts_when_why_present(atelier_env: dict) -> None:
     result = _cap.capture(
         observation="search returns nothing for tilde queries",
         why="fts5 ignores tilde tokens; users see a silent empty result",
@@ -234,7 +232,7 @@ def test_capture_accepts_when_why_present(atelier_env: Dict) -> None:
     assert Path(result["path"]).exists()
 
 
-def test_capture_require_why_false_writes(atelier_env: Dict) -> None:
+def test_capture_require_why_false_writes(atelier_env: dict) -> None:
     """Sources with free-form rationale (e.g. absorbed Claude memory) write
     without a why and without a nudge."""
     result = _cap.capture(
@@ -245,7 +243,7 @@ def test_capture_require_why_false_writes(atelier_env: Dict) -> None:
     assert "why_missing" not in result
 
 
-def test_capture_distinct_lessons_get_distinct_claims(atelier_env: Dict) -> None:
+def test_capture_distinct_lessons_get_distinct_claims(atelier_env: dict) -> None:
     """Two captures with DIFFERENT statements land as two distinct claims."""
     a = _cap.capture(observation="alpha", why="because a", rule="rule alpha",
                      hook="Stop")
@@ -255,7 +253,7 @@ def test_capture_distinct_lessons_get_distinct_claims(atelier_env: Dict) -> None
     assert a["entry_id"] != b["entry_id"]
 
 
-def test_capture_identical_lesson_is_idempotent(atelier_env: Dict) -> None:
+def test_capture_identical_lesson_is_idempotent(atelier_env: dict) -> None:
     """RFC 0005 §5: the claim id is content-addressed (norm(statement) |
     derived_from). Re-capturing the IDENTICAL lesson from the same session
     converges on the same claim (the dedup key), not a duplicate file."""
@@ -267,9 +265,9 @@ def test_capture_identical_lesson_is_idempotent(atelier_env: Dict) -> None:
     assert a["path"] == b["path"]
 
 
-def test_mcp_tool_dispatch_invokes_capture(atelier_env: Dict) -> None:
+def test_mcp_tool_dispatch_invokes_capture(atelier_env: dict) -> None:
     """The MCP tool registration must wire through tools.invoke()."""
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke(
             "atelier_learning_capture",
             observation="invoked via MCP",
@@ -280,17 +278,17 @@ def test_mcp_tool_dispatch_invokes_capture(atelier_env: Dict) -> None:
     assert Path(out["path"]).exists()
 
 
-def test_capture_survives_logging_failure(atelier_env: Dict,
+def test_capture_survives_logging_failure(atelier_env: dict,
                                            monkeypatch: pytest.MonkeyPatch) -> None:
     """Observability must not break the non-blocking capture contract: if the
     handler's log call raises (e.g. read-only fs), the already-written
     candidate's result is still returned."""
-    def boom(*a, **k):  # noqa: ANN001
+    def boom(*a, **k):
         raise OSError("log sink unavailable")
     monkeypatch.setattr(_tools._log, "info", boom)
     monkeypatch.setattr(_tools._log, "warn", boom)
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke(
             "atelier_learning_capture",
             observation="logging is down but the lesson is real",
@@ -301,9 +299,9 @@ def test_capture_survives_logging_failure(atelier_env: Dict,
     assert Path(out["path"]).exists()
 
 
-def test_mcp_tool_dispatch_flags_empty_why(atelier_env: Dict) -> None:
+def test_mcp_tool_dispatch_flags_empty_why(atelier_env: dict) -> None:
     """The tool layer writes an empty-why capture and flags it missing."""
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke(
             "atelier_learning_capture",
             observation="hook fired but no judgement",
@@ -315,7 +313,7 @@ def test_mcp_tool_dispatch_flags_empty_why(atelier_env: Dict) -> None:
     assert Path(out["path"]).exists()
 
 
-def test_capture_refuses_when_vault_missing(atelier_env: Dict,
+def test_capture_refuses_when_vault_missing(atelier_env: dict,
                                               monkeypatch: pytest.MonkeyPatch) -> None:
     """Vault root must exist; otherwise we surface a real error. (Provide
     a why so the substance gate passes and we reach the vault check.)"""

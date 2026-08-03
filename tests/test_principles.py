@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict
 
 import pytest
-import yaml
 
 from runtime.service.learnings import capture as _cap
 from runtime.service.learnings import claims_io as _ci
@@ -26,7 +24,7 @@ def _accept(observation: str, why: str, rule: str,
     return Path(out["path"]).stem
 
 
-def _read_fm(path: Path) -> Dict:
+def _read_fm(path: Path) -> dict:
     from runtime.index.parse import split_frontmatter
     fm, _ = split_frontmatter(path.read_text(encoding="utf-8"))
     return fm
@@ -35,7 +33,7 @@ def _read_fm(path: Path) -> Dict:
 # ── add ────────────────────────────────────────────────────────────────────
 
 
-def test_add_writes_principle(atelier_env: Dict) -> None:
+def test_add_writes_principle(atelier_env: dict) -> None:
     # RFC 0005 §7.1 — a principle is BORN AS A v7 CLAIM at surfacing:always, not
     # a learnings/principles/ file. The directory tier collapsed to claim fields.
     out = _pr.add(
@@ -68,19 +66,19 @@ def test_add_writes_principle(atelier_env: Dict) -> None:
     assert "## Evidence" in body
 
 
-def test_add_refuses_collision(atelier_env: Dict) -> None:
+def test_add_refuses_collision(atelier_env: dict) -> None:
     _pr.add(title="rule one", rule="r", why="w",
             slug="rule-one")
     with pytest.raises(FileExistsError):
         _pr.add(title="another", rule="r", why="w", slug="rule-one")
 
 
-def test_add_rejects_bad_priority(atelier_env: Dict) -> None:
+def test_add_rejects_bad_priority(atelier_env: dict) -> None:
     with pytest.raises(ValueError, match="priority"):
         _pr.add(title="t", rule="r", why="w", priority="urgent")
 
 
-def test_evidence_bearing_principle_leaves_no_orphaned_anchor(atelier_env: Dict) -> None:
+def test_evidence_bearing_principle_leaves_no_orphaned_anchor(atelier_env: dict) -> None:
     """RFC 0007 M3: an evidence-bearing principle must NOT create an orphaned
     anchor Source. Isolated (no evidence-less add first) so the count assertion
     is a genuine 1->0 guard: pre-M3 the path created the anchor then overrode
@@ -98,12 +96,12 @@ def test_evidence_bearing_principle_leaves_no_orphaned_anchor(atelier_env: Dict)
     assert not (vault / "raw" / "inbox" / "operational-capture.md").exists()
 
 
-def test_evidence_less_principle_born_from_own_source(atelier_env: Dict) -> None:
+def test_evidence_less_principle_born_from_own_source(atelier_env: dict) -> None:
     """RFC 0007 M3: an evidence-less principle is born from its OWN
     content-addressed operational Source (raw/operational/), never the frozen
     shared anchor — and that Source is not left orphaned."""
-    from runtime.service.learnings import atomize as _at
     from runtime.index.parse import split_frontmatter
+    from runtime.service.learnings import atomize as _at
     vault = atelier_env["wiki"]
     out = _pr.add(title="evidence-less rule", rule="always X", why="because",
                   slug="evidence-less-rule")
@@ -122,7 +120,7 @@ def test_evidence_less_principle_born_from_own_source(atelier_env: Dict) -> None
 # ── synthesize ─────────────────────────────────────────────────────────────
 
 
-def test_synthesize_from_two_accepted_learnings(atelier_env: Dict) -> None:
+def test_synthesize_from_two_accepted_learnings(atelier_env: dict) -> None:
     s1 = _accept("lexio mock bug", "mocked db diverged from prod migration",
                   "use real db in IT", project="lexio", topic="db-tests")
     s2 = _accept("bht mock bug", "same issue on bht repo", "real db only",
@@ -152,7 +150,7 @@ def test_synthesize_from_two_accepted_learnings(atelier_env: Dict) -> None:
         assert f"[[{e}]]" in body
 
 
-def test_synthesize_leaves_scaffold_when_rule_blank(atelier_env: Dict) -> None:
+def test_synthesize_leaves_scaffold_when_rule_blank(atelier_env: dict) -> None:
     s = _accept("x", "y", "rule x", project="lexio", topic="db-tests")
     out = _pr.synthesize(source_slugs=[s], title="todo principle")
     body = Path(out["path"]).read_text()
@@ -160,7 +158,7 @@ def test_synthesize_leaves_scaffold_when_rule_blank(atelier_env: Dict) -> None:
     assert out["fields_to_fill"] == ["rule", "why"]
 
 
-def test_synthesize_refuses_missing_source(atelier_env: Dict) -> None:
+def test_synthesize_refuses_missing_source(atelier_env: dict) -> None:
     with pytest.raises(FileNotFoundError):
         _pr.synthesize(source_slugs=["does-not-exist"])
 
@@ -168,7 +166,7 @@ def test_synthesize_refuses_missing_source(atelier_env: Dict) -> None:
 # ── list / archive ─────────────────────────────────────────────────────────
 
 
-def test_list_filters_by_priority(atelier_env: Dict) -> None:
+def test_list_filters_by_priority(atelier_env: dict) -> None:
     _pr.add(title="always-1", rule="r", why="w", priority="always-inject")
     _pr.add(title="relevant-1", rule="r", why="w", priority="on-relevant-prompt")
     out = _pr.list_all(priority="always-inject")
@@ -176,7 +174,7 @@ def test_list_filters_by_priority(atelier_env: Dict) -> None:
     assert out[0]["priority"] == "always-inject"
 
 
-def test_archive_is_field_transition_not_a_move(atelier_env: Dict) -> None:
+def test_archive_is_field_transition_not_a_move(atelier_env: dict) -> None:
     # RFC 0005 §7.1 — archive is ac_status → retracted IN PLACE. The file does
     # NOT move to a legacy archived/ directory; entry_id is preserved.
     out = _pr.add(title="stale", rule="r", why="w", slug="stale-one")
@@ -195,7 +193,7 @@ def test_archive_is_field_transition_not_a_move(atelier_env: Dict) -> None:
 # ── proposed → approve / reject (dream cycle ③, field transitions) ──────────
 
 
-def test_synthesize_draft_then_approve(atelier_env: Dict) -> None:
+def test_synthesize_draft_then_approve(atelier_env: dict) -> None:
     s = _accept("x", "y", "rule x", project="lexio", topic="db-tests")
     draft = _pr.synthesize(source_slugs=[s], title="draft principle",
                             rule="r", why="w", priority="always-inject")
@@ -218,7 +216,7 @@ def test_synthesize_draft_then_approve(atelier_env: Dict) -> None:
                              for it in _pr.list_all(status="accepted")}
 
 
-def test_reject_proposed_is_retracted_field(atelier_env: Dict) -> None:
+def test_reject_proposed_is_retracted_field(atelier_env: dict) -> None:
     s = _accept("x", "y", "rule x", project="lexio", topic="db-tests")
     draft = _pr.synthesize(source_slugs=[s], title="bad draft",
                             rule="r", why="w",
@@ -232,7 +230,7 @@ def test_reject_proposed_is_retracted_field(atelier_env: Dict) -> None:
     assert cover is not None and cover["status"] == "archived"
 
 
-def test_no_legacy_principle_dirs_written(atelier_env: Dict) -> None:
+def test_no_legacy_principle_dirs_written(atelier_env: dict) -> None:
     # The gate clause: no runtime write path targets the legacy directories.
     root = atelier_env["wiki"]
     _pr.add(title="p1", rule="r", why="w", priority="always-inject")
@@ -262,9 +260,9 @@ def test_mcp_tools_registered() -> None:
     assert expected <= names
 
 
-def test_mcp_dispatch_principle_add(atelier_env: Dict) -> None:
+def test_mcp_dispatch_principle_add(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke(
             "atelier_principle_add",
             title="mcp-added",

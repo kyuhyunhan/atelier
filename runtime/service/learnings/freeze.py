@@ -32,7 +32,7 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from .contract import ContractError
 
@@ -47,7 +47,7 @@ def sha256_file(path: Path) -> str:
 
 # ── git plumbing (thin; the only impure part) ───────────────────────────────
 
-def _git(repo: Path, *args: str) -> Tuple[int, str]:
+def _git(repo: Path, *args: str) -> tuple[int, str]:
     r = subprocess.run(["git", *args], cwd=str(repo),
                        capture_output=True, text=True)
     return r.returncode, (r.stdout or "").strip()
@@ -58,7 +58,7 @@ def _contract_relpath(repo: Path, contract_path: Path) -> str:
         return str(Path(contract_path).resolve().relative_to(repo.resolve()))
     except ValueError:
         raise ContractError(
-            f"contract {contract_path} is not inside the repo {repo}")
+            f"contract {contract_path} is not inside the repo {repo}") from None
 
 
 def contract_commit(repo: Path, contract_path: Path) -> str:
@@ -79,12 +79,12 @@ def contract_commit(repo: Path, contract_path: Path) -> str:
     return out
 
 
-def first_parent(repo: Path, commit: str) -> Optional[str]:
+def first_parent(repo: Path, commit: str) -> str | None:
     code, out = _git(repo, "rev-parse", "--verify", f"{commit}^")
     return out if code == 0 and out else None
 
 
-def read_committed_contract(repo: Path, contract_path: Path) -> Dict[str, Any]:
+def read_committed_contract(repo: Path, contract_path: Path) -> dict[str, Any]:
     """Read the contract from the committed blob via `git show`, NEVER the
     working tree (§3.1 step 1). The working tree is what the builder can edit;
     the blob is what was frozen."""
@@ -96,7 +96,7 @@ def read_committed_contract(repo: Path, contract_path: Path) -> Dict[str, Any]:
     try:
         data = json.loads(out)
     except json.JSONDecodeError as e:
-        raise ContractError(f"committed contract {rel} is not valid JSON: {e}")
+        raise ContractError(f"committed contract {rel} is not valid JSON: {e}") from e
     if not isinstance(data, dict):
         raise ContractError(f"committed contract {rel} is not an object")
     return data
@@ -104,8 +104,8 @@ def read_committed_contract(repo: Path, contract_path: Path) -> Dict[str, Any]:
 
 # ── the guard ───────────────────────────────────────────────────────────────
 
-def check_pins(contract: Dict[str, Any], *, repo: Path, contract_path: Path,
-               before_path: Path, fixture_path: Optional[Path] = None) -> None:
+def check_pins(contract: dict[str, Any], *, repo: Path, contract_path: Path,
+               before_path: Path, fixture_path: Path | None = None) -> None:
     """Fail closed unless every integrity root matches. Raises `ContractError`
     on the first failure — a broken pin is a hard abort (§6), never a FAIL.
 
@@ -129,7 +129,7 @@ def check_pins(contract: Dict[str, Any], *, repo: Path, contract_path: Path,
         # A missing round baseline is an untrustworthy-harness condition, not a
         # FAIL — it must surface as the typed hard-abort, never a raw
         # FileNotFoundError the CLI would report as exit 1 and the loop retry.
-        raise ContractError(f"round baseline unreadable: {e}")
+        raise ContractError(f"round baseline unreadable: {e}") from e
     if got_before != want_before:
         raise ContractError(
             f"round baseline hash mismatch: pinned {want_before[:12]}…, "

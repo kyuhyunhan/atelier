@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
@@ -38,16 +37,16 @@ def _seed(root: Path, project_dir: str, name: str, *, description: str,
     return p
 
 
-def _croot(env: Dict) -> Path:
+def _croot(env: dict) -> Path:
     return env["claude_projects"]
 
 
-def _fm(path) -> Dict:
+def _fm(path) -> dict:
     fm, _ = split_frontmatter(Path(path).read_text(encoding="utf-8"))
     return fm
 
 
-def _ledger(env: Dict) -> Dict:
+def _ledger(env: dict) -> dict:
     p = env["wiki"] / ".absorbed-from-claude.json"
     return json.loads(p.read_text(encoding="utf-8"))
 
@@ -76,7 +75,7 @@ def test_memory_key_drops_the_absolute_path() -> None:
 # ── ledger migration ─────────────────────────────────────────────────────────
 
 
-def test_flat_ledger_migrates_to_indexed_shape(atelier_env: Dict) -> None:
+def test_flat_ledger_migrates_to_indexed_shape(atelier_env: dict) -> None:
     """A pre-M2 flat ledger is rebuilt on read, deriving `by_path` from each
     entry's own `source_path`. Lossless and one-time."""
     legacy = {
@@ -96,13 +95,13 @@ def test_flat_ledger_migrates_to_indexed_shape(atelier_env: Dict) -> None:
     assert _ac._is_absorbed(out, "nope") is False
 
 
-def test_migration_is_idempotent(atelier_env: Dict) -> None:
+def test_migration_is_idempotent(atelier_env: dict) -> None:
     already = {"by_sha": {"s": {"source_path": "/x/-w-p/memory/m.md"}},
                "by_path": {"-w-p/m.md": "s"}}
     assert _ac._migrate_ledger(dict(already)) == already
 
 
-def test_entry_without_source_path_gets_no_path_index(atelier_env: Dict) -> None:
+def test_entry_without_source_path_gets_no_path_index(atelier_env: dict) -> None:
     """Grandfathered entries simply cannot supersede — forward-only, the same
     posture RFC 0007 took with the legacy anchor."""
     out = _ac._migrate_ledger({"sha-x": {"absorbed_at": "2026-01-01T00:00:00Z"}})
@@ -114,7 +113,7 @@ def test_entry_without_source_path_gets_no_path_index(atelier_env: Dict) -> None
 
 
 def test_body_only_revision_leaves_a_promoted_claim_byte_identical(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """The pin that matters most: a claim promoted after its first absorb must
     survive a re-absorb of its revised memory completely unchanged."""
     root = _croot(atelier_env)
@@ -139,7 +138,7 @@ def test_body_only_revision_leaves_a_promoted_claim_byte_identical(
 
 
 def test_body_only_revision_updates_source_body_sha_and_keeps_id(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     root = _croot(atelier_env)
     p = _seed(root, "-w-p1", "m1", description="a durable rule", body="v1\n")
     _ac.absorb(dry_run=False, source_root=root)
@@ -158,7 +157,7 @@ def test_body_only_revision_updates_source_body_sha_and_keeps_id(
     assert len(list(src_dir.glob("*.md"))) == 1             # no fork
 
 
-def test_by_path_advances_to_the_new_sha(atelier_env: Dict) -> None:
+def test_by_path_advances_to_the_new_sha(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     p = _seed(root, "-w-p1", "m1", description="a rule", body="v1\n")
     _ac.absorb(dry_run=False, source_root=root)
@@ -175,7 +174,7 @@ def test_by_path_advances_to_the_new_sha(atelier_env: Dict) -> None:
 # ── (b) description revision: retract + refines ──────────────────────────────
 
 
-def test_description_change_supersedes_the_old_claim(atelier_env: Dict) -> None:
+def test_description_change_supersedes_the_old_claim(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     p = _seed(root, "-w-p1", "m1", description="the old wording", body="b\n")
     first = _ac.absorb(dry_run=False, source_root=root)
@@ -201,7 +200,7 @@ def test_description_change_supersedes_the_old_claim(atelier_env: Dict) -> None:
 
 
 def test_retracted_supersedee_leaves_promote_eligibility(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """Retraction must actually gate the old claim, not just annotate it."""
     root = _croot(atelier_env)
     p = _seed(root, "-w-p1", "m1", description="old wording", body="b\n")
@@ -220,7 +219,7 @@ def test_retracted_supersedee_leaves_promote_eligibility(
 
 
 def test_retract_is_skipped_while_another_memory_owns_the_claim(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """Two memory files sharing one description collapse onto ONE
     content-addressed claim. Revising one must not retract a claim the other
     still owns."""
@@ -247,7 +246,7 @@ def test_retract_is_skipped_while_another_memory_owns_the_claim(
 # ── re-run stays a no-op ─────────────────────────────────────────────────────
 
 
-def test_rerun_after_supersession_is_a_no_op(atelier_env: Dict) -> None:
+def test_rerun_after_supersession_is_a_no_op(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     p = _seed(root, "-w-p1", "m1", description="wording one", body="v1\n")
     _ac.absorb(dry_run=False, source_root=root)
@@ -263,7 +262,7 @@ def test_rerun_after_supersession_is_a_no_op(atelier_env: Dict) -> None:
 
 
 def test_new_memory_on_an_unknown_path_is_not_a_supersession(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed(root, "-w-p1", "m1", description="rule one", body="a\n")
     _ac.absorb(dry_run=False, source_root=root)
@@ -276,7 +275,7 @@ def test_new_memory_on_an_unknown_path_is_not_a_supersession(
 # ── the fourth case the RFC did not anticipate: description-only edit ────────
 
 
-def test_description_only_edit_still_supersedes(atelier_env: Dict) -> None:
+def test_description_only_edit_still_supersedes(atelier_env: dict) -> None:
     """Dedup hashes the BODY (frontmatter excluded), so re-titling a memory
     without touching its content arrives with an unchanged hash — yet the
     statement IS the description, so the claim id moves. Without this branch
@@ -300,7 +299,7 @@ def test_description_only_edit_still_supersedes(atelier_env: Dict) -> None:
     assert _fm(rec["path"])["statement"] == "second wording"
 
 
-def test_unchanged_memory_still_dedups_cheaply(atelier_env: Dict) -> None:
+def test_unchanged_memory_still_dedups_cheaply(atelier_env: dict) -> None:
     """The guard must not turn every re-run into work: an untouched memory
     still takes the plain dedup path."""
     root = _croot(atelier_env)
@@ -315,7 +314,7 @@ def test_unchanged_memory_still_dedups_cheaply(atelier_env: Dict) -> None:
 
 
 def test_migration_picks_the_latest_absorb_not_the_sort_order(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """A path may carry several shas (absorbed, edited, absorbed again before
     M2). The index must name the LATEST — `_save_ledger` writes sort_keys=True,
     so the file is sha-lexicographic and 'last one wins' would crown an
@@ -332,7 +331,7 @@ def test_migration_picks_the_latest_absorb_not_the_sort_order(
 
 
 def test_description_revert_does_not_leave_every_claim_retracted(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """A→B→A: the claim for A still exists (the re-mint guard refuses to
     rewrite it), but supersession retracted it when B took over. Without a
     reversal the live memory would own nothing but retracted claims."""
@@ -357,7 +356,7 @@ def test_description_revert_does_not_leave_every_claim_retracted(
     assert _fm(b_path)["ac_status"] == "retracted"       # B now the stale one
 
 
-def test_a_curator_retraction_is_never_reversed(atelier_env: Dict) -> None:
+def test_a_curator_retraction_is_never_reversed(atelier_env: dict) -> None:
     """Only a retraction THIS mechanism authored may be undone — the vault's
     judgement outranks the bookkeeping."""
     root = _croot(atelier_env)
@@ -382,7 +381,7 @@ def test_a_curator_retraction_is_never_reversed(atelier_env: Dict) -> None:
 
 
 def test_shared_description_guard_survives_a_legacy_co_owner(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """The guard reads the LIVE corpus, not the ledger: a pre-M2 entry records
     no claim_id, so a ledger-only guard would not see that path as an owner and
     would retract a claim another live memory still mints to."""
@@ -408,7 +407,7 @@ def test_shared_description_guard_survives_a_legacy_co_owner(
 
 
 def test_missing_source_is_recreated_not_silently_dropped(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """A body-only revision whose Source was deleted out of band must not
     advance the ledger while storing the revision nowhere."""
     root = _croot(atelier_env)
@@ -426,7 +425,7 @@ def test_missing_source_is_recreated_not_silently_dropped(
 
 
 def test_a_curator_reason_that_mimics_the_mechanism_is_not_reversed(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """Authorship must be STRUCTURAL. `archive_reason` is free text a curator
     also writes, so a human retraction whose reason merely begins 'superseded
     by …' must not be resurrected by the A→B→A path."""

@@ -10,22 +10,21 @@ Verifies:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 import pytest
 import yaml
 
 
-def _write_config(home: Path, data: Dict) -> None:
+def _write_config(home: Path, data: dict) -> None:
     (home / "config.yaml").write_text(yaml.safe_dump(data))
 
 
-def _base_workspace(atelier_env: Dict) -> Path:
+def _base_workspace(atelier_env: dict) -> Path:
     """Return the wiki path the conftest seeded."""
     return atelier_env["wiki"]
 
 
-def test_vault_block_synthesizes_role_spaces(atelier_env: Dict) -> None:
+def test_vault_block_synthesizes_role_spaces(atelier_env: dict) -> None:
     from runtime.util import config as _config
 
     vault_path = _base_workspace(atelier_env)
@@ -60,7 +59,7 @@ def test_vault_block_synthesizes_role_spaces(atelier_env: Dict) -> None:
     assert cfg.subtrees["learnings/candidates"].append_only is True
 
 
-def test_legacy_spaces_block_still_works(atelier_env: Dict) -> None:
+def test_legacy_spaces_block_still_works(atelier_env: dict) -> None:
     """conftest seeded `spaces:` — load() should still accept it
     without the new vault block."""
     from runtime.util import config as _config
@@ -70,7 +69,7 @@ def test_legacy_spaces_block_still_works(atelier_env: Dict) -> None:
     assert "wiki" in cfg.spaces
 
 
-def test_both_blocks_present_is_refused(atelier_env: Dict) -> None:
+def test_both_blocks_present_is_refused(atelier_env: dict) -> None:
     from runtime.util import config as _config
 
     vault_path = _base_workspace(atelier_env)
@@ -86,7 +85,7 @@ def test_both_blocks_present_is_refused(atelier_env: Dict) -> None:
         _config.load()
 
 
-def test_invalid_subtree_writer_rejected(atelier_env: Dict) -> None:
+def test_invalid_subtree_writer_rejected(atelier_env: dict) -> None:
     from runtime.util import config as _config
 
     vault_path = _base_workspace(atelier_env)
@@ -100,7 +99,7 @@ def test_invalid_subtree_writer_rejected(atelier_env: Dict) -> None:
         _config.load()
 
 
-def test_vault_local_placeholder_rejected(atelier_env: Dict) -> None:
+def test_vault_local_placeholder_rejected(atelier_env: dict) -> None:
     from runtime.util import config as _config
 
     _write_config(atelier_env["home"], {
@@ -114,7 +113,7 @@ def test_vault_local_placeholder_rejected(atelier_env: Dict) -> None:
 
 # ── the ONE vault-root accessor (RFC 0001 §6, closed via issue #98) ──────────
 
-def test_vault_root_prefers_the_vault_block(atelier_env: Dict) -> None:
+def test_vault_root_prefers_the_vault_block(atelier_env: dict) -> None:
     """Single-vault config: `vault_root()` is `vault.local` — the accessor the
     22 per-module `_vault_root()` helpers duplicated before the collapse."""
     from runtime.util import config as _config
@@ -130,7 +129,7 @@ def test_vault_root_prefers_the_vault_block(atelier_env: Dict) -> None:
     assert _config.vault_root() == vault_path        # module-level convenience
 
 
-def test_vault_root_falls_back_to_the_librarian_space(atelier_env: Dict) -> None:
+def test_vault_root_falls_back_to_the_librarian_space(atelier_env: dict) -> None:
     """Legacy two-space config: the fallback is the librarian-territory space's
     local root — byte-identical to what every duplicated helper computed."""
     from runtime.util import config as _config
@@ -155,6 +154,7 @@ def test_vault_root_falls_back_to_the_librarian_space(atelier_env: Dict) -> None
 def test_asset_dir_default_and_pin(vault_env, monkeypatch):
     """`vault.assets.dir` — neutral default, per-machine pin (PR #107)."""
     import yaml
+
     from runtime.util import config as _config
     cfg_path = vault_env["home"] / "config.yaml"
     raw = yaml.safe_load(cfg_path.read_text())
@@ -168,6 +168,7 @@ def test_asset_dir_legacy_spaces_shape(atelier_env):
     """The legacy `spaces:` shape pins through the librarian space's assets
     block — without the fallback a legacy machine silently loses the knob."""
     import yaml
+
     from runtime.util import config as _config
     cfg_path = atelier_env["home"] / "config.yaml"
     raw = yaml.safe_load(cfg_path.read_text())

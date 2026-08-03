@@ -17,6 +17,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "ruff==0.16.1",
+    "mypy==2.3.0",
 ]
 serve = [
     "mcp>=1.0,<2",
@@ -43,3 +45,33 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["runtime*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# F: real defects (unused imports/vars, undefined names). E4/E7/E9: the pycodestyle
+# subset that is behavior-adjacent. I: deterministic import order. UP: py311
+# modernization (List->list etc). B: bugbear traps. RUF: ruff's own correctness set.
+# Deliberately NOT enabled: S (bandit) and BLE — this engine's log-and-continue
+# except blocks are a design choice (provider flake tolerance), not oversights.
+select = ["F", "E4", "E7", "E9", "I", "UP", "B", "RUF"]
+ignore = [
+  # Measured on this tree at ruff 0.16.1 (counts are the evidence the ignore
+  # is load-bearing, not precautionary):
+  "E741",                        # 14× — single-letter vars in tight comprehensions
+  "B008",                        # 9×  — deliberate call-in-default (config loaders)
+  "RUF001", "RUF002", "RUF003",  # 25× — Korean prose + typographic dashes in docstrings
+]
+
+
+[tool.mypy]
+# Scope: runtime/ only, deliberately — tests/scripts/examples are ruff-linted
+# but not typechecked; widen when their annotation density makes it signal.
+python_version = "3.11"
+ignore_missing_imports = true
+no_strict_optional = true
+# Baseline posture: catch real type defects without demanding annotations.
+# Tighten module-by-module as the codebase grows types.
+check_untyped_defs = true

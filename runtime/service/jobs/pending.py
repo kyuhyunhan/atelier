@@ -9,7 +9,7 @@ doc's first real id; no already-assigned id is ever recomputed.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -23,10 +23,10 @@ def _vault_root() -> Path:
 
 
 def fix_pending(*, dry_run: bool = False,
-                role: str = "librarian-territory") -> Dict[str, Any]:
+                role: str = "librarian-territory") -> dict[str, Any]:
     root = _vault_root()
-    fixed: List[Dict[str, str]] = []
-    skipped: List[Dict[str, str]] = []
+    fixed: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
 
     for md in sorted(root.rglob("*.md")):
         rel = md.resolve().relative_to(root.resolve()).as_posix()

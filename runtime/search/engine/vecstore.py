@@ -34,7 +34,6 @@ import sqlite3
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from ...util import config as _config
 from ...util import logging as log
@@ -62,7 +61,7 @@ def _load_sqlite_vec(conn: sqlite3.Connection) -> bool:
         return False
 
 
-def _pack(vec: List[float]) -> bytes:
+def _pack(vec: list[float]) -> bytes:
     return struct.pack(f"{len(vec)}f", *vec)
 
 
@@ -90,7 +89,7 @@ class VecStore:
 
     @classmethod
     def open(cls, *, gateway_signature: str, dim: int,
-             path: Optional[Path] = None) -> Optional["VecStore"]:
+             path: Path | None = None) -> VecStore | None:
         p = path or _vectors_db_path()
         _config.ensure_cache_dir()
         conn = sqlite3.connect(p)
@@ -172,7 +171,7 @@ class VecStore:
             batch = misses[i:i + max(1, commit_batch)]
             vectors = gateway.embed([t for _, t in batch])
             with self._conn:
-                for (h, _), vec in zip(batch, vectors):
+                for (h, _), vec in zip(batch, vectors, strict=True):
                     blob = _pack(vec)
                     self._conn.execute(
                         "INSERT OR REPLACE INTO embedding_cache "
@@ -194,7 +193,7 @@ class VecStore:
 
     # ── read side ───────────────────────────────────────────────────────────
 
-    def knn(self, embedding: List[float], k: int) -> List[Tuple[int, float]]:
+    def knn(self, embedding: list[float], k: int) -> list[tuple[int, float]]:
         """k nearest chunks: [(chunk_id, distance)], nearest first."""
         rows = self._conn.execute(
             "SELECT rowid, distance FROM vec_chunks "

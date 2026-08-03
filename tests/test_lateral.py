@@ -8,12 +8,9 @@ Governance encoded from the manual passes that spec'd this:
 """
 from __future__ import annotations
 
-from typing import Dict
-
 from runtime.service import api
 from runtime.service.learnings import lateral as _lat
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 4, "agent_kind": "claude-code", "status": "accepted",
@@ -35,7 +32,7 @@ def _accepted(vault, topic, entry_id, body, *, touches=None, project=None):
 # ── plan_tags ───────────────────────────────────────────────────────────────
 
 
-def test_plan_tags_suggests_body_echoing_terms(vault_env: Dict) -> None:
+def test_plan_tags_suggests_body_echoing_terms(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _accepted(vault, "client", "untagged",
               "## Observation\n\nkeychain entitlements hardened runtime "
@@ -57,7 +54,7 @@ def test_plan_tags_suggests_body_echoing_terms(vault_env: Dict) -> None:
     assert "client" not in item["suggestions"]
 
 
-def test_plan_tags_skips_views_and_flags_inert_tags(vault_env: Dict) -> None:
+def test_plan_tags_skips_views_and_flags_inert_tags(vault_env: dict) -> None:
     vault = vault_env["vault"]
     # a navigational view (noise) must not be teed up for tagging
     write_page(vault / "raw" / "learning" / "notes" / "2026-01" /
@@ -77,7 +74,7 @@ def test_plan_tags_skips_views_and_flags_inert_tags(vault_env: Dict) -> None:
 # ── apply_tags ──────────────────────────────────────────────────────────────
 
 
-def test_apply_tags_inserts_snapshot_wrapped(vault_env: Dict) -> None:
+def test_apply_tags_inserts_snapshot_wrapped(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _accepted(vault, "client", "aaa",
               "## Observation\n\nkeychain stores the sensitive token data\n")
@@ -96,7 +93,7 @@ def test_apply_tags_inserts_snapshot_wrapped(vault_env: Dict) -> None:
     assert again["applied"] == 0 and again["skipped"] == 1
 
 
-def test_apply_rejects_tags_without_body_echo(vault_env: Dict) -> None:
+def test_apply_rejects_tags_without_body_echo(vault_env: dict) -> None:
     """The 1611 lesson as a mechanical gate: FTS indexes bodies, so a tag whose
     tokens never appear in the body is inert — refuse to write it."""
     vault = vault_env["vault"]
@@ -117,7 +114,7 @@ def test_apply_rejects_tags_without_body_echo(vault_env: Dict) -> None:
 # ── plan_merges ─────────────────────────────────────────────────────────────
 
 
-def test_plan_merges_flags_near_duplicates_only(vault_env: Dict) -> None:
+def test_plan_merges_flags_near_duplicates_only(vault_env: dict) -> None:
     vault = vault_env["vault"]
     dup = ("## Observation\n\nthe keychain stores sensitive tokens and the "
            "pasteboard never holds secrets in the overlay panel\n")
@@ -138,8 +135,9 @@ def test_plan_merges_flags_near_duplicates_only(vault_env: Dict) -> None:
 # ── MCP dispatch ────────────────────────────────────────────────────────────
 
 
-def test_lateral_mcp_dispatch(vault_env: Dict) -> None:
+def test_lateral_mcp_dispatch(vault_env: dict) -> None:
     import asyncio
+
     from runtime.service import tools as _tools
 
     vault = vault_env["vault"]
@@ -160,7 +158,7 @@ def test_lateral_mcp_dispatch(vault_env: Dict) -> None:
 # ── review round 1: M1 + S3 + S4 ────────────────────────────────────────────
 
 
-def test_insert_touches_idempotent_on_long_frontmatter(vault_env: Dict) -> None:
+def test_insert_touches_idempotent_on_long_frontmatter(vault_env: dict) -> None:
     """M1: the idempotency guard must scan the WHOLE frontmatter, not a fixed
     line window — touches sitting past line 80 must still block a re-insert
     (the bug double-inserted a second touches block)."""
@@ -176,7 +174,7 @@ def test_insert_touches_idempotent_on_long_frontmatter(vault_env: Dict) -> None:
     assert p.read_text().count("touches:") == 1
 
 
-def test_apply_reports_unknown_and_fully_rejected(vault_env: Dict) -> None:
+def test_apply_reports_unknown_and_fully_rejected(vault_env: dict) -> None:
     """S1+S3: an unknown entry_id and a fully-rejected mapping must each be
     visible in the result — not folded into applied/skipped silence."""
     vault = vault_env["vault"]
@@ -192,7 +190,7 @@ def test_apply_reports_unknown_and_fully_rejected(vault_env: Dict) -> None:
     assert out["rejected"]["real"] == ["quantum-flux"]
 
 
-def test_apply_tags_writes_the_flat_note(vault_env: Dict) -> None:
+def test_apply_tags_writes_the_flat_note(vault_env: dict) -> None:
     """RFC 0001: one flat note, no mirror — the tag lands in the note itself."""
     vault = vault_env["vault"]
     _accepted(vault, "client", "mm",
@@ -208,7 +206,7 @@ def test_apply_tags_writes_the_flat_note(vault_env: Dict) -> None:
     assert "- keychain" in canonical.read_text()
 
 
-def test_insert_touches_refuses_empty_tags(vault_env: Dict) -> None:
+def test_insert_touches_refuses_empty_tags(vault_env: dict) -> None:
     """NEW-1: never write a bare `touches:` header."""
     vault = vault_env["vault"]
     _accepted(vault, "client", "zz", "## Observation\n\nbody words here\n")

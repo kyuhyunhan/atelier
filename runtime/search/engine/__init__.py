@@ -22,7 +22,6 @@ implementation is the point of P0 — the roadmap is encoded in the type system.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from .lexical import FtsLexical, LexicalSearcher
 from .relational import LinkRelational, RelationalSearcher
@@ -31,10 +30,16 @@ from .types import Candidate, Scope
 from .vecstore import VecStore
 
 __all__ = [
+    "Candidate",
+    "FtsLexical",
+    "LexicalSearcher",
+    "LinkRelational",
+    "RelationalSearcher",
     "RetrievalEngine",
-    "LexicalSearcher", "SemanticSearcher", "RelationalSearcher",
-    "FtsLexical", "VecSemantic", "VecStore", "LinkRelational",
-    "Scope", "Candidate",
+    "Scope",
+    "SemanticSearcher",
+    "VecSemantic",
+    "VecStore",
 ]
 
 
@@ -45,5 +50,5 @@ class RetrievalEngine:
     modes that are wired. This keeps every phase shippable on its own."""
 
     lexical: LexicalSearcher
-    semantic: Optional[SemanticSearcher] = None
-    relational: Optional[RelationalSearcher] = None
+    semantic: SemanticSearcher | None = None
+    relational: RelationalSearcher | None = None

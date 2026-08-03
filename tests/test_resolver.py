@@ -10,7 +10,7 @@ backend-specific (modes, scope, rehydration) lives above it in `resolve`.
 """
 from __future__ import annotations
 
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from runtime.search.engine import Candidate, FtsLexical, RetrievalEngine, Scope
 from runtime.search.engine.lexical import LexicalSearcher
@@ -61,11 +61,11 @@ class _FakeSemantic:
     embedding. Lets us fuse a *known* semantic vote against the real lexical
     mode without a live Ollama/sqlite-vec."""
 
-    def __init__(self, hits: List[Candidate]) -> None:
+    def __init__(self, hits: list[Candidate]) -> None:
         self._hits = hits
 
     def search(self, embedding: Sequence[float], *, scope: Scope = Scope(),
-               k: int = 10) -> List[Candidate]:
+               k: int = 10) -> list[Candidate]:
         return self._hits[:k]
 
 
@@ -73,12 +73,12 @@ class _FakeGateway:
     """Returns one fixed-length vector per text. resolve only needs it to be
     truthy and non-raising — the fake semantic ignores the values."""
 
-    def embed(self, texts: Sequence[str]) -> List[List[float]]:
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
         return [[0.1, 0.2, 0.3, 0.4] for _ in texts]
 
 
 class _BrokenGateway:
-    def embed(self, texts: Sequence[str]) -> List[List[float]]:
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
         raise RuntimeError("provider down")
 
 

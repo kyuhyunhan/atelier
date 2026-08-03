@@ -18,7 +18,7 @@ nudge's one-source-of-truth shape: `{due, count, short, long}`.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 from ...index import parse as _parse
 from ...structure import resolver as _structure
@@ -47,7 +47,7 @@ def _iter_fm(directory: Path):
             yield fm
 
 
-def _source_ids(vault: Path) -> Set[str]:
+def _source_ids(vault: Path) -> set[str]:
     """entry_id of every v7 Source node.
 
     RFC 0005 §3/§7.2: Source is an L1 node living in the content tree (raw/…),
@@ -55,7 +55,7 @@ def _source_ids(vault: Path) -> Set[str]:
     recursively and keep only kind:source — so artifact-backed sources under
     raw/<domain>/ AND thin session sources under raw/inbox/ both count,
     classified by the `kind` FIELD regardless of subdir."""
-    out: Set[str] = set()
+    out: set[str] = set()
     base = vault / _structure.source_scan_root()
     for fm in _iter_fm(base):
         if fm.get("kind") != "source":
@@ -66,11 +66,11 @@ def _source_ids(vault: Path) -> Set[str]:
     return out
 
 
-def _derived_ids(fm: Dict[str, Any]) -> Set[str]:
+def _derived_ids(fm: dict[str, Any]) -> set[str]:
     """The source ids a single Claim's `derived_from` points at (normalizing the
     str-or-list shape). SINGLE definition, shared by the filesystem scan and the
     DB-projection count so the two can't disagree."""
-    out: Set[str] = set()
+    out: set[str] = set()
     df = fm.get("derived_from")
     if isinstance(df, str):
         df = [df]
@@ -81,9 +81,9 @@ def _derived_ids(fm: Dict[str, Any]) -> Set[str]:
     return out
 
 
-def _atomized_source_ids(vault: Path) -> Set[str]:
+def _atomized_source_ids(vault: Path) -> set[str]:
     """Every source id that at least one Claim is `derived_from`."""
-    out: Set[str] = set()
+    out: set[str] = set()
     base = vault / _structure.atomic_claim_dir()
     for fm in _iter_fm(base):
         if fm.get("kind") != "claim":
@@ -101,14 +101,14 @@ def unatomized_from_nodes(source_fms: list, claim_fms: list) -> int:
                and isinstance(fm.get("entry_id"), str) and fm.get("entry_id")}
     if not sources:
         return 0
-    atomized: Set[str] = set()
+    atomized: set[str] = set()
     for fm in claim_fms:
         if fm.get("kind") == "claim":
             atomized |= _derived_ids(fm)
     return len(sources - (atomized & sources))
 
 
-def unatomized_count(*, vault: Optional[Path] = None) -> int:
+def unatomized_count(*, vault: Path | None = None) -> int:
     """Number of Source nodes with no derived Claim (RFC 0005 §7.2).
 
     = |sources| − |sources that ≥1 claim is derived_from|. Read-only,
@@ -131,7 +131,7 @@ def unatomized_count(*, vault: Optional[Path] = None) -> int:
     return len(sources - atomized)
 
 
-def unatomized_by_gate(*, vault: Optional[Path] = None) -> Dict[str, int]:
+def unatomized_by_gate(*, vault: Path | None = None) -> dict[str, int]:
     """Split the un-atomized backlog by the human-gate (Policy 1): `personal`
     = a private-domain Source (human-gated — atomize only when the human directs
     it, never a blind pass) vs `atomizable` = everything else (run the skill).
@@ -155,8 +155,8 @@ def unatomized_by_gate(*, vault: Optional[Path] = None) -> Dict[str, int]:
     return {"atomizable": atomizable, "personal": personal}
 
 
-def nudge_info(*, now: Optional[str] = None,
-               vault: Optional[Path] = None) -> Dict[str, Any]:
+def nudge_info(*, now: str | None = None,
+               vault: Path | None = None) -> dict[str, Any]:
     """Single source of the atomize-nudge decision, shaped like
     dream.nudge_info(): {due, count, short, long}.
 

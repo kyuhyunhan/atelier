@@ -5,7 +5,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
@@ -22,11 +22,11 @@ _ENV_PATTERN = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 class SpaceConfig:
     name: str
     local: Path
-    remote_type: Optional[str] = None
-    remote_url: Optional[str] = None
-    remote_branch: Optional[str] = None
-    assets: Dict[str, Any] = field(default_factory=dict)
-    role: Optional[str] = None
+    remote_type: str | None = None
+    remote_url: str | None = None
+    remote_branch: str | None = None
+    assets: dict[str, Any] = field(default_factory=dict)
+    role: str | None = None
 
 
 @dataclass
@@ -49,7 +49,7 @@ class LoggingConfig:
     `file` defaults (when None) to `~/.atelier/logs/atelier.log`, resolved in
     util.logging from CACHE_DIR. Env `ATELIER_LOG_FILE` / `ATELIER_LOG_LEVEL`
     override at runtime."""
-    file: Optional[str] = None
+    file: str | None = None
     level: str = "info"               # debug | info | warn | error
     console: bool = True              # stderr echo when interactive (TTY)
 
@@ -94,24 +94,24 @@ class YouTubeConfig:
     brave / …); None = send no cookies (works only while YouTube isn't
     challenging that IP). Out of code so a distributed adopter picks their own
     browser via config, never a source edit."""
-    cookies_from_browser: Optional[str] = None
+    cookies_from_browser: str | None = None
 
 
 @dataclass
 class VaultConfig:
     local: Path
-    remote_type: Optional[str] = None
-    remote_url: Optional[str] = None
-    remote_branch: Optional[str] = None
-    assets: Dict[str, Any] = field(default_factory=dict)
+    remote_type: str | None = None
+    remote_url: str | None = None
+    remote_branch: str | None = None
+    assets: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class Config:
-    spaces: Dict[str, SpaceConfig]
-    raw: Dict[str, Any]
-    vault: Optional[VaultConfig] = None
-    subtrees: Dict[str, SubtreeConfig] = field(default_factory=dict)
+    spaces: dict[str, SpaceConfig]
+    raw: dict[str, Any]
+    vault: VaultConfig | None = None
+    subtrees: dict[str, SubtreeConfig] = field(default_factory=dict)
     auto_sync: AutoSyncConfig = field(default_factory=AutoSyncConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
@@ -213,20 +213,20 @@ def _load_dotenv(path: Path) -> None:
         os.environ.setdefault(key.strip(), val)
 
 
-def load(path: Optional[Path] = None) -> Config:
+def load(path: Path | None = None) -> Config:
     if path is None:
         path = CONFIG_PATH
     # Re-read SECRETS_ENV through the module to honor monkeypatching in tests.
     import sys as _sys
     _mod = _sys.modules[__name__]
-    _load_dotenv(getattr(_mod, "SECRETS_ENV"))
+    _load_dotenv(_mod.SECRETS_ENV)
     if not path.exists():
         raise FileNotFoundError(
             f"{path} not found. Run scripts/setup or copy config/example.config.yaml."
         )
     data = _expand(yaml.safe_load(path.read_text()))
 
-    vault: Optional[VaultConfig] = None
+    vault: VaultConfig | None = None
     if data.get("vault"):
         vd = data["vault"]
         remote = vd.get("remote") or {}
@@ -238,7 +238,7 @@ def load(path: Optional[Path] = None) -> Config:
             assets=vd.get("assets") or {},
         )
 
-    subtrees: Dict[str, SubtreeConfig] = {}
+    subtrees: dict[str, SubtreeConfig] = {}
     for path_key, sd in (data.get("subtrees") or {}).items():
         subtrees[path_key] = SubtreeConfig(
             path=path_key,
@@ -246,7 +246,7 @@ def load(path: Optional[Path] = None) -> Config:
             append_only=bool(sd.get("append_only", False)),
         )
 
-    spaces: Dict[str, SpaceConfig] = {}
+    spaces: dict[str, SpaceConfig] = {}
     raw_spaces = data.get("spaces") or {}
 
     if raw_spaces:
@@ -363,7 +363,7 @@ _VALID_WRITERS = {"human-only", "wiki-write", "learnings-write",
                   "librarian-write", "builder-write"}   # legacy aliases
 
 
-def _validate_strict(cfg: "Config", path: Path) -> None:
+def _validate_strict(cfg: Config, path: Path) -> None:
     problems: list[str] = []
 
     if cfg.vault is not None:
@@ -411,7 +411,7 @@ def _validate_strict(cfg: "Config", path: Path) -> None:
                 )
 
     if problems:
-        lines = "\n  - ".join([""] + problems)
+        lines = "\n  - ".join(["", *problems])
         raise ValueError(
             f"atelier config at {path} has unresolved placeholders. "
             f"Edit it and try again:{lines}"
@@ -423,7 +423,7 @@ def ensure_cache_dir() -> Path:
     return CACHE_DIR
 
 
-def vault_root(path: Optional[Path] = None) -> Path:
+def vault_root(path: Path | None = None) -> Path:
     """Module-level convenience: load config and return THE vault root.
 
     The single accessor for "where is the vault" (RFC 0001 §6 / issue #98).

@@ -6,17 +6,16 @@ real auth/claims enforcement here; callers don't change.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..util import config, db
 from . import auth, claims
 
-
 # ── Read-side ────────────────────────────────────────────────────────────────
 
-def reindex(space: Optional[str] = None, full: bool = False,
-            token: Optional[str] = None) -> List[Dict[str, Any]]:
-    ctx = auth.authenticate(token)
+def reindex(space: str | None = None, full: bool = False,
+            token: str | None = None) -> list[dict[str, Any]]:
+    auth.authenticate(token)
     from ..index import reindex as _reindex
     cfg = config.load()
     statses = (
@@ -27,7 +26,7 @@ def reindex(space: Optional[str] = None, full: bool = False,
 
 
 def reindex_path(path: str, *, embed: bool = False,
-                 token: Optional[str] = None) -> Dict[str, Any]:
+                 token: str | None = None) -> dict[str, Any]:
     """Change-feed entry (RFC 0006 ②): project a single file into the DB without
     a full reindex, so a read reflects an engine write immediately. `embed=False`
     (default) skips the vector pass for speed — the lexical projection goes fresh
@@ -39,12 +38,13 @@ def reindex_path(path: str, *, embed: bool = False,
     return vars(_reindex.reindex_path(cfg, Path(path), embed_gateway=gw))
 
 
-def _lens_admitted_slugs(conn, slugs: List[str], lens: str) -> set:
+def _lens_admitted_slugs(conn, slugs: list[str], lens: str) -> set:
     """The subset of `slugs` whose page frontmatter the lens admits (RFC 0006
     ③, via `structure.lenses.lens_admits_fm` — the ONE admission predicate).
     Reads the pages projection; a missing/corrupt frontmatter row falls back to
     `{}` (fail-open, matching `lens_admits_fm`'s unknown-kind rule)."""
     import json as _json
+
     from ..structure import lenses as _lenses
     if not slugs:
         return set()
@@ -61,9 +61,9 @@ def _lens_admitted_slugs(conn, slugs: List[str], lens: str) -> set:
     return admitted
 
 
-def search(query: str, space: Optional[str] = None, limit: int = 20,
-           fallback: bool = False, token: Optional[str] = None,
-           lens: Optional[str] = None) -> List[Dict[str, Any]]:
+def search(query: str, space: str | None = None, limit: int = 20,
+           fallback: bool = False, token: str | None = None,
+           lens: str | None = None) -> list[dict[str, Any]]:
     from ..search import fts
     conn = db.connect()
     try:
@@ -83,8 +83,8 @@ def search(query: str, space: Optional[str] = None, limit: int = 20,
         conn.close()
 
 
-def lint(space: Optional[str] = None, rule_ids: Optional[List[str]] = None,
-         apply_fixes: bool = False, token: Optional[str] = None) -> Dict[str, Any]:
+def lint(space: str | None = None, rule_ids: list[str] | None = None,
+         apply_fixes: bool = False, token: str | None = None) -> dict[str, Any]:
     ctx = auth.authenticate(token)
     if apply_fixes:
         claims.require(ctx, claims.Claim.WIKI_WRITE)
@@ -106,23 +106,24 @@ def lint(space: Optional[str] = None, rule_ids: Optional[List[str]] = None,
 
 
 def doctor(remediate: bool = False, max_usd: float = 0.0,
-           token: Optional[str] = None) -> Dict[str, Any]:
+           token: str | None = None) -> dict[str, Any]:
     ctx = auth.authenticate(token)
     if remediate:
         claims.require(ctx, claims.Claim.DOCTOR_REMEDIATE)
-    from ..doctor import diagnostics, remediate as rem
+    from ..doctor import diagnostics
+    from ..doctor import remediate as rem
     cfg = config.load()
     diags = diagnostics.run_all(cfg)
-    out: Dict[str, Any] = {"diagnoses": [vars(d) for d in diags]}
+    out: dict[str, Any] = {"diagnoses": [vars(d) for d in diags]}
     if remediate:
         results = rem.remediate(cfg, diags, max_usd=max_usd)
         out["remediations"] = [vars(r) for r in results]
     return out
 
 
-def sync(action: str, space: Optional[str] = None,
-         message: Optional[str] = None,
-         token: Optional[str] = None) -> Dict[str, Any]:
+def sync(action: str, space: str | None = None,
+         message: str | None = None,
+         token: str | None = None) -> dict[str, Any]:
     from ..sync import orchestrator
     cfg = config.load()
     if action == "status":
@@ -142,9 +143,9 @@ def sync(action: str, space: Optional[str] = None,
 
 # ── Write-side ───────────────────────────────────────────────────────────────
 
-def capture_text(text: str, source: str = "manual", title: Optional[str] = None,
+def capture_text(text: str, source: str = "manual", title: str | None = None,
                  domain: str = "inbox/undetermined", sensitivity: str = "private",
-                 token: Optional[str] = None) -> Dict[str, Any]:
+                 token: str | None = None) -> dict[str, Any]:
     ctx = auth.authenticate(token)
     from . import capture as _capture
     path = _capture.capture(text=text, source=source, title=title,
@@ -152,22 +153,22 @@ def capture_text(text: str, source: str = "manual", title: Optional[str] = None,
     return {"path": str(path)}
 
 
-def promote_propose(token: Optional[str] = None) -> Dict[str, Any]:
+def promote_propose(token: str | None = None) -> dict[str, Any]:
     from ..promote import propose
     return propose.propose_all()
 
 
-def promote_apply(proposal: str, token: Optional[str] = None) -> Dict[str, Any]:
+def promote_apply(proposal: str, token: str | None = None) -> dict[str, Any]:
     ctx = auth.authenticate(token)
     claims.require(ctx, claims.Claim.PROMOTE_APPLY)
     from ..promote import apply as _apply
     return _apply.apply_proposal(Path(proposal))
 
 
-def validate(paths: Optional[List[str]] = None,
+def validate(paths: list[str] | None = None,
              role: str = "librarian-territory",
              fail_fast: bool = False,
-             token: Optional[str] = None) -> Dict[str, Any]:
+             token: str | None = None) -> dict[str, Any]:
     """Validate frontmatter against schema v4 (optionally on a subset)."""
     from ..lint import validate_v4
     cfg = config.load()

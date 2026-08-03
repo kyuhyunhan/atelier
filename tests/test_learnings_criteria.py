@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
-import pytest
 import yaml
 
 from runtime.service.learnings import criteria as _crit
@@ -54,7 +52,7 @@ _GOOD_BODY = (
 )
 
 
-def _sample_fm() -> Dict:
+def _sample_fm() -> dict:
     return {
         "schema_version": 4,
         "entry_id": "11111111-1111-5111-8111-111111111111",

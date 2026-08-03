@@ -1,12 +1,9 @@
 """P6 — in-place repair of workshop-absorb damaged records (RFC 0001 §2.2)."""
 from __future__ import annotations
 
-from typing import Dict
-
 from runtime.index.parse import split_frontmatter
 from scripts.repair_lexio_layers import repair as _rp
 from tests.conftest import write_page
-
 
 _DAMAGED = {
     "schema_version": 5, "agent_kind": "absorbed", "status": "accepted",
@@ -25,7 +22,7 @@ def _seed_workshop_note(vault, name, *, layer, also_in) -> None:
     p.write_text(body, encoding="utf-8")
 
 
-def test_repair_moves_flattened_topic_to_aspect(vault_env: Dict) -> None:
+def test_repair_moves_flattened_topic_to_aspect(vault_env: dict) -> None:
     vault = vault_env["vault"]
     # damaged: target_topic holds the project-local layer; no aspect, no also_in.
     write_page(vault / "raw" / "learning" / "notes" / "2026-05" / "d1.md",
@@ -44,7 +41,7 @@ def test_repair_moves_flattened_topic_to_aspect(vault_env: Dict) -> None:
     assert "target_topic" not in fm
 
 
-def test_repair_is_idempotent(vault_env: Dict) -> None:
+def test_repair_is_idempotent(vault_env: dict) -> None:
     vault = vault_env["vault"]
     write_page(vault / "raw" / "learning" / "notes" / "2026-05" / "d1.md",
                {**_DAMAGED, "entry_id": "D1", "target_project": "lexio",
@@ -55,7 +52,7 @@ def test_repair_is_idempotent(vault_env: Dict) -> None:
     assert rep2["already_ok"] == 1
 
 
-def test_repair_skips_native_learnings(vault_env: Dict) -> None:
+def test_repair_skips_native_learnings(vault_env: dict) -> None:
     """A non-absorbed learning with a legitimate global topic is untouched."""
     vault = vault_env["vault"]
     write_page(vault / "raw" / "learning" / "notes" / "2026-05" / "n1.md",
@@ -69,7 +66,7 @@ def test_repair_skips_native_learnings(vault_env: Dict) -> None:
     assert fm["target_topic"] == "surfacing-audit"   # untouched
 
 
-def test_repair_without_workshop_uses_topic_as_primary(vault_env: Dict) -> None:
+def test_repair_without_workshop_uses_topic_as_primary(vault_env: dict) -> None:
     """If the workshop source is gone (no also_in to recover), the flattened
     topic still becomes the primary aspect — lossless."""
     vault = vault_env["vault"]

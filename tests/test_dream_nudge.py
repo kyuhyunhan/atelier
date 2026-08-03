@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
 
-import pytest
 import yaml
 
 from runtime.service.learnings import bootstrap as _bs
@@ -30,7 +28,7 @@ def _accept(seed: str, project: str = "lexio") -> str:
         working_dir=f"/Users/me/workspaces/{project}",
         session_id=seed, hook="Stop",
     )
-    out = _rev.accept(candidate_slug=cap["entry_id"],
+    _rev.accept(candidate_slug=cap["entry_id"],
                        target_topic="t", target_project=project)
     # The dream cadence counts the PROACTIVE pool (dream's input), not accepted
     # learnings — so elevate the accepted claim to proactive to make it count.
@@ -46,7 +44,7 @@ def _accept(seed: str, project: str = "lexio") -> str:
 # ── no nudge when below threshold ───────────────────────────────────────────
 
 
-def test_no_nudge_below_threshold(atelier_env: Dict) -> None:
+def test_no_nudge_below_threshold(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=15, after_days=7)
     _accept("a")
     out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio",
@@ -58,9 +56,10 @@ def test_no_nudge_below_threshold(atelier_env: Dict) -> None:
 # ── count threshold ─────────────────────────────────────────────────────────
 
 
-def test_nudge_on_count_threshold(atelier_env: Dict) -> None:
+def test_nudge_on_count_threshold(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio",
                         now="2026-05-28T12:00:00+00:00")
     assert out["nudge"] is True
@@ -71,7 +70,7 @@ def test_nudge_on_count_threshold(atelier_env: Dict) -> None:
 # ── days threshold ──────────────────────────────────────────────────────────
 
 
-def test_nudge_on_days_threshold(atelier_env: Dict) -> None:
+def test_nudge_on_days_threshold(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=999, after_days=7)
     _accept("a")
     # Mark a dream 10 days before "now" so the days trigger fires while the
@@ -83,7 +82,7 @@ def test_nudge_on_days_threshold(atelier_env: Dict) -> None:
     assert "days since the last dream" in out["markdown"]
 
 
-def test_no_nudge_when_recent_dream_and_low_count(atelier_env: Dict) -> None:
+def test_no_nudge_when_recent_dream_and_low_count(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=999, after_days=7)
     _accept("a")
     _cl.mark_dream_complete(when="2026-05-27T12:00:00+00:00")  # 1 day ago
@@ -95,7 +94,7 @@ def test_no_nudge_when_recent_dream_and_low_count(atelier_env: Dict) -> None:
 # ── pending proposed drafts always nudge ────────────────────────────────────
 
 
-def test_nudge_on_pending_proposed(atelier_env: Dict) -> None:
+def test_nudge_on_pending_proposed(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=999, after_days=999)
     e1 = _accept("a", project="lexio")
     e2 = _accept("b", project="bht")
@@ -116,9 +115,11 @@ def test_nudge_on_pending_proposed(atelier_env: Dict) -> None:
 # ── interrupted dream stays armed (last_dream_at not advanced) ───────────────
 
 
-def test_interrupted_dream_keeps_nudge_armed(atelier_env: Dict) -> None:
+def test_interrupted_dream_keeps_nudge_armed(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b"); _accept("c")
+    _accept("a")
+    _accept("b")
+    _accept("c")
     # Simulate an interrupted pass: a proposed draft was written but
     # mark_dream_complete was NEVER called (last_dream_at stays None).
     _pr.add(title="half done", rule="r", why="w", status="proposed",
@@ -135,7 +136,7 @@ def test_interrupted_dream_keeps_nudge_armed(atelier_env: Dict) -> None:
 # ── nudge sits above the rest of the bootstrap block ────────────────────────
 
 
-def test_nudge_is_first_line(atelier_env: Dict) -> None:
+def test_nudge_is_first_line(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=1, after_days=7)
     _accept("a")
     _pr.add(title="always one", rule="r", why="w",

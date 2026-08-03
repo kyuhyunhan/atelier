@@ -40,7 +40,6 @@ def test_L1_catches_broken_provenance_link_from_graph(atelier_env):
 
 def test_L3_source_count_drift_and_fix(atelier_env):
     from runtime.service import api
-    from runtime.util import db
 
     wiki = atelier_env["wiki"]
     # Entity declares source_count=10 but only 0 inbound links.

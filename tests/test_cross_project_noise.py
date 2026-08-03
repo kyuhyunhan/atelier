@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict
 
 from runtime.service import api as _api
 from runtime.service.learnings import cluster as _cl
@@ -70,7 +69,7 @@ def test_abstains_on_a_shapeless_fixture(tmp_path: Path) -> None:
 
 
 def test_low_yield_reports_returned_but_omits_ratio(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """§5.4's middle row: a lens change that under-delivers is a FAIL the fixer
     can address — `returned` present, `foreign_ratio` absent — never a raise,
     and never a fabricated 0.0 that would pass the bound. Since G3, the
@@ -87,7 +86,7 @@ def test_low_yield_reports_returned_but_omits_ratio(
 
 
 def test_measures_composition_at_yield_with_the_g3_gate(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """The real measurement, through the PRODUCTION dev-recall path. G3's
     project-scope gate removes foreign-owned claims from the push tier, so a
     corpus with 20 foreign seeds measures `foreign: 0` — the metric proves the
@@ -107,7 +106,7 @@ def test_measures_composition_at_yield_with_the_g3_gate(
 
 
 def test_unowned_dilution_is_visible_in_the_composition(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """The dilution vector, pinned: project-less (knowledge) claims lower the
     RATIO without serving one more own-project claim. The composition leaves
     expose it — `own` stays flat while `unowned` absorbs the denominator, so
@@ -137,7 +136,7 @@ def test_unowned_dilution_is_visible_in_the_composition(
 
 
 def test_metrics_block_omits_the_key_without_a_fixture(
-        atelier_env: Dict, tmp_path: Path, monkeypatch) -> None:
+        atelier_env: dict, tmp_path: Path, monkeypatch) -> None:
     """CI on a fresh clone: no fixture → no key (the §5.6 posture), not a
     green zero."""
     import datetime

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import Dict
 
 from runtime.service import api as _api
 from runtime.service.learnings import capture as _cap
@@ -54,7 +53,7 @@ def test_lens_admits_fm_dispatch() -> None:
 
 # ── integration: recall scoping ──────────────────────────────────────────────
 
-def test_dev_lens_excludes_personal_full_keeps_it(atelier_env: Dict) -> None:
+def test_dev_lens_excludes_personal_full_keeps_it(atelier_env: dict) -> None:
     _capture_accept_operational("ops")
     vault = Path(_cl._vault_root())
     _write_personal_claim(vault, "diary")

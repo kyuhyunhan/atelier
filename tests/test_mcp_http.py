@@ -6,9 +6,6 @@ which speaks HTTP in-process.
 """
 from __future__ import annotations
 
-import asyncio
-from typing import Dict, List
-
 import pytest
 import yaml
 
@@ -21,7 +18,7 @@ pytest.importorskip("starlette")
 # ── _resolve_settings: loopback enforcement ───────────────────────────────────
 
 
-def test_resolve_settings_refuses_non_loopback(atelier_env: Dict, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_settings_refuses_non_loopback(atelier_env: dict, monkeypatch: pytest.MonkeyPatch) -> None:
     from runtime.service import mcp_http
     from runtime.util import config as _config
 
@@ -36,7 +33,7 @@ def test_resolve_settings_refuses_non_loopback(atelier_env: Dict, monkeypatch: p
         mcp_http._resolve_settings(cfg)
 
 
-def test_resolve_settings_accepts_loopback(atelier_env: Dict) -> None:
+def test_resolve_settings_accepts_loopback(atelier_env: dict) -> None:
     from runtime.service import mcp_http
     from runtime.util import config as _config
 
@@ -54,7 +51,7 @@ def test_resolve_settings_accepts_loopback(atelier_env: Dict) -> None:
 # ── BearerMiddleware: 401 vs pass-through ─────────────────────────────────────
 
 
-def _make_middleware_with_inner(seen: List[str]):
+def _make_middleware_with_inner(seen: list[str]):
     from runtime.service import mcp_http
 
     async def inner(scope, receive, send) -> None:
@@ -73,7 +70,7 @@ def test_middleware_rejects_missing_token(monkeypatch: pytest.MonkeyPatch) -> No
     from starlette.testclient import TestClient
 
     monkeypatch.setenv("ATELIER_MCP_HTTP_TOKEN", "secret")
-    seen: List[str] = []
+    seen: list[str] = []
     client = TestClient(_make_middleware_with_inner(seen))
     r = client.get("/")
     assert r.status_code == 401
@@ -84,7 +81,7 @@ def test_middleware_rejects_bad_token(monkeypatch: pytest.MonkeyPatch) -> None:
     from starlette.testclient import TestClient
 
     monkeypatch.setenv("ATELIER_MCP_HTTP_TOKEN", "secret")
-    seen: List[str] = []
+    seen: list[str] = []
     client = TestClient(_make_middleware_with_inner(seen))
     r = client.get("/", headers={"Authorization": "Bearer wrong"})
     assert r.status_code == 401
@@ -95,7 +92,7 @@ def test_middleware_accepts_good_token_and_sets_session(monkeypatch: pytest.Monk
     from starlette.testclient import TestClient
 
     monkeypatch.setenv("ATELIER_MCP_HTTP_TOKEN", "secret")
-    seen: List[str] = []
+    seen: list[str] = []
     client = TestClient(_make_middleware_with_inner(seen))
     r = client.get("/", headers={"Authorization": "Bearer secret"})
     assert r.status_code == 200
@@ -108,7 +105,7 @@ def test_middleware_refuses_when_env_unset(monkeypatch: pytest.MonkeyPatch) -> N
     from starlette.testclient import TestClient
 
     monkeypatch.delenv("ATELIER_MCP_HTTP_TOKEN", raising=False)
-    seen: List[str] = []
+    seen: list[str] = []
     client = TestClient(_make_middleware_with_inner(seen))
     r = client.get("/", headers={"Authorization": "Bearer anything"})
     assert r.status_code == 401
@@ -117,7 +114,7 @@ def test_middleware_refuses_when_env_unset(monkeypatch: pytest.MonkeyPatch) -> N
 # ── Config validator: service.mcp_http loopback enforcement ───────────────────
 
 
-def test_config_strict_rejects_non_loopback_bind(atelier_env: Dict) -> None:
+def test_config_strict_rejects_non_loopback_bind(atelier_env: dict) -> None:
     from runtime.util import config as _config
 
     cfg_path = atelier_env["home"] / "config.yaml"

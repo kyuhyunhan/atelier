@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import fnmatch
 from functools import lru_cache
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 
 def _normalize_pattern(pattern: str) -> str:
@@ -23,7 +23,7 @@ def _normalize_pattern(pattern: str) -> str:
 
 
 @lru_cache(maxsize=1)
-def _rules() -> Tuple[Tuple[str, str], ...]:
+def _rules() -> tuple[tuple[str, str], ...]:
     """Compiled (path_pattern, page_type) rules, single-vault aware.
 
     For every space-relative builder pattern (``products/…``, ``notes/…``,
@@ -41,8 +41,8 @@ def _rules() -> Tuple[Tuple[str, str], ...]:
     learnings_legacy = "learnings/"
     learnings_canonical = _structure.prefix_aliases()[learnings_legacy]
 
-    out: List[Tuple[str, str]] = []
-    learning_variants: List[Tuple[str, str]] = []
+    out: list[tuple[str, str]] = []
+    learning_variants: list[tuple[str, str]] = []
     for pattern, ptype in page_type_rules():
         pat = _normalize_pattern(pattern)
         out.append((pat, ptype))
@@ -65,7 +65,7 @@ def _rules() -> Tuple[Tuple[str, str], ...]:
 _V7_KINDS = frozenset({"source", "entity", "claim"})
 
 
-def classify(space: str, slug: str, fm: Dict[str, Any]) -> str:
+def classify(space: str, slug: str, fm: dict[str, Any]) -> str:
     # `space` is accepted for signature stability (callers still pass it) but
     # is intentionally unused — classification keys off the FIELDS first
     # (RFC 0005 §3: the projection reads fields, never the path), then falls

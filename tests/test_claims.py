@@ -17,7 +17,6 @@ import pytest
 
 from runtime.service import auth, claims
 
-
 # ── SpaceLockRegistry ─────────────────────────────────────────────────────────
 
 

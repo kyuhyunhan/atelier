@@ -11,7 +11,6 @@ import json
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Dict
 
 from runtime import cli as _cli
 from runtime.service import api as _api
@@ -27,16 +26,21 @@ def _git(repo: Path, *a: str) -> str:
 
 
 def _repo(tmp_path: Path) -> Path:
-    r = tmp_path / "repo"; r.mkdir()
-    _git(r, "init", "-q"); _git(r, "config", "user.email", "t@t")
+    r = tmp_path / "repo"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@t")
     _git(r, "config", "user.name", "t")
-    (r / "seed").write_text("s\n"); _git(r, "add", "seed"); _git(r, "commit", "-qm", "base")
+    (r / "seed").write_text("s\n")
+    _git(r, "add", "seed")
+    _git(r, "commit", "-qm", "base")
     return r
 
 
 def _claim(vault: Path, name: str) -> None:
     eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
-    d = vault / "graph" / "atomic"; d.mkdir(parents=True, exist_ok=True)
+    d = vault / "graph" / "atomic"
+    d.mkdir(parents=True, exist_ok=True)
     (d / f"{name}.md").write_text(
         f"---\nschema_version: 7\nentry_id: {eid}\nkind: claim\ndomain: knowledge\n"
         f"sensitivity: public\nsurfacing: query\ncreated_at: 2026-07-01T00:00:00+00:00\n"
@@ -48,15 +52,18 @@ def _setup(vault: Path, tmp_path: Path, intent):
     _api.reindex(space="wiki", full=True)
     before = _baseline.generate(vault=vault, captured_date="2026-07-24")
     before["_file_digests"] = _vault_state.file_digests(vault)
-    bp = tmp_path / "before.json"; bp.write_text(json.dumps(before), encoding="utf-8")
+    bp = tmp_path / "before.json"
+    bp.write_text(json.dumps(before), encoding="utf-8")
     repo = _repo(tmp_path)
     contract = {"id": "G", "intent": intent, "envelope": {"mode": "default-deny"},
                 "pins": {"before_sha256": _freeze.sha256_file(bp),
                          "captured_at_head": _git(repo, "rev-parse", "HEAD"),
                          "fixture_sha256": None}}
-    rel = "docs/goals/G.json"; (repo / "docs/goals").mkdir(parents=True)
+    rel = "docs/goals/G.json"
+    (repo / "docs/goals").mkdir(parents=True)
     (repo / rel).write_text(json.dumps(contract), encoding="utf-8")
-    _git(repo, "add", rel); _git(repo, "commit", "-qm", "freeze")
+    _git(repo, "add", rel)
+    _git(repo, "commit", "-qm", "freeze")
     return repo, bp
 
 
@@ -65,13 +72,13 @@ def _run(repo: Path, bp: Path, vault: Path) -> int:
                       "--before", str(bp), "--repo", str(repo), "--vault", str(vault)])
 
 
-def test_exit_0_on_pass(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_0_on_pass(atelier_env: dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     repo, bp = _setup(vault, tmp_path, intent=[])          # no-op contract
     assert _run(repo, bp, vault) == 0
 
 
-def test_exit_1_on_fail(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_1_on_fail(atelier_env: dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     repo, bp = _setup(vault, tmp_path, intent=[])
     _claim(vault, "injected")                              # undeclared delta
@@ -79,7 +86,7 @@ def test_exit_1_on_fail(atelier_env: Dict, tmp_path: Path) -> None:
     assert _run(repo, bp, vault) == 1
 
 
-def test_exit_2_on_hard_abort(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_2_on_hard_abort(atelier_env: dict, tmp_path: Path) -> None:
     """A contract naming a metric no counter emits is a broken harness — code 2,
     not 1, so the loop does not retry it as a missed target."""
     vault = Path(_cl._vault_root())
@@ -88,7 +95,7 @@ def test_exit_2_on_hard_abort(atelier_env: Dict, tmp_path: Path) -> None:
     assert _run(repo, bp, vault) == 2
 
 
-def test_exit_2_on_a_missing_round_baseline(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_2_on_a_missing_round_baseline(atelier_env: dict, tmp_path: Path) -> None:
     """§4.1: the round baseline is an integrity root. A missing before.json is a
     the-harness-cannot-be-trusted condition — code 2, so the loop aborts rather
     than retrying a fixer against a broken root."""
@@ -98,7 +105,7 @@ def test_exit_2_on_a_missing_round_baseline(atelier_env: Dict, tmp_path: Path) -
     assert _run(repo, bp, vault) == 2
 
 
-def test_exit_2_on_a_corrupt_round_baseline(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_2_on_a_corrupt_round_baseline(atelier_env: dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     repo, bp = _setup(vault, tmp_path, intent=[])
     bp.write_text("{ not json", encoding="utf-8")         # truncated/tampered

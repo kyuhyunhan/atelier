@@ -19,9 +19,9 @@ depend on `ATELIER_EMBED` (see RFC 0006 §11.2), so regenerate at a fixed env.
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from . import census as _census
 from . import eval as _eval
@@ -37,9 +37,9 @@ _ABOUT = (
 )
 
 
-def generate(*, k: int = 5, vault: Optional[Path] = None,
-             captured_date: Optional[str] = None,
-             about: Optional[str] = None) -> Dict[str, Any]:
+def generate(*, k: int = 5, vault: Path | None = None,
+             captured_date: str | None = None,
+             about: str | None = None) -> dict[str, Any]:
     """The full baseline dict (JSON-serializable). `captured_date` defaults to
     today (UTC); pass it explicitly for reproducible fixtures/tests.
 
@@ -53,14 +53,14 @@ def generate(*, k: int = 5, vault: Optional[Path] = None,
     gate, so a counter a goal must drive DOWN would become a gate against its own
     goal if it landed there (§3.3).
     """
-    captured = captured_date or datetime.now(timezone.utc).date().isoformat()
+    captured = captured_date or datetime.now(UTC).date().isoformat()
     try:
         as_of = date.fromisoformat(captured)
     except ValueError:
         # `verify_against` feeds this from an on-disk anchor's `captured_date`.
         # A hand-edited or truncated value must not abort the whole
         # verification; fall back to today and let the date itself show it.
-        as_of = datetime.now(timezone.utc).date()
+        as_of = datetime.now(UTC).date()
     ev = _eval.run(k=k, vault=vault)
     aud = _surfacing.audit(vault=vault)
     return {
@@ -101,7 +101,7 @@ def _config_disables_embeddings() -> bool:
         return False                         # cannot prove redundancy → check
 
 
-def engine_capture_precheck() -> Optional[str]:
+def engine_capture_precheck() -> str | None:
     """The part of the round-baseline gate knowable BEFORE measuring — today,
     the env kill switch. Callers run this first so a refusal costs nothing: a
     full `generate()` is an eval + surfacing + census + metrics pass (minutes on
@@ -110,9 +110,9 @@ def engine_capture_precheck() -> Optional[str]:
     return degraded_engine_reason({})      # no engine known yet, by design
 
 
-def degraded_engine_reason(baseline: Dict[str, Any], *,
-                           env_override: Optional[str] = None
-                           ) -> Optional[str]:
+def degraded_engine_reason(baseline: dict[str, Any], *,
+                           env_override: str | None = None
+                           ) -> str | None:
     """Why this capture must NOT be pinned as a round baseline — or None.
 
     A round baseline is comparable to a later verify run only under the SAME
@@ -163,7 +163,7 @@ def degraded_engine_reason(baseline: Dict[str, Any], *,
     return None
 
 
-def serialize(baseline: Dict[str, Any]) -> str:
+def serialize(baseline: dict[str, Any]) -> str:
     """Stable serialization: sorted keys + trailing newline, so regenerating an
     unchanged vault yields a byte-identical file (clean git diffs)."""
     return json.dumps(baseline, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
@@ -172,9 +172,9 @@ def serialize(baseline: Dict[str, Any]) -> str:
 _serialize = serialize          # back-compat alias for existing callers
 
 
-def write(path: Path, *, k: int = 5, vault: Optional[Path] = None,
-          captured_date: Optional[str] = None,
-          about: Optional[str] = None) -> Dict[str, Any]:
+def write(path: Path, *, k: int = 5, vault: Path | None = None,
+          captured_date: str | None = None,
+          about: str | None = None) -> dict[str, Any]:
     """Generate and write the baseline to `path`; return the dict."""
     baseline = generate(k=k, vault=vault, captured_date=captured_date,
                         about=about)

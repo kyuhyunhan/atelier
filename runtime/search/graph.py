@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from typing import List, Optional
 
 
 @dataclass
@@ -17,7 +16,7 @@ def neighborhood(
     conn: sqlite3.Connection,
     seed_slug: str,
     depth: int = 2,
-) -> List[Neighbor]:
+) -> list[Neighbor]:
     """BFS both directions up to `depth` hops."""
     seed = conn.execute("SELECT id FROM pages WHERE slug=?", (seed_slug,)).fetchone()
     if not seed:
@@ -27,7 +26,7 @@ def neighborhood(
     seen: dict[int, tuple[int, str]] = {seed_id: (0, "self")}
     frontier = [seed_id]
     for d in range(1, depth + 1):
-        next_frontier: List[int] = []
+        next_frontier: list[int] = []
         if not frontier:
             break
         placeholders = ",".join("?" * len(frontier))
@@ -60,7 +59,7 @@ def neighborhood(
             f"SELECT id, slug FROM pages WHERE id IN ({','.join('?'*len(ids))})", ids
         )
     }
-    out: List[Neighbor] = []
+    out: list[Neighbor] = []
     for pid, (dist, via) in seen.items():
         if pid == seed_id:
             continue
@@ -69,7 +68,7 @@ def neighborhood(
     return out
 
 
-def inbound(conn: sqlite3.Connection, slug: str) -> List[str]:
+def inbound(conn: sqlite3.Connection, slug: str) -> list[str]:
     p = conn.execute("SELECT id FROM pages WHERE slug=?", (slug,)).fetchone()
     if not p:
         return []
@@ -79,7 +78,7 @@ def inbound(conn: sqlite3.Connection, slug: str) -> List[str]:
     )]
 
 
-def outbound(conn: sqlite3.Connection, slug: str) -> List[str]:
+def outbound(conn: sqlite3.Connection, slug: str) -> list[str]:
     p = conn.execute("SELECT id FROM pages WHERE slug=?", (slug,)).fetchone()
     if not p:
         return []
@@ -91,7 +90,7 @@ def outbound(conn: sqlite3.Connection, slug: str) -> List[str]:
 
 def neighbors_by_id(
     conn: sqlite3.Connection,
-    seed_ids: List[int],
+    seed_ids: list[int],
     depth: int = 2,
 ) -> dict[int, int]:
     """Multi-source BFS over *resolved* links from seed page_ids, both directions.
@@ -110,7 +109,7 @@ def neighbors_by_id(
         if not frontier:
             break
         ph = ",".join("?" * len(frontier))
-        nxt: List[int] = []
+        nxt: list[int] = []
         for r in conn.execute(
             f"SELECT DISTINCT to_page_id FROM links "
             f"WHERE from_page IN ({ph}) AND to_page_id IS NOT NULL", frontier):

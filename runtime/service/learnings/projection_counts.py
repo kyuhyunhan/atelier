@@ -34,12 +34,12 @@ already accept.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ...util import db as _db
 
 
-def _load_nodes() -> Optional[Dict[str, Any]]:
+def _load_nodes() -> dict[str, Any] | None:
     """`{claims, sources, has_legacy_accepted}` from the projection, or None when
     it can't answer (no rows / DB absent / query error). `learning_accepted` rows
     are not parsed — their mere presence flips `has_legacy_accepted`, which makes
@@ -60,8 +60,8 @@ def _load_nodes() -> Optional[Dict[str, Any]]:
         conn.close()
     if not rows:
         return None                          # cold/un-reindexed DB → fall back
-    claims: List[dict] = []
-    sources: List[dict] = []
+    claims: list[dict] = []
+    sources: list[dict] = []
     has_legacy_accepted = False
     for r in rows:
         pt = r["page_type"]
@@ -82,7 +82,7 @@ def _load_nodes() -> Optional[Dict[str, Any]]:
             "has_legacy_accepted": has_legacy_accepted}
 
 
-def accepted_operational() -> Optional[int]:
+def accepted_operational() -> int | None:
     """Count of accepted operational claims (the dream cadence total).
 
     Abstains (→ filesystem fallback) when legacy `learning_accepted` notes exist,
@@ -98,7 +98,7 @@ def accepted_operational() -> Optional[int]:
                if _store.is_accepted_operational_claim(fm))
 
 
-def proactive_count() -> Optional[int]:
+def proactive_count() -> int | None:
     """Count of proactive-tier claims (the dream cadence total — dream's actual
     input, ANY domain). Returns None on a cold DB → filesystem fallback."""
     nodes = _load_nodes()
@@ -109,7 +109,7 @@ def proactive_count() -> Optional[int]:
                if _c.surfacing_of(fm) == _c.TIER_PROACTIVE)
 
 
-def promote_eligible(limit: Optional[int] = None) -> Optional[int]:
+def promote_eligible(limit: int | None = None) -> int | None:
     """Count of promotion-eligible claims — the SAME domain-aware gate as the
     filesystem scan (`claims_io.is_promote_eligible`), so projection and scan
     can't disagree. Capped at `limit` to match `eligible_count`'s contract."""
@@ -121,7 +121,7 @@ def promote_eligible(limit: Optional[int] = None) -> Optional[int]:
     return min(n, limit) if limit is not None else n
 
 
-def proposed_principles() -> Optional[int]:
+def proposed_principles() -> int | None:
     """Count of principle claims awaiting review (ac_status:pending)."""
     nodes = _load_nodes()
     if nodes is None:
@@ -131,7 +131,7 @@ def proposed_principles() -> Optional[int]:
                if _p._is_principle(fm) and _p._status_of(fm) == "proposed")
 
 
-def unatomized_sources() -> Optional[int]:
+def unatomized_sources() -> int | None:
     """Count of Source nodes with no derived Claim (the atomize backlog)."""
     nodes = _load_nodes()
     if nodes is None:

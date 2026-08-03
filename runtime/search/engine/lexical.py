@@ -11,7 +11,7 @@ When the vault outgrows SQLite, a `PgLexical` lands here implementing the same
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from .. import fts as _fts
 from .sqlite_scope import scope_where
@@ -25,7 +25,7 @@ class LexicalSearcher(Protocol):
     Returns at most `k` `Candidate`s, deduplicated to one per page, ordered best
     first. A query with no usable tokens returns `[]` (never raises)."""
 
-    def search(self, query: str, *, scope: Scope = Scope(), k: int = 10) -> List[Candidate]:
+    def search(self, query: str, *, scope: Scope = Scope(), k: int = 10) -> list[Candidate]:
         ...
 
 
@@ -39,7 +39,7 @@ class FtsLexical:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
 
-    def search(self, query: str, *, scope: Scope = Scope(), k: int = 10) -> List[Candidate]:
+    def search(self, query: str, *, scope: Scope = Scope(), k: int = 10) -> list[Candidate]:
         match = _fts.sanitize_match(query)
         if not match:
             return []
@@ -60,7 +60,7 @@ class FtsLexical:
         sql.append("ORDER BY rank LIMIT ?")
         params.append(max(k, 1) * 8)
 
-        out: List[Candidate] = []
+        out: list[Candidate] = []
         seen: set[str] = set()
         for r in self._conn.execute("\n".join(sql), params):
             if r["slug"] in seen:

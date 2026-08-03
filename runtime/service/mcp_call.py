@@ -26,22 +26,21 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..util import logging as log
-
 
 _DEFAULT_CONFIG = Path.home() / ".atelier" / "config.yaml"
 
 
-def _read_config(path: Path) -> Dict[str, Any]:
+def _read_config(path: Path) -> dict[str, Any]:
     import yaml
     if not path.exists():
         return {}
     return yaml.safe_load(path.read_text()) or {}
 
 
-def _endpoint(cfg: Dict[str, Any]) -> tuple[str, str]:
+def _endpoint(cfg: dict[str, Any]) -> tuple[str, str]:
     """Return (url, token) for the MCP HTTP server. Resolves env vars."""
     svc = (cfg.get("service") or {}).get("mcp_http") or {}
     host = svc.get("bind", "127.0.0.1")
@@ -52,7 +51,7 @@ def _endpoint(cfg: Dict[str, Any]) -> tuple[str, str]:
     return f"http://{host}:{port}{path}", token
 
 
-def _parse_response(raw: bytes) -> Dict[str, Any]:
+def _parse_response(raw: bytes) -> dict[str, Any]:
     """Parse a Streamable-HTTP MCP response body. The server may emit
     raw JSON or SSE-style `event: message\\ndata: <json>` frames."""
     text = raw.decode("utf-8", "replace")
@@ -70,9 +69,9 @@ def _parse_response(raw: bytes) -> Dict[str, Any]:
     raise RuntimeError(f"unparseable MCP response: {text[:200]!r}")
 
 
-def _post(url: str, body: Dict[str, Any], *,
-          headers: Dict[str, str], timeout: float = 15.0
-          ) -> tuple[Dict[str, Any], Dict[str, str]]:
+def _post(url: str, body: dict[str, Any], *,
+          headers: dict[str, str], timeout: float = 15.0
+          ) -> tuple[dict[str, Any], dict[str, str]]:
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec - loopback
@@ -82,12 +81,12 @@ def _post(url: str, body: Dict[str, Any], *,
     return _parse_response(raw), out_headers
 
 
-def _call(url: str, token: str, tool: str, params: Dict[str, Any],
-          *, timeout: float = 15.0) -> Dict[str, Any]:
+def _call(url: str, token: str, tool: str, params: dict[str, Any],
+          *, timeout: float = 15.0) -> dict[str, Any]:
     """Full MCP Streamable-HTTP handshake: initialize → notifications/initialized
     → tools/call. The mcp-session-id returned by the initialize step is
     threaded through subsequent calls per spec."""
-    headers: Dict[str, str] = {
+    headers: dict[str, str] = {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream",
     }
@@ -147,11 +146,11 @@ def _coerce_require_why(value: str) -> Any:
     return low != "false" if low in ("false", "true") else value
 
 
-def _build_params(tool: str, json_arg: Optional[str], stdin_raw: Optional[str],
-                  *, working_dir: Optional[str] = None, hook: Optional[str] = None,
-                  observation: Optional[str] = None,
-                  project_hint: Optional[str] = None,
-                  require_why: Optional[str] = None) -> Dict[str, Any]:
+def _build_params(tool: str, json_arg: str | None, stdin_raw: str | None,
+                  *, working_dir: str | None = None, hook: str | None = None,
+                  observation: str | None = None,
+                  project_hint: str | None = None,
+                  require_why: str | None = None) -> dict[str, Any]:
     """Assemble the tool-call params dict from --json, stdin payload, and kv flags.
 
     Precedence (lowest → highest): --json, then stdin payload, then the kv flags
@@ -163,7 +162,7 @@ def _build_params(tool: str, json_arg: Optional[str], stdin_raw: Optional[str],
     hook_event_name, transcript, trigger, …) that would break signature binding.
     Scoped to that one tool so other tools still receive arbitrary args.
     """
-    params: Dict[str, Any] = {}
+    params: dict[str, Any] = {}
     if json_arg:
         params.update(json.loads(json_arg))
     if stdin_raw:
@@ -183,7 +182,7 @@ def _build_params(tool: str, json_arg: Optional[str], stdin_raw: Optional[str],
     return params
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="atelier-mcp-call")
     p.add_argument("tool", help="MCP tool name (e.g. atelier_learning_capture)")
     p.add_argument("--json", help="raw JSON params dict")
@@ -203,9 +202,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     # `--require_why false` lets session-end hooks land a candidate without a why
     # (judged later by curation) — RFC 0004 phase 1.
     p.add_argument("--require_why")
-    args, extra = p.parse_known_args(argv)
+    args, _extra = p.parse_known_args(argv)
 
-    stdin_raw: Optional[str] = None
+    stdin_raw: str | None = None
     if args.payload_from_stdin and not sys.stdin.isatty():
         stdin_raw = sys.stdin.read().strip() or None
     params = _build_params(
@@ -227,7 +226,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         result = _call(url, token, args.tool, params)
     except (urllib.error.URLError, OSError) as e:
         log.error("mcp-call.rpc-error", tool=args.tool,
-                  err=type(e).__name__, msg=str(e))
+                  err=type(e).__name__, detail=str(e))
         return 0 if not args.strict else 1
 
     if "error" in result:

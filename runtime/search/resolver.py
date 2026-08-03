@@ -25,10 +25,17 @@ from __future__ import annotations
 
 import sqlite3
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any
 
 from .engine import Candidate, RetrievalEngine, Scope
+
+if TYPE_CHECKING:
+    # Type-only: the runtime import of the AI layer stays function-local
+    # (module import time must not touch providers) — see build_context.
+    from ..ai.gateway import EmbeddingGateway
+
 
 # Rank-smoothing constant (Cormack, Clarke & Buettcher 2009). Larger C flattens
 # the 1/(C+rank) curve so rank-1 and rank-2 sit close together — this is what
@@ -53,18 +60,18 @@ _RANK_GAP = 1.0 / C_RRF - 1.0 / (C_RRF + 1)
 _REL_BOOST = 4.0 * _RANK_GAP
 
 
-def _rrf_scores(rankings: Sequence[Sequence[int]]) -> Dict[int, float]:
+def _rrf_scores(rankings: Sequence[Sequence[int]]) -> dict[int, float]:
     """Fused score per id: `Σ_modes 1/(C_RRF + rank)`. The math core shared by
     `rrf_fuse` (which adds the tie-break) and `resolve` (which puts the score on
     each returned Candidate)."""
-    scores: Dict[int, float] = defaultdict(float)
+    scores: dict[int, float] = defaultdict(float)
     for ranking in rankings:
         for rank, page_id in enumerate(ranking):
             scores[page_id] += 1.0 / (C_RRF + rank)
     return scores
 
 
-def rrf_fuse(rankings: Sequence[Sequence[int]]) -> List[int]:
+def rrf_fuse(rankings: Sequence[Sequence[int]]) -> list[int]:
     """Reciprocal Rank Fusion over per-mode ranked id lists.
 
     Each inner sequence is one mode's ids, best-first (position == rank). Returns
@@ -74,7 +81,7 @@ def rrf_fuse(rankings: Sequence[Sequence[int]]) -> List[int]:
     deterministic regardless of dict iteration.
     """
     scores = _rrf_scores(rankings)
-    first_seen: Dict[int, int] = {}
+    first_seen: dict[int, int] = {}
     order = 0
     for ranking in rankings:
         for page_id in ranking:
@@ -87,7 +94,7 @@ def rrf_fuse(rankings: Sequence[Sequence[int]]) -> List[int]:
 
 
 def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
-            gateway: Optional[object] = None, k: int = 10) -> List[Candidate]:
+            gateway: EmbeddingGateway | None = None, k: int = 10) -> list[Candidate]:
     """Run every wired mode over `query`, fuse with RRF, return top-`k` Candidates.
 
     Modes:
@@ -109,7 +116,7 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
     fetch = max(k, 1) * _OVERFETCH
     lexical_hits = engine.lexical.search(query, scope=scope, k=fetch)
 
-    semantic_hits: List[Candidate] = []
+    semantic_hits: list[Candidate] = []
     if engine.semantic is not None and gateway is not None:
         embedding = _embed_query(query, gateway)
         if embedding:
@@ -118,7 +125,7 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
     # Primary fusion (lexical + semantic) — this owns the score scale.
     primary = [[c.page_id for c in lexical_hits], [c.page_id for c in semantic_hits]]
     scores = _rrf_scores(primary)
-    first_seen: Dict[int, int] = {}
+    first_seen: dict[int, int] = {}
     _o = 0
     for lst in primary:
         for pid in lst:
@@ -132,7 +139,7 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
     # neighbour of a confident hit gets a SMALL additive bump (a fraction of an
     # RRF rank-gap, scaled by proximity) — enough to surface a body-less concept
     # sibling at the margin, never enough to outrank a real lexical/semantic hit.
-    relational_hits: List[Candidate] = []
+    relational_hits: list[Candidate] = []
     if engine.relational is not None:
         seeds = rrf_fuse(primary)[:_RELATIONAL_SEEDS]
         if seeds:
@@ -147,14 +154,14 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
 
     # Display fields per page. Lexical wins slug/page_type/snippet over semantic
     # over relational; snippet falls through non-empty in that priority.
-    info: Dict[int, Candidate] = {c.page_id: c for c in relational_hits}
+    info: dict[int, Candidate] = {c.page_id: c for c in relational_hits}
     info.update({c.page_id: c for c in semantic_hits})
     info.update({c.page_id: c for c in lexical_hits})
     lex_snip = {c.page_id: c.snippet for c in lexical_hits}
     sem_snip = {c.page_id: c.snippet for c in semantic_hits}
     rel_snip = {c.page_id: c.snippet for c in relational_hits}
 
-    out: List[Candidate] = []
+    out: list[Candidate] = []
     for page_id in fused_order[:k]:
         c = info[page_id]
         out.append(Candidate(
@@ -166,12 +173,12 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
     return out
 
 
-def _embed_query(query: str, gateway: object) -> List[float]:
+def _embed_query(query: str, gateway: EmbeddingGateway) -> list[float]:
     """One query → one embedding, or `[]` on any gateway failure. A read-path
     embedding failure (provider went down between bundle build and this call)
     must degrade to lexical-only, never raise — same posture as P2's reindex."""
     try:
-        vectors = gateway.embed([query])          # type: ignore[attr-defined]
+        vectors = gateway.embed([query])
     except Exception:                             # provider down / timeout / bad dim
         return []
     return list(vectors[0]) if vectors else []
@@ -194,8 +201,8 @@ class ResolverContext:
     DB connection is the caller's to close, as everywhere else)."""
 
     engine: RetrievalEngine
-    gateway: Optional[object] = None
-    _store: Optional[object] = None
+    gateway: EmbeddingGateway | None = None
+    _store: Any = None    # duck-typed vec-store handle (open/close)
 
     def close(self) -> None:
         if self._store is not None:

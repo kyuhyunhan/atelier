@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import yaml
 
@@ -26,7 +26,7 @@ _NAMESPACE = {"uuid.NAMESPACE_DNS": uuid.NAMESPACE_DNS}
 
 
 @lru_cache(maxsize=1)
-def _data() -> Dict[str, Any]:
+def _data() -> dict[str, Any]:
     return yaml.safe_load(STRUCTURE_YAML.read_text())
 
 
@@ -84,7 +84,7 @@ def expand_content_root(value: str) -> str:
 
 
 # --- Structural prefixes (for SQL LIKE sets, lint L1/L5) ------------------
-def content_prefixes() -> Tuple[str, ...]:
+def content_prefixes() -> tuple[str, ...]:
     """Top-level content-tree slug prefixes — new + legacy — as `dir/` strings.
 
     The single source for "is this slug/link in the content tree?" matching
@@ -95,7 +95,7 @@ def content_prefixes() -> Tuple[str, ...]:
     return (f"{content_root()}/", f"{legacy_content_root()}/")
 
 
-def graph_prefixes() -> Tuple[str, ...]:
+def graph_prefixes() -> tuple[str, ...]:
     """Top-level graph-tree slug prefixes — new + legacy — as `dir/` strings.
 
     The single source for "is this page in the graph tree?" matching (lint
@@ -210,7 +210,7 @@ def atomic_entity_dir() -> str:
 
 
 # --- Atomize policy (RFC 0005 §7.2 gate + the personal invariant) ----------
-def atomize_private_source_domains() -> Tuple[str, ...]:
+def atomize_private_source_domains() -> tuple[str, ...]:
     """Domains whose sources may be atomized only under the human gate AND whose
     derived claims MUST stay `sensitivity: private` (structure.yaml `atomize:`).
     The enforced invariant is "never leaks", not "never atomized" — consumers:
@@ -219,15 +219,15 @@ def atomize_private_source_domains() -> Tuple[str, ...]:
 
 
 # --- Prefix aliasing ------------------------------------------------------
-def prefix_aliases() -> Dict[str, str]:
+def prefix_aliases() -> dict[str, str]:
     return dict(_data()["prefix_aliases"])
 
 
-def known_prefixes() -> Tuple[str, ...]:
+def known_prefixes() -> tuple[str, ...]:
     return tuple(_data()["known_prefixes"])
 
 
-def shorthand_bases() -> Tuple[str, ...]:
+def shorthand_bases() -> tuple[str, ...]:
     return tuple(_data()["shorthand_bases"])
 
 

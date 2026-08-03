@@ -12,8 +12,9 @@ possible ("one vault, lenses over walls").
 from __future__ import annotations
 
 import functools
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
 
 import yaml
 
@@ -23,11 +24,11 @@ _WILDCARD = "*"
 
 
 @functools.lru_cache(maxsize=1)
-def _data() -> Dict[str, Any]:
+def _data() -> dict[str, Any]:
     return yaml.safe_load(LENSES_YAML.read_text())
 
 
-def lens_names() -> Tuple[str, ...]:
+def lens_names() -> tuple[str, ...]:
     return tuple(_data()["lenses"].keys())
 
 
@@ -35,7 +36,7 @@ def default_lens() -> str:
     return _data()["default_lens"]
 
 
-def selectors(name: str) -> List[Dict[str, str]]:
+def selectors(name: str) -> list[dict[str, str]]:
     lenses = _data()["lenses"]
     if name not in lenses:
         raise KeyError(f"unknown lens {name!r} (have {sorted(lenses)})")
@@ -71,7 +72,7 @@ def admits_entity(name: str, in_scheme: Iterable[str]) -> bool:
     return all(matches(name, "entity", s) for s in schemes)
 
 
-def lens_admits_fm(name: str, fm: Dict[str, Any]) -> bool:
+def lens_admits_fm(name: str, fm: dict[str, Any]) -> bool:
     """Whether lens `name` admits a node given its frontmatter — the dispatch a
     recall/search filter uses (RFC 0006 ③). Entities go through the all-match
     `in_scheme` path; claims/sources match on the scalar `domain`. An unknown
@@ -88,12 +89,12 @@ def lens_admits_fm(name: str, fm: Dict[str, Any]) -> bool:
     return True
 
 
-def lenses_admitting(kind: str, domain: str) -> List[str]:
+def lenses_admitting(kind: str, domain: str) -> list[str]:
     """Every lens that admits (kind, domain) — used by the coverage validator."""
     return [n for n in lens_names() if matches(n, kind, domain)]
 
 
-def validate_coverage(observed_pairs: Iterable[Tuple[str, str]]) -> Dict[str, Any]:
+def validate_coverage(observed_pairs: Iterable[tuple[str, str]]) -> dict[str, Any]:
     """The Pillar ① gate over the vocabulary + the vault's actual (kind, domain)
     pairs. Two invariants:
 

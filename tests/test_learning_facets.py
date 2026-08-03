@@ -6,12 +6,9 @@ Population must be deterministic (same markdown → same rows) and idempotent
 """
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
 from runtime.service import api
 from runtime.util import db as _db
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 5, "agent_kind": "claude-code", "status": "accepted",
@@ -28,7 +25,7 @@ def _seed_one(vault) -> None:
                "F1.md", fm, "## Observation\n\nbatching body words\n")
 
 
-def _facets() -> List[Tuple[str, str]]:
+def _facets() -> list[tuple[str, str]]:
     conn = _db.connect()
     try:
         return sorted((r["kind"], r["value"]) for r in
@@ -37,7 +34,7 @@ def _facets() -> List[Tuple[str, str]]:
         conn.close()
 
 
-def test_facets_populated_for_each_kind(vault_env: Dict) -> None:
+def test_facets_populated_for_each_kind(vault_env: dict) -> None:
     _seed_one(vault_env["vault"])
     api.reindex(full=True)
     rows = _facets()
@@ -48,14 +45,14 @@ def test_facets_populated_for_each_kind(vault_env: Dict) -> None:
     assert ("touches", "render-batching") in rows
 
 
-def test_many_valued_aspect_yields_n_rows(vault_env: Dict) -> None:
+def test_many_valued_aspect_yields_n_rows(vault_env: dict) -> None:
     _seed_one(vault_env["vault"])
     api.reindex(full=True)
     aspects = sorted(v for k, v in _facets() if k == "aspect")
     assert aspects == ["client", "cross-cutting"]
 
 
-def test_reindex_is_idempotent_no_duplicate_rows(vault_env: Dict) -> None:
+def test_reindex_is_idempotent_no_duplicate_rows(vault_env: dict) -> None:
     _seed_one(vault_env["vault"])
     api.reindex(full=True)
     first = _facets()
@@ -66,7 +63,7 @@ def test_reindex_is_idempotent_no_duplicate_rows(vault_env: Dict) -> None:
     assert len(second) == len(set(second))
 
 
-def test_topicless_learning_has_no_topic_facet(vault_env: Dict) -> None:
+def test_topicless_learning_has_no_topic_facet(vault_env: dict) -> None:
     """A v5 learning with no target_topic contributes project/aspect facets but
     no 'topic' row — the demotion is honored end-to-end."""
     vault = vault_env["vault"]

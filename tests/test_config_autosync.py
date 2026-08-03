@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
 from runtime.util import config as _config
 
 
-def _load_with_autocommit(vault_env: Dict[str, Path], block: Any) -> _config.Config:
+def _load_with_autocommit(vault_env: dict[str, Path], block: Any) -> _config.Config:
     home = vault_env["home"]
     data = yaml.safe_load((home / "config.yaml").read_text())
     if block is not None:

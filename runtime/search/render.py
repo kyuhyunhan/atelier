@@ -1,12 +1,10 @@
 """Format search results for the CLI."""
 from __future__ import annotations
 
-from typing import List
-
 from .fts import Hit
 
 
-def render_hits(hits: List[Hit], explain: bool = False) -> str:
+def render_hits(hits: list[Hit], explain: bool = False) -> str:
     if not hits:
         return "(no results)"
     lines = []

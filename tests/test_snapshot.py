@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
@@ -24,7 +23,7 @@ def _init_repo(vault: Path) -> None:
     _git(vault, "commit", "-m", "seed")
 
 
-def test_create_is_additive_and_records_tag(atelier_env: Dict) -> None:
+def test_create_is_additive_and_records_tag(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     _init_repo(vault)
     m = _snap.create()
@@ -35,7 +34,7 @@ def test_create_is_additive_and_records_tag(atelier_env: Dict) -> None:
     assert m in _snap.list_snapshots()
 
 
-def test_restore_rolls_vault_and_durables_back(atelier_env: Dict) -> None:
+def test_restore_rolls_vault_and_durables_back(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     home = atelier_env["home"]
     _init_repo(vault)
@@ -56,7 +55,7 @@ def test_restore_rolls_vault_and_durables_back(atelier_env: Dict) -> None:
     assert (home / "config.yaml").read_text() != "CHANGED\n"
 
 
-def test_restore_refuses_dirty_tree_without_force(atelier_env: Dict) -> None:
+def test_restore_refuses_dirty_tree_without_force(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     _init_repo(vault)
     m = _snap.create()

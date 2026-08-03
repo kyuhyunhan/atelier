@@ -6,10 +6,10 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
 
 from ..structure import resolver as _structure
-from ..util import config, db, fs, logging as log
+from ..util import config, db, fs
+from ..util import logging as log
 from . import classify, crawl, entities, linker, parse
 
 
@@ -536,9 +536,9 @@ def _build_session_index(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def _resolve(by_space: dict, to_space: str, to_slug: str,
-             alias_index: Optional[dict] = None,
-             basename_index: Optional[dict] = None,
-             session_index: Optional[dict] = None) -> Optional[int]:
+             alias_index: dict | None = None,
+             basename_index: dict | None = None,
+             session_index: dict | None = None) -> int | None:
     candidates = _candidate_slugs(to_slug)
     # Try the named space first, then every other space. Single-vault has one
     # space (no-op); this makes cross-space links resolve in any config.

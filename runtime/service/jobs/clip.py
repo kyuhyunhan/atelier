@@ -19,19 +19,16 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ...util import config as _config
-
-
-
 
 
 def _vault_root() -> Path:
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _ext_for(url: str, content_type: Optional[str]) -> str:
+def _ext_for(url: str, content_type: str | None) -> str:
     parsed = urllib.parse.urlparse(url)
     suffix = Path(parsed.path).suffix.lower()
     if suffix in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".heic"):
@@ -49,8 +46,8 @@ def _slug_from_url(url: str) -> str:
 
 def clip_image(*, url: str,
                role: str = "librarian-territory",
-               subdir: Optional[str] = None,
-               fetch: Optional[Any] = None) -> Dict[str, Any]:
+               subdir: str | None = None,
+               fetch: Any | None = None) -> dict[str, Any]:
     """Download `url` into the vault and return local + CDN paths.
 
     `fetch` lets tests inject a stub; default uses urllib.
@@ -63,7 +60,7 @@ def clip_image(*, url: str,
     target_dir.mkdir(parents=True, exist_ok=True)
 
     content_bytes: bytes
-    content_type: Optional[str]
+    content_type: str | None
     if fetch is not None:
         content_bytes, content_type = fetch(url)
     else:
@@ -89,7 +86,7 @@ def clip_image(*, url: str,
     }
 
 
-def _resolve_cdn_url(local: Path, vault: Path) -> Optional[str]:
+def _resolve_cdn_url(local: Path, vault: Path) -> str | None:
     """If the vault's assets.cdn is configured, return a CDN URL pointing
     at the relative path. The actual upload to R2 lives in the r2
     adapter (currently a stub) — this just computes what the URL will

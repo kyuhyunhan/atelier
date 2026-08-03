@@ -5,13 +5,11 @@ move, entry_id preserved, content_hash re-derived, generated_by → promote.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 from runtime.promote import apply as _apply
 from runtime.promote import propose as _propose
 from runtime.service.learnings import claims_io as _ci
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 7,
@@ -38,7 +36,7 @@ def _claim(vault: Path, entry_id: str, statement: str, *,
 # ── propose ──────────────────────────────────────────────────────────────────
 
 
-def test_propose_lists_only_query_passed_claims(vault_env: Dict) -> None:
+def test_propose_lists_only_query_passed_claims(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "eligible", "use a real db", surfacing="query",
            ac_status="passed")
@@ -55,7 +53,7 @@ def test_propose_lists_only_query_passed_claims(vault_env: Dict) -> None:
     assert "promote: false" in body
 
 
-def test_propose_empty_when_nothing_eligible(vault_env: Dict) -> None:
+def test_propose_empty_when_nothing_eligible(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "p", "pending", surfacing="query", ac_status="pending")
     out = _propose.propose_all()
@@ -77,7 +75,7 @@ def _write_proposal(path: Path, entry_id: str, promote: bool) -> None:
     )
 
 
-def test_apply_transitions_query_to_proactive_in_place(vault_env: Dict) -> None:
+def test_apply_transitions_query_to_proactive_in_place(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "c1", "use a real db", surfacing="query", ac_status="passed")
     before = _ci.find_claim_by_entry_id("c1", vault)
@@ -104,7 +102,7 @@ def test_apply_transitions_query_to_proactive_in_place(vault_env: Dict) -> None:
 
 
 def test_g2_knowledge_gated_out_operational_survives_end_to_end(
-        vault_env: Dict) -> None:
+        vault_env: dict) -> None:
     """G2 pin (RFC 0009): an atomize-born knowledge claim (domain:knowledge, no
     ac_status) is NO LONGER promote-eligible, while a passed operational claim
     still is — measured through the WHOLE promote path (propose → apply).
@@ -148,7 +146,7 @@ def test_g2_knowledge_gated_out_operational_survives_end_to_end(
     assert oafter["surfacing"] == "proactive"
 
 
-def test_apply_ignores_unselected_rows(vault_env: Dict) -> None:
+def test_apply_ignores_unselected_rows(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "c1", "use a real db", surfacing="query", ac_status="passed")
     prop = vault_env["cache"] / "promotions" / "p.md"
@@ -159,7 +157,7 @@ def test_apply_ignores_unselected_rows(vault_env: Dict) -> None:
     assert fm["surfacing"] == "query"        # untouched
 
 
-def test_apply_enforces_acceptance_gate(vault_env: Dict) -> None:
+def test_apply_enforces_acceptance_gate(vault_env: dict) -> None:
     """A hand-edited/stale proposal naming a non-accepted claim is gated."""
     vault = vault_env["vault"]
     _claim(vault, "c1", "unsure", surfacing="query", ac_status="pending")
@@ -171,7 +169,7 @@ def test_apply_enforces_acceptance_gate(vault_env: Dict) -> None:
     assert out["skipped_detail"][0]["reason"] == "acceptance-gate"
 
 
-def test_apply_is_idempotent(vault_env: Dict) -> None:
+def test_apply_is_idempotent(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "c1", "use a real db", surfacing="query", ac_status="passed")
     prop = vault_env["cache"] / "promotions" / "p.md"
@@ -185,7 +183,7 @@ def test_apply_is_idempotent(vault_env: Dict) -> None:
 # ── round trip through propose → apply ───────────────────────────────────────
 
 
-def test_propose_then_apply_round_trip(vault_env: Dict) -> None:
+def test_propose_then_apply_round_trip(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "c1", "prefer real db in integration tests",
            surfacing="query", ac_status="passed")

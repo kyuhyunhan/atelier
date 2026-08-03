@@ -11,8 +11,6 @@ The contract under test:
 """
 from __future__ import annotations
 
-from typing import Dict
-
 import pytest
 
 # The vector sidecar needs the sqlite-vec extension (the `semantic` extra). On a
@@ -43,7 +41,7 @@ class CountingGateway:
 
 
 @pytest.fixture
-def indexed_env(atelier_env: Dict, monkeypatch):
+def indexed_env(atelier_env: dict, monkeypatch):
     """Two indexed pages; returns (env, main_conn_factory)."""
     write_page(
         atelier_env["wiki"] / "wiki" / "entities" / "a.md",

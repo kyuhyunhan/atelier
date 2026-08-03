@@ -25,7 +25,6 @@ never hardcoded (hard rule #3).
 from __future__ import annotations
 
 import sqlite3
-from typing import List
 
 from ..structure import resolver as _structure
 from .loader import Rule
@@ -35,7 +34,7 @@ from .runner import Finding, register_check
 @register_check("check_private_domain_claims")
 def check_private_domain_claims(
     conn: sqlite3.Connection, rule: Rule, space: str,
-) -> List[Finding]:
+) -> list[Finding]:
     domains = _structure.atomize_private_source_domains()
     dom_clause = ", ".join("?" for _ in domains) if domains else "NULL"
     # Every (claim, derived_from source) pair where the SOURCE is private —
@@ -55,7 +54,7 @@ def check_private_domain_claims(
           AND COALESCE(json_extract(c.frontmatter, '$.sensitivity'), '')
               <> 'private'
     """
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     for r in conn.execute(sql, tuple(domains)):
         why = ("private-domain" if r["src_domain"] in domains
                else "sensitivity:private")

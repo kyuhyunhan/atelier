@@ -26,8 +26,9 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from . import baseline as _baseline
 
@@ -37,10 +38,10 @@ _EPS = 1e-9
 
 # ── individual checks: (before, after) → (ok, detail) ───────────────────────
 
-def _census_kind_totals(census: Dict[str, Any]) -> Dict[str, int]:
+def _census_kind_totals(census: dict[str, Any]) -> dict[str, int]:
     """Total node count per kind, summed across one field (any field's counts
     sum to the node total for that kind)."""
-    out: Dict[str, int] = {}
+    out: dict[str, int] = {}
     for kind, fields in census.items():
         if not fields:
             out[kind] = 0
@@ -50,7 +51,7 @@ def _census_kind_totals(census: Dict[str, Any]) -> Dict[str, int]:
     return out
 
 
-def _check_no_data_loss(before: Dict, after: Dict) -> Tuple[bool, str]:
+def _check_no_data_loss(before: dict, after: dict) -> tuple[bool, str]:
     """INV-1 proxy: no node kind shrank (a drop implies vault content vanished)."""
     b = _census_kind_totals(before.get("census", {}))
     a = _census_kind_totals(after.get("census", {}))
@@ -60,7 +61,7 @@ def _check_no_data_loss(before: Dict, after: Dict) -> Tuple[bool, str]:
     return True, f"kinds ok (before={b}, after={a})"
 
 
-def _check_no_omission_regression(before: Dict, after: Dict) -> Tuple[bool, str]:
+def _check_no_omission_regression(before: dict, after: dict) -> tuple[bool, str]:
     """INV-4 (aggregate): dark_count did not rise and visible did not fall."""
     b, a = before.get("surfacing", {}), after.get("surfacing", {})
     if a.get("dark_count", 0) > b.get("dark_count", 0):
@@ -70,15 +71,15 @@ def _check_no_omission_regression(before: Dict, after: Dict) -> Tuple[bool, str]
     return True, f"surfacing ok (dark {b.get('dark_count')}→{a.get('dark_count')})"
 
 
-def _metric_not_regressed(path: List[str], label: str) -> Callable[[Dict, Dict], Tuple[bool, str]]:
+def _metric_not_regressed(path: list[str], label: str) -> Callable[[dict, dict], tuple[bool, str]]:
     """Factory: assert a nested numeric metric did not fall below baseline."""
-    def _get(d: Dict) -> float:
+    def _get(d: dict) -> float:
         cur: Any = d
         for key in path:
             cur = (cur or {}).get(key) if isinstance(cur, dict) else None
         return float(cur) if isinstance(cur, (int, float)) else 0.0
 
-    def _check(before: Dict, after: Dict) -> Tuple[bool, str]:
+    def _check(before: dict, after: dict) -> tuple[bool, str]:
         bv, av = _get(before), _get(after)
         if av + _EPS < bv:
             return False, f"{label} regressed {bv:.4f}→{av:.4f}"
@@ -86,7 +87,7 @@ def _metric_not_regressed(path: List[str], label: str) -> Callable[[Dict, Dict],
     return _check
 
 
-def _check_engine_unchanged(before: Dict, after: Dict) -> Tuple[bool, str]:
+def _check_engine_unchanged(before: dict, after: dict) -> tuple[bool, str]:
     """Advisory (warn, not gate): a changed engine label means the embedding env
     differs, so metric comparisons are apples-to-oranges."""
     be, ae = before.get("engine"), after.get("engine")
@@ -106,7 +107,7 @@ _LENS_KINDS = ("claim", "source", "entity")
 _LENS_DOMAINS = ("personal", "knowledge", "inbox", "workshop", "operational")
 
 
-def _check_lens_coverage(before: Dict, after: Dict) -> Tuple[bool, str]:
+def _check_lens_coverage(before: dict, after: dict) -> tuple[bool, str]:
     """Pillar ① gate: the lens vocabulary covers every plausible (kind, domain)
     and the dev lens excludes personal (the whole point of scoping)."""
     from ...structure import lenses as _lenses
@@ -118,7 +119,7 @@ def _check_lens_coverage(before: Dict, after: Dict) -> Tuple[bool, str]:
     return True, "lens vocabulary covers all pairs; dev excludes personal"
 
 
-def _check_manifest(before: Dict, after: Dict) -> Tuple[bool, str]:
+def _check_manifest(before: dict, after: dict) -> tuple[bool, str]:
     """Pillar ① gate: the vault self-describes (a valid `.atelier-vault.yaml`)."""
     from ...structure import manifest as _manifest
     from . import cluster as _cl
@@ -126,16 +127,16 @@ def _check_manifest(before: Dict, after: Dict) -> Tuple[bool, str]:
     return v["ok"], v["detail"]
 
 
-def _check_forgets_flag_only(before: Dict, after: Dict) -> Tuple[bool, str]:
+def _check_forgets_flag_only(before: dict, after: dict) -> tuple[bool, str]:
     """Pillar 4a gate: plan_forgets() is genuinely flag-only -- it must NEVER
     mutate ac_status itself (that stays a human decision via review.retract).
     Content-based, not count-based: a same-count swap (retract one, re-accept
     another) would slip past a bare count comparison, so this hashes each
     accepted file's (path, mtime, content_hash) and requires the exact SET to be
     unchanged -- not just its size."""
+    from . import cluster as _cl
     from . import lateral as _lat
     from . import store as _store
-    from . import cluster as _cl
     vault = Path(_cl._vault_root())
 
     def _fingerprint():
@@ -153,7 +154,7 @@ def _check_forgets_flag_only(before: Dict, after: Dict) -> Tuple[bool, str]:
                   f"dark candidate(s) flagged, pool byte-identical")
 
 
-def _check_dev_lens_no_personal(before: Dict, after: Dict) -> Tuple[bool, str]:
+def _check_dev_lens_no_personal(before: dict, after: dict) -> tuple[bool, str]:
     """Pillar ③ gate: a dev-lens recall surfaces ZERO personal-domain claims.
 
     Fishes with a broad multi-term query so the corpus is actually exercised;
@@ -186,7 +187,7 @@ def _check_dev_lens_no_personal(before: Dict, after: Dict) -> Tuple[bool, str]:
 # Each entry: gate checks (a fail → overall FAIL) + warn checks (advisory only).
 # Global invariants apply to every rubric; a pillar rubric appends its own gate.
 
-_INV_GATES: List[Tuple[str, Callable[[Dict, Dict], Tuple[bool, str]]]] = [
+_INV_GATES: list[tuple[str, Callable[[dict, dict], tuple[bool, str]]]] = [
     ("no_data_loss", _check_no_data_loss),                       # INV-1
     ("no_omission_regression", _check_no_omission_regression),   # INV-4
     ("self_probe_recall", _metric_not_regressed(
@@ -194,11 +195,11 @@ _INV_GATES: List[Tuple[str, Callable[[Dict, Dict], Tuple[bool, str]]]] = [
     ("paraphrase_recall", _metric_not_regressed(
         ["eval", "paraphrase", "recall_at_k"], "paraphrase R@k")),
 ]
-_WARNS: List[Tuple[str, Callable[[Dict, Dict], Tuple[bool, str]]]] = [
+_WARNS: list[tuple[str, Callable[[dict, dict], tuple[bool, str]]]] = [
     ("engine_unchanged", _check_engine_unchanged),
 ]
 
-_RUBRICS: Dict[str, Dict[str, Any]] = {
+_RUBRICS: dict[str, dict[str, Any]] = {
     "P0": {"description": "Foundation: no regression vs the frozen baseline.",
            "gates": [], "warns": []},
     "P1_grounded": {
@@ -232,7 +233,7 @@ _RUBRICS: Dict[str, Dict[str, Any]] = {
 }
 
 
-def _baseline_is_committed(path: Path) -> Tuple[bool, str]:
+def _baseline_is_committed(path: Path) -> tuple[bool, str]:
     """True when git reports `path` clean (tracked, no uncommitted change). If the
     file is not inside a git repo we cannot assert freshness — treat as NOT
     committed so the guard fails closed."""
@@ -246,8 +247,8 @@ def _baseline_is_committed(path: Path) -> Tuple[bool, str]:
 
 
 def verify_against(baseline_path: Path, rubric_id: str = "P0", *,
-                   vault: Optional[Path] = None,
-                   require_committed: bool = True) -> Dict[str, Any]:
+                   vault: Path | None = None,
+                   require_committed: bool = True) -> dict[str, Any]:
     """Recompute the after-state and score it against `baseline_path` under
     `rubric_id`. Returns a report dict with `passed` and per-check detail."""
     baseline_path = Path(baseline_path)
@@ -270,7 +271,7 @@ def verify_against(baseline_path: Path, rubric_id: str = "P0", *,
     gates = _INV_GATES + list(rubric.get("gates", []))
     warns = _WARNS + list(rubric.get("warns", []))
 
-    checks: List[Dict[str, Any]] = []
+    checks: list[dict[str, Any]] = []
     passed = True
     for name, fn in gates:
         ok, detail = fn(before, after)

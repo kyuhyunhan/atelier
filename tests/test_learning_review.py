@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
@@ -20,7 +19,7 @@ def _read_fm(path: Path) -> dict:
 # ── helpers ────────────────────────────────────────────────────────────────
 
 
-def _make_good_candidate(working_dir: str = "/Users/me/workspaces/lexio") -> Dict:
+def _make_good_candidate(working_dir: str = "/Users/me/workspaces/lexio") -> dict:
     """A candidate that satisfies every auto-evaluable must check.
 
     RFC 0005 P10: all operational claims derive_from the ONE shared source, so a
@@ -38,7 +37,7 @@ def _make_good_candidate(working_dir: str = "/Users/me/workspaces/lexio") -> Dic
     )
 
 
-def _make_thin_candidate() -> Dict:
+def _make_thin_candidate() -> dict:
     """A candidate missing 'why', too thin for must_pass. require_why=False
     bypasses the capture-time substance gate so the candidate still exists
     to exercise the downstream review/archive machinery (it will still
@@ -50,7 +49,7 @@ def _make_thin_candidate() -> Dict:
 # ── review_pending ─────────────────────────────────────────────────────────
 
 
-def test_review_pending_returns_self_check(atelier_env: Dict) -> None:
+def test_review_pending_returns_self_check(atelier_env: dict) -> None:
     good = _make_good_candidate()
     thin = _make_thin_candidate()
 
@@ -61,7 +60,7 @@ def test_review_pending_returns_self_check(atelier_env: Dict) -> None:
     assert by_id[thin["entry_id"]]["must_pass"] is False
 
 
-def test_review_pending_filters_by_project(atelier_env: Dict) -> None:
+def test_review_pending_filters_by_project(atelier_env: dict) -> None:
     _make_good_candidate(working_dir="/Users/me/workspaces/lexio")
     _make_good_candidate(working_dir="/Users/me/workspaces/bht")
     out = _rev.review_pending(limit=10, project="bht")
@@ -72,7 +71,7 @@ def test_review_pending_filters_by_project(atelier_env: Dict) -> None:
 # ── accept ─────────────────────────────────────────────────────────────────
 
 
-def test_accept_is_an_ac_status_field_transition(atelier_env: Dict) -> None:
+def test_accept_is_an_ac_status_field_transition(atelier_env: dict) -> None:
     """RFC 0005 §7.1: accept is a FIELD transition (ac_status pending → passed)
     on the SAME claim file — no directory move to notes/. surfacing stays query
     (the separate promote step elevates it query → proactive)."""
@@ -99,14 +98,14 @@ def test_accept_is_an_ac_status_field_transition(atelier_env: Dict) -> None:
     assert fm["target_project"] == "lexio"
 
 
-def test_accept_refuses_when_must_fails(atelier_env: Dict) -> None:
+def test_accept_refuses_when_must_fails(atelier_env: dict) -> None:
     thin = _make_thin_candidate()
     with pytest.raises(PermissionError):
         _rev.accept(candidate_slug=thin["entry_id"],
                     target_topic="misc")
 
 
-def test_accept_writes_log_entry(atelier_env: Dict) -> None:
+def test_accept_writes_log_entry(atelier_env: dict) -> None:
     good = _make_good_candidate()
     _rev.accept(candidate_slug=good["entry_id"],
                 target_topic="search-fallback",
@@ -119,7 +118,7 @@ def test_accept_writes_log_entry(atelier_env: Dict) -> None:
 # ── archive ────────────────────────────────────────────────────────────────
 
 
-def test_archive_sets_failed_ac_status_in_place(atelier_env: Dict) -> None:
+def test_archive_sets_failed_ac_status_in_place(atelier_env: dict) -> None:
     """RFC 0005 §7.1: archive is ac_status → failed on the SAME claim file
     (+ archive_reason), not a move to archived/."""
     thin = _make_thin_candidate()
@@ -137,7 +136,7 @@ def test_archive_sets_failed_ac_status_in_place(atelier_env: Dict) -> None:
 # ── retract ────────────────────────────────────────────────────────────────
 
 
-def test_retract_from_accepted_sets_retracted(atelier_env: Dict) -> None:
+def test_retract_from_accepted_sets_retracted(atelier_env: dict) -> None:
     """Retract an accepted claim: ac_status passed → retracted, in place."""
     good = _make_good_candidate()
     accepted = _rev.accept(candidate_slug=good["entry_id"],
@@ -153,7 +152,7 @@ def test_retract_from_accepted_sets_retracted(atelier_env: Dict) -> None:
     assert fm["archive_reason"] == "user-said-no"
 
 
-def test_retract_from_candidate(atelier_env: Dict) -> None:
+def test_retract_from_candidate(atelier_env: dict) -> None:
     """Retract a still-pending claim: ac_status pending → retracted, in place."""
     thin = _make_thin_candidate()
     out = _rev.retract(slug=thin["entry_id"], reason="too-thin")
@@ -177,11 +176,11 @@ def test_mcp_tools_registered() -> None:
     assert expected <= names
 
 
-def test_mcp_dispatch_review_pending(atelier_env: Dict) -> None:
+def test_mcp_dispatch_review_pending(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
     _make_good_candidate()
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_learning_review_pending", limit=5)
 
     out = asyncio.run(go())
@@ -191,7 +190,7 @@ def test_mcp_dispatch_review_pending(atelier_env: Dict) -> None:
 # ── override_must (PR-38) ────────────────────────────────────────────────────
 
 
-def test_override_must_accepts_despite_heuristic_miss(atelier_env: Dict) -> None:
+def test_override_must_accepts_despite_heuristic_miss(atelier_env: dict) -> None:
     """A reviewed candidate with free-form why (no '## Why this matters'
     section) fails has_why heuristically; override_must promotes it."""
     thin = _make_thin_candidate()
@@ -206,7 +205,7 @@ def test_override_must_accepts_despite_heuristic_miss(atelier_env: Dict) -> None
     assert "override_must" in fm["ac_results"]
 
 
-def test_override_must_cannot_bypass_forbidden(atelier_env: Dict) -> None:
+def test_override_must_cannot_bypass_forbidden(atelier_env: dict) -> None:
     """forbidden criteria (e.g. pii_leak) are NEVER overridable."""
     cap = _cap.capture(
         observation="config note",
@@ -227,7 +226,7 @@ def test_override_must_cannot_bypass_forbidden(atelier_env: Dict) -> None:
 # operations never move or delete the claim file — only its fields change.
 
 
-def test_accept_does_not_move_or_delete_the_claim_file(atelier_env: Dict) -> None:
+def test_accept_does_not_move_or_delete_the_claim_file(atelier_env: dict) -> None:
     good = _make_good_candidate()
     path = Path(good["path"])
     _rev.accept(candidate_slug=good["entry_id"], target_topic="t",
@@ -237,7 +236,7 @@ def test_accept_does_not_move_or_delete_the_claim_file(atelier_env: Dict) -> Non
     assert not (atelier_env["wiki"] / "learnings" / "candidates").exists()
 
 
-def test_lifecycle_ops_leave_other_claims_untouched(atelier_env: Dict) -> None:
+def test_lifecycle_ops_leave_other_claims_untouched(atelier_env: dict) -> None:
     a = _make_good_candidate()
     b = _make_good_candidate(working_dir="/Users/me/workspaces/bht")
     _rev.accept(candidate_slug=a["entry_id"], target_topic="t",

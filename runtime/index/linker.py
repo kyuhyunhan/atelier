@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List, Tuple
 
 WIKILINK_RE = re.compile(r"\[\[([^\[\]\|]+)(?:\|([^\[\]]+))?\]\]")
 
@@ -16,8 +15,8 @@ class Link:
     link_type: str      # 'wikilink' | 'vault' | 'workshop'
 
 
-def extract_links(body: str, default_space: str = "") -> List[Link]:
-    out: List[Link] = []
+def extract_links(body: str, default_space: str = "") -> list[Link]:
+    out: list[Link] = []
     for m in WIKILINK_RE.finditer(body):
         target = m.group(1).strip()
         if ":" in target:

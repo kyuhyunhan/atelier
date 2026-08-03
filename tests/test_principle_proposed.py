@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
 
 import pytest
 
@@ -12,7 +11,7 @@ from runtime.service.learnings import principles as _pr
 from runtime.service.learnings import review as _rev
 
 
-def _read_fm(path: Path) -> Dict:
+def _read_fm(path: Path) -> dict:
     from runtime.index.parse import split_frontmatter
     fm, _ = split_frontmatter(path.read_text(encoding="utf-8"))
     return fm
@@ -34,7 +33,7 @@ def _accept(project: str, topic: str, seed: str) -> tuple[str, str]:
 # ── proposed status ─────────────────────────────────────────────────────────
 
 
-def test_synthesize_defaults_to_proposed(atelier_env: Dict) -> None:
+def test_synthesize_defaults_to_proposed(atelier_env: dict) -> None:
     s1, e1 = _accept("lexio", "testing", "a")
     s2, e2 = _accept("bht", "testing", "b")
     out = _pr.synthesize(source_slugs=[s1, s2],
@@ -50,22 +49,22 @@ def test_synthesize_defaults_to_proposed(atelier_env: Dict) -> None:
     assert fm["source_entry_ids"] == [e1, e2]
 
 
-def test_add_accepted_still_default(atelier_env: Dict) -> None:
+def test_add_accepted_still_default(atelier_env: dict) -> None:
     out = _pr.add(title="manual one", rule="r", why="w")
     fm = _read_fm(Path(out["path"]))
     assert fm["ac_status"] == "passed"
     assert "accepted_at" in fm
 
 
-def test_add_rejects_archived_status(atelier_env: Dict) -> None:
-    with pytest.raises(ValueError, match="proposed|accepted"):
+def test_add_rejects_archived_status(atelier_env: dict) -> None:
+    with pytest.raises(ValueError, match=r"proposed|accepted"):
         _pr.add(title="x", rule="r", why="w", status="archived")
 
 
 # ── proposed NOT injected at session start ──────────────────────────────────
 
 
-def test_proposed_principle_not_injected_by_bootstrap(atelier_env: Dict) -> None:
+def test_proposed_principle_not_injected_by_bootstrap(atelier_env: dict) -> None:
     # A proposed always-inject principle must NOT appear in bootstrap.
     s1, e1 = _accept("lexio", "testing", "a")
     s2, e2 = _accept("bht", "testing", "b")
@@ -85,7 +84,7 @@ def test_proposed_principle_not_injected_by_bootstrap(atelier_env: Dict) -> None
 # ── atomic write (no .tmp left behind) ──────────────────────────────────────
 
 
-def test_atomic_write_leaves_no_tmp(atelier_env: Dict) -> None:
+def test_atomic_write_leaves_no_tmp(atelier_env: dict) -> None:
     out = _pr.add(title="atomic check", rule="r", why="w", slug="atomic-check")
     pdir = Path(out["path"]).parent
     tmps = list(pdir.glob(".*.tmp"))
@@ -96,7 +95,7 @@ def test_atomic_write_leaves_no_tmp(atelier_env: Dict) -> None:
 # ── idempotent dedup ────────────────────────────────────────────────────────
 
 
-def test_synthesize_skips_when_already_covered(atelier_env: Dict) -> None:
+def test_synthesize_skips_when_already_covered(atelier_env: dict) -> None:
     s1, e1 = _accept("lexio", "testing", "a")
     s2, e2 = _accept("bht", "testing", "b")
     first = _pr.synthesize(source_slugs=[s1, s2], title="rule one",
@@ -110,11 +109,11 @@ def test_synthesize_skips_when_already_covered(atelier_env: Dict) -> None:
     assert second["covered_by"]["status"] == "proposed"
 
 
-def test_dedup_checks_archived_so_rejected_not_reproposed(atelier_env: Dict) -> None:
+def test_dedup_checks_archived_so_rejected_not_reproposed(atelier_env: dict) -> None:
     s1, e1 = _accept("lexio", "testing", "a")
     s2, e2 = _accept("bht", "testing", "b")
-    out = _pr.synthesize(source_slugs=[s1, s2], title="rejected rule",
-                         source_entry_ids=[e1, e2], slug="rejected-rule")
+    _pr.synthesize(source_slugs=[s1, s2], title="rejected rule",
+                   source_entry_ids=[e1, e2], slug="rejected-rule")
     # User rejects it → archived.
     _pr.archive(slug="rejected-rule", reason="not a real principle")
     # Next dream re-clusters the same members → must be skipped (archived).
@@ -124,7 +123,7 @@ def test_dedup_checks_archived_so_rejected_not_reproposed(atelier_env: Dict) -> 
     assert again["covered_by"]["status"] == "archived"
 
 
-def test_dedup_partial_overlap_below_threshold_not_skipped(atelier_env: Dict) -> None:
+def test_dedup_partial_overlap_below_threshold_not_skipped(atelier_env: dict) -> None:
     s1, e1 = _accept("lexio", "testing", "a")
     s2, e2 = _accept("bht", "testing", "b")
     s3, e3 = _accept("ich", "testing", "c")
@@ -137,7 +136,7 @@ def test_dedup_partial_overlap_below_threshold_not_skipped(atelier_env: Dict) ->
     assert out["skipped"] is False
 
 
-def test_find_covering_principle_direct(atelier_env: Dict) -> None:
+def test_find_covering_principle_direct(atelier_env: dict) -> None:
     s1, e1 = _accept("lexio", "testing", "a")
     s2, e2 = _accept("bht", "testing", "b")
     _pr.synthesize(source_slugs=[s1, s2], title="cov",

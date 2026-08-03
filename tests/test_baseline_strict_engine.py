@@ -16,7 +16,6 @@ perfectly scorable.
 from __future__ import annotations
 
 import pytest
-from typing import Dict
 
 from runtime.service.learnings import baseline as _bl
 
@@ -34,7 +33,7 @@ def test_structural_lexical_is_trustworthy() -> None:
                                       env_override="") is None
 
 
-def test_the_env_kill_switch_is_refused(atelier_env: Dict, monkeypatch) -> None:
+def test_the_env_kill_switch_is_refused(atelier_env: dict, monkeypatch) -> None:
     """THE G7 case, and the one an earlier draft of this guard got wrong by
     reading intent through gateway.settings_from (which honours the switch), so
     the guard did not fire on the very case it exists to catch."""
@@ -64,7 +63,7 @@ def test_unknown_engine_is_refused() -> None:
                                       env_override="") is not None
 
 
-def test_reads_the_live_env_when_no_override_is_passed(atelier_env: Dict,
+def test_reads_the_live_env_when_no_override_is_passed(atelier_env: dict,
                                                       monkeypatch) -> None:
     monkeypatch.delenv("ATELIER_EMBED", raising=False)
     assert _bl.degraded_engine_reason({"engine": "lexical-rrf"}) is None
@@ -79,7 +78,7 @@ def test_reads_the_live_env_when_no_override_is_passed(atelier_env: Dict,
 # `degraded_engine_reason` tests above would have missed either. These cover it.
 
 def test_cli_refuses_before_measuring_and_reports_on_stderr(
-        atelier_env: Dict, tmp_path, monkeypatch, capsys) -> None:
+        atelier_env: dict, tmp_path, monkeypatch, capsys) -> None:
     from runtime import cli as _cli
     calls = {"generate": 0}
 
@@ -97,12 +96,13 @@ def test_cli_refuses_before_measuring_and_reports_on_stderr(
     assert "REFUSED" in capsys.readouterr().err
 
 
-def test_cli_writes_file_digests_when_asked(atelier_env: Dict, tmp_path,
+def test_cli_writes_file_digests_when_asked(atelier_env: dict, tmp_path,
                                             monkeypatch) -> None:
     """Without this key `goal._with_changed_paths` returns silently and a
     fingerprint waiver's changed_paths bound cannot be scored — the failure the
     prescribed Snapshot command used to walk into."""
     import json
+
     from runtime import cli as _cli
     monkeypatch.setattr(_bl, "generate",
                         lambda **k: {"engine": "hybrid", "metrics": {}})
@@ -112,11 +112,12 @@ def test_cli_writes_file_digests_when_asked(atelier_env: Dict, tmp_path,
     assert isinstance(written.get("_file_digests"), dict)
 
 
-def test_cli_omits_file_digests_by_default(atelier_env: Dict, tmp_path,
+def test_cli_omits_file_digests_by_default(atelier_env: dict, tmp_path,
                                            monkeypatch) -> None:
     """The committed program anchor must stay small — 7k entries belong only in a
     round baseline, so the key is opt-in."""
     import json
+
     from runtime import cli as _cli
     monkeypatch.setattr(_bl, "generate",
                         lambda **k: {"engine": "hybrid", "metrics": {}})
@@ -126,7 +127,7 @@ def test_cli_omits_file_digests_by_default(atelier_env: Dict, tmp_path,
 
 
 def test_config_disabled_embeddings_makes_the_switch_redundant(
-        atelier_env: Dict, monkeypatch) -> None:
+        atelier_env: dict, monkeypatch) -> None:
     """RFC §5.6's parenthetical, enforced: on a machine whose CONFIG disables
     embeddings, `ATELIER_EMBED=off` changes nothing — both ends measure
     lexical-rrf — so refusing would tell the operator to unset a no-op."""
@@ -137,7 +138,7 @@ def test_config_disabled_embeddings_makes_the_switch_redundant(
 
 @pytest.mark.parametrize("engine", ["hybrid-degraded", "unknown"])
 def test_cli_refuses_after_measuring_a_transient_degrade(
-        engine: str, atelier_env: Dict, tmp_path, monkeypatch, capsys) -> None:
+        engine: str, atelier_env: dict, tmp_path, monkeypatch, capsys) -> None:
     """The post-measurement half, through the real CLI: a provider that did not
     answer (or an unopenable projection) is only visible in the engine label, so
     this branch runs AFTER generate(). Round-1's defects were both wiring, which
@@ -152,7 +153,7 @@ def test_cli_refuses_after_measuring_a_transient_degrade(
 
 
 def test_config_disabled_embeddings_read_from_a_real_config(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """Exercise the config READER itself, not a monkeypatch: round 1's near-miss
     was exactly a config-reading bug, so the real path needs pinning."""
     import yaml

@@ -15,9 +15,8 @@ landing path — the old `personal/inbox/` path decreed every captured note
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from ..structure import resolver as _structure
 from ..util import config
@@ -38,10 +37,10 @@ DEFAULT_DOMAIN = "inbox/undetermined"
 def capture(
     text: str,
     source: str = "manual",
-    title: Optional[str] = None,
+    title: str | None = None,
     domain: str = DEFAULT_DOMAIN,
     sensitivity: str = "private",
-    ctx: Optional[claims.CallContext] = None,
+    ctx: claims.CallContext | None = None,
 ) -> Path:
     """Land a capture into the `inbox` intake domain (<vault>/raw/inbox/).
 
@@ -64,7 +63,7 @@ def capture(
             inbox = legacy_inbox
     inbox.mkdir(parents=True, exist_ok=True)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ts = now.strftime("%Y%m%dT%H%M%S")
     slug = _slugify(title or text.split("\n", 1)[0])
     fname = f"{ts}-{slug}.md"

@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from . import loader
 
@@ -13,18 +14,18 @@ class Finding:
     rule_id: str
     severity: str
     message: str
-    page_slug: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    page_slug: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class LintReport:
-    findings: List[Finding] = field(default_factory=list)
-    rules_run: List[str] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
+    rules_run: list[str] = field(default_factory=list)
     fixes_applied: int = 0
 
-    def by_severity(self) -> Dict[str, int]:
-        out: Dict[str, int] = {}
+    def by_severity(self) -> dict[str, int]:
+        out: dict[str, int] = {}
         for f in self.findings:
             out[f.severity] = out.get(f.severity, 0) + 1
         return out
@@ -33,11 +34,11 @@ class LintReport:
         return any(f.severity == "FAIL" for f in self.findings)
 
 
-CheckFn = Callable[[sqlite3.Connection, loader.Rule, Optional[str]], List[Finding]]
+CheckFn = Callable[[sqlite3.Connection, loader.Rule, str | None], list[Finding]]
 FixFn   = Callable[[sqlite3.Connection, Finding], bool]
 
-_CHECKS: Dict[str, CheckFn] = {}
-_FIXES:  Dict[str, FixFn]   = {}
+_CHECKS: dict[str, CheckFn] = {}
+_FIXES:  dict[str, FixFn]   = {}
 
 
 def register_check(name: str):
@@ -56,8 +57,8 @@ def register_fix(name: str):
 
 def run(
     conn: sqlite3.Connection,
-    space: Optional[str] = None,
-    rule_ids: Optional[List[str]] = None,
+    space: str | None = None,
+    rule_ids: list[str] | None = None,
     apply_fixes: bool = False,
 ) -> LintReport:
     rules = loader.load_rules()

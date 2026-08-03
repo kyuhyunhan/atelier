@@ -1,9 +1,9 @@
 ---
-entry_id: 51377b06-ce3d-5bd5-a290-64fc79752232
+entry_id: 57fc2598-3a37-5ddf-adfc-afd11bae8c4d
 schema_version: 7
 kind: source
 created_at: '2026-07-01T09:00:00Z'
-content_hash: d853c8c0439beb91
+content_hash: sha256:6cfc8ab7657adf67d10e3ea68efec61dc9284518e66414ac251f3f6e6ee8ff8f
 title: 'Notes: SQLite WAL mode'
 sensitivity: public
 domain: knowledge

@@ -1,20 +1,20 @@
 ---
-entry_id: c786cdb9-0ec2-55ec-b563-b895dc20eda0
+entry_id: 2676ea5c-2737-517f-9a7f-54672cf3b2ae
 schema_version: 7
 kind: claim
 created_at: '2026-07-01T09:00:00Z'
-content_hash: 8a683d665fc8c90f
 statement: Label seed trays immediately — two unlabeled trays became indistinguishable
   within a week.
 is_about: []
 derived_from:
-- 5c3b3294-1f58-5fae-a3f3-b505fd76f8bd
+- c19103c6-3f91-5d46-9214-f04b4390f716
 attributed_to: claude-code
 generated_by: mint
 surfacing: query
 domain: operational
 sensitivity: public
 ac_status: pending
+content_hash: sha256:ef64b29a70e14afd06077dec8e96790ca1519a079503cb564135680cae3f7550
 ---
 
 Label seed trays at sowing time.

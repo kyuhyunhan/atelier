@@ -59,6 +59,18 @@ def test_seed_reindexes_validates_no_lint_fails(vault_env: Dict) -> None:
                   if str(f.get("severity", "")).upper() == "FAIL"]
     assert not lint_fails, f"seed has lint FAILs: {str(lint_fails)[:400]}"
 
+    # the README's entity-wikilink row must be TRUE: [[SQLite]]/[[홍길동]] in
+    # claim bodies resolve through the alias index (round-2 MUST). A dangling
+    # alias link has to_page NULL, so resolved-count is the honest signal.
+    from runtime.util import db as _db
+    conn = _db.connect()
+    try:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM links WHERE to_page_id IS NOT NULL").fetchone()[0]
+    finally:
+        conn.close()
+    assert n >= 3, f"entity wikilinks do not resolve (resolved links: {n})"
+
 
 def test_seed_atomize_nudge_is_actually_due(vault_env: Dict) -> None:
     """The README promises `atelier nudges` shows work — pin it. Two Sources
@@ -102,7 +114,19 @@ def test_seed_entry_ids_follow_the_engine_templates(vault_env: Dict) -> None:
             want = R.entry_id("claim", statement=fm["statement"],
                               derived_from="|".join(sorted(fm["derived_from"])))
         assert fm["entry_id"] == want, f"{p.name}: unconventional entry_id"
+    import hashlib
+    from runtime.service.learnings.claims_io import _content_hash
     for p, fm in _sources(vault):
+        # discriminator class is video_id|url|HASH (structure.yaml) — title is
+        # mutable prose, so the seed keys sources on the body hash. Recompute
+        # from the BODY, so a drifted content_hash cannot self-certify.
+        body = p.read_text().split("---", 2)[2]
+        ch = "sha256:" + hashlib.sha256(body.strip().encode()).hexdigest()
+        assert fm["content_hash"] == ch, f"{p.name}: content_hash != body hash"
         want = R.entry_id("source", created_at=fm["created_at"],
-                          discriminator=fm["title"])
+                          discriminator=ch)
         assert fm["entry_id"] == want, f"{p.name}: unconventional entry_id"
+    # claims/entities: the engine hashes the frontmatter sans content_hash
+    for p, fm in _atomic_nodes(vault):
+        assert fm["content_hash"] == _content_hash(fm), \
+            f"{p.name}: content_hash not the claims_io convention"

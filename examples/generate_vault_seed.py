@@ -14,14 +14,16 @@ import sys
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from runtime.service.learnings.claims_io import _content_hash  # noqa: E402
 from runtime.structure import resolver as R  # noqa: E402
+
+
+def _body_hash(body: str) -> str:
+    """Source content_hash: the engine hashes the BODY (cf. youtube.py ingest)."""
+    return "sha256:" + hashlib.sha256(body.strip().encode("utf-8")).hexdigest()
 
 ROOT = pathlib.Path(__file__).resolve().parent / "vault-seed"
 C = "2026-07-01T09:00:00Z"
-
-
-def _h(s: str) -> str:
-    return hashlib.sha256(s.encode()).hexdigest()[:16]
 
 
 def page(rel, fm, body):
@@ -32,9 +34,10 @@ def page(rel, fm, body):
 
 
 def src(rel, title, dom, sens, attributed, body, created=C):
-    eid = R.entry_id("source", created_at=created, discriminator=title)
+    ch = _body_hash(body)
+    eid = R.entry_id("source", created_at=created, discriminator=ch)
     page(rel, {"entry_id": eid, "schema_version": 7, "kind": "source",
-               "created_at": created, "content_hash": _h(title), "title": title,
+               "created_at": created, "content_hash": ch, "title": title,
                "sensitivity": sens, "domain": dom, "attributed_to": attributed},
          body)
     return eid
@@ -42,10 +45,14 @@ def src(rel, title, dom, sens, attributed, body, created=C):
 
 def ent(slug, label, typ, scheme, sens, body):
     eid = R.entry_id("entity", type=typ, pref_label=label)
-    page(f"graph/atomic/seed-ent-{slug}.md",
-         {"entry_id": eid, "schema_version": 7, "kind": "entity",
-          "created_at": C, "content_hash": _h(label), "sensitivity": sens,
-          "pref_label": label, "type": typ, "in_scheme": scheme}, body)
+    fm = {"entry_id": eid, "schema_version": 7, "kind": "entity",
+          "created_at": C, "sensitivity": sens,
+          "pref_label": label, "type": typ, "in_scheme": scheme,
+          # basename is seed-ent-<slug>, so bare [[pref_label]] wikilinks in
+          # claim bodies resolve through the alias index, not the basename
+          "aliases": [label]}
+    fm["content_hash"] = _content_hash(fm)
+    page(f"graph/atomic/seed-ent-{slug}.md", fm, body)
     return eid
 
 
@@ -54,12 +61,13 @@ def clm(name, statement, dom, surf, sens, derived, about, attributed,
     eid = R.entry_id("claim", statement=statement,
                      derived_from="|".join(sorted(derived)))
     fm = {"entry_id": eid, "schema_version": 7, "kind": "claim", "created_at": C,
-          "content_hash": _h(statement), "statement": statement,
+          "statement": statement,
           "is_about": about, "derived_from": derived,
           "attributed_to": attributed, "generated_by": generated,
           "surfacing": surf, "domain": dom, "sensitivity": sens}
     if extra:
         fm.update(extra)
+    fm["content_hash"] = _content_hash(fm)
     page(f"graph/atomic/seed-clm-{name}.md", fm, body or statement)
     return eid
 

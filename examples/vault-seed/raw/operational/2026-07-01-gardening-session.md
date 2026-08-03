@@ -1,9 +1,9 @@
 ---
-entry_id: 5c3b3294-1f58-5fae-a3f3-b505fd76f8bd
+entry_id: c19103c6-3f91-5d46-9214-f04b4390f716
 schema_version: 7
 kind: source
 created_at: '2026-07-01T09:00:00Z'
-content_hash: 21918bf4bc3f2f53
+content_hash: sha256:80da7fe3ed2c7cfd3bab35553b6b39754b8d2b01c40e173eb230a5ae5a96691f
 title: 'Session: balcony gardening retro'
 sensitivity: public
 domain: operational

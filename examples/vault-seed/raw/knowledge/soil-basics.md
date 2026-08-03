@@ -1,9 +1,9 @@
 ---
-entry_id: 42ae4e14-28e4-5cbb-b46c-554273cfaffb
+entry_id: 60d6a02e-1654-56ac-ab28-67a849a74edb
 schema_version: 7
 kind: source
 created_at: '2026-07-01T09:00:00Z'
-content_hash: cabc68e928cf2885
+content_hash: sha256:c9e03e4e50c6ca823e97e622cadc4ef6b0123033ee9e9ea1aa4289fb14d3aab6
 title: 'Notes: soil for container gardening'
 sensitivity: public
 domain: knowledge

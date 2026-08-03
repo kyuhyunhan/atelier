@@ -29,7 +29,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-
 from .engine import Candidate, RetrievalEngine, Scope
 
 

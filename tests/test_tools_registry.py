@@ -13,7 +13,6 @@ path through invoke() is the load-bearing contract.
 from __future__ import annotations
 
 import asyncio
-from typing import Dict
 
 import pytest
 
@@ -34,14 +33,14 @@ def test_v01_tools_registered() -> None:
     assert not missing, f"missing tools: {missing}"
 
 
-def test_invoke_read_tool_dispatches(atelier_env: Dict) -> None:
+def test_invoke_read_tool_dispatches(atelier_env: dict) -> None:
     """Read tools should dispatch with the default local-cli session
     and not touch the lock registry."""
     # Need a fresh DB for the search tool to run safely.
     from runtime.util import db
     db.close_shared()
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await tools.invoke("atelier_search", query="nonexistent",
                                   limit=5, fallback=False)
 
@@ -49,7 +48,7 @@ def test_invoke_read_tool_dispatches(atelier_env: Dict) -> None:
     assert "hits" in out
 
 
-def test_invoke_write_tool_blocks_unprivileged_caller(atelier_env: Dict) -> None:
+def test_invoke_write_tool_blocks_unprivileged_caller(atelier_env: dict) -> None:
     """A session without WIKI_WRITE must be rejected by atelier_reindex."""
     poor = auth.Session(transport="mcp-http", caller="poor", claims=frozenset())
     tok = tools.set_session(poor)
@@ -62,14 +61,14 @@ def test_invoke_write_tool_blocks_unprivileged_caller(atelier_env: Dict) -> None
         tools._current.reset(tok)
 
 
-def test_invoke_write_tool_serializes_on_role_lock(atelier_env: Dict) -> None:
+def test_invoke_write_tool_serializes_on_role_lock(atelier_env: dict) -> None:
     """Two writes through the same write tool must run one-at-a-time."""
     claims.reset_registry()
     order: list[str] = []
 
     # Stand in a custom write tool that records ordering — we don't
     # want to actually mutate the workspace here.
-    async def _h_demo(tag: str, hold: float = 0.02) -> Dict:
+    async def _h_demo(tag: str, hold: float = 0.02) -> dict:
         order.append(f"{tag}:in")
         await asyncio.sleep(hold)
         order.append(f"{tag}:out")
@@ -93,7 +92,7 @@ def test_invoke_write_tool_serializes_on_role_lock(atelier_env: Dict) -> None:
     assert order == ["A:in", "A:out", "B:in", "B:out"]
 
 
-def test_mcp_stdio_builds_without_running(atelier_env: Dict) -> None:
+def test_mcp_stdio_builds_without_running(atelier_env: dict) -> None:
     """build_app() should construct a FastMCP with all tools registered
     — but we don't start the stdio loop (that needs real stdin)."""
     # Only THIS test needs the `serve` extra; the dispatch tests (the load-bearing

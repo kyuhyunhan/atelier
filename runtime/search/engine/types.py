@@ -12,7 +12,6 @@ point. A backend is free to populate these however it likes.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
 
 
 @dataclass(frozen=True)
@@ -32,10 +31,10 @@ class Scope:
     the fused set, not a mode concern, so it is deliberately NOT here.
     """
 
-    space: Optional[str] = None
+    space: str | None = None
     page_types: tuple[str, ...] = ()
-    provenance: Optional[str] = None
-    sensitivity: Optional[str] = None
+    provenance: str | None = None
+    sensitivity: str | None = None
     # NOTE: SQL translation of a Scope lives in the backend-specific
     # `sqlite_scope.scope_where`, NOT here — this module stays backend-free.
 

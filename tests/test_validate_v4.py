@@ -4,16 +4,14 @@ from __future__ import annotations
 import asyncio
 import uuid as _uuid
 from pathlib import Path
-from typing import Any, Dict
 
-import pytest
 import yaml
 
 from runtime.lint import validate_v4
 from runtime.service import api as _api
 
 
-def _write(path: Path, fm: Dict, body: str = "body\n") -> None:
+def _write(path: Path, fm: dict, body: str = "body\n") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
@@ -23,7 +21,7 @@ def _uid() -> str:
     return str(_uuid.uuid4())
 
 
-def test_valid_learning_candidate_passes(atelier_env: Dict) -> None:
+def test_valid_learning_candidate_passes(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
@@ -41,7 +39,7 @@ def test_valid_learning_candidate_passes(atelier_env: Dict) -> None:
     assert findings == []
 
 
-def test_v5_accepted_with_facets_and_no_topic_passes(atelier_env: Dict) -> None:
+def test_v5_accepted_with_facets_and_no_topic_passes(atelier_env: dict) -> None:
     """RFC 0001 / P1: an accepted learning may be schema_version 5, carry
     `aspect[]` + typed `links`, and omit `target_topic` (now optional)."""
     vault = atelier_env["wiki"]
@@ -67,7 +65,7 @@ def test_v5_accepted_with_facets_and_no_topic_passes(atelier_env: Dict) -> None:
     assert findings == [], [f.message for f in findings]
 
 
-def test_v4_accepted_in_notes_still_valid(atelier_env: Dict) -> None:
+def test_v4_accepted_in_notes_still_valid(atelier_env: dict) -> None:
     """Backward-compat: a v4 accepted record (with target_topic) in the flat
     notes/ store remains valid (schema_version accepts {4, 5})."""
     vault = atelier_env["wiki"]
@@ -88,7 +86,7 @@ def test_v4_accepted_in_notes_still_valid(atelier_env: Dict) -> None:
     assert findings == [], [f.message for f in findings]
 
 
-def test_accepted_missing_required_field_fails(atelier_env: Dict) -> None:
+def test_accepted_missing_required_field_fails(atelier_env: dict) -> None:
     """Proves the learning_accepted overlay actually matches notes/ paths: a
     missing required field (accepted_at) must FAIL validation, not slip through
     the path-unmatched minimal check."""
@@ -110,7 +108,7 @@ def test_accepted_missing_required_field_fails(atelier_env: Dict) -> None:
     assert "accepted_at" in msgs, msgs
 
 
-def test_missing_required_field_fails(atelier_env: Dict) -> None:
+def test_missing_required_field_fails(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
@@ -126,7 +124,7 @@ def test_missing_required_field_fails(atelier_env: Dict) -> None:
     assert "missing required field: agent_kind" in msgs
 
 
-def test_domain_entity_validates_without_first_mention(atelier_env: Dict) -> None:
+def test_domain_entity_validates_without_first_mention(atelier_env: dict) -> None:
     """RFC 0003: themes fold into entities as the `domain` category, which has no
     single first_mention. The schema must accept category=domain AND treat
     first_mention as optional (616 existing domain/concept entities already lack
@@ -145,12 +143,12 @@ def test_domain_entity_validates_without_first_mention(atelier_env: Dict) -> Non
     assert "first_mention" not in msgs, msgs
 
 
-def _write_ret(path: Path, fm: Dict, body: str = "body\n") -> Path:
+def _write_ret(path: Path, fm: dict, body: str = "body\n") -> Path:
     _write(path, fm, body)
     return path
 
 
-def test_present_first_mention_still_pattern_checked(atelier_env: Dict) -> None:
+def test_present_first_mention_still_pattern_checked(atelier_env: dict) -> None:
     """Making first_mention optional must NOT stop pattern-checking it when
     present — a malformed value on a person entity still fails (the field_specs
     loop fires on presence, independent of required_fields)."""
@@ -167,7 +165,7 @@ def test_present_first_mention_still_pattern_checked(atelier_env: Dict) -> None:
         [f.message for f in findings]
 
 
-def test_wrong_schema_version_fails(atelier_env: Dict) -> None:
+def test_wrong_schema_version_fails(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     fm = {"schema_version": 3, "entry_id": _uid()}
     p = vault / "raw" / "old.md"
@@ -176,7 +174,7 @@ def test_wrong_schema_version_fails(atelier_env: Dict) -> None:
     assert any("schema_version" in f.message for f in findings)
 
 
-def test_const_mismatch_fails(atelier_env: Dict) -> None:
+def test_const_mismatch_fails(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
@@ -195,7 +193,7 @@ def test_const_mismatch_fails(atelier_env: Dict) -> None:
                for f in findings)
 
 
-def test_duplicate_entry_id_corpus_check(atelier_env: Dict) -> None:
+def test_duplicate_entry_id_corpus_check(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     eid = _uid()
     common = {
@@ -216,7 +214,7 @@ def test_duplicate_entry_id_corpus_check(atelier_env: Dict) -> None:
     assert any(f.rule_id == "V1" for f in findings)
 
 
-def test_api_validate_returns_summary(atelier_env: Dict) -> None:
+def test_api_validate_returns_summary(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     fm = {"schema_version": 3, "entry_id": _uid()}
     _write(vault / "raw" / "stale.md", fm)
@@ -225,7 +223,7 @@ def test_api_validate_returns_summary(atelier_env: Dict) -> None:
     assert out["scanned"] >= 1
 
 
-def test_mcp_dispatch_validate(atelier_env: Dict) -> None:
+def test_mcp_dispatch_validate(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
     vault = atelier_env["wiki"]
     fm = {
@@ -239,7 +237,7 @@ def test_mcp_dispatch_validate(atelier_env: Dict) -> None:
         "observation_kind": "feedback",
     }
     _write(vault / "learnings" / "candidates" / "2026-05-28" / "1305-x.md", fm)
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_validate")
     out = asyncio.run(go())
     assert out["failed"] is False

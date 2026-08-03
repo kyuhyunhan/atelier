@@ -23,14 +23,12 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import yaml
 
 from runtime.index import parse as _parse
 from runtime.service.learnings import store as _store
 from runtime.util import config as _config
-
 
 _SLUG_RX = re.compile(r"[^a-z0-9-]+")
 ABSORB_SIGNAL = "absorbed"
@@ -40,7 +38,7 @@ def _slugify(value: str) -> str:
     return _SLUG_RX.sub("-", (value or "").strip().lower()).strip("-")
 
 
-def _as_list(value) -> List[str]:
+def _as_list(value) -> list[str]:
     if isinstance(value, list):
         return [str(v) for v in value if isinstance(v, (str, int))]
     if isinstance(value, str) and value.strip():
@@ -54,10 +52,10 @@ def _resolve_vault(cfg: _config.Config) -> Path:
     return cfg.space_by_role("librarian-territory").local
 
 
-def _workshop_index(vault: Path) -> Dict[str, Dict]:
+def _workshop_index(vault: Path) -> dict[str, dict]:
     """filename → {layer, also_in} from the live workshop memory notes, the only
     surviving source of `also_in` for the damaged records."""
-    idx: Dict[str, Dict] = {}
+    idx: dict[str, dict] = {}
     root = vault / "workshop" / "products"
     if not root.exists():
         return idx
@@ -72,7 +70,7 @@ def _workshop_index(vault: Path) -> Dict[str, Dict]:
     return idx
 
 
-def _repair_fm(fm: Dict, ws: Optional[Dict]) -> Optional[Dict]:
+def _repair_fm(fm: dict, ws: dict | None) -> dict | None:
     """Return a repaired frontmatter dict, or None if nothing to do."""
     if fm.get("agent_kind") != ABSORB_SIGNAL:
         return None
@@ -85,7 +83,7 @@ def _repair_fm(fm: Dict, ws: Optional[Dict]) -> Optional[Dict]:
     primary = _slugify(layer) if isinstance(layer, str) and layer \
         else _slugify(fm.get("target_topic") or "")
 
-    aspects: List[str] = []
+    aspects: list[str] = []
     for a in [primary, *(_slugify(x) for x in also_in)]:
         if a and a not in aspects:
             aspects.append(a)
@@ -97,9 +95,9 @@ def _repair_fm(fm: Dict, ws: Optional[Dict]) -> Optional[Dict]:
     return new
 
 
-def repair(vault: Path, *, apply: bool = False) -> Dict[str, object]:
+def repair(vault: Path, *, apply: bool = False) -> dict[str, object]:
     ws_index = _workshop_index(vault)
-    repaired: List[str] = []
+    repaired: list[str] = []
     skipped = 0
     recovered_also_in = 0
 
@@ -131,7 +129,7 @@ def repair(vault: Path, *, apply: bool = False) -> Dict[str, object]:
             "samples": repaired[:8]}
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Repair workshop-absorb damaged learnings (RFC 0001 P6).")
     ap.add_argument("--apply", action="store_true",

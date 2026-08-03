@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import uuid as _uuid
 from collections import defaultdict
+from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
@@ -24,7 +25,6 @@ from .. import structure as _structure
 from ..index import parse as _parse
 from ..util import config as _config
 from .runner import Finding
-
 
 _SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema" / "data"
 
@@ -46,7 +46,7 @@ def _expand_content_root(obj: Any) -> Any:
     return obj
 
 
-def _load_overlay(name: str) -> Dict[str, Any]:
+def _load_overlay(name: str) -> dict[str, Any]:
     path = _SCHEMA_DIR / f"{name}.overlay.yaml"
     if not path.exists():
         return {}
@@ -54,7 +54,7 @@ def _load_overlay(name: str) -> Dict[str, Any]:
     return _expand_content_root(raw)
 
 
-def _all_overlays() -> List[Dict[str, Any]]:
+def _all_overlays() -> list[dict[str, Any]]:
     # Space-named overlays (RFC 0001 retired the librarian/builder agent names).
     # `graph` (RFC 0005 v7) is dispatched by the `kind` field, not by path — it
     # is intentionally NOT in this path-matched list (see _v7_spec_for). Its
@@ -67,28 +67,28 @@ def _all_overlays() -> List[Dict[str, Any]]:
 
 
 @lru_cache(maxsize=1)
-def _v7_specs() -> Dict[str, Dict[str, Any]]:
+def _v7_specs() -> dict[str, dict[str, Any]]:
     """v7 node specs (RFC 0005), keyed by `kind` not path.
 
     The graph overlay lays its three node classes flat under graph/, so they
     are selected by the `kind` frontmatter field — never by directory (RFC 0005
     §3 invariant: classification is a field, not a path)."""
     overlay = _load_overlay("graph")
-    out: Dict[str, Dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     for ptype, spec in (overlay.get("page_types") or {}).items():
         kind = spec.get("kind") or ptype
         out[kind] = spec
     return out
 
 
-def _allowed_schema_versions() -> Tuple[int, ...]:
+def _allowed_schema_versions() -> tuple[int, ...]:
     """schema_version enum, single-sourced from base.yaml (hard rule #3)."""
     base = yaml.safe_load((_SCHEMA_DIR / "base.yaml").read_text(encoding="utf-8"))
     enum = ((base.get("fields") or {}).get("schema_version") or {}).get("enum")
     return tuple(enum or (4, 5, 7))
 
 
-def _patterns_of(spec: Dict[str, Any]) -> List[str]:
+def _patterns_of(spec: dict[str, Any]) -> list[str]:
     """A page_type may declare a single `path_pattern` or, during a layout
     migration, several via `path_patterns` (list). Both are supported so one
     type can match an old and a new location at once (RFC 0001: learning_accepted
@@ -100,7 +100,7 @@ def _patterns_of(spec: Dict[str, Any]) -> List[str]:
     return [one] if one else []
 
 
-def page_type_rules() -> List[Tuple[str, str]]:
+def page_type_rules() -> list[tuple[str, str]]:
     """All (path_pattern, page_type) pairs across overlays, declaration order.
 
     Single source of truth for BOTH frontmatter validation (`_match_page_type`)
@@ -109,7 +109,7 @@ def page_type_rules() -> List[Tuple[str, str]]:
     runtime code. Declaration order encodes specificity — more specific
     patterns must be declared before broader globs.
     """
-    rules: List[Tuple[str, str]] = []
+    rules: list[tuple[str, str]] = []
     for overlay in _all_overlays():
         for ptype, spec in (overlay.get("page_types") or {}).items():
             for pattern in _patterns_of(spec):
@@ -127,8 +127,8 @@ def _is_uuid(value: Any) -> bool:
         return False
 
 
-def _match_page_type(rel_path: str, overlays: Iterable[Dict[str, Any]]
-                    ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+def _match_page_type(rel_path: str, overlays: Iterable[dict[str, Any]]
+                    ) -> tuple[str | None, dict[str, Any] | None]:
     """Pick the first overlay page_type whose path_pattern matches.
 
     The pattern uses `**` and `*` (POSIX-glob style). Most specific first
@@ -152,10 +152,10 @@ def _glob_match(pattern: str, rel: str) -> bool:
     return bool(re.fullmatch(rx, rel))
 
 
-def _check_field_spec(field_name: str, value: Any, spec: Dict[str, Any]
-                      ) -> List[str]:
+def _check_field_spec(field_name: str, value: Any, spec: dict[str, Any]
+                      ) -> list[str]:
     """Return list of error strings for one frontmatter field."""
-    errors: List[str] = []
+    errors: list[str] = []
     expected_type = spec.get("type")
     nullable = bool(spec.get("nullable", False))
     if value is None:
@@ -199,10 +199,10 @@ def _looks_like_date(s: str) -> bool:
 
 
 def _validate_one(path: Path, rel_path: str,
-                  overlays: List[Dict[str, Any]]) -> List[str]:
+                  overlays: list[dict[str, Any]]) -> list[str]:
     text = path.read_text(encoding="utf-8")
     fm, _body = _parse.split_frontmatter(text)
-    errors: List[str] = []
+    errors: list[str] = []
 
     allowed = _allowed_schema_versions()
     sv = fm.get("schema_version")
@@ -243,11 +243,11 @@ def _validate_one(path: Path, rel_path: str,
     return errors
 
 
-def validate_paths(paths: List[Path], *, vault_root: Path,
-                   fail_fast: bool = False) -> List[Finding]:
+def validate_paths(paths: list[Path], *, vault_root: Path,
+                   fail_fast: bool = False) -> list[Finding]:
     overlays = _all_overlays()
-    findings: List[Finding] = []
-    seen_entry_ids: Dict[str, List[Path]] = defaultdict(list)
+    findings: list[Finding] = []
+    seen_entry_ids: dict[str, list[Path]] = defaultdict(list)
 
     for p in paths:
         try:
@@ -284,7 +284,7 @@ def validate_paths(paths: List[Path], *, vault_root: Path,
 
 
 def validate_vault(role: str = "librarian-territory",
-                   *, fail_fast: bool = False) -> List[Finding]:
+                   *, fail_fast: bool = False) -> list[Finding]:
     cfg = _config.load()
     if cfg.vault is not None:
         root = cfg.vault.local

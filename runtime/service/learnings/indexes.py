@@ -13,10 +13,8 @@ claims — are discovered by a facet/tier query over the claim store
 """
 from __future__ import annotations
 
-from typing import Dict, Optional
 
-
-def regen_principles(vault: Optional[object] = None) -> Dict[str, object]:
+def regen_principles(vault: object | None = None) -> dict[str, object]:
     """Retired. The principles "index" is now a tier query over claims, not a
     generated INDEX.md in a legacy directory. Kept as a no-op for call-site
     compatibility (returns the same shape as before, `written: False`)."""

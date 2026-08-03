@@ -20,12 +20,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
 from . import store as _store
-
 
 _OVERLAY = (Path(__file__).resolve().parents[3] / "schema" / "data"
             / "learnings.overlay.yaml")
@@ -48,13 +47,13 @@ class Criterion:
 @dataclass
 class CriteriaSet:
     version: int = 1
-    must: List[Criterion] = field(default_factory=list)
-    should: List[Criterion] = field(default_factory=list)
-    forbidden: List[Criterion] = field(default_factory=list)
+    must: list[Criterion] = field(default_factory=list)
+    should: list[Criterion] = field(default_factory=list)
+    forbidden: list[Criterion] = field(default_factory=list)
 
 
-def _parse(blob: Dict[str, Any]) -> CriteriaSet:
-    def _criteria(key: str) -> List[Criterion]:
+def _parse(blob: dict[str, Any]) -> CriteriaSet:
+    def _criteria(key: str) -> list[Criterion]:
         return [Criterion(id=c["id"], desc=c.get("desc", ""))
                 for c in (blob.get(key) or [])]
     return CriteriaSet(
@@ -69,7 +68,7 @@ def load(vault_root: Path) -> CriteriaSet:
     """Parse the in-vault criteria file, falling back to the overlay
     template when the user hasn't seeded one yet."""
     in_vault = _store.learning_root(vault_root) / "criteria.yaml"
-    blob: Dict[str, Any]
+    blob: dict[str, Any]
     if in_vault.exists():
         blob = yaml.safe_load(in_vault.read_text()) or {}
     else:
@@ -111,7 +110,7 @@ def _check_has_why(body: str) -> bool:
     return bool(m.group(1).strip())
 
 
-def _check_is_specific(fm: Dict[str, Any], body: str) -> bool:
+def _check_is_specific(fm: dict[str, Any], body: str) -> bool:
     # Specific = has either project_hint or session_id or working_dir,
     # AND body is more than 40 characters of substance.
     if not (fm.get("project_hint") or fm.get("session_id") or fm.get("working_dir")):
@@ -129,22 +128,22 @@ def _check_is_actionable(body: str) -> bool:
                          body, re.I | re.M))
 
 
-def _check_tied_to_event(fm: Dict[str, Any]) -> bool:
+def _check_tied_to_event(fm: dict[str, Any]) -> bool:
     return bool(fm.get("session_id") or fm.get("working_dir"))
 
 
-def _check_has_project_tag(fm: Dict[str, Any]) -> bool:
+def _check_has_project_tag(fm: dict[str, Any]) -> bool:
     return bool(fm.get("project_hint"))
 
 
-def _check_novel(fm: Dict[str, Any], accepted_index: List[str]) -> bool:
+def _check_novel(fm: dict[str, Any], accepted_index: list[str]) -> bool:
     """Conservative novelty: dedupe by entry_id only. A real similarity
     check is deferred; here we just refuse re-accepting an entry_id
     already in accepted_index."""
     return fm.get("entry_id") not in accepted_index
 
 
-def _check_retracted(fm: Dict[str, Any]) -> bool:
+def _check_retracted(fm: dict[str, Any]) -> bool:
     return str(fm.get("ac_status", "")).lower() == "retracted"
 
 
@@ -177,9 +176,9 @@ _AUTO_CHECKS = {
 
 @dataclass
 class CheckResult:
-    must:      Dict[str, Optional[bool]] = field(default_factory=dict)
-    should:    Dict[str, Optional[bool]] = field(default_factory=dict)
-    forbidden: Dict[str, Optional[bool]] = field(default_factory=dict)
+    must:      dict[str, bool | None] = field(default_factory=dict)
+    should:    dict[str, bool | None] = field(default_factory=dict)
+    forbidden: dict[str, bool | None] = field(default_factory=dict)
 
     def must_pass(self) -> bool:
         # must passes if every check is explicitly True. Unknown (None)
@@ -191,10 +190,10 @@ class CheckResult:
         return all(v is False for v in self.forbidden.values())
 
 
-def check(fm: Dict[str, Any], body: str, *,
-          accepted_index: Optional[List[str]] = None,
-          criteria: Optional[CriteriaSet] = None,
-          vault_root: Optional[Path] = None) -> CheckResult:
+def check(fm: dict[str, Any], body: str, *,
+          accepted_index: list[str] | None = None,
+          criteria: CriteriaSet | None = None,
+          vault_root: Path | None = None) -> CheckResult:
     if criteria is None:
         if vault_root is None:
             raise ValueError("check() needs either `criteria` or `vault_root`")

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import pytest
 
-from runtime.service.learnings import contract as _c
 from runtime.service.learnings.contract import ContractError, evaluate, namespace
 
 

@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from . import recall as _recall
 
@@ -68,7 +68,7 @@ T0_CAP = 3
 # Priors are >1 for "boost", <1 for "dampen", 1.0 neutral. They are deliberately
 # gentle (within ~1 order of magnitude) so a strong vector match can still beat a
 # domain-favoured weak one — the prior RANKS within a tier, it does not silo.
-_CODING_PRIOR: Dict[str, float] = {
+_CODING_PRIOR: dict[str, float] = {
     "operational": 2.0,     # operational learnings are what a coding turn wants
     "knowledge":   1.0,     # reference knowledge: neutral / mid
     "inbox":       1.0,     # undetermined-domain captures: mid
@@ -79,7 +79,7 @@ _DEFAULT_PRIOR = 1.0        # an unknown domain is treated as mid (neutral)
 _CURRENT_PROJECT_PRIOR = 2.0  # claim.project == active project → top band
 
 
-def domain_prior(domain: Optional[str], *, project_match: bool) -> float:
+def domain_prior(domain: str | None, *, project_match: bool) -> float:
     """The §6 context prior for a coding session. `domain` is the claim's domain
     field; `project_match` is True when the claim's `project` equals the active
     project. Both bands ("operational" and "current-project") are HIGH, and they
@@ -91,7 +91,7 @@ def domain_prior(domain: Optional[str], *, project_match: bool) -> float:
 # ── factors ───────────────────────────────────────────────────────────────────
 
 
-def surfacing_level(fm: Dict[str, Any]) -> str:
+def surfacing_level(fm: dict[str, Any]) -> str:
     """The claim's declared surfacing tier, defaulting to the most restrictive
     (`query`) when absent/invalid — an un-tagged claim is on-query-only, never
     silently pushed."""
@@ -106,7 +106,7 @@ def gate(level: str, tier: str) -> bool:
     return _LADDER.get(level, 0) >= _LADDER.get(tier, 0)
 
 
-def sensitivity_gate(fm: Dict[str, Any], tier: str) -> bool:
+def sensitivity_gate(fm: dict[str, Any], tier: str) -> bool:
     """HARD gate: `sensitivity: private` claims are NEVER pushed at T1/T0. They
     are reachable ONLY by explicit on-query (T2). Returns True when the claim may
     pass at this tier."""
@@ -115,8 +115,8 @@ def sensitivity_gate(fm: Dict[str, Any], tier: str) -> bool:
     return (fm.get("sensitivity") or "").lower() != "private"
 
 
-def project_scope_gate(fm: Dict[str, Any], tier: str,
-                       project: Optional[str]) -> bool:
+def project_scope_gate(fm: dict[str, Any], tier: str,
+                       project: str | None) -> bool:
     """HARD gate (RFC 0009 G3): when the session's project is known, a claim
     OWNED by a *different* project is never PUSHED (T1/T0). It stays reachable
     by explicit on-query (T2) — same shape as the sensitivity gate: push is
@@ -141,7 +141,7 @@ def project_scope_gate(fm: Dict[str, Any], tier: str,
 # ── scorer ────────────────────────────────────────────────────────────────────
 
 
-def score_claim(hit: Dict[str, Any], *, tier: str, project: Optional[str]) -> float:
+def score_claim(hit: dict[str, Any], *, tier: str, project: str | None) -> float:
     """The §6 product for one fused claim hit:
 
         gate(surfacing) × domain_prior(context) × vector_relevance × sensitivity_gate
@@ -175,9 +175,9 @@ def score_claim(hit: Dict[str, Any], *, tier: str, project: Optional[str]) -> fl
 _CLAIM_TYPES = ["claim"]
 
 
-def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
-                vault: Optional[Path] = None,
-                lens: Optional[str] = None) -> List[Dict[str, Any]]:
+def rank_claims(query: str, project: str | None, *, tier: str, top_k: int,
+                vault: Path | None = None,
+                lens: str | None = None) -> list[dict[str, Any]]:
     """Retrieve + score v7 claims for one turn at a surfacing `tier`.
 
     Pipeline: resolver fusion (lexical+vector) scoped to page_type `claim` →
@@ -197,7 +197,7 @@ def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
     if not hits:
         hits = _fs_scan_claims(query, vault, limit=max(top_k * 4, T0_CAP * 4))
 
-    scored: List[Dict[str, Any]] = []
+    scored: list[dict[str, Any]] = []
     for h in hits:
         s = score_claim(h, tier=tier, project=project)
         if s <= 0.0:
@@ -220,7 +220,7 @@ def rank_claims(query: str, project: Optional[str], *, tier: str, top_k: int,
     return scored[:budget]
 
 
-def _fs_scan_claims(query: str, vault: Path, *, limit: int) -> List[Dict[str, Any]]:
+def _fs_scan_claims(query: str, vault: Path, *, limit: int) -> list[dict[str, Any]]:
     """Fallback when the FTS index has no `claim` rows yet (fresh installs / a
     resolver outage). Token-match over the flat graph/ tree, keeping only docs
     whose frontmatter is a v7 claim. Mirrors recall._fs_scan's score convention
@@ -233,7 +233,7 @@ def _fs_scan_claims(query: str, vault: Path, *, limit: int) -> List[Dict[str, An
     graph_root = vault / _recall_graph_root()
     if not graph_root.exists():
         return []
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for p in sorted(graph_root.rglob("*.md")):
         try:
             fm, body = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
@@ -275,7 +275,7 @@ def _claim_slug(raw: str) -> str:
     return name[:-3] if name.endswith(".md") else name
 
 
-def _summarize_claim(hit: Dict[str, Any]) -> Dict[str, Any]:
+def _summarize_claim(hit: dict[str, Any]) -> dict[str, Any]:
     fm = hit.get("fm") or {}
     statement = fm.get("statement") or hit.get("snippet") or ""
     return {
@@ -290,11 +290,11 @@ def _summarize_claim(hit: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def recall_claims(*, query: str,
-                  project: Optional[str] = None,
+                  project: str | None = None,
                   tier: str = TIER_PROACTIVE,
                   top_k: int = 5,
                   max_chars: int = 1500,
-                  lens: Optional[str] = None) -> Dict[str, Any]:
+                  lens: str | None = None) -> dict[str, Any]:
     """RFC 0005 §6 recall over v7 claims at a surfacing `tier`.
 
     - `tier=query`   (T2): universal on-query; any claim, domain prior ignored,

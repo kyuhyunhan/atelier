@@ -1,11 +1,10 @@
 """D1–D6 system-health checks. Each is independent and pure."""
 from __future__ import annotations
 
-import sqlite3
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..util import config, fs
 
@@ -16,7 +15,7 @@ class Diagnosis:
     name: str
     severity: str  # OK | WARN | FAIL
     message: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 # The DB schema_version the engine writes (schema/db/sql/0001_initial.sql seed).
@@ -48,8 +47,8 @@ def D1_db_present(cfg: config.Config) -> Diagnosis:
 
 def D2_filesystem_drift(cfg: config.Config) -> Diagnosis:
     """D2: do indexed slugs match the filesystem?"""
-    from ..util import db
     from ..index.reindex import canonical_spaces
+    from ..util import db
     conn = db.connect()
     drifted: list[tuple[str, str, str]] = []
     try:
@@ -177,5 +176,5 @@ ALL_CHECKS = [D1_db_present, D2_filesystem_drift, D3_voice_overlay,
               D8_dangling_regressions]
 
 
-def run_all(cfg: config.Config) -> List[Diagnosis]:
+def run_all(cfg: config.Config) -> list[Diagnosis]:
     return [check(cfg) for check in ALL_CHECKS]

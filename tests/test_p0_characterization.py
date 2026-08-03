@@ -14,15 +14,12 @@ by construction.
 """
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 from runtime.service import api
 from runtime.service.learnings import bootstrap as _bs
 from runtime.service.learnings import principles as _pr
 from runtime.service.learnings import recall as _rc
 from runtime.service.learnings import surfacing as _sf
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 4, "agent_kind": "claude-code", "status": "accepted",
@@ -32,7 +29,7 @@ _BASE = {
 
 
 def _accepted(vault, *, entry_id: str, topic: str, body: str,
-              project: Optional[str] = None, touches=None) -> None:
+              project: str | None = None, touches=None) -> None:
     """Seed an accepted learning in the flat notes/ store (RFC 0001)."""
     fm = {**_BASE, "entry_id": entry_id, "target_topic": topic}
     if project:
@@ -75,7 +72,7 @@ def _seed(vault) -> None:
 # ── recall ──────────────────────────────────────────────────────────────────
 
 
-def test_recall_project_boost_orders_current_project_first(vault_env: Dict) -> None:
+def test_recall_project_boost_orders_current_project_first(vault_env: dict) -> None:
     """L1 (lexio) and L3 (bht) both match 'render flicker'; the current project
     (lexio) must rank first. GOLDEN: project boost ordering."""
     _seed(vault_env["vault"])
@@ -84,7 +81,7 @@ def test_recall_project_boost_orders_current_project_first(vault_env: Dict) -> N
     assert out["items"][0]["project"] == "lexio"
 
 
-def test_recall_finds_each_learning_by_its_concept(vault_env: Dict) -> None:
+def test_recall_finds_each_learning_by_its_concept(vault_env: dict) -> None:
     """GOLDEN: every seeded learning is reachable by a query carrying its concept."""
     _seed(vault_env["vault"])
     probes = {
@@ -100,7 +97,7 @@ def test_recall_finds_each_learning_by_its_concept(vault_env: Dict) -> None:
             assert expect in slugs, f"{query!r} did not surface {expect}"
 
 
-def test_recall_concept_overlap_boost_is_active(vault_env: Dict) -> None:
+def test_recall_concept_overlap_boost_is_active(vault_env: dict) -> None:
     """GOLDEN: a `touches` concept matching the query boosts rank even on weak
     body overlap (the concept-index payoff)."""
     base = _rc._boost({"score": 0.0, "fm": {}, "page_type": "learning_accepted"},
@@ -116,7 +113,7 @@ def test_recall_concept_overlap_boost_is_active(vault_env: Dict) -> None:
 # ── session bootstrap ─────────────────────────────────────────────────────────
 
 
-def test_bootstrap_injects_project_learnings_and_isolates(vault_env: Dict) -> None:
+def test_bootstrap_injects_project_learnings_and_isolates(vault_env: dict) -> None:
     """GOLDEN: lexio's bootstrap carries its own learnings + always-inject
     principle, and does NOT leak bht's project-only learning."""
     _seed(vault_env["vault"])
@@ -127,7 +124,7 @@ def test_bootstrap_injects_project_learnings_and_isolates(vault_env: Dict) -> No
     assert out["principles_count"] == 1
 
 
-def test_bootstrap_cross_cuts_on_shared_touches(vault_env: Dict) -> None:
+def test_bootstrap_cross_cuts_on_shared_touches(vault_env: dict) -> None:
     """GOLDEN: app's bootstrap surfaces lexio's L2 via the shared
     `dependency-direction` concept — connection by idea, not folder. This is the
     behavior the flatten must preserve (it is already folder-free)."""
@@ -139,7 +136,7 @@ def test_bootstrap_cross_cuts_on_shared_touches(vault_env: Dict) -> None:
 # ── surfacing audit ────────────────────────────────────────────────────────────
 
 
-def test_surfacing_all_seeded_learnings_visible(vault_env: Dict) -> None:
+def test_surfacing_all_seeded_learnings_visible(vault_env: dict) -> None:
     """GOLDEN: each seeded learning is findable by its own concept (none dark).
     The migration's surfacing diff (before P4 vs after P7) must keep this set —
     an empty `newly_dark` is the acceptance gate."""

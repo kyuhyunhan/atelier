@@ -21,16 +21,16 @@ import subprocess
 import sys
 import uuid as _uuid
 from collections import Counter
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
 from runtime.index import parse as _parse
 from runtime.util import config as _config
 from runtime.util import db as _db
-
 
 META_KEY = "schema_migration_v3_to_v4"
 TARGET_VERSION = 4
@@ -82,12 +82,12 @@ def _iter_markdown(root: Path,
         yield p
 
 
-def _resolve_entry_id(fm: Dict[str, Any], rel_path: str) -> str:
+def _resolve_entry_id(fm: dict[str, Any], rel_path: str) -> str:
     """Stable UUID5 derived from the file's vault-relative path."""
     return str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"atelier:{rel_path}"))
 
 
-def _bump_one(path: Path, root: Path) -> Tuple[bool, Optional[str], Dict[str, Any]]:
+def _bump_one(path: Path, root: Path) -> tuple[bool, str | None, dict[str, Any]]:
     """Return (would_change, reason, new_frontmatter). reason='already-v4'
     means the file is at target; would_change is False."""
     text = path.read_text(encoding="utf-8")
@@ -107,7 +107,7 @@ def _bump_one(path: Path, root: Path) -> Tuple[bool, Optional[str], Dict[str, An
     return True, None, new_fm
 
 
-def _write_fm(path: Path, new_fm: Dict[str, Any]) -> None:
+def _write_fm(path: Path, new_fm: dict[str, Any]) -> None:
     text = path.read_text(encoding="utf-8")
     _, body = _parse.split_frontmatter(text)
     serialized = yaml.safe_dump(new_fm, allow_unicode=True, sort_keys=False).rstrip()
@@ -141,8 +141,8 @@ def migrate(role: str, *, apply: bool, force: bool,
         return 2
 
     by_dir: Counter[str] = Counter()
-    skipped_v4: List[Path] = []
-    changes: List[Path] = []
+    skipped_v4: list[Path] = []
+    changes: list[Path] = []
 
     for p in _iter_markdown(root, extra_excludes=extra_excludes):
         would, reason, new_fm = _bump_one(p, root)
@@ -167,7 +167,7 @@ def migrate(role: str, *, apply: bool, force: bool,
         conn = _db.connect()
         try:
             _db.set_meta(conn, META_KEY,
-                         datetime.now(timezone.utc).isoformat(timespec="seconds"))
+                         datetime.now(UTC).isoformat(timespec="seconds"))
             conn.commit()
         finally:
             conn.close()
@@ -179,7 +179,7 @@ def migrate(role: str, *, apply: bool, force: bool,
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="migrate-schema-v3-to-v4",
         description="One-shot frontmatter migration from v3 to v4.",

@@ -10,16 +10,14 @@ Templates:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
 from ...structure import resolver as _structure
 from ...util import config as _config
-from ..learnings import store as _store
-
 
 _TEMPLATES = ("product", "raw", "note", "learning")
 
@@ -36,11 +34,11 @@ def _builder_root() -> Path:
 
 
 def _now_iso_day() -> str:
-    return datetime.now(timezone.utc).date().isoformat()
+    return datetime.now(UTC).date().isoformat()
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
 def _entry_id(*, created_at: str, discriminator: str) -> str:
@@ -56,7 +54,7 @@ def _entry_id(*, created_at: str, discriminator: str) -> str:
     )
 
 
-def _write(path: Path, fm: Dict[str, Any], body: str) -> Path:
+def _write(path: Path, fm: dict[str, Any], body: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         raise FileExistsError(str(path))
@@ -67,7 +65,7 @@ def _write(path: Path, fm: Dict[str, Any], body: str) -> Path:
 
 def new_doc(*, template: str, name: str,
             role: str = "librarian-territory",
-            fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            fields: dict[str, Any] | None = None) -> dict[str, Any]:
     if template not in _TEMPLATES:
         raise ValueError(f"unknown template {template!r}; "
                          f"choose one of {_TEMPLATES}")

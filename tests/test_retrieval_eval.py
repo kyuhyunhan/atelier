@@ -8,11 +8,8 @@ probe-set + run() integration is tested over the vault fixture.
 """
 from __future__ import annotations
 
-from typing import Dict
-
 from runtime.service.learnings import eval as _eval
 from tests.conftest import write_page
-
 
 # ── pure metric math ────────────────────────────────────────────────────────
 
@@ -70,7 +67,7 @@ def _accepted(vault, entry_id, body, *, topic=None, touches=None):
     write_page(vault / "raw" / "learning" / "notes" / "2026-01" / f"{entry_id}.md", fm, body)
 
 
-def test_concept_probes_group_only_shared_concepts(vault_env: Dict):
+def test_concept_probes_group_only_shared_concepts(vault_env: dict):
     vault = vault_env["vault"]
     # two learnings share `caching`; one solo `logging`
     _accepted(vault, "c1", "the cache body words\n", touches=["caching"])
@@ -88,7 +85,7 @@ def test_concept_probes_group_only_shared_concepts(vault_env: Dict):
     assert "logging" not in by_concept
 
 
-def test_paraphrase_block_scores_against_fixture(vault_env: Dict, tmp_path):
+def test_paraphrase_block_scores_against_fixture(vault_env: dict, tmp_path):
     """The paraphrase set measures meaning-match without word-match: a probe
     whose gold exists is scored; a probe whose gold has been retracted is
     flagged stale, never silently dropped."""
@@ -124,7 +121,7 @@ def test_gate_fails_on_newly_dark_passes_otherwise():
     assert _eval.gate(before, before)["passed"] is True
 
 
-def test_run_reports_both_probe_sets(vault_env: Dict):
+def test_run_reports_both_probe_sets(vault_env: dict):
     vault = vault_env["vault"]
     _accepted(vault, "c1", "the cache eviction body words\n", touches=["caching"])
     _accepted(vault, "c2", "cache warming body words\n", touches=["caching"])

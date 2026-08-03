@@ -15,9 +15,9 @@ is idempotent: `ensure()` never clobbers an existing id.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
@@ -33,7 +33,7 @@ def manifest_path(vault: Path) -> Path:
     return Path(vault) / MANIFEST_FILENAME
 
 
-def read(vault: Path) -> Optional[Dict[str, Any]]:
+def read(vault: Path) -> dict[str, Any] | None:
     """The manifest dict, or None if the vault has none yet (pre-P1 vaults)."""
     p = manifest_path(vault)
     if not p.exists():
@@ -42,7 +42,7 @@ def read(vault: Path) -> Optional[Dict[str, Any]]:
     return data if isinstance(data, dict) else None
 
 
-def ensure(vault: Path, *, vault_id: Optional[str] = None) -> Dict[str, Any]:
+def ensure(vault: Path, *, vault_id: str | None = None) -> dict[str, Any]:
     """Return the manifest, creating it if absent. Idempotent: an existing
     manifest is returned untouched (the vault id, once minted, is stable — it may
     key R2 prefixes or cross-references later, exactly like node entry_ids)."""
@@ -52,7 +52,7 @@ def ensure(vault: Path, *, vault_id: Optional[str] = None) -> Dict[str, Any]:
     data = {
         "structure_version": CURRENT_STRUCTURE_VERSION,
         "vault_id": vault_id or str(uuid.uuid4()),
-        "created": datetime.now(timezone.utc).date().isoformat(),
+        "created": datetime.now(UTC).date().isoformat(),
     }
     # Atomic create ('x'): if a concurrent writer already minted the manifest
     # between our read and here, don't clobber its (possibly different) vault_id
@@ -65,7 +65,7 @@ def ensure(vault: Path, *, vault_id: Optional[str] = None) -> Dict[str, Any]:
     return data
 
 
-def validate(vault: Path) -> Dict[str, Any]:
+def validate(vault: Path) -> dict[str, Any]:
     """Check the manifest is present and its structure_version matches this
     engine. Returns `{ok, present, version_ok, detail}` — the ① manifest gate."""
     data = read(vault)

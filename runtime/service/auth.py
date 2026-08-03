@@ -15,10 +15,8 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 
 from . import claims as _claims
-
 
 # Default claim set granted to a bearer-authenticated MCP-HTTP caller.
 # Read-only tools never check claims. Write tools check the specific
@@ -40,8 +38,8 @@ class Session:
     """Per-call context. Built by transport adapters; opaque to api.py."""
     agent_kind: str = "claude-code"        # "claude-code" | "hermes" | "unknown"
     transport: str = "local-cli"           # "local-cli" | "mcp-stdio" | "mcp-http"
-    session_id: Optional[str] = None
-    working_dir: Optional[str] = None
+    session_id: str | None = None
+    working_dir: str | None = None
     caller: str = "local-cli"
     claims: frozenset[_claims.Claim] = field(default_factory=frozenset)
 
@@ -61,12 +59,12 @@ def local_cli_session() -> Session:
 
 
 def authenticate_bearer(
-    token: Optional[str],
+    token: str | None,
     *,
     transport: str,
     agent_kind: str = "claude-code",
-    session_id: Optional[str] = None,
-    working_dir: Optional[str] = None,
+    session_id: str | None = None,
+    working_dir: str | None = None,
     env_var: str = "ATELIER_MCP_HTTP_TOKEN",
 ) -> Session:
     """Validate a bearer token. Raises PermissionError on mismatch.
@@ -97,7 +95,7 @@ def authenticate_bearer(
 # ── v0.1 compatibility shim (still called by runtime/service/api.py) ────────
 
 
-def authenticate(token: Optional[str] = None) -> _claims.CallContext:
+def authenticate(token: str | None = None) -> _claims.CallContext:
     """Legacy entry from api.py. v0.2 keeps it returning local-cli for
     the sync path; MCP-bound calls use authenticate_bearer + Session and
     bypass this function entirely."""

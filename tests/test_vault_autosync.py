@@ -7,12 +7,9 @@ sleep callables and a fake clock-free sleeper, so no real time elapses.
 from __future__ import annotations
 
 import asyncio
-from typing import List
 
-import pytest
-
-from runtime.service import server, vault_autosync as vas
-
+from runtime.service import server
+from runtime.service import vault_autosync as vas
 
 # ── pure decision core ───────────────────────────────────────────────────────
 
@@ -78,10 +75,10 @@ def _sleeper(n_ticks: int):
     return sleep_fn
 
 
-def _drive(*, statuses: List[str], require_stable: bool, lock_busy: bool = False,
+def _drive(*, statuses: list[str], require_stable: bool, lock_busy: bool = False,
            reindex_fn=None):
     sup = _FakeSup()
-    commits: List[str] = []
+    commits: list[str] = []
     seq = iter(statuses)
 
     def status_fn() -> str:
@@ -130,7 +127,7 @@ def test_loop_skips_while_writer_lock_held() -> None:
 def test_loop_reindexes_changed_files_after_commit() -> None:
     """On a settled-dirty tick the loop commits, THEN reindexes — passing the
     committed porcelain (the changed-file set) to the reindex callable."""
-    seen: List[str] = []
+    seen: list[str] = []
     commits = _drive(
         statuses=["M a", "M a", "", ""], require_stable=True,
         reindex_fn=lambda status: seen.append(status),
@@ -142,7 +139,7 @@ def test_loop_reindexes_changed_files_after_commit() -> None:
 def test_loop_does_not_reindex_when_no_commit() -> None:
     """No commit (tree never settles) → no reindex. The quiescence gate that
     gates the commit also gates the reindex — never mid-write."""
-    seen: List[str] = []
+    seen: list[str] = []
     commits = _drive(
         statuses=["M a", "M b", "M c"], require_stable=True,
         reindex_fn=lambda status: seen.append(status),
@@ -155,7 +152,7 @@ def test_loop_skips_reindex_when_commit_fails() -> None:
     """A failed commit must not trigger a reindex (nothing was committed) and
     must not crash the loop."""
     sup = _FakeSup()
-    seen: List[str] = []
+    seen: list[str] = []
     seq = iter(["M a", "M a", "", ""])
 
     def status_fn() -> str:
@@ -279,6 +276,7 @@ def test_access_reason_generic_permission_denied_outside_tcc(tmp_path, monkeypat
 def test_integration_loop_commits_and_pushes_real_repo(tmp_path) -> None:
     import subprocess
     from pathlib import Path
+
     from runtime.sync import orchestrator
     from runtime.sync.adapters import github
     from runtime.util.config import Config, VaultConfig

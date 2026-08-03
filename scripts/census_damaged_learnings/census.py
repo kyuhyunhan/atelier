@@ -24,11 +24,9 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from runtime.index import parse as _parse
 from runtime.util import config as _config
-
 
 # The four canonical lexio layers (memory/TAXONOMY.md). A flattened
 # `target_topic` matching one of these is high-confidence damage.
@@ -43,7 +41,7 @@ def _resolve_vault(cfg: _config.Config) -> Path:
     return cfg.space_by_role("librarian-territory").local
 
 
-def _as_list(value) -> List[str]:
+def _as_list(value) -> list[str]:
     if isinstance(value, list):
         return [str(v) for v in value]
     if isinstance(value, str) and value.strip():
@@ -51,7 +49,7 @@ def _as_list(value) -> List[str]:
     return []
 
 
-def _record(path: Path, vault: Path, fm: Dict) -> Dict:
+def _record(path: Path, vault: Path, fm: dict) -> dict:
     """Build one census record with the data P6 needs to repair in place."""
     target_topic = fm.get("target_topic")
     layer = fm.get("layer")                      # lexio dialect: primary aspect
@@ -78,10 +76,10 @@ def _record(path: Path, vault: Path, fm: Dict) -> Dict:
     }
 
 
-def census(vault: Path) -> Dict:
+def census(vault: Path) -> dict:
     """Scan the accepted by-topic canonical tree; return the damaged-record set."""
     accepted = vault / "learnings" / "accepted" / "by-topic"
-    records: List[Dict] = []
+    records: list[dict] = []
     scanned = 0
     if accepted.exists():
         for md in sorted(accepted.rglob("*.md")):
@@ -112,7 +110,7 @@ def census(vault: Path) -> Dict:
     }
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Census workshop-absorb damaged learnings.")
     ap.add_argument("--out", type=Path, default=None,
                     help="write JSON here (default: stdout)")

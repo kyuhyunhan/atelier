@@ -22,15 +22,16 @@ parity test locks those equal after a reindex, matching the discipline in
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 from ...index import parse as _parse
 from ...util import db as _db
 
 # Which frontmatter fields we tally, per node kind. Missing values bucket under
 # `_ABSENT` so projection and filesystem agree even when a field is unset.
-_FIELDS_BY_KIND: Dict[str, Tuple[str, ...]] = {
+_FIELDS_BY_KIND: dict[str, tuple[str, ...]] = {
     "claim": ("domain", "ac_status", "surfacing"),
     "source": ("domain",),
     "entity": ("in_scheme",),
@@ -38,13 +39,13 @@ _FIELDS_BY_KIND: Dict[str, Tuple[str, ...]] = {
 _ABSENT = "(absent)"
 
 
-def _tally(rows: Iterable[Tuple[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Dict[str, int]]]:
+def _tally(rows: Iterable[tuple[str, dict[str, Any]]]) -> dict[str, dict[str, dict[str, int]]]:
     """`(kind, frontmatter)` pairs → `{kind: {field: {value: count}}}`.
 
     The ONE place a node is turned into counts, shared by both data sources so
     they cannot drift. Values are stringified; an unset field counts as
     `(absent)` rather than being dropped."""
-    out: Dict[str, Dict[str, Dict[str, int]]] = {}
+    out: dict[str, dict[str, dict[str, int]]] = {}
     for kind, fm in rows:
         fields = _FIELDS_BY_KIND.get(kind)
         if fields is None:
@@ -57,7 +58,7 @@ def _tally(rows: Iterable[Tuple[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Di
     return out
 
 
-def _projection_rows() -> Optional[List[Tuple[str, Dict[str, Any]]]]:
+def _projection_rows() -> list[tuple[str, dict[str, Any]]] | None:
     """`(kind, frontmatter)` from the projection, or None when it cannot answer
     (DB absent/empty/query error) so the caller falls back to disk. Mirrors
     `projection_counts._load_nodes`: one indexed query, JSON already parsed."""
@@ -77,7 +78,7 @@ def _projection_rows() -> Optional[List[Tuple[str, Dict[str, Any]]]]:
         conn.close()
     if not db_rows:
         return None                              # cold/un-reindexed DB → fall back
-    rows: List[Tuple[str, Dict[str, Any]]] = []
+    rows: list[tuple[str, dict[str, Any]]] = []
     for r in db_rows:
         try:
             fm = json.loads(r["frontmatter"])
@@ -88,13 +89,13 @@ def _projection_rows() -> Optional[List[Tuple[str, Dict[str, Any]]]]:
     return rows
 
 
-def _fs_rows(vault: Path) -> List[Tuple[str, Dict[str, Any]]]:
+def _fs_rows(vault: Path) -> list[tuple[str, dict[str, Any]]]:
     """`(kind, frontmatter)` read straight from disk — the fallback and the parity
     oracle. Buckets on the `kind` FIELD (the same discriminator `classify` turns
     into `page_type`), so a node is counted wherever its file physically lives
     (claims/entities share `graph/atomic/`; sources sit elsewhere). Parse failures
     are skipped, never fatal — a census must not crash on one bad file."""
-    rows: List[Tuple[str, Dict[str, Any]]] = []
+    rows: list[tuple[str, dict[str, Any]]] = []
     if not vault.exists():
         return rows
     for p in sorted(vault.rglob("*.md")):
@@ -112,7 +113,7 @@ def _fs_rows(vault: Path) -> List[Tuple[str, Dict[str, Any]]]:
     return rows
 
 
-def census(vault: Optional[Path] = None) -> Dict[str, Dict[str, Dict[str, int]]]:
+def census(vault: Path | None = None) -> dict[str, dict[str, dict[str, int]]]:
     """The node census, projection-first with a filesystem fallback.
 
     Warm DB → counts reflect the last `reindex`; cold DB → counts read live disk.

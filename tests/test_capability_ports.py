@@ -9,7 +9,7 @@ import asyncio
 import importlib
 import importlib.util
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import pytest
 import yaml
@@ -19,7 +19,7 @@ from runtime.service.jobs import new_doc as _nd
 from runtime.service.jobs import pending as _pp
 
 
-def _write(path: Path, fm: Dict, body: str = "body\n") -> None:
+def _write(path: Path, fm: dict, body: str = "body\n") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
@@ -28,7 +28,7 @@ def _write(path: Path, fm: Dict, body: str = "body\n") -> None:
 # ── fix_pending (PR-9) ─────────────────────────────────────────────────────
 
 
-def test_fix_pending_dry_run(atelier_env: Dict) -> None:
+def test_fix_pending_dry_run(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     _write(vault / "raw" / "x.md", {"schema_version": 4, "entry_id": "PENDING"})
     out = _pp.fix_pending(dry_run=True)
@@ -37,7 +37,7 @@ def test_fix_pending_dry_run(atelier_env: Dict) -> None:
     assert "PENDING" in text  # unchanged
 
 
-def test_fix_pending_apply(atelier_env: Dict) -> None:
+def test_fix_pending_apply(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     _write(vault / "raw" / "x.md", {"schema_version": 4, "entry_id": "PENDING"})
     out = _pp.fix_pending(dry_run=False)
@@ -76,12 +76,12 @@ def test_index_regen_tool_is_unregistered() -> None:
 
 
 def _fake_fetch(payload: bytes, ct: str) -> Any:
-    def go(url: str) -> Tuple[bytes, str]:
+    def go(url: str) -> tuple[bytes, str]:
         return payload, ct
     return go
 
 
-def test_clip_image_writes_local_file(atelier_env: Dict) -> None:
+def test_clip_image_writes_local_file(atelier_env: dict) -> None:
     out = _clip.clip_image(
         url="https://example.com/foo.png",
         fetch=_fake_fetch(b"PNGDATA", "image/png"),
@@ -94,7 +94,7 @@ def test_clip_image_writes_local_file(atelier_env: Dict) -> None:
     assert out["rel"].startswith("assets/")
 
 
-def test_clip_image_returns_cdn_when_configured(atelier_env: Dict) -> None:
+def test_clip_image_returns_cdn_when_configured(atelier_env: dict) -> None:
     cfg_path = atelier_env["home"] / "config.yaml"
     data = yaml.safe_load(cfg_path.read_text())
     data["spaces"]["wiki"]["assets"] = {"type": "r2",
@@ -111,13 +111,13 @@ def test_clip_image_returns_cdn_when_configured(atelier_env: Dict) -> None:
 # ── new_doc (PR-14) ────────────────────────────────────────────────────────
 
 
-def test_new_doc_product(atelier_env: Dict) -> None:
+def test_new_doc_product(atelier_env: dict) -> None:
     out = _nd.new_doc(template="product", name="lexio")
     assert Path(out["path"]).exists()
     assert out["path"].endswith("products/lexio/README.md")
 
 
-def test_new_doc_raw(atelier_env: Dict) -> None:
+def test_new_doc_raw(atelier_env: dict) -> None:
     out = _nd.new_doc(template="raw", name="2026-05-28-note",
                       fields={"title": "Quick capture"})
     p = Path(out["path"])
@@ -127,14 +127,14 @@ def test_new_doc_raw(atelier_env: Dict) -> None:
     assert "Quick capture" in text
 
 
-def test_new_doc_note(atelier_env: Dict) -> None:
+def test_new_doc_note(atelier_env: dict) -> None:
     out = _nd.new_doc(template="note", name="weekly")
     p = Path(out["path"])
     assert "workshop/notes/weekly.md" in str(p) or "notes/weekly.md" in str(p)
     assert p.exists()
 
 
-def test_new_doc_learning_retired(atelier_env: Dict) -> None:
+def test_new_doc_learning_retired(atelier_env: dict) -> None:
     # RFC 0005 §7.1: the learning candidate-file scaffold is retired; learnings are
     # born as a Claim via atelier_learning_capture. new_doc redirects, never writes legacy.
     with pytest.raises(ValueError, match="born as a Claim"):
@@ -142,13 +142,13 @@ def test_new_doc_learning_retired(atelier_env: Dict) -> None:
                     fields={"project_hint": "lexio"})
 
 
-def test_new_doc_refuses_collision(atelier_env: Dict) -> None:
+def test_new_doc_refuses_collision(atelier_env: dict) -> None:
     _nd.new_doc(template="product", name="dup")
     with pytest.raises(FileExistsError):
         _nd.new_doc(template="product", name="dup")
 
 
-def test_new_doc_unknown_template_rejected(atelier_env: Dict) -> None:
+def test_new_doc_unknown_template_rejected(atelier_env: dict) -> None:
     with pytest.raises(ValueError):
         _nd.new_doc(template="bogus", name="x")
 
@@ -163,11 +163,11 @@ def test_all_new_tools_registered() -> None:
             "atelier_clip_image", "atelier_new_doc"} <= names
 
 
-def test_mcp_dispatch_fix_pending(atelier_env: Dict) -> None:
+def test_mcp_dispatch_fix_pending(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
     vault = atelier_env["wiki"]
     _write(vault / "raw" / "y.md", {"schema_version": 4, "entry_id": "PENDING"})
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_fix_pending", dry_run=False)
     out = asyncio.run(go())
     assert out["count"] == 1

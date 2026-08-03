@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 import yaml
@@ -34,7 +33,7 @@ def workspace(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Path]:
+def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
     """Point ~/.atelier and the DB at the temp workspace."""
     home = workspace / "atelier_home"
     cache = home / "cache"
@@ -93,8 +92,8 @@ def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, P
 
 
 @pytest.fixture
-def vault_env(atelier_env: Dict[str, Path], monkeypatch: pytest.MonkeyPatch
-              ) -> Dict[str, Path]:
+def vault_env(atelier_env: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+              ) -> dict[str, Path]:
     """Single-vault (`vault:` + `subtrees:`) config over one directory — the
     production v0.2 shape. Reuses atelier_env's home/cache/monkeypatching and
     overwrites config.yaml with a vault block."""
@@ -126,7 +125,7 @@ def vault_env(atelier_env: Dict[str, Path], monkeypatch: pytest.MonkeyPatch
     return {"home": home, "vault": vault, "cache": atelier_env["cache"]}
 
 
-def write_page(path: Path, frontmatter: Dict[str, Any], body: str = "") -> None:
+def write_page(path: Path, frontmatter: dict[str, Any], body: str = "") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fm = yaml.safe_dump(frontmatter, sort_keys=False, allow_unicode=True).rstrip()
     path.write_text(f"---\n{fm}\n---\n{body}", encoding="utf-8")

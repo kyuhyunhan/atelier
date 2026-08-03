@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Derived files a reindex rewrites — excluded so the fingerprint tracks authored
 # content, not the projection's own output. MEMORY.md is matched case-insensitively
@@ -41,20 +41,20 @@ def _is_derived(name: str) -> bool:
     return name in _DERIVED_EXACT or name.upper() == "MEMORY.MD"
 
 
-def _vault_root(vault: Optional[Path]) -> Path:
+def _vault_root(vault: Path | None) -> Path:
     if vault is not None:
         return Path(vault)
     from ...util import config as _config
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def file_digests(vault: Optional[Path] = None) -> Dict[str, str]:
+def file_digests(vault: Path | None = None) -> dict[str, str]:
     """`{relpath: sha256(body)}` for every non-derived vault markdown file.
 
     Sorted-relpath order at the caller's discretion; the aggregate below imposes
     a stable order so two runs over the same content agree byte-for-byte."""
     root = _vault_root(vault)
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
     if not root.exists():
         return out
     for p in root.rglob("*.md"):
@@ -69,8 +69,8 @@ def file_digests(vault: Optional[Path] = None) -> Dict[str, str]:
     return out
 
 
-def content_fingerprint(vault: Optional[Path] = None,
-                        digests: Optional[Dict[str, str]] = None) -> str:
+def content_fingerprint(vault: Path | None = None,
+                        digests: dict[str, str] | None = None) -> str:
     """One aggregate hash over the per-file digests, in sorted-relpath order so
     it is deterministic. Pass `digests` to avoid re-walking when the caller
     already has them."""
@@ -84,14 +84,14 @@ def content_fingerprint(vault: Optional[Path] = None,
     return h.hexdigest()
 
 
-def vault_block(vault: Optional[Path] = None) -> Dict[str, Any]:
+def vault_block(vault: Path | None = None) -> dict[str, Any]:
     """The baseline's `vault` block: the aggregate hash only. The per-file map is
     a round-baseline artifact (see module docstring), not part of the committed
     anchor."""
     return {"content_fingerprint": content_fingerprint(vault)}
 
 
-def changed_paths(before: Dict[str, str], after: Dict[str, str]) -> List[str]:
+def changed_paths(before: dict[str, str], after: dict[str, str]) -> list[str]:
     """The relpaths whose content differs between two per-file digest maps —
     added, removed, or modified. This is the delta a fingerprint waiver bounds
     (§3.5); it cannot live in a single snapshot, so the orchestrator computes it

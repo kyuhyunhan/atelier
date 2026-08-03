@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 import yaml
@@ -12,7 +12,7 @@ from runtime.service.jobs import prepare as _prep
 from runtime.service.jobs import youtube as _yt
 
 
-def _write(path: Path, fm: Dict, body: str) -> None:
+def _write(path: Path, fm: dict, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).rstrip()
     path.write_text(f"---\n{serialized}\n---\n{body}", encoding="utf-8")
@@ -21,7 +21,7 @@ def _write(path: Path, fm: Dict, body: str) -> None:
 # ── prepare_commit ─────────────────────────────────────────────────────────
 
 
-def test_prepare_resolves_pending_entry_id(atelier_env: Dict) -> None:
+def test_prepare_resolves_pending_entry_id(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     p = vault / "raw" / "personal" / "diary" / "n.md"
     _write(p, {"schema_version": 4, "entry_id": "PENDING"},
@@ -32,7 +32,7 @@ def test_prepare_resolves_pending_entry_id(atelier_env: Dict) -> None:
     assert fm["entry_id"] != "PENDING"
 
 
-def test_prepare_recalculates_word_count(atelier_env: Dict) -> None:
+def test_prepare_recalculates_word_count(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     p = vault / "raw" / "personal" / "diary" / "n.md"
     _write(p, {"schema_version": 4, "entry_id": "abc", "word_count": 99},
@@ -43,7 +43,7 @@ def test_prepare_recalculates_word_count(atelier_env: Dict) -> None:
     assert out["modified"]
 
 
-def test_prepare_detects_embedded_assets(atelier_env: Dict) -> None:
+def test_prepare_detects_embedded_assets(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     body = "see ![alt](images/cover.png) and ![](images/sub.png)\n"
     p = vault / "raw" / "k" / "with-images.md"
@@ -53,7 +53,7 @@ def test_prepare_detects_embedded_assets(atelier_env: Dict) -> None:
     assert fm["embedded_assets"] == ["images/cover.png", "images/sub.png"]
 
 
-def test_prepare_dry_run_no_writes(atelier_env: Dict) -> None:
+def test_prepare_dry_run_no_writes(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     p = vault / "raw" / "x" / "stale.md"
     _write(p, {"schema_version": 4, "entry_id": "abc"}, "hello")
@@ -94,7 +94,7 @@ _FAKE_VTT = (
 )
 
 
-def test_youtube_writes_md_with_captions(atelier_env: Dict) -> None:
+def test_youtube_writes_md_with_captions(atelier_env: dict) -> None:
     out = _yt.youtube_ingest(
         url="https://youtube.com/watch?v=abc123",
         metadata_runner=lambda url: _FAKE_METADATA,
@@ -123,7 +123,7 @@ def test_youtube_writes_md_with_captions(atelier_env: Dict) -> None:
     assert p.parent.name == "knowledge"
 
 
-def test_youtube_source_node_is_schema_valid(atelier_env: Dict) -> None:
+def test_youtube_source_node_is_schema_valid(atelier_env: dict) -> None:
     # The produced raw file must validate as a v7 `source` node (the gate that
     # would catch a missing required field like domain/attributed_to/content_hash).
     from runtime.lint import validate_v4 as _v
@@ -138,7 +138,7 @@ def test_youtube_source_node_is_schema_valid(atelier_env: Dict) -> None:
     assert v0 == [], f"source node schema-invalid: {[f.message for f in v0]}"
 
 
-def test_youtube_marks_needs_stt_when_no_captions(atelier_env: Dict,
+def test_youtube_marks_needs_stt_when_no_captions(atelier_env: dict,
                                                     monkeypatch: pytest.MonkeyPatch) -> None:
     no_subs = dict(_FAKE_METADATA)
     no_subs["subtitles"] = {}
@@ -251,7 +251,7 @@ def test_vtt_manual_styling_tags_do_not_enable_collapse() -> None:
     assert "[00:05] the mat was red" in md             # "the mat" survives intact
 
 
-def test_youtube_computes_word_count(atelier_env: Dict) -> None:
+def test_youtube_computes_word_count(atelier_env: dict) -> None:
     out = _yt.youtube_ingest(
         url="https://youtube.com/watch?v=abc123",
         metadata_runner=lambda url: _FAKE_METADATA,
@@ -264,7 +264,7 @@ def test_youtube_computes_word_count(atelier_env: Dict) -> None:
 
 def test_fetch_metadata_adds_ignore_formats_and_cookies(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     class _R:
         stdout = '{"id": "x"}'
@@ -306,12 +306,12 @@ def test_config_youtube_cookies_default_none(tmp_path: Path) -> None:
 # ── MCP dispatch ───────────────────────────────────────────────────────────
 
 
-def test_mcp_dispatch_prepare(atelier_env: Dict) -> None:
+def test_mcp_dispatch_prepare(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
     vault = atelier_env["wiki"]
     p = vault / "raw" / "x" / "p.md"
     _write(p, {"schema_version": 4, "entry_id": "PENDING"}, "body")
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_prepare_commit",
                                    paths=[str(p)], dry_run=False)
     out = asyncio.run(go())

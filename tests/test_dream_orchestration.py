@@ -10,14 +10,10 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict, List
-
-import pytest
 
 from runtime.service.learnings import claims_io as _ci
 from runtime.service.learnings import dream as _dr
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 7,
@@ -45,7 +41,7 @@ def _claim(vault: Path, entry_id: str, statement: str, *,
                f"## Claim\n\n{statement}\n")
 
 
-def _seed_cluster(vault: Path) -> List[str]:
+def _seed_cluster(vault: Path) -> list[str]:
     """Two proactive claims sharing salient terms → one cluster."""
     _claim(vault, "c1",
            "integration tests must use a real database not database mocks")
@@ -57,7 +53,7 @@ def _seed_cluster(vault: Path) -> List[str]:
 # ── plan ────────────────────────────────────────────────────────────────────
 
 
-def test_plan_returns_cluster_with_previews_and_call(vault_env: Dict) -> None:
+def test_plan_returns_cluster_with_previews_and_call(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _seed_cluster(vault)
     out = _dr.plan()
@@ -73,7 +69,7 @@ def test_plan_returns_cluster_with_previews_and_call(vault_env: Dict) -> None:
     assert "cadence" in out and "instructions" in out
 
 
-def test_plan_only_clusters_proactive_claims(vault_env: Dict) -> None:
+def test_plan_only_clusters_proactive_claims(vault_env: dict) -> None:
     vault = vault_env["vault"]
     # query-tier claims are NOT eligible for a dream pass (only proactive is).
     _claim(vault, "q1", "shared retry idempotency token concept here",
@@ -89,7 +85,7 @@ def test_plan_only_clusters_proactive_claims(vault_env: Dict) -> None:
 
 
 def test_synthesize_writes_new_always_claim_linked_to_sources(
-        vault_env: Dict) -> None:
+        vault_env: dict) -> None:
     vault = vault_env["vault"]
     ids = _seed_cluster(vault)
     out = _dr.synthesize(
@@ -111,7 +107,7 @@ def test_synthesize_writes_new_always_claim_linked_to_sources(
     assert fm["entry_id"] == out["entry_id"]
 
 
-def test_synthesize_is_idempotent(vault_env: Dict) -> None:
+def test_synthesize_is_idempotent(vault_env: dict) -> None:
     vault = vault_env["vault"]
     ids = _seed_cluster(vault)
     _dr.synthesize(source_claim_ids=ids,
@@ -122,7 +118,7 @@ def test_synthesize_is_idempotent(vault_env: Dict) -> None:
     assert again["reason"] == "already-covered"
 
 
-def test_plan_filters_already_synthesized(vault_env: Dict) -> None:
+def test_plan_filters_already_synthesized(vault_env: dict) -> None:
     vault = vault_env["vault"]
     ids = _seed_cluster(vault)
     _dr.synthesize(source_claim_ids=ids,
@@ -135,7 +131,7 @@ def test_plan_filters_already_synthesized(vault_env: Dict) -> None:
 # ── distill (proactive → always) ─────────────────────────────────────────────
 
 
-def test_distill_elevates_proactive_to_always(vault_env: Dict) -> None:
+def test_distill_elevates_proactive_to_always(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "p1", "cache invalidation needs explicit keys")
     out = _dr.distill(claim_ids=["p1"])
@@ -150,7 +146,7 @@ def test_distill_elevates_proactive_to_always(vault_env: Dict) -> None:
     assert "ingest" in (fm.get("generated_by_history") or [])
 
 
-def test_distill_skips_non_proactive(vault_env: Dict) -> None:
+def test_distill_skips_non_proactive(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _claim(vault, "a1", "already always claim", surfacing="always")
     _claim(vault, "q1", "query-only claim", surfacing="query")
@@ -165,7 +161,7 @@ def test_distill_skips_non_proactive(vault_env: Dict) -> None:
 # ── complete ────────────────────────────────────────────────────────────────
 
 
-def test_complete_advances_cadence(vault_env: Dict) -> None:
+def test_complete_advances_cadence(vault_env: dict) -> None:
     from runtime.service.learnings import cluster as _cl
     out = _dr.complete(when="2026-05-28T21:00:00+09:00")
     assert out["last_dream_at"] == "2026-05-28T21:00:00+09:00"
@@ -176,7 +172,7 @@ def test_complete_advances_cadence(vault_env: Dict) -> None:
 # ── full handshake ──────────────────────────────────────────────────────────
 
 
-def test_full_dream_handshake(vault_env: Dict) -> None:
+def test_full_dream_handshake(vault_env: dict) -> None:
     """plan → synthesize the cluster → distill a source → complete → re-plan
     finds nothing."""
     vault = vault_env["vault"]
@@ -204,24 +200,24 @@ def test_mcp_dream_tools_registered() -> None:
             "atelier_dream_status"} <= names
 
 
-def test_mcp_dispatch_dream_plan(vault_env: Dict) -> None:
+def test_mcp_dispatch_dream_plan(vault_env: dict) -> None:
     from runtime.service import tools as _tools
     vault = vault_env["vault"]
     _seed_cluster(vault)
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke("atelier_dream_plan")
 
     out = asyncio.run(go())
     assert out["candidate_count"] >= 1
 
 
-def test_mcp_dispatch_dream_synthesize(vault_env: Dict) -> None:
+def test_mcp_dispatch_dream_synthesize(vault_env: dict) -> None:
     from runtime.service import tools as _tools
     vault = vault_env["vault"]
     ids = _seed_cluster(vault)
 
-    async def go() -> Dict:
+    async def go() -> dict:
         return await _tools.invoke(
             "atelier_dream_synthesize",
             source_claim_ids=ids,

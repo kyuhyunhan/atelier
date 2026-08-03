@@ -8,7 +8,6 @@ Verifies:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
@@ -31,7 +30,7 @@ def _seed_builder(workshop_root: Path) -> None:
     (workshop_root / "logs" / "2026-05-02.md").write_text("second log\n")
 
 
-def test_dry_run_does_not_write(atelier_env: Dict, capsys, tmp_path: Path) -> None:
+def test_dry_run_does_not_write(atelier_env: dict, capsys, tmp_path: Path) -> None:
     _seed_builder(atelier_env["workshop"])
     profiles_dir = tmp_path / "profiles"
 
@@ -44,7 +43,7 @@ def test_dry_run_does_not_write(atelier_env: Dict, capsys, tmp_path: Path) -> No
     assert not profiles_dir.exists()
 
 
-def test_apply_copies_products_and_notes(atelier_env: Dict, tmp_path: Path) -> None:
+def test_apply_copies_products_and_notes(atelier_env: dict, tmp_path: Path) -> None:
     _seed_builder(atelier_env["workshop"])
     profiles_dir = tmp_path / "profiles"
 
@@ -65,7 +64,7 @@ def test_apply_copies_products_and_notes(atelier_env: Dict, tmp_path: Path) -> N
     assert "## 2026-05-01.md" in consolidated
 
 
-def test_conflict_blocks_apply(atelier_env: Dict, tmp_path: Path) -> None:
+def test_conflict_blocks_apply(atelier_env: dict, tmp_path: Path) -> None:
     """If wiki/workshop/products/lexio already exists, --apply must refuse."""
     _seed_builder(atelier_env["workshop"])
     pre = atelier_env["wiki"] / "workshop" / "products" / "lexio"
@@ -78,7 +77,7 @@ def test_conflict_blocks_apply(atelier_env: Dict, tmp_path: Path) -> None:
     assert (pre / "README.md").read_text() == "pre-existing\n"
 
 
-def test_missing_builder_root_handled(atelier_env: Dict, tmp_path: Path,
+def test_missing_builder_root_handled(atelier_env: dict, tmp_path: Path,
                                        monkeypatch: pytest.MonkeyPatch) -> None:
     # Move builder root away — script should refuse with rc=2.
     builder = atelier_env["workshop"]

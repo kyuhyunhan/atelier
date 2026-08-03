@@ -25,13 +25,12 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from ...util import config as _config
 from ...util import db as _db
-
 
 # Minimal stopword set — we only need to kill the highest-frequency noise
 # so shared-term overlap reflects real topical similarity.
@@ -42,7 +41,7 @@ _STOPWORDS = {
     "because", "before", "being", "between", "both", "does", "doing",
     "down", "each", "more", "most", "only", "other", "over", "same",
     "some", "such", "very", "were", "will", "wont", "dont", "didnt",
-    "must", "must", "also", "make", "made", "uses", "used", "using",
+    "must", "also", "make", "made", "uses", "used", "using",
     "like", "just", "not", "but", "and", "the", "for", "are", "was",
     "via", "per", "out", "use", "see", "one", "two", "its",
 }
@@ -72,21 +71,21 @@ class Learning:
     project: str
     topic: str
     entry_id: str
-    terms: Set[str]
-    touches: List[str]
+    terms: set[str]
+    touches: list[str]
     path: Path
 
 
 @dataclass
 class Cluster:
     cluster_key: str               # stable hash of sorted member entry_ids
-    member_slugs: List[str]
-    member_entry_ids: List[str]
-    projects: List[str]
-    shared_terms: List[str]
+    member_slugs: list[str]
+    member_entry_ids: list[str]
+    projects: list[str]
+    shared_terms: list[str]
     size: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "cluster_key": self.cluster_key,
             "member_slugs": self.member_slugs,
@@ -105,8 +104,8 @@ def _strip_markdown_headers(text: str) -> str:
     )
 
 
-def salient_terms(text: str) -> Set[str]:
-    out: Set[str] = set()
+def salient_terms(text: str) -> set[str]:
+    out: set[str] = set()
     for m in _WORD_RX.finditer(_strip_markdown_headers(text).lower()):
         w = m.group(0)
         if w in _STOPWORDS or w in _SCAFFOLD_WORDS:
@@ -115,7 +114,7 @@ def salient_terms(text: str) -> Set[str]:
     return out
 
 
-def load_accepted(vault: Path) -> List[Learning]:
+def load_accepted(vault: Path) -> list[Learning]:
     """Read accepted learnings from the flat notes/ store (RFC 0001).
 
     Markdown is the source of truth; the dream cycle runs infrequently
@@ -128,7 +127,7 @@ def load_accepted(vault: Path) -> List[Learning]:
     from ...index import parse as _parse
     from . import recall as _recall
     from . import store as _store
-    learnings: List[Learning] = []
+    learnings: list[Learning] = []
     for p in _store.iter_accepted_files(vault):
         if _recall.is_noise(p.name):
             continue
@@ -152,13 +151,13 @@ def load_accepted(vault: Path) -> List[Learning]:
     return learnings
 
 
-def _cluster_key(entry_ids: List[str]) -> str:
+def _cluster_key(entry_ids: list[str]) -> str:
     import hashlib
     joined = "|".join(sorted(entry_ids))
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
 
-def jaccard(a: Set[str], b: Set[str]) -> float:
+def jaccard(a: set[str], b: set[str]) -> float:
     if not a and not b:
         return 1.0
     inter = len(a & b)
@@ -171,7 +170,7 @@ def cluster(*, min_shared_terms: int = 2,
             min_projects: int = 2,
             max_doc_frequency: float = 0.6,
             dedup_jaccard: float = 0.7,
-            limit: int = 50) -> Dict[str, Any]:
+            limit: int = 50) -> dict[str, Any]:
     """Group accepted learnings into cross-project clusters by *term
     anchoring* (not single-link agglomeration, which chains into one
     blob at scale).
@@ -196,7 +195,7 @@ def cluster(*, min_shared_terms: int = 2,
     )
 
 
-def load_proactive_claims(vault: Path) -> List[Learning]:
+def load_proactive_claims(vault: Path) -> list[Learning]:
     """Load v7 Claims at `surfacing: proactive` as `Learning`-shaped items so the
     dream clusterer (RFC 0005 §7.1) operates on the proactive tier — the pool
     that dream distills into `always` (T0) and generalizes into new claims.
@@ -206,7 +205,7 @@ def load_proactive_claims(vault: Path) -> List[Learning]:
     body feed the salient-term set; `project`/`domain` carry the prior context;
     the stable entry_id is the cluster member id and link target."""
     from . import claims_io as _claims
-    out: List[Learning] = []
+    out: list[Learning] = []
     for p in _claims.iter_claim_files(vault):
         got = _claims.read_claim(p)
         if got is None:
@@ -236,7 +235,7 @@ def cluster_claims(*, min_shared_terms: int = 2,
                    min_projects: int = 1,
                    max_doc_frequency: float = 0.6,
                    dedup_jaccard: float = 0.7,
-                   limit: int = 50) -> Dict[str, Any]:
+                   limit: int = 50) -> dict[str, Any]:
     """Cluster v7 proactive Claims for a dream pass (RFC 0005 §7.1).
 
     Same deterministic term-anchoring as `cluster()`, but over the proactive
@@ -255,17 +254,17 @@ def cluster_claims(*, min_shared_terms: int = 2,
     return out
 
 
-def _cluster_items(items: List[Learning], *, vault: Path,
+def _cluster_items(items: list[Learning], *, vault: Path,
                    min_shared_terms: int,
                    min_size: int,
                    min_projects: int,
                    max_doc_frequency: float,
                    dedup_jaccard: float,
-                   limit: int) -> Dict[str, Any]:
+                   limit: int) -> dict[str, Any]:
     n = len(items)
 
     # term → indices of learnings containing it
-    term_to_idx: Dict[str, Set[int]] = defaultdict(set)
+    term_to_idx: dict[str, set[int]] = defaultdict(set)
     for i, it in enumerate(items):
         for t in it.terms:
             term_to_idx[t].add(i)
@@ -279,7 +278,7 @@ def _cluster_items(items: List[Learning], *, vault: Path,
     # When min_projects <= 1 the project axis is OFF (claim clustering groups by
     # concept, not project — claims often carry no project at all), so a term
     # that meets the size cap anchors a cluster regardless of project spread.
-    seeds: List[Tuple[str, frozenset]] = []
+    seeds: list[tuple[str, frozenset]] = []
     for term, idxs in term_to_idx.items():
         if len(idxs) < min_size or len(idxs) > df_cap:
             continue
@@ -295,8 +294,8 @@ def _cluster_items(items: List[Learning], *, vault: Path,
         return len({items[i].project for i in idxs if items[i].project})
     seeds.sort(key=lambda s: (-_spread(s[1]), -len(s[1]), s[0]))
 
-    clusters: List[Cluster] = []
-    emitted_member_sets: List[Set[str]] = []   # by entry_id, for dedup
+    clusters: list[Cluster] = []
+    emitted_member_sets: list[set[str]] = []   # by entry_id, for dedup
 
     for term, idxs in seeds:
         members = sorted(idxs)
@@ -311,7 +310,7 @@ def _cluster_items(items: List[Learning], *, vault: Path,
         # Terms common to a majority of members (informative, not strict
         # full-intersection which collapses on big clusters). Always
         # includes the seed.
-        freq: Dict[str, int] = defaultdict(int)
+        freq: dict[str, int] = defaultdict(int)
         for m in members:
             for t in items[m].terms:
                 freq[t] += 1
@@ -368,8 +367,8 @@ def _count_accepted(vault: Path) -> int:
     `_count_proactive`); kept as the filesystem counterpart of
     `projection_counts.accepted_operational` for the accepted-learnings metric,
     which unions legacy flat notes with graph/atomic claims."""
-    from . import store as _store
     from . import recall as _recall
+    from . import store as _store
     return sum(1 for p in _store.iter_accepted_files(vault)
                if not _recall.is_noise(p.name))
 
@@ -386,12 +385,12 @@ def _count_proactive(vault: Path) -> int:
     return len(load_proactive_claims(vault))
 
 
-def dream_status() -> Dict[str, Any]:
+def dream_status() -> dict[str, Any]:
     """Return cadence info for the nudge: last dream time + how many proactive
     claims have appeared since (dream's input, any domain)."""
     vault = _vault_root()
-    last: Optional[str] = None
-    baseline_raw: Optional[str] = None
+    last: str | None = None
+    baseline_raw: str | None = None
     conn = _db.connect()
     try:
         last = _db.get_meta(conn, _META_LAST_DREAM)
@@ -415,7 +414,7 @@ def dream_status() -> Dict[str, Any]:
     }
 
 
-def mark_dream_complete(*, when: str) -> Dict[str, Any]:
+def mark_dream_complete(*, when: str) -> dict[str, Any]:
     """Advance the dream baseline. Call ONLY on a clean, complete pass —
     an interrupted pass must leave these unchanged so the nudge re-fires.
     `when` is an ISO timestamp supplied by the caller (engine has no clock

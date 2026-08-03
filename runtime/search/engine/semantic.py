@@ -17,7 +17,8 @@ never leaks into storage.
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Protocol, Sequence, runtime_checkable
+from collections.abc import Sequence
+from typing import Protocol, runtime_checkable
 
 from .sqlite_scope import scope_where
 from .types import Candidate, Scope
@@ -33,7 +34,7 @@ class SemanticSearcher(Protocol):
     distance (smaller = nearer), mode-native per the `Candidate` contract."""
 
     def search(self, embedding: Sequence[float], *, scope: Scope = Scope(),
-               k: int = 10) -> List[Candidate]:
+               k: int = 10) -> list[Candidate]:
         ...
 
 
@@ -50,7 +51,7 @@ class VecSemantic:
         self._store = store
 
     def search(self, embedding: Sequence[float], *, scope: Scope = Scope(),
-               k: int = 10) -> List[Candidate]:
+               k: int = 10) -> list[Candidate]:
         if not embedding:
             return []
         # Over-fetch: several nearest chunks may share a page, and scope may
@@ -74,7 +75,7 @@ class VecSemantic:
 
         rows = sorted(self._conn.execute("\n".join(sql), params),
                       key=lambda r: by_chunk[r["chunk_id"]])
-        out: List[Candidate] = []
+        out: list[Candidate] = []
         seen: set[str] = set()
         for r in rows:
             if r["slug"] in seen:

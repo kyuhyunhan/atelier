@@ -12,7 +12,6 @@ Source; an absent pattern file is a no-op.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
@@ -35,7 +34,7 @@ def _seed_claude(root: Path, project_dir: str, name: str, *,
     return p
 
 
-def _croot(atelier_env: Dict) -> Path:
+def _croot(atelier_env: dict) -> Path:
     return atelier_env["claude_projects"]
 
 
@@ -56,11 +55,11 @@ def _source_fms(vault: Path):
 # ── M1: unabsorbed_count ─────────────────────────────────────────────────────
 
 
-def test_count_zero_when_no_memories(atelier_env: Dict) -> None:
+def test_count_zero_when_no_memories(atelier_env: dict) -> None:
     assert _ac.unabsorbed_count() == 0
 
 
-def test_count_unledgered_and_skips_index(atelier_env: Dict) -> None:
+def test_count_unledgered_and_skips_index(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "m1", type_="feedback", description="a")
     _seed_claude(root, "-w-p1", "m2", type_="user", description="b")
@@ -68,7 +67,7 @@ def test_count_unledgered_and_skips_index(atelier_env: Dict) -> None:
     assert _ac.unabsorbed_count() == 2
 
 
-def test_count_drops_after_absorb(atelier_env: Dict) -> None:
+def test_count_drops_after_absorb(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "m1", type_="feedback", description="a")
     assert _ac.unabsorbed_count() == 1
@@ -81,12 +80,12 @@ def test_count_drops_after_absorb(atelier_env: Dict) -> None:
 # ── M1: nudge_info ───────────────────────────────────────────────────────────
 
 
-def test_nudge_not_due_when_empty(atelier_env: Dict) -> None:
+def test_nudge_not_due_when_empty(atelier_env: dict) -> None:
     info = _ac.nudge_info()
     assert info == {"due": False, "count": 0, "short": "", "long": ""}
 
 
-def test_nudge_due_with_backlog(atelier_env: Dict) -> None:
+def test_nudge_due_with_backlog(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "m1", type_="feedback", description="a")
     _seed_claude(root, "-w-p1", "m2", type_="project", description="b")
@@ -98,14 +97,14 @@ def test_nudge_due_with_backlog(atelier_env: Dict) -> None:
     assert "2 to absorb" in info["short"]
 
 
-def test_nudge_singular_noun(atelier_env: Dict) -> None:
+def test_nudge_singular_noun(atelier_env: dict) -> None:
     _seed_claude(_croot(atelier_env), "-w-p1", "m1", type_="feedback",
                  description="a")
     long = _ac.nudge_info()["long"]
     assert "1 Claude Code memory " in long and "memories" not in long
 
 
-def test_nudge_threshold_respected(atelier_env: Dict) -> None:
+def test_nudge_threshold_respected(atelier_env: dict) -> None:
     _set_absorb_cfg(atelier_env["home"], after=3)
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "m1", type_="feedback", description="a")
@@ -118,7 +117,7 @@ def test_nudge_threshold_respected(atelier_env: Dict) -> None:
 # ── M1: unified nudge surface + bootstrap ────────────────────────────────────
 
 
-def test_all_nudges_absorb_first(atelier_env: Dict) -> None:
+def test_all_nudges_absorb_first(atelier_env: dict) -> None:
     _seed_claude(_croot(atelier_env), "-w-p1", "m1", type_="feedback",
                  description="a")
     by_kind = {n.kind: n for n in
@@ -128,7 +127,7 @@ def test_all_nudges_absorb_first(atelier_env: Dict) -> None:
     assert "atelier absorb" in a.long and a.short
 
 
-def test_bootstrap_surfaces_absorb_nudge(atelier_env: Dict) -> None:
+def test_bootstrap_surfaces_absorb_nudge(atelier_env: dict) -> None:
     _seed_claude(_croot(atelier_env), "-w-p1", "m1", type_="feedback",
                  description="a")
     out = _bs.bootstrap(working_dir=None, now="2026-07-22T12:00:00+00:00")
@@ -136,7 +135,7 @@ def test_bootstrap_surfaces_absorb_nudge(atelier_env: Dict) -> None:
     assert "atelier absorb" in out["markdown"]
 
 
-def test_bootstrap_quiet_when_nothing_to_absorb(atelier_env: Dict) -> None:
+def test_bootstrap_quiet_when_nothing_to_absorb(atelier_env: dict) -> None:
     out = _bs.bootstrap(working_dir=None, now="2026-07-22T12:00:00+00:00")
     assert out["absorb_nudge"] is False
     assert "atelier absorb" not in out["markdown"]
@@ -145,7 +144,7 @@ def test_bootstrap_quiet_when_nothing_to_absorb(atelier_env: Dict) -> None:
 # ── M4: sensitivity defaults ─────────────────────────────────────────────────
 
 
-def test_user_memory_lands_private(atelier_env: Dict) -> None:
+def test_user_memory_lands_private(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "who", type_="user",
                  description="the user prefers terse answers")
@@ -158,7 +157,7 @@ def test_user_memory_lands_private(atelier_env: Dict) -> None:
     assert len(src_fms) == 1 and src_fms[0]["sensitivity"] == "private"
 
 
-def test_feedback_memory_stays_public(atelier_env: Dict) -> None:
+def test_feedback_memory_stays_public(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "fb", type_="feedback",
                  description="never mock the db in integration tests")
@@ -170,7 +169,7 @@ def test_feedback_memory_stays_public(atelier_env: Dict) -> None:
 # ── M4: PII demotion (demote-never-block) ────────────────────────────────────
 
 
-def test_pii_hit_demotes_and_flags(atelier_env: Dict) -> None:
+def test_pii_hit_demotes_and_flags(atelier_env: dict) -> None:
     (atelier_env["home"] / "pii_patterns.txt").write_text(
         "# personal names\nSECRETNAME\n", encoding="utf-8")
     root = _croot(atelier_env)
@@ -187,7 +186,7 @@ def test_pii_hit_demotes_and_flags(atelier_env: Dict) -> None:
     assert src_fms[0]["pii_flag"] is True
 
 
-def test_no_pattern_file_is_noop(atelier_env: Dict) -> None:
+def test_no_pattern_file_is_noop(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "clean", type_="feedback",
                  description="a rule", body="nothing sensitive here\n")
@@ -198,7 +197,7 @@ def test_no_pattern_file_is_noop(atelier_env: Dict) -> None:
 
 
 def test_pattern_file_bad_lines_skipped_good_lines_applied(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """An uncompilable regex and a POSIX class are skipped (warned, not
     silent), but the remaining valid patterns still enforce."""
     (atelier_env["home"] / "pii_patterns.txt").write_text(
@@ -211,14 +210,14 @@ def test_pattern_file_bad_lines_skipped_good_lines_applied(
     assert fm["sensitivity"] == "private" and fm["pii_flag"] is True
 
 
-def test_dry_run_previews_sensitivity(atelier_env: Dict) -> None:
+def test_dry_run_previews_sensitivity(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "who", type_="user", description="a user fact")
     out = _ac.absorb(dry_run=True, source_root=root)
     assert out["candidates"][0]["sensitivity"] == "private"
 
 
-def test_demoted_absorb_still_dedupes_on_rerun(atelier_env: Dict) -> None:
+def test_demoted_absorb_still_dedupes_on_rerun(atelier_env: dict) -> None:
     root = _croot(atelier_env)
     _seed_claude(root, "-w-p1", "who", type_="user", description="a user fact")
     _ac.absorb(dry_run=False, source_root=root)
@@ -231,7 +230,7 @@ def test_demoted_absorb_still_dedupes_on_rerun(atelier_env: Dict) -> None:
 
 
 def test_body_only_revision_refreshes_source_and_keeps_the_claim(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """An upstream body edit that keeps the description resolves to the SAME
     content-addressed nodes. M2's contract: the Source body tracks the upstream
     revision, and the Claim is left completely alone."""

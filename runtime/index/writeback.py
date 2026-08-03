@@ -5,16 +5,15 @@ Body and other frontmatter keys are preserved byte-for-byte where possible.
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
 from .parse import split_frontmatter
 
 
-def patch_frontmatter(path: Path, updates: Dict[str, Any]) -> bool:
+def patch_frontmatter(path: Path, updates: dict[str, Any]) -> bool:
     """Apply updates to the frontmatter at `path`. Returns True if file changed."""
     text = path.read_text(encoding="utf-8")
     fm, body = split_frontmatter(text)

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict
 
 from runtime.index import reindex as _reindex
 from runtime.service import api as _api
@@ -17,7 +16,7 @@ def _claim_files(vault: Path):
     return sorted((vault / "graph" / "atomic").rglob("*.md"))
 
 
-def test_reindex_path_matches_full_reindex(atelier_env: Dict) -> None:
+def test_reindex_path_matches_full_reindex(atelier_env: dict) -> None:
     _cap.capture(observation="obs alpha throughput", why="w", rule="r",
                  working_dir="/Users/me/workspaces/lexio", session_id="a", hook="Stop")
     vault = Path(_cl._vault_root())
@@ -52,7 +51,7 @@ def test_reindex_path_matches_full_reindex(atelier_env: Dict) -> None:
     assert path_chunks == full_chunks            # chunks parity, not just the page row
 
 
-def test_reindex_path_ignores_non_indexable_file(atelier_env: Dict) -> None:
+def test_reindex_path_ignores_non_indexable_file(atelier_env: dict) -> None:
     # A non-indexable file (wrong suffix) must NOT get a pages row — else the next
     # full reindex would prune it (incremental != full). reindex_path no-ops it.
     vault = Path(_cl._vault_root())
@@ -67,7 +66,7 @@ def test_reindex_path_ignores_non_indexable_file(atelier_env: Dict) -> None:
     assert row["c"] == 0
 
 
-def test_reindex_path_is_the_change_feed(atelier_env: Dict) -> None:
+def test_reindex_path_is_the_change_feed(atelier_env: dict) -> None:
     # A capture writes markdown but does NOT auto-reindex (stale-until-reindex is
     # a deliberate system assumption — dream cadence + cold-DB fallback rely on
     # it). reindex_path is the opt-in change feed: after calling it, the write is
@@ -88,7 +87,7 @@ def test_reindex_path_is_the_change_feed(atelier_env: Dict) -> None:
     assert after == before + 1                  # the write is now visible
 
 
-def test_routing_columns_present_and_indexed(atelier_env: Dict) -> None:
+def test_routing_columns_present_and_indexed(atelier_env: dict) -> None:
     _cap.capture(observation="obs charlie", why="w", rule="r",
                  working_dir="/Users/me/workspaces/lexio", session_id="c", hook="Stop")
     _api.reindex(space="wiki", full=True)

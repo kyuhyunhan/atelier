@@ -14,7 +14,6 @@ import pytest
 from runtime.index.classify import classify
 from runtime.service.learnings import store
 
-
 # (subpath, expected page_type) — one per learnings overlay rule that has a
 # working glob. NOTE: `archived/<flat>.md` is intentionally absent: the overlay
 # pattern `learnings/archived/**/*.md` requires an intermediate dir, so flat

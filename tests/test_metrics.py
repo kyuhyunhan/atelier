@@ -21,13 +21,11 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
-from typing import Dict
 
-from runtime.service.learnings import claims_io as _claims
-from runtime.service.learnings import cluster as _cl
-from runtime.service.learnings import metrics as _metrics
 from runtime.promote import propose as _propose
 from runtime.service import api as _api
+from runtime.service.learnings import cluster as _cl
+from runtime.service.learnings import metrics as _metrics
 
 
 def _write_claim(vault: Path, name: str, *, domain: str, sensitivity: str,
@@ -48,7 +46,7 @@ def _write_claim(vault: Path, name: str, *, domain: str, sensitivity: str,
 # ── 5.1 promote eligibility ─────────────────────────────────────────────────
 
 def test_promote_eligible_matches_the_production_predicate(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """§3.2 rule 1 + §11.2: the counter must EQUAL the path the feature uses.
 
     This is the divergence test. The attack it blocks: re-implement the counter
@@ -81,7 +79,7 @@ def test_promote_eligible_matches_the_production_predicate(
     assert sum(got["by_domain"].values()) == got["total"]
 
 
-def test_promote_eligible_falls_back_on_a_cold_db(atelier_env: Dict) -> None:
+def test_promote_eligible_falls_back_on_a_cold_db(atelier_env: dict) -> None:
     """§5.1: `projection_counts` answers None on a cold DB, and under the
     abstain rule a None would become key-absence and abort the run. The counter
     must route through the filesystem fallback instead."""
@@ -97,7 +95,7 @@ def test_promote_eligible_falls_back_on_a_cold_db(atelier_env: Dict) -> None:
 # ── 5.2 pending age ─────────────────────────────────────────────────────────
 
 def test_pending_age_reports_the_tail_not_just_the_count(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """§2 point 2: gating on the count lets a workflow drain the recent items
     while the old tail rots. The metric must expose max."""
     vault = Path(_cl._vault_root())
@@ -113,7 +111,7 @@ def test_pending_age_reports_the_tail_not_just_the_count(
 
 
 def test_pending_age_is_reproducible_because_as_of_is_a_parameter(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """§4.2: this is the one wall-clock-derived metric. A counter that read the
     clock itself would give a different verdict tomorrow on identical commits,
     breaking both reproducibility and any `unchanged: true` envelope over it."""
@@ -190,7 +188,9 @@ def test_seeded_probe_is_hermetic_against_git_env_leakage(
     standard environment inside any git hook), the probe must NOT operate on
     the caller's repo — its scratch git must ignore inherited GIT_* entirely.
     The victim repo's index must stay untouched and the score must stay 1."""
-    import shutil, subprocess, os
+    import os
+    import shutil
+    import subprocess
     if shutil.which("git") is None:
         import pytest
         pytest.skip("probe needs git")
@@ -218,7 +218,7 @@ def test_seeded_probe_ignores_inherited_size_knob(monkeypatch) -> None:
     assert _metrics.seeded_probe_blocked() == 1
 
 
-def test_metrics_block_merges_probe_into_guard_liveness(atelier_env: Dict) -> None:
+def test_metrics_block_merges_probe_into_guard_liveness(atelier_env: dict) -> None:
     """The contract-facing shape: metrics().guard_liveness carries the
     seeded_probe_blocked leaf when measurable, alongside pii_active_patterns."""
     import shutil
@@ -274,7 +274,7 @@ def test_lens_param_present_does_not_prove_the_lens_is_honoured(
     """
     from runtime.service import tools as _tools
 
-    async def _accepts_but_ignores(query: str, lens: str = "dev"):   # noqa: ANN202
+    async def _accepts_but_ignores(query: str, lens: str = "dev"):
         return {"rows": "everything, unscoped"}
 
     monkeypatch.setattr(_metrics, "_declared_surfaces",
@@ -295,7 +295,7 @@ def test_lens_param_abstains_when_the_declaration_is_unreadable(
 
 # ── the block ───────────────────────────────────────────────────────────────
 
-def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict,
+def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: dict,
                                                     tmp_path: Path) -> None:
     """§5.4: abstention is key-absence, never a zero. With no probe fixture
     (the fresh-clone / CI state, pinned here via monkey-free probes_path), the
@@ -318,7 +318,7 @@ def test_metrics_block_omits_an_unmeasurable_metric(atelier_env: Dict,
     assert "as_of" not in got
 
 
-def test_metrics_land_beside_census_never_inside_it(atelier_env: Dict) -> None:
+def test_metrics_land_beside_census_never_inside_it(atelier_env: dict) -> None:
     """§3.3 + §11.6: INV-1 (`_census_kind_totals`) iterates the census's
     top-level keys as node kinds and FAILs on any decrease. A counter a goal
     must drive DOWN would become a gate against its own goal if it landed
@@ -333,7 +333,7 @@ def test_metrics_land_beside_census_never_inside_it(atelier_env: Dict) -> None:
 
 
 def test_pending_age_abstains_when_the_tail_is_unmeasurable(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """§5.4 applied to the metric that shipped without it.
 
     Undated pending claims were dropped from the age list but still counted, so
@@ -358,7 +358,7 @@ def test_pending_age_abstains_when_the_tail_is_unmeasurable(
     assert "max" not in got and "p50" not in got       # abstain, never zero
 
 
-def test_pending_age_clamps_a_claim_newer_than_as_of(atelier_env: Dict) -> None:
+def test_pending_age_clamps_a_claim_newer_than_as_of(atelier_env: dict) -> None:
     """Verifying against a stale program anchor puts `as_of` BEFORE claims that
     exist, and a max over mixed-sign values is not a tail measurement."""
     vault = Path(_cl._vault_root())
@@ -370,7 +370,7 @@ def test_pending_age_clamps_a_claim_newer_than_as_of(atelier_env: Dict) -> None:
 
 
 def test_promote_eligible_parity_between_projection_and_filesystem(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """One tally, two sources — `census.py`'s discipline. An earlier revision
     read `total` from one query and `by_domain` from a second, so a DB hiccup
     between them produced `total: N` with an empty split."""
@@ -385,11 +385,12 @@ def test_promote_eligible_parity_between_projection_and_filesystem(
     assert sum(from_db["by_domain"].values()) == from_db["total"]
 
 
-def test_metrics_survive_into_a_written_baseline(atelier_env: Dict,
+def test_metrics_survive_into_a_written_baseline(atelier_env: dict,
                                                  tmp_path: Path) -> None:
     """`generate` is not the shipping path — `write` is, and it round-trips
     through JSON."""
     import json
+
     from runtime.service.learnings import baseline as _baseline
     out = tmp_path / "b.json"
     _baseline.write(out, vault=Path(_cl._vault_root()),
@@ -401,10 +402,11 @@ def test_metrics_survive_into_a_written_baseline(atelier_env: Dict,
 
 
 def test_verify_still_passes_against_a_metrics_less_baseline(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """The frozen record stays frozen. `0006-baseline.json` predates the metrics
     block; adding one must not make the committed anchor unverifiable."""
     import json
+
     from runtime.service.learnings import baseline as _baseline
     from runtime.service.learnings import verify as _verify
     before = _baseline.generate(vault=Path(_cl._vault_root()),
@@ -429,7 +431,7 @@ def test_verify_still_passes_against_a_metrics_less_baseline(
 
 
 def test_surfacing_measures_the_vault_it_is_given_not_the_configured_one(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """Without the `vault` parameter, `baseline.generate(vault=B)` measured
     `census`/`metrics` over B while `surfacing`/`eval.self_probe` silently read
     the configured root A — so an injected delta could go unobserved and the run
@@ -447,7 +449,7 @@ def test_surfacing_measures_the_vault_it_is_given_not_the_configured_one(
 
 
 def test_eval_self_probe_follows_the_same_vault_as_surfacing(
-        atelier_env: Dict, tmp_path: Path) -> None:
+        atelier_env: dict, tmp_path: Path) -> None:
     """`eval._self_probe_block` resolved the root internally, so the two blocks
     that share an omission definition could measure different vaults."""
     from runtime.service.learnings import eval as _eval
@@ -498,7 +500,7 @@ def test_lens_param_separates_a_yaml_typo_from_a_missing_lens(
     assert got["unimplemented"] == 1 and got["_unimplemented"] == ["typo_here"]
 
 
-def test_baseline_tolerates_a_malformed_captured_date(atelier_env: Dict) -> None:
+def test_baseline_tolerates_a_malformed_captured_date(atelier_env: dict) -> None:
     """`verify_against` feeds `captured_date` straight from an on-disk anchor."""
     from runtime.service.learnings import baseline as _baseline
     out = _baseline.generate(vault=Path(_cl._vault_root()), captured_date="not-a-date")
@@ -507,7 +509,7 @@ def test_baseline_tolerates_a_malformed_captured_date(atelier_env: Dict) -> None
 
 # ── dangling links (enables G5 wiki-link repair) ─────────────────────────────
 
-def test_dangling_links_counts_the_broken_links_view(atelier_env: Dict) -> None:
+def test_dangling_links_counts_the_broken_links_view(atelier_env: dict) -> None:
     """§3.2 rule 1: the counter must equal the production referential-integrity
     definition (the `broken_links` view), so a repair goal cannot be gamed by a
     counter that measures something other than what it fixes."""
@@ -535,7 +537,7 @@ def test_dangling_links_counts_the_broken_links_view(atelier_env: Dict) -> None:
 
 
 def test_dangling_links_seeded_keys_are_stable_across_baselines(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """§3.4: an unseeded by_type key that appeared only when a type had a broken
     edge would trip the ENVELOPE union rule on an unrelated goal. All four known
     types are always present, so the keyset never shifts between baselines."""
@@ -549,7 +551,7 @@ def test_dangling_links_seeded_keys_are_stable_across_baselines(
 
 
 def test_dangling_links_real_zero_on_a_healthy_reindexed_vault(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """The distinction the cold-DB abstain rests on: a vault with pages and no
     broken links is a REAL 0 (a floor/eq bound behaves), NOT an abstention."""
     from tests.conftest import write_page
@@ -564,7 +566,7 @@ def test_dangling_links_real_zero_on_a_healthy_reindexed_vault(
 
 
 def test_dangling_links_abstains_on_an_un_reindexed_projection(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """The load-bearing abstain: `db.connect()` CREATEs the DB (IF NOT EXISTS),
     so a cold DB does NOT raise — it returns an empty `broken_links`, i.e. a
     fabricated 0. The guard keys on an EMPTY projection (no pages), not a connect
@@ -582,7 +584,7 @@ def test_dangling_links_abstains_on_an_un_reindexed_projection(
     assert "dangling_links" not in out                # omitted, not a zero
 
 
-def test_dangling_links_abstains_on_an_unreadable_db(atelier_env: Dict,
+def test_dangling_links_abstains_on_an_unreadable_db(atelier_env: dict,
                                                      monkeypatch) -> None:
     """The other abstain path: a genuinely unreadable DB (connect raises)."""
     from runtime.util import db as _db
@@ -592,7 +594,7 @@ def test_dangling_links_abstains_on_an_unreadable_db(atelier_env: Dict,
 
 
 def test_dangling_links_in_the_metrics_block_when_measurable(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     from tests.conftest import write_page
     write_page(Path(_cl._vault_root()) / "wiki" / "entities" / "p.md",
                {"title": "P", "type": "entity", "category": "concept",
@@ -605,7 +607,7 @@ def test_dangling_links_in_the_metrics_block_when_measurable(
 
 # ── dangling_new — the accepted-baseline regression signal ───────────────────
 
-def _write_dangling_baseline(path: Path, accepted: Dict[str, list]) -> None:
+def _write_dangling_baseline(path: Path, accepted: dict[str, list]) -> None:
     """Author a baseline of {category: [targets]} at `path`."""
     import yaml
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -624,7 +626,7 @@ def _seed_two_danglers(vault: Path) -> None:
     _api.reindex(space="wiki", full=True)
 
 
-def test_dangling_new_is_set_difference_not_count(atelier_env: Dict, tmp_path) -> None:
+def test_dangling_new_is_set_difference_not_count(atelier_env: dict, tmp_path) -> None:
     """`new` = current dangling TARGETS minus accepted — so accepting one of two
     leaves exactly the other, by identity, not by count."""
     _seed_two_danglers(Path(_cl._vault_root()))
@@ -638,7 +640,7 @@ def test_dangling_new_is_set_difference_not_count(atelier_env: Dict, tmp_path) -
 
 
 def test_dangling_new_zero_when_all_current_are_accepted(
-        atelier_env: Dict, tmp_path) -> None:
+        atelier_env: dict, tmp_path) -> None:
     """The closed-arc state: every current dangler is in the baseline → new = 0,
     even though the raw dangling count is non-zero."""
     _seed_two_danglers(Path(_cl._vault_root()))
@@ -651,7 +653,7 @@ def test_dangling_new_zero_when_all_current_are_accepted(
     assert _metrics.dangling_links()["by_type"]["wikilink"] == 2
 
 
-def test_dangling_new_abstains_without_a_baseline(atelier_env: Dict, tmp_path) -> None:
+def test_dangling_new_abstains_without_a_baseline(atelier_env: dict, tmp_path) -> None:
     """No baseline → every target would read as 'new'; that fabricated alarm is
     the §5.4 abstain case, so it returns None (key omitted) rather than alarm."""
     _seed_two_danglers(Path(_cl._vault_root()))
@@ -660,7 +662,7 @@ def test_dangling_new_abstains_without_a_baseline(atelier_env: Dict, tmp_path) -
 
 
 def test_dangling_new_abstains_on_a_present_but_shapeless_baseline(
-        atelier_env: Dict, tmp_path) -> None:
+        atelier_env: dict, tmp_path) -> None:
     """A file that exists but has no recoverable `categories` mapping (a
     truncated/empty write, a renamed key, `categories: null`, a top-level list)
     must ABSTAIN — an empty accepted-set would read every current dangler as a
@@ -681,7 +683,7 @@ def test_dangling_new_abstains_on_a_present_but_shapeless_baseline(
 
 
 def test_dangling_new_abstains_on_an_un_reindexed_projection(
-        atelier_env: Dict, tmp_path) -> None:
+        atelier_env: dict, tmp_path) -> None:
     """Mirrors dangling_links: an empty projection abstains rather than reporting
     a fabricated 0-new against a DB that was never built."""
     from runtime.util import db as _db
@@ -694,7 +696,7 @@ def test_dangling_new_abstains_on_an_un_reindexed_projection(
 
 
 def test_dangling_new_in_metrics_block_reads_the_vault_baseline(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """End-to-end through the default path: a baseline authored at the vault's
     graph/meta/ is picked up by metrics(); `new` is the one numeric (bound-able)
     leaf, the rest are `_`-prefixed diagnostics (§5.1.1)."""
@@ -714,7 +716,7 @@ def test_dangling_new_in_metrics_block_reads_the_vault_baseline(
 
 
 def test_doctor_d8_warns_on_a_new_dangler_then_ok_once_accepted(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """D8 surfaces a broken wikilink absent from the accepted baseline as WARN,
     and returns to OK once the baseline accepts it — the ratchet in the human
     health readout."""
@@ -735,7 +737,7 @@ def test_doctor_d8_warns_on_a_new_dangler_then_ok_once_accepted(
     assert d8b.severity == "OK"
 
 
-def test_doctor_d8_ok_without_a_baseline(atelier_env: Dict) -> None:
+def test_doctor_d8_ok_without_a_baseline(atelier_env: dict) -> None:
     """No baseline → D8 cannot assert a regression, so it abstains to OK rather
     than flag every boundary reference (mirrors the metric's abstain)."""
     from runtime.doctor import diagnostics

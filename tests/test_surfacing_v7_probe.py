@@ -8,12 +8,8 @@ the omission gate (INV-4). These tests lock the `statement` fallback in.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict
-
 from runtime.service import api as _api
 from runtime.service.learnings import capture as _cap
-from runtime.service.learnings import cluster as _cl
 from runtime.service.learnings import eval as _eval
 from runtime.service.learnings import review as _rev
 from runtime.service.learnings import surfacing as _surf
@@ -35,7 +31,7 @@ def test_concept_probe_falls_back_to_statement() -> None:
     assert "batch" in probe and "throughput" in probe    # … and derived from statement
 
 
-def test_v7_accepted_claim_is_probeable_and_visible(atelier_env: Dict) -> None:
+def test_v7_accepted_claim_is_probeable_and_visible(atelier_env: dict) -> None:
     _capture_accept("alpha")
     _api.reindex(space="wiki", full=True)
 

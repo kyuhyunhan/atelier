@@ -16,10 +16,10 @@ serialize same-role writes.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import AsyncIterator, Dict, Optional
 
 
 class Claim(str, Enum):
@@ -76,7 +76,7 @@ class SpaceLockRegistry:
     """
 
     def __init__(self) -> None:
-        self._locks: Dict[WriterRole, asyncio.Lock] = {}
+        self._locks: dict[WriterRole, asyncio.Lock] = {}
 
     def _lock_for(self, role: WriterRole) -> asyncio.Lock:
         if role not in self._locks:
@@ -95,7 +95,7 @@ class SpaceLockRegistry:
         return any(lock.locked() for lock in self._locks.values())
 
 
-_REGISTRY: Optional[SpaceLockRegistry] = None
+_REGISTRY: SpaceLockRegistry | None = None
 
 
 def registry() -> SpaceLockRegistry:

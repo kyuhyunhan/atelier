@@ -14,10 +14,8 @@ walks the lifecycle with its entry_id preserved at every step.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 from runtime.service.learnings import capture as _cap
-from runtime.service.learnings import claims_io as _ci
 from runtime.service.learnings import review as _rev
 
 
@@ -27,7 +25,7 @@ def _fm(path: Path) -> dict:
     return front
 
 
-def _capture_good(working_dir: str = "/Users/me/workspaces/lexio") -> Dict:
+def _capture_good(working_dir: str = "/Users/me/workspaces/lexio") -> dict:
     return _cap.capture(
         observation="search returns nothing for tilde queries",
         why="fts5 ignores tilde tokens; need a fallback path",
@@ -36,7 +34,7 @@ def _capture_good(working_dir: str = "/Users/me/workspaces/lexio") -> Dict:
     )
 
 
-def test_capture_births_a_query_pending_claim(atelier_env: Dict) -> None:
+def test_capture_births_a_query_pending_claim(atelier_env: dict) -> None:
     out = _capture_good()
     fm = _fm(Path(out["path"]))
     assert fm["kind"] == "claim" and fm["schema_version"] == 7
@@ -47,7 +45,7 @@ def test_capture_births_a_query_pending_claim(atelier_env: Dict) -> None:
     assert fm["hook"] == "Stop"
 
 
-def test_accept_round_trip_passes_the_gate_in_place(atelier_env: Dict) -> None:
+def test_accept_round_trip_passes_the_gate_in_place(atelier_env: dict) -> None:
     out = _capture_good()
     eid = out["entry_id"]
     path = Path(out["path"])
@@ -61,7 +59,7 @@ def test_accept_round_trip_passes_the_gate_in_place(atelier_env: Dict) -> None:
     assert fm["surfacing"] == "query"             # not yet promoted
 
 
-def test_full_round_trip_capture_accept_promote(atelier_env: Dict) -> None:
+def test_full_round_trip_capture_accept_promote(atelier_env: dict) -> None:
     """capture → accept (passed) → promote (proactive), all on ONE claim file
     with the entry_id preserved end to end."""
     from runtime.promote import apply as _apply
@@ -91,7 +89,7 @@ def test_full_round_trip_capture_accept_promote(atelier_env: Dict) -> None:
     assert fm["generated_by"] == "promote"
 
 
-def test_archive_and_retract_round_trip_are_field_only(atelier_env: Dict) -> None:
+def test_archive_and_retract_round_trip_are_field_only(atelier_env: dict) -> None:
     a = _capture_good()
     arch = _rev.archive(candidate_slug=a["entry_id"], reason="noise")
     assert Path(arch["path"]) == Path(a["path"])
@@ -106,7 +104,7 @@ def test_archive_and_retract_round_trip_are_field_only(atelier_env: Dict) -> Non
     assert ret["from"] == "accepted"
 
 
-def test_born_nodes_pass_the_v7_schema_validator(atelier_env: Dict) -> None:
+def test_born_nodes_pass_the_v7_schema_validator(atelier_env: dict) -> None:
     """The claim, its thin session Source, and the resolved is_about Entity that
     capture mints must all satisfy the v7 schema (required fields + enums:
     generated_by ∈ {ingest,…}, source/entity in_scheme ∈ {personal,knowledge,
@@ -128,7 +126,7 @@ def test_born_nodes_pass_the_v7_schema_validator(atelier_env: Dict) -> None:
     assert findings == [], [f"{f.page_slug}: {f.message}" for f in findings]
 
 
-def test_accepted_claim_is_discoverable_as_accepted(atelier_env: Dict) -> None:
+def test_accepted_claim_is_discoverable_as_accepted(atelier_env: dict) -> None:
     """The single chokepoint store.iter_accepted_files yields a passed
     operational claim — so every accepted-pool reader (recall/search/bootstrap)
     sees it without per-reader edits."""

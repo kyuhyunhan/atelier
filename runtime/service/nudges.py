@@ -19,7 +19,6 @@ suppress the others or crash session start).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass(frozen=True)
@@ -123,7 +122,7 @@ def _promote_nudge() -> Nudge:
         return _safe("promote")
 
 
-def all_nudges(*, now: str) -> List[Nudge]:
+def all_nudges(*, now: str) -> list[Nudge]:
     """Every edge normalized to `Nudge`, in lifecycle order
     (absorb → atomize → promote → dream: ingest before atomization).
     Each is independently tolerant."""
@@ -135,6 +134,6 @@ def all_nudges(*, now: str) -> List[Nudge]:
     ]
 
 
-def due_nudges(*, now: str) -> List[Nudge]:
+def due_nudges(*, now: str) -> list[Nudge]:
     """Only the nudges currently wanting attention."""
     return [n for n in all_nudges(now=now) if n.due]

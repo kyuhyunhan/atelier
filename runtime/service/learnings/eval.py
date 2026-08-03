@@ -20,10 +20,12 @@ against it.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Set
+from typing import Any
 
 from ...index import parse as _parse
+
 # `_concept_targets` is the canonical definition of a learning's concept edges
 # (touches + target_topic) used by the indexer. The eval groups by the EXACT
 # same edges retrieval ranks on — reuse, not re-derive, so they cannot diverge.
@@ -37,7 +39,7 @@ _TYPES = _surfacing._TYPES
 
 # ── pure metric math ────────────────────────────────────────────────────────
 
-def precision_at_k(ranked_ids: Sequence[str], gold: Set[str], k: int) -> float:
+def precision_at_k(ranked_ids: Sequence[str], gold: set[str], k: int) -> float:
     """Of the top-k returned, the fraction that are gold. 0 when k<=0."""
     if k <= 0:
         return 0.0
@@ -45,7 +47,7 @@ def precision_at_k(ranked_ids: Sequence[str], gold: Set[str], k: int) -> float:
     return sum(1 for x in top if x in gold) / k
 
 
-def recall_at_k(ranked_ids: Sequence[str], gold: Set[str], k: int) -> float:
+def recall_at_k(ranked_ids: Sequence[str], gold: set[str], k: int) -> float:
     """Of all gold docs, the fraction that landed in the top-k. 0 on empty gold."""
     if not gold or k <= 0:
         return 0.0
@@ -53,7 +55,7 @@ def recall_at_k(ranked_ids: Sequence[str], gold: Set[str], k: int) -> float:
     return sum(1 for x in top if x in gold) / len(gold)
 
 
-def reciprocal_rank(ranked_ids: Sequence[str], gold: Set[str]) -> float:
+def reciprocal_rank(ranked_ids: Sequence[str], gold: set[str]) -> float:
     """1 / (1-based position of the first gold doc), or 0 if none present."""
     for i, x in enumerate(ranked_ids):
         if x in gold:
@@ -67,11 +69,11 @@ def _mean(xs: Sequence[float]) -> float:
 
 # ── concept-grouped probe set ───────────────────────────────────────────────
 
-def _enumerate_with_concepts(vault: Path) -> List[tuple[str, List[str]]]:
+def _enumerate_with_concepts(vault: Path) -> list[tuple[str, list[str]]]:
     """(entry_id, concept-edges) per accepted learning. Same pool and noise/
     entry_id rules as the surfacing audit, so the two harnesses probe the same
     corpus."""
-    out: List[tuple[str, List[str]]] = []
+    out: list[tuple[str, list[str]]] = []
     for p in _store.iter_accepted_files(vault):
         if _recall.is_noise(p.name):
             continue
@@ -86,11 +88,11 @@ def _enumerate_with_concepts(vault: Path) -> List[tuple[str, List[str]]]:
     return out
 
 
-def concept_probes(vault: Path) -> List[Dict[str, Any]]:
+def concept_probes(vault: Path) -> list[dict[str, Any]]:
     """Multi-gold probes: one per concept shared by >=2 learnings. A concept with
     a single learning is the self-probe's job (single gold) — excluded here so
     P@k stays meaningful."""
-    groups: Dict[str, Set[str]] = {}
+    groups: dict[str, set[str]] = {}
     for eid, concepts in _enumerate_with_concepts(vault):
         for c in concepts:
             key = c.strip().lower()
@@ -105,7 +107,7 @@ def concept_probes(vault: Path) -> List[Dict[str, Any]]:
 
 # ── run ─────────────────────────────────────────────────────────────────────
 
-def _self_probe_block(k: int, vault: Path | None = None) -> Dict[str, Any]:
+def _self_probe_block(k: int, vault: Path | None = None) -> dict[str, Any]:
     """Known-item metrics from the audit's own snapshot at depth k — so Recall@k
     and the dark count share the surfacing audit's exact omission definition.
 
@@ -125,10 +127,10 @@ def _self_probe_block(k: int, vault: Path | None = None) -> Dict[str, Any]:
     }
 
 
-def _concept_block(vault: Path, k: int) -> Dict[str, Any]:
+def _concept_block(vault: Path, k: int) -> dict[str, Any]:
     probes = concept_probes(vault)
-    ps: List[float] = []
-    rs: List[float] = []
+    ps: list[float] = []
+    rs: list[float] = []
     for pr in probes:
         hits = _recall.rank_hits(pr["query"], None, _TYPES, top_k=k, vault=vault)
         ranked = [str((h.get("fm") or {}).get("entry_id")) for h in hits]
@@ -156,7 +158,7 @@ PARAPHRASE_FIXTURE = (Path(__file__).resolve().parents[3]
 
 
 def paraphrase_block(vault: Path, k: int,
-                     fixture_path: Path | None = None) -> Dict[str, Any]:
+                     fixture_path: Path | None = None) -> dict[str, Any]:
     """Score the frozen paraphrase probes against the live retrieval path.
 
     Lexical-only retrieval is expected to score LOW here by design — the gap to
@@ -172,9 +174,9 @@ def paraphrase_block(vault: Path, k: int,
     probes = _json.loads(path.read_text(encoding="utf-8"))["probes"]
 
     existing = {eid for eid, _ in _enumerate_with_concepts(vault)}
-    stale: List[Dict[str, Any]] = []
-    recalls: List[float] = []
-    rrs: List[float] = []
+    stale: list[dict[str, Any]] = []
+    recalls: list[float] = []
+    rrs: list[float] = []
     for pr in probes:
         gold = set(pr["gold"])
         if not gold <= existing:
@@ -193,8 +195,8 @@ def paraphrase_block(vault: Path, k: int,
     }
 
 
-def gate(before: Dict[str, Dict[str, Any]],
-         after: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def gate(before: dict[str, dict[str, Any]],
+         after: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """The hard omission gate every phase must pass (RFC 0001/0002 discipline):
     given two `surfacing.snapshot`s, a change is allowed only if NO learning that
     was visible went dark. Wraps `surfacing.diff` and adds `passed` so the gate
@@ -246,7 +248,7 @@ def _engine_label() -> str:
         conn.close()
 
 
-def run(*, k: int = 5, vault: Path | None = None) -> Dict[str, Any]:
+def run(*, k: int = 5, vault: Path | None = None) -> dict[str, Any]:
     """Compute both probe sets' metrics over the live retrieval path.
 
     Since P3 this path is the hybrid resolver (RFC 0002): `rank_hits` fuses

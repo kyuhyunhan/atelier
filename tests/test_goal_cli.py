@@ -11,7 +11,6 @@ import json
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Dict
 
 from runtime import cli as _cli
 from runtime.service import api as _api
@@ -65,13 +64,13 @@ def _run(repo: Path, bp: Path, vault: Path) -> int:
                       "--before", str(bp), "--repo", str(repo), "--vault", str(vault)])
 
 
-def test_exit_0_on_pass(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_0_on_pass(atelier_env: dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     repo, bp = _setup(vault, tmp_path, intent=[])          # no-op contract
     assert _run(repo, bp, vault) == 0
 
 
-def test_exit_1_on_fail(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_1_on_fail(atelier_env: dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     repo, bp = _setup(vault, tmp_path, intent=[])
     _claim(vault, "injected")                              # undeclared delta
@@ -79,7 +78,7 @@ def test_exit_1_on_fail(atelier_env: Dict, tmp_path: Path) -> None:
     assert _run(repo, bp, vault) == 1
 
 
-def test_exit_2_on_hard_abort(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_2_on_hard_abort(atelier_env: dict, tmp_path: Path) -> None:
     """A contract naming a metric no counter emits is a broken harness — code 2,
     not 1, so the loop does not retry it as a missed target."""
     vault = Path(_cl._vault_root())
@@ -88,7 +87,7 @@ def test_exit_2_on_hard_abort(atelier_env: Dict, tmp_path: Path) -> None:
     assert _run(repo, bp, vault) == 2
 
 
-def test_exit_2_on_a_missing_round_baseline(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_2_on_a_missing_round_baseline(atelier_env: dict, tmp_path: Path) -> None:
     """§4.1: the round baseline is an integrity root. A missing before.json is a
     the-harness-cannot-be-trusted condition — code 2, so the loop aborts rather
     than retrying a fixer against a broken root."""
@@ -98,7 +97,7 @@ def test_exit_2_on_a_missing_round_baseline(atelier_env: Dict, tmp_path: Path) -
     assert _run(repo, bp, vault) == 2
 
 
-def test_exit_2_on_a_corrupt_round_baseline(atelier_env: Dict, tmp_path: Path) -> None:
+def test_exit_2_on_a_corrupt_round_baseline(atelier_env: dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     repo, bp = _setup(vault, tmp_path, intent=[])
     bp.write_text("{ not json", encoding="utf-8")         # truncated/tampered

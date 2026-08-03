@@ -22,7 +22,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from runtime.util import config as _config
 
@@ -49,9 +48,9 @@ def _git_porcelain(path: Path) -> str:
 
 
 def _build_plan(builder_root: Path, vault_root: Path,
-                profiles_dir: Path) -> Tuple[List[Plan], List[str]]:
-    plans: List[Plan] = []
-    conflicts: List[str] = []
+                profiles_dir: Path) -> tuple[list[Plan], list[str]]:
+    plans: list[Plan] = []
+    conflicts: list[str] = []
 
     workshop_root = vault_root / "workshop"
     products_src = builder_root / "products"
@@ -95,7 +94,7 @@ def _apply_plan(plan: Plan) -> None:
     elif plan.kind == "extract-profile":
         shutil.copy2(plan.src, plan.dest)
     elif plan.kind == "consolidate-log":
-        lines: List[str] = []
+        lines: list[str] = []
         for f in sorted(plan.src.rglob("*.md")):
             rel = f.relative_to(plan.src)
             lines.append(f"\n## {rel}\n")
@@ -106,8 +105,8 @@ def _apply_plan(plan: Plan) -> None:
         raise RuntimeError(f"unknown plan kind: {plan.kind}")
 
 
-def absorb(*, apply: bool, profiles_dir: Optional[Path] = None,
-           builder_root_override: Optional[Path] = None) -> int:
+def absorb(*, apply: bool, profiles_dir: Path | None = None,
+           builder_root_override: Path | None = None) -> int:
     cfg = _config.load()
     librarian = cfg.space_by_role("librarian-territory")
     vault_root = librarian.local
@@ -179,7 +178,7 @@ def absorb(*, apply: bool, profiles_dir: Optional[Path] = None,
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="absorb-workshop",
         description="Absorb the builder-territory workshop into the librarian vault.",

@@ -10,12 +10,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import pytest
-
 from runtime.sync import orchestrator
 from runtime.sync.adapters import github
 from runtime.util.config import Config, VaultConfig
-
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -214,8 +211,8 @@ def test_api_sync_commit_push_routes_to_orchestrator(tmp_path: Path,
     _attach_bare_remote(repo, tmp_path / "bare.git")
     (repo / "note.md").write_text("note\n")
 
-    from runtime.util import config as _config
     from runtime.service import api
+    from runtime.util import config as _config
     monkeypatch.setattr(_config, "load", lambda *a, **k: _vault_cfg(repo))
 
     out = api.sync("commit-push")
@@ -232,8 +229,8 @@ def test_cli_sync_commit_push(tmp_path: Path, monkeypatch, capsys) -> None:
     _attach_bare_remote(repo, tmp_path / "bare.git")
     (repo / "note.md").write_text("note\n")
 
-    from runtime.util import config as _config
     from runtime import cli
+    from runtime.util import config as _config
     monkeypatch.setattr(_config, "load", lambda *a, **k: _vault_cfg(repo))
 
     rc = cli.main(["sync", "commit-push", "--message", "chore(vault): manual"])

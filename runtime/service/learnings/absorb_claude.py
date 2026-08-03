@@ -41,17 +41,17 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import lru_cache
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple  # noqa: F401
+from typing import Any
 
 from ...index import parse as _parse
 from ...util import config as _config
 from ...util import logging as _log
 from . import claims_io as _claims
-
 
 _CLAUDE_PROJECTS = Path.home() / ".claude" / "projects"
 _LEDGER_FILENAME = ".absorbed-from-claude.json"
@@ -74,7 +74,7 @@ def _decode_naive(name: str) -> str:
     return "/" + "/".join(name.lstrip("-").split("-"))
 
 
-def _decode_by_filesystem(name: str, *, root: Path = Path("/")) -> Optional[str]:
+def _decode_by_filesystem(name: str, *, root: Path = Path("/")) -> str | None:
     """Resolve the encoding's ambiguity by probing the real filesystem.
 
     Claude Code encodes a working directory by replacing `/` with `-`, but a
@@ -94,7 +94,7 @@ def _decode_by_filesystem(name: str, *, root: Path = Path("/")) -> Optional[str]
     if not tokens:
         return None
 
-    def walk(base: Path, i: int) -> Optional[Path]:
+    def walk(base: Path, i: int) -> Path | None:
         if i == len(tokens):
             return base
         # longest-first: consume as many tokens as possible into one component
@@ -124,7 +124,7 @@ def decode_cwd_dirname(name: str) -> str:
     return _decode_by_filesystem(name) or _decode_naive(name)
 
 
-def _decode_verified(name: str) -> Tuple[str, bool]:
+def _decode_verified(name: str) -> tuple[str, bool]:
     """(path, verified) — `verified` is False when the path had to be guessed
     because nothing on this filesystem matched."""
     hit = _decode_by_filesystem(name)
@@ -179,7 +179,7 @@ def _body_hash(body: str) -> str:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
 @dataclass
@@ -187,13 +187,13 @@ class ClaudeMemory:
     src: Path
     project: str
     name: str
-    description: Optional[str]
+    description: str | None
     type: str           # feedback | reference | user | project | unknown
     body: str
     body_sha: str
 
 
-def _read_memory(path: Path, *, with_project: bool = True) -> Optional[ClaudeMemory]:
+def _read_memory(path: Path, *, with_project: bool = True) -> ClaudeMemory | None:
     text = path.read_text(encoding="utf-8")
     fm, body = _parse.split_frontmatter(text)
     # Tolerate both top-level `type:` and nested `metadata.type:`.
@@ -259,7 +259,7 @@ def memory_key(source_path: str) -> str:
         return p.name
 
 
-def _migrate_ledger(data: Dict[str, Any]) -> Dict[str, Any]:
+def _migrate_ledger(data: dict[str, Any]) -> dict[str, Any]:
     """Bring a ledger to the RFC 0008 §4 indexed shape, in memory.
 
     Legacy shape is a FLAT `{<body_sha>: {...}}`; the indexed shape nests it
@@ -279,7 +279,7 @@ def _migrate_ledger(data: Dict[str, Any]) -> Dict[str, Any]:
     # would crown an arbitrary (in practice, older) entry. Getting this wrong
     # is not cosmetic: the RFC's claim_id backfill would then arm supersession
     # against a stale entry and retract the wrong claim.
-    best: Dict[str, Tuple[str, str]] = {}       # key -> (absorbed_at, sha)
+    best: dict[str, tuple[str, str]] = {}       # key -> (absorbed_at, sha)
     for sha, entry in by_sha.items():
         sp = entry.get("source_path")
         if not (isinstance(sp, str) and sp):
@@ -293,7 +293,7 @@ def _migrate_ledger(data: Dict[str, Any]) -> Dict[str, Any]:
             "by_path": {k: sha for k, (_stamp, sha) in best.items()}}
 
 
-def _load_ledger(vault: Path) -> Dict[str, Any]:
+def _load_ledger(vault: Path) -> dict[str, Any]:
     """The dedup ledger in the indexed `{by_sha, by_path}` shape; empty on an
     absent file (the normal cold start), migrating a legacy flat ledger on
     read. A ledger that EXISTS but is unreadable/non-dict is treated as empty
@@ -319,15 +319,15 @@ def _load_ledger(vault: Path) -> Dict[str, Any]:
     return _migrate_ledger(data)
 
 
-def _save_ledger(vault: Path, ledger: Dict[str, Any]) -> None:
+def _save_ledger(vault: Path, ledger: dict[str, Any]) -> None:
     _ledger_path(vault).write_text(
         json.dumps(ledger, indent=2, sort_keys=True, ensure_ascii=False),
         encoding="utf-8",
     )
 
 
-def _ledger_entry(mem: ClaudeMemory, *, statement: str = "") -> Dict[str, Any]:
-    out: Dict[str, Any] = {
+def _ledger_entry(mem: ClaudeMemory, *, statement: str = "") -> dict[str, Any]:
+    out: dict[str, Any] = {
         "source_path": str(mem.src),
         "absorbed_at": _now_iso(),
         "project": mem.project,
@@ -341,15 +341,15 @@ def _ledger_entry(mem: ClaudeMemory, *, statement: str = "") -> Dict[str, Any]:
     return out
 
 
-def _is_absorbed(ledger: Dict[str, Any], body_sha: str) -> bool:
+def _is_absorbed(ledger: dict[str, Any], body_sha: str) -> bool:
     """The ONE membership test against the dedup ledger (RFC 0008 §7): both
     `absorb` and `unabsorbed_count` go through this accessor, so the `by_sha`
     nesting changed one function, not every call site."""
     return body_sha in (ledger.get("by_sha") or {})
 
 
-def _previous_absorb(ledger: Dict[str, Any],
-                     source_path: str) -> Optional[Dict[str, Any]]:
+def _previous_absorb(ledger: dict[str, Any],
+                     source_path: str) -> dict[str, Any] | None:
     """The ledger entry for the LAST absorb of this memory file, or None when
     the path is new. Resolving `by_path` → `by_sha` is what turns "same file,
     new hash" into the deterministic fact 'this memory was revised'."""
@@ -361,7 +361,7 @@ def _previous_absorb(ledger: Dict[str, Any],
     return entry if isinstance(entry, dict) else None
 
 
-def _claim_owners(source_root: Path) -> Dict[str, List[str]]:
+def _claim_owners(source_root: Path) -> dict[str, list[str]]:
     """claim_id → the memory keys that currently mint to it, computed from the
     LIVE upstream corpus rather than the ledger.
 
@@ -371,7 +371,7 @@ def _claim_owners(source_root: Path) -> Dict[str, List[str]]:
     (never retracting anything). The upstream files are authoritative and we
     are walking them anyway — `claim_id` is a pure function of the memory's
     description, so ownership is exact, current, and vintage-independent."""
-    owners: Dict[str, List[str]] = {}
+    owners: dict[str, list[str]] = {}
     for path in _iter_memories(source_root):
         try:
             mem = _read_memory(path, with_project=False)
@@ -384,7 +384,7 @@ def _claim_owners(source_root: Path) -> Dict[str, List[str]]:
     return owners
 
 
-def _pii_patterns(path: Optional[Path] = None) -> List[re.Pattern]:
+def _pii_patterns(path: Path | None = None) -> list[re.Pattern]:
     """Compiled PII patterns, one regex per line (blank / `#` lines skipped).
     Missing file → empty list (the pass is a no-op, same trust model as the
     pre-commit guard).
@@ -400,7 +400,7 @@ def _pii_patterns(path: Optional[Path] = None) -> List[re.Pattern]:
     p = path if path is not None else _PII_PATTERNS_PATH
     if not p.exists():
         return []
-    out: List[re.Pattern] = []
+    out: list[re.Pattern] = []
     for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -420,15 +420,15 @@ def _pii_patterns(path: Optional[Path] = None) -> List[re.Pattern]:
     return out
 
 
-def _pii_hit(text: str, patterns: List[re.Pattern]) -> bool:
+def _pii_hit(text: str, patterns: list[re.Pattern]) -> bool:
     return any(rx.search(text) for rx in patterns)
 
 
 # ── RFC 0008 M1 — the absorb nudge (unabsorbed backlog) ──────────────────────
 
 
-def unabsorbed_count(*, source_root: Optional[Path] = None,
-                     vault: Optional[Path] = None) -> int:
+def unabsorbed_count(*, source_root: Path | None = None,
+                     vault: Path | None = None) -> int:
     """Number of Claude Code memories whose body sha is not in the ledger
     (RFC 0008 §3). Deterministic, read-only, LLM-free: one directory walk +
     one sha256 per file. `MEMORY.md` indexes are skipped, as in absorb.
@@ -452,9 +452,9 @@ def unabsorbed_count(*, source_root: Optional[Path] = None,
     return count
 
 
-def nudge_info(*, now: Optional[str] = None,
-               source_root: Optional[Path] = None,
-               vault: Optional[Path] = None) -> Dict[str, Any]:
+def nudge_info(*, now: str | None = None,
+               source_root: Path | None = None,
+               vault: Path | None = None) -> dict[str, Any]:
     """Single source of the absorb-nudge decision, shaped like
     atomize/dream.nudge_info(): {due, count, short, long}.
 
@@ -488,7 +488,7 @@ def nudge_info(*, now: Optional[str] = None,
     return {"due": due, "count": count, "short": short, "long": long}
 
 
-def _retract_superseded(owners: Dict[str, List[str]], old_claim_id: str,
+def _retract_superseded(owners: dict[str, list[str]], old_claim_id: str,
                         this_key: str, *, old_statement: str,
                         new_claim_id: str, vault: Path) -> bool:
     """Retract the claim a revision superseded (RFC 0008 §4 step 3).
@@ -589,9 +589,9 @@ def _statement_of(mem: ClaudeMemory) -> str:
 
 
 def absorb(*, dry_run: bool = False,
-           source_root: Optional[Path] = None,
-           auto_accept_kinds: Optional[List[str]] = None,
-           pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
+           source_root: Path | None = None,
+           auto_accept_kinds: list[str] | None = None,
+           pii_patterns_path: Path | None = None) -> dict[str, Any]:
     src_root = source_root or _CLAUDE_PROJECTS
     vault = _vault_root()
     accept_kinds = set(auto_accept_kinds or _AUTO_ACCEPT)
@@ -610,10 +610,10 @@ def absorb(*, dry_run: bool = False,
     # whose legacy entries carry no claim_id.
     owners = _claim_owners(src_root)
 
-    absorbed_accepted: List[Dict[str, str]] = []
-    absorbed_candidates: List[Dict[str, str]] = []
-    deduped: List[str] = []
-    skipped_other: List[str] = []
+    absorbed_accepted: list[dict[str, str]] = []
+    absorbed_candidates: list[dict[str, str]] = []
+    deduped: list[str] = []
+    skipped_other: list[str] = []
 
     for path in _iter_memories(src_root):
         try:

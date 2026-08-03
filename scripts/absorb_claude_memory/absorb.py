@@ -8,15 +8,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from runtime.service.learnings import absorb_claude as _ac
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="absorb-claude-memory")
     grp = p.add_mutually_exclusive_group()
     grp.add_argument("--dry-run", action="store_true", default=True)

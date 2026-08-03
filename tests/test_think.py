@@ -1,9 +1,6 @@
 """RFC 0003 P5 — query-time synthesis evidence (the `think` layer)."""
 from __future__ import annotations
 
-import asyncio
-from typing import Dict
-
 from runtime.service.learnings import think as _think
 
 
@@ -17,7 +14,7 @@ def _accept(observation, why, rule, project, topic):
                 target_project=project)
 
 
-def test_think_returns_cited_evidence_and_no_gap_when_covered(atelier_env: Dict):
+def test_think_returns_cited_evidence_and_no_gap_when_covered(atelier_env: dict):
     _accept("react children re-render twice with batching",
             "useTransition needs keys", "stabilize children keys",
             project="bht", topic="rendering")
@@ -31,7 +28,7 @@ def test_think_returns_cited_evidence_and_no_gap_when_covered(atelier_env: Dict)
     assert c["n"] == 1                       # 1-based citation index
 
 
-def test_think_citations_are_1_based_contiguous(atelier_env: Dict):
+def test_think_citations_are_1_based_contiguous(atelier_env: dict):
     """Citation `n` is a stable 1-based index over the deterministic rank order,
     so the composed answer can reference [1], [2], … unambiguously."""
     _accept("postgres advisory locks serialize a job queue",
@@ -47,7 +44,7 @@ def test_think_citations_are_1_based_contiguous(atelier_env: Dict):
     assert ns == list(range(1, len(ns) + 1))
 
 
-def test_think_payload_carries_contract(atelier_env: Dict):
+def test_think_payload_carries_contract(atelier_env: dict):
     """The composition contract travels in the payload (single source of truth
     for any caller), uniformly on both covered and empty-query returns."""
     out = _think.think(query="   ", top_k=5)               # empty → early return
@@ -67,7 +64,7 @@ def _bundle_with_hits(topic_query: str):
     return _think.think(query=topic_query, top_k=5)
 
 
-def test_compose_conforms_to_contract(atelier_env: Dict):
+def test_compose_conforms_to_contract(atelier_env: dict):
     """The GP5 gate: compose(bundle) yields a contract-conformant answer —
     all three sections, every Answer claim cites [n], gaps under Caveats,
     Sources list the cited indices. This proves the bundle→answer path without
@@ -86,10 +83,11 @@ def test_compose_conforms_to_contract(atelier_env: Dict):
         assert f"[{c['n']}]" in src and c["slug"] in src
 
 
-def test_compose_zero_coverage_is_honest(atelier_env: Dict):
+def test_compose_zero_coverage_is_honest(atelier_env: dict):
     """No-match query → Answer states memory has nothing, Caveats carries the
     gap, Sources is empty, and NO citation marker is fabricated."""
     import re
+
     from runtime.service import api
     api.reindex(full=True)
     out = _think.think(query="quantum chromodynamics lattice gauge", top_k=5)
@@ -99,7 +97,7 @@ def test_compose_zero_coverage_is_honest(atelier_env: Dict):
     assert not re.search(r"\[\d+\]", answer), "no fabricated citation on empty evidence"
 
 
-def test_compose_answer_markers_reference_real_indices(atelier_env: Dict):
+def test_compose_answer_markers_reference_real_indices(atelier_env: dict):
     """Every [n] in the Answer maps to a real citation index — no dangling marker
     (stronger than 'some [n] present')."""
     import re
@@ -131,7 +129,7 @@ def test_compose_tolerates_minimal_bundle():
     assert "graph/entities/x" in answer       # must not raise
 
 
-def test_compose_is_deterministic(atelier_env: Dict):
+def test_compose_is_deterministic(atelier_env: dict):
     """Pure-B determinism: a JSON round-trip of the bundle (different dict object,
     same logical content) composes byte-identically — catches any iteration-order
     or unstable-sort sensitivity, which `compose(out) == compose(out)` would not."""
@@ -140,7 +138,7 @@ def test_compose_is_deterministic(atelier_env: Dict):
     assert _think.compose(out) == _think.compose(json.loads(json.dumps(out)))
 
 
-def test_think_reports_a_gap_when_nothing_matches(atelier_env: Dict):
+def test_think_reports_a_gap_when_nothing_matches(atelier_env: dict):
     from runtime.service import api
     api.reindex(full=True)
     out = _think.think(query="quantum chromodynamics lattice gauge", top_k=5)
@@ -148,12 +146,12 @@ def test_think_reports_a_gap_when_nothing_matches(atelier_env: Dict):
     assert out["gaps"], "an empty result must surface an explicit gap, not a silent []"
 
 
-def test_think_empty_query_is_a_gap_not_a_crash(atelier_env: Dict):
+def test_think_empty_query_is_a_gap_not_a_crash(atelier_env: dict):
     out = _think.think(query="   ", top_k=5)
     assert out["result_count"] == 0 and out["gaps"]
 
 
-def test_atelier_think_tool_returns_contract(atelier_env: Dict):
+def test_atelier_think_tool_returns_contract(atelier_env: dict):
     """The MCP tool surfaces the bundle — citations, gaps, and the contract — so
     the calling agent has everything to compose a contract-conformant answer.
 
@@ -162,6 +160,7 @@ def test_atelier_think_tool_returns_contract(atelier_env: Dict):
     passed only on a machine that had run `scripts/setup` and failed in CI (and
     on any fresh checkout) — a test-isolation leak, not a real failure."""
     import asyncio as _a
+
     from runtime.service import tools as _tools
     out = _a.run(_tools.invoke("atelier_think", query="anything"))
     assert "citations" in out and "gaps" in out and "contract" in out

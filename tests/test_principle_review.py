@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
@@ -13,7 +12,7 @@ from runtime.service.learnings import principles as _pr
 from runtime.service.learnings import review as _rev
 
 
-def _read_fm(path: Path) -> Dict:
+def _read_fm(path: Path) -> dict:
     from runtime.index.parse import split_frontmatter
     fm, _ = split_frontmatter(path.read_text(encoding="utf-8"))
     return fm
@@ -44,7 +43,7 @@ def _draft(slug: str = "draft-1", *, priority: str = "on-relevant-prompt"):
 # ── review_proposed ─────────────────────────────────────────────────────────
 
 
-def test_review_lists_only_proposed(atelier_env: Dict) -> None:
+def test_review_lists_only_proposed(atelier_env: dict) -> None:
     _draft("p-proposed")
     _pr.add(title="already accepted", rule="r", why="w", slug="p-accepted")
     out = _pr.review_proposed()
@@ -53,7 +52,7 @@ def test_review_lists_only_proposed(atelier_env: Dict) -> None:
     assert "p-accepted" not in slugs
 
 
-def test_review_includes_rule_and_evidence(atelier_env: Dict) -> None:
+def test_review_includes_rule_and_evidence(atelier_env: dict) -> None:
     _draft("p-rich")
     out = _pr.review_proposed()
     item = next(it for it in out["items"] if it["slug"] == "p-rich")
@@ -65,7 +64,7 @@ def test_review_includes_rule_and_evidence(atelier_env: Dict) -> None:
 # ── approve ─────────────────────────────────────────────────────────────────
 
 
-def test_approve_promotes_to_accepted(atelier_env: Dict) -> None:
+def test_approve_promotes_to_accepted(atelier_env: dict) -> None:
     _draft("p-app")
     out = _pr.approve(slug="p-app", priority="always-inject")
     assert out["status"] == "accepted"
@@ -78,7 +77,7 @@ def test_approve_promotes_to_accepted(atelier_env: Dict) -> None:
     assert "proposed_at" not in fm
 
 
-def test_approved_principle_now_injected_by_bootstrap(atelier_env: Dict) -> None:
+def test_approved_principle_now_injected_by_bootstrap(atelier_env: dict) -> None:
     _draft("p-inject", priority="on-relevant-prompt")
     # Not injected while proposed...
     pre = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio")["markdown"]
@@ -89,13 +88,13 @@ def test_approved_principle_now_injected_by_bootstrap(atelier_env: Dict) -> None
     assert "p-inject title" in post
 
 
-def test_approve_refuses_non_proposed(atelier_env: Dict) -> None:
+def test_approve_refuses_non_proposed(atelier_env: dict) -> None:
     _pr.add(title="manual", rule="r", why="w", slug="p-manual")
     with pytest.raises(ValueError, match="only proposed"):
         _pr.approve(slug="p-manual")
 
 
-def test_approve_rejects_bad_priority(atelier_env: Dict) -> None:
+def test_approve_rejects_bad_priority(atelier_env: dict) -> None:
     _draft("p-bad")
     with pytest.raises(ValueError, match="priority"):
         _pr.approve(slug="p-bad", priority="urgent")
@@ -104,7 +103,7 @@ def test_approve_rejects_bad_priority(atelier_env: Dict) -> None:
 # ── reject ──────────────────────────────────────────────────────────────────
 
 
-def test_reject_is_retracted_field_not_a_move(atelier_env: Dict) -> None:
+def test_reject_is_retracted_field_not_a_move(atelier_env: dict) -> None:
     # RFC 0005 §7.1 — reject is ac_status → retracted IN PLACE, not a dir move.
     d = _draft("p-rej")
     out = _pr.reject(slug="p-rej", reason="not general enough")
@@ -115,7 +114,7 @@ def test_reject_is_retracted_field_not_a_move(atelier_env: Dict) -> None:
     assert fm["ac_status"] == "retracted"
 
 
-def test_rejected_not_reproposed(atelier_env: Dict) -> None:
+def test_rejected_not_reproposed(atelier_env: dict) -> None:
     d = _draft("p-norep")
     eids = _read_fm(Path(d["path"]))["source_entry_ids"]
     _pr.reject(slug="p-norep", reason="x")
@@ -127,7 +126,7 @@ def test_rejected_not_reproposed(atelier_env: Dict) -> None:
     assert again["status"] == "archived"
 
 
-def test_reject_refuses_non_proposed(atelier_env: Dict) -> None:
+def test_reject_refuses_non_proposed(atelier_env: dict) -> None:
     _pr.add(title="manual2", rule="r", why="w", slug="p-manual2")
     with pytest.raises(ValueError, match="only proposed"):
         _pr.reject(slug="p-manual2")
@@ -144,7 +143,7 @@ def test_mcp_tools_registered() -> None:
             "atelier_principle_reject"} <= names
 
 
-def test_mcp_dispatch_review_and_approve(atelier_env: Dict) -> None:
+def test_mcp_dispatch_review_and_approve(atelier_env: dict) -> None:
     from runtime.service import tools as _tools
     _draft("p-mcp")
 

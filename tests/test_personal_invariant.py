@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import Dict
 
 from runtime.service import api as _api
 from runtime.service.learnings import claims_io as _claims
@@ -55,7 +54,7 @@ def test_schema_declares_personal_private() -> None:
 
 # ── lint L8 ──────────────────────────────────────────────────────────────────
 
-def test_L8_flags_public_claim_from_personal_source(atelier_env: Dict) -> None:
+def test_L8_flags_public_claim_from_personal_source(atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     src = _write_source(vault, "diary1", "personal")
     _write_claim(vault, "leaky", derived_from=src,
@@ -68,7 +67,7 @@ def test_L8_flags_public_claim_from_personal_source(atelier_env: Dict) -> None:
     assert "private" in l8[0]["message"]
 
 
-def test_L8_green_when_personal_claim_is_private(atelier_env: Dict) -> None:
+def test_L8_green_when_personal_claim_is_private(atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     src = _write_source(vault, "diary2", "personal")
     _write_claim(vault, "safe", derived_from=src,
@@ -85,7 +84,7 @@ def test_L8_green_when_personal_claim_is_private(atelier_env: Dict) -> None:
 # ── dream guard ──────────────────────────────────────────────────────────────
 
 def test_dream_synthesis_inherits_private_from_personal_upstream(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     src = _write_source(vault, "diary3", "personal")
     upstream = _write_claim(vault, "up-personal", derived_from=src,
@@ -100,7 +99,7 @@ def test_dream_synthesis_inherits_private_from_personal_upstream(
 
 
 def test_dream_synthesis_stays_public_for_operational_upstream(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     know = _write_source(vault, "kdoc2", "knowledge")
     upstream = _write_claim(vault, "up-op", derived_from=know,
@@ -114,7 +113,7 @@ def test_dream_synthesis_stays_public_for_operational_upstream(
     assert fm["sensitivity"] == "public"                     # untouched
 
 
-def test_dream_guard_abstains_on_unresolvable_upstream(atelier_env: Dict) -> None:
+def test_dream_guard_abstains_on_unresolvable_upstream(atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     ghost = str(uuid.uuid5(uuid.NAMESPACE_DNS, "no-such-claim"))
     out = _claims.write_synthesized_claim(
@@ -134,7 +133,7 @@ def test_dream_guard_abstains_on_unresolvable_upstream(atelier_env: Dict) -> Non
 # Both now go through one shared implementation.
 
 
-def test_principle_from_private_evidence_inherits_private(atelier_env: Dict) -> None:
+def test_principle_from_private_evidence_inherits_private(atelier_env: dict) -> None:
     from runtime.service.learnings import principles as _p
     vault = Path(_cl._vault_root())
     src = _write_source(vault, "diary-ev", "personal")
@@ -148,7 +147,7 @@ def test_principle_from_private_evidence_inherits_private(atelier_env: Dict) -> 
     assert fm["sensitivity"] == "private"
 
 
-def test_principle_from_public_evidence_stays_public(atelier_env: Dict) -> None:
+def test_principle_from_public_evidence_stays_public(atelier_env: dict) -> None:
     """Tighten-only: the guard must not make every principle private."""
     from runtime.service.learnings import principles as _p
     vault = Path(_cl._vault_root())
@@ -163,7 +162,7 @@ def test_principle_from_public_evidence_stays_public(atelier_env: Dict) -> None:
     assert fm["sensitivity"] == "public"
 
 
-def test_evidence_less_principle_is_unaffected(atelier_env: Dict) -> None:
+def test_evidence_less_principle_is_unaffected(atelier_env: dict) -> None:
     from runtime.service.learnings import principles as _p
     out = _p.add(title="A principle with no evidence at all",
                  rule="when P, do Q", why="because R", status="accepted")

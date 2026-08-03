@@ -11,8 +11,6 @@ stdin/stdout belong to the JSON-RPC frames.
 from __future__ import annotations
 
 import asyncio
-import sys
-from typing import Any, Dict
 
 try:
     from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
@@ -23,7 +21,9 @@ except ImportError as e:  # pragma: no cover - import guard
     ) from e
 
 from ..util import logging as log
-from . import auth, server as _server, tools as _tools
+from . import auth
+from . import server as _server
+from . import tools as _tools
 
 
 def build_app() -> FastMCP:

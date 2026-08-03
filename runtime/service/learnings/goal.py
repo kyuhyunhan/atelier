@@ -22,7 +22,7 @@ a goal never legitimately reduces a node *kind* (its counters live in `metrics`)
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
@@ -36,7 +36,7 @@ _INVARIANTS_YAML = (Path(__file__).resolve().parents[3]
 
 # ── invariant clauses (schema-driven, §3.3) ─────────────────────────────────
 
-def _clauses() -> List[Dict[str, Any]]:
+def _clauses() -> list[dict[str, Any]]:
     """The invariant clause list from schema. An unreadable or malformed map is
     an untrustworthy-harness condition (§6), so it surfaces as the typed
     `ContractError` a caller already catches — not a raw yaml/OS exception that
@@ -55,7 +55,7 @@ def _released(direction: str) -> str:
     return "fall" if direction == "may-fall" else "rise"
 
 
-def _superseded_clause_ids(contract: Dict[str, Any]) -> set:
+def _superseded_clause_ids(contract: dict[str, Any]) -> set:
     """The clause ids a validated `supersedes` block releases. Matching is on
     (metric, forbidden-direction); the shape/INTENT-pairing checks already ran in
     `contract.validate_supersedes`."""
@@ -73,13 +73,13 @@ def _superseded_clause_ids(contract: Dict[str, Any]) -> set:
     return out
 
 
-def apply_invariants(before: Dict[str, Any], after: Dict[str, Any],
-                     superseded: set) -> List[Dict[str, Any]]:
+def apply_invariants(before: dict[str, Any], after: dict[str, Any],
+                     superseded: set) -> list[dict[str, Any]]:
     """Run each schema invariant clause not in `superseded`. Returns per-clause
     results; a missing metric on either side is a RAISE (an invariant that cannot
     be measured is a broken harness, not a satisfied one), except that a clause
     whose metric is absent from BOTH baselines is skipped as not-applicable."""
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     for clause in _clauses():
         cid = clause["id"]
         if cid in superseded:
@@ -109,7 +109,7 @@ def apply_invariants(before: Dict[str, Any], after: Dict[str, Any],
 
 # ── INV-1: node kinds did not vanish (whole, unreleasable) ───────────────────
 
-def _check_no_data_loss(before: Dict, after: Dict) -> Dict[str, Any]:
+def _check_no_data_loss(before: dict, after: dict) -> dict[str, Any]:
     """INV-1, reused from `verify.py` so there is one definition. Stays whole:
     §3.3 keeps it as 'graph nodes did not vanish', and a goal never legitimately
     reduces a node kind."""
@@ -121,8 +121,8 @@ def _check_no_data_loss(before: Dict, after: Dict) -> Dict[str, Any]:
 
 # ── the pure core ────────────────────────────────────────────────────────────
 
-def _with_changed_paths(before: Dict[str, Any], after: Dict[str, Any],
-                        ) -> Dict[str, Any]:
+def _with_changed_paths(before: dict[str, Any], after: dict[str, Any],
+                        ) -> dict[str, Any]:
     """Return a COPY of `after` carrying `vault.changed_paths.count`, computed
     from the per-file digest maps, so a fingerprint waiver's bound can resolve it
     (§3.5). A copy, not an in-place edit — `verify_contract` is documented pure,
@@ -143,7 +143,7 @@ def _with_changed_paths(before: Dict[str, Any], after: Dict[str, Any],
     return out
 
 
-def _guard_eval_engine(before: Dict[str, Any], after: Dict[str, Any],
+def _guard_eval_engine(before: dict[str, Any], after: dict[str, Any],
                        superseded: set) -> None:
     """RAISE when the two snapshots' eval runs used different retrieval engines
     and any eval invariant is still live.
@@ -173,8 +173,8 @@ def _guard_eval_engine(before: Dict[str, Any], after: Dict[str, Any],
             f"embedding provider healthy. Live eval clauses: {', '.join(live)}")
 
 
-def verify_contract(contract: Dict[str, Any], before: Dict[str, Any],
-                    after: Dict[str, Any]) -> Dict[str, Any]:
+def verify_contract(contract: dict[str, Any], before: dict[str, Any],
+                    after: dict[str, Any]) -> dict[str, Any]:
     """Score a contract's three layers against a (before, after) pair. Pure.
 
     Raises `ContractError` (a hard abort, §6) for any untrustworthy-harness
@@ -198,9 +198,9 @@ def verify_contract(contract: Dict[str, Any], before: Dict[str, Any],
 # ── the operational wrapper ──────────────────────────────────────────────────
 
 def verify_contract_run(contract_path: Path, before_path: Path, *, repo: Path,
-                        vault: Optional[Path] = None,
-                        fixture_path: Optional[Path] = None,
-                        captured_date: Optional[str] = None) -> Dict[str, Any]:
+                        vault: Path | None = None,
+                        fixture_path: Path | None = None,
+                        captured_date: str | None = None) -> dict[str, Any]:
     """The full path: read the committed contract, check the pins, generate the
     after-state, then score. This is where git and the vault enter; the pure core
     above is what the tests hammer.

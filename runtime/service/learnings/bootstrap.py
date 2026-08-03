@@ -20,8 +20,9 @@ project entries.
 from __future__ import annotations
 
 import re
+from datetime import UTC
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from ...index import parse as _parse
 from ...util import config as _config
@@ -30,12 +31,12 @@ from . import project as _project
 from . import store as _store
 
 
-def _vault_root(cfg: Optional[_config.Config] = None) -> Path:
+def _vault_root(cfg: _config.Config | None = None) -> Path:
     cfg = cfg or _config.load()
     return cfg.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _unknown_project_banner(res: "_project.ProjectResolution") -> str:
+def _unknown_project_banner(res: _project.ProjectResolution) -> str:
     """Loud, in-context notice when the resolved project has no by-project
     learnings dir. Either it's a genuinely new project (fine), or the slug
     is wrong (a renamed/typo'd cwd resolving to an unexpected key) — in
@@ -50,7 +51,7 @@ def _unknown_project_banner(res: "_project.ProjectResolution") -> str:
     )
 
 
-def _render_principles(items: List[Dict[str, Any]]) -> str:
+def _render_principles(items: list[dict[str, Any]]) -> str:
     if not items:
         return ""
     lines = ["## atelier — principles (always-inject)", ""]
@@ -68,7 +69,7 @@ def _render_principles(items: List[Dict[str, Any]]) -> str:
 _RULE_HEADER_RX = re.compile(r"^##+\s*Rule\b", re.M | re.I)
 
 
-def _first_rule_line(path: Path) -> Optional[str]:
+def _first_rule_line(path: Path) -> str | None:
     try:
         _, body = _parse.split_frontmatter(path.read_text(encoding="utf-8"))
     except Exception:        # pragma: no cover
@@ -84,7 +85,7 @@ def _first_rule_line(path: Path) -> Optional[str]:
     return None
 
 
-def _explicit_concepts(fm: Dict[str, Any]) -> set:
+def _explicit_concepts(fm: dict[str, Any]) -> set:
     """The concepts a curator *explicitly* tagged (`touches`). Session-start
     cross-pollination fires only on these — high-signal, intentional — never on
     the coarse `target_topic` bucket (which still builds the index graph in
@@ -95,11 +96,11 @@ def _explicit_concepts(fm: Dict[str, Any]) -> set:
     return {c.strip().lower() for c in raw if isinstance(c, str) and c.strip()}
 
 
-def _scan_accepted(vault: Path) -> List[Dict[str, Any]]:
+def _scan_accepted(vault: Path) -> list[dict[str, Any]]:
     """Read the accepted pool from the flat notes/ store (RFC 0001), folder-free
     w.r.t. project — project is a facet, not a storage location. The by-project
     tree is never read (store.iter_accepted_files excludes it)."""
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for p in _store.iter_accepted_files(vault):
         if p.name == "INDEX.md":
             continue
@@ -111,7 +112,7 @@ def _scan_accepted(vault: Path) -> List[Dict[str, Any]]:
     return items
 
 
-def _bullet(vault: Path, it: Dict[str, Any]) -> str:
+def _bullet(vault: Path, it: dict[str, Any]) -> str:
     fm = it["fm"]
     title = fm.get("title") or it["path"].stem
     topic = fm.get("target_topic") or "general"
@@ -120,7 +121,7 @@ def _bullet(vault: Path, it: Dict[str, Any]) -> str:
 
 
 def _render_project_section(vault: Path, project: str,
-                            lens: Optional[str] = None) -> str:
+                            lens: str | None = None) -> str:
     """§B — this session's relevant learnings, retrieved by *facet*, not folder.
     Own = learnings whose `target_project` is this project; a `related by
     concept` group adds cross-project learnings that explicitly `touches` a
@@ -200,10 +201,10 @@ def _absorb_nudge_line() -> str:
     return _absorb.nudge_info()["long"]
 
 
-def bootstrap(*, working_dir: Optional[str] = None,
+def bootstrap(*, working_dir: str | None = None,
               max_chars: int = 6000,
-              now: Optional[str] = None,
-              lens: Optional[str] = None) -> Dict[str, Any]:
+              now: str | None = None,
+              lens: str | None = None) -> dict[str, Any]:
     cfg = _config.load()
     vault = _vault_root(cfg)
     resolution = _project.resolve_project(working_dir, cfg=cfg)
@@ -213,8 +214,8 @@ def bootstrap(*, working_dir: Optional[str] = None,
     items = _principles.list_all(priority="always-inject", status="accepted")
 
     if now is None:
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        from datetime import datetime
+        now = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     nudge = _dream_nudge(now=now)
     atomize_nudge = _atomize_nudge(now=now)
     try:
@@ -226,7 +227,7 @@ def bootstrap(*, working_dir: Optional[str] = None,
     # banner must not make an otherwise-empty vault look non-empty (else the
     # friendly placeholder never shows). The banner is then laid on top so
     # it leads the block and survives end-truncation.
-    content_parts: List[str] = []
+    content_parts: list[str] = []
     if nudge:
         content_parts.append(nudge)
     if absorb_nudge:

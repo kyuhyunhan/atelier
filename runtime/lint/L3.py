@@ -2,19 +2,17 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
-from typing import List, Optional
 
-from ..util import config
 from ..index import writeback
+from ..util import config
 from .loader import Rule
 from .runner import Finding, register_check, register_fix
 
 
 @register_check("check_source_count")
 def check_source_count(
-    conn: sqlite3.Connection, rule: Rule, space: Optional[str]
-) -> List[Finding]:
+    conn: sqlite3.Connection, rule: Rule, space: str | None
+) -> list[Finding]:
     tolerance = rule.extras.get("tolerance", 1)
     sql = """
         SELECT e.canonical_slug,
@@ -27,7 +25,7 @@ def check_source_count(
         WHERE  p.page_type = 'entity'
         GROUP  BY e.canonical_slug
     """
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     for r in conn.execute(sql):
         declared = r["declared"] or 0
         actual = r["actual"] or 0

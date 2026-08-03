@@ -11,9 +11,9 @@ A PROMOTION_LOG.md is appended in ~/.atelier/cache/.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from ..service.learnings import claims_io as _claims
 from ..util import config
@@ -24,9 +24,9 @@ def _promotion_log() -> Path:
     return config.CACHE_DIR / "PROMOTION_LOG.md"
 
 
-def _parse_proposal(path: Path) -> List[Dict[str, str]]:
-    blocks: List[Dict[str, str]] = []
-    cur: Dict[str, str] = {}
+def _parse_proposal(path: Path) -> list[dict[str, str]]:
+    blocks: list[dict[str, str]] = []
+    cur: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip() == "---":
             if cur:
@@ -41,12 +41,12 @@ def _parse_proposal(path: Path) -> List[Dict[str, str]]:
     return [b for b in blocks if b.get("entry_id")]
 
 
-def apply_proposal(path: Path) -> Dict[str, Any]:
+def apply_proposal(path: Path) -> dict[str, Any]:
     blocks = _parse_proposal(path)
     selected = [b for b in blocks
                 if b.get("promote", "false").lower() == "true"]
-    promoted: List[str] = []
-    skipped: List[Dict[str, str]] = []
+    promoted: list[str] = []
+    skipped: list[dict[str, str]] = []
 
     for b in selected:
         eid = b["entry_id"]
@@ -82,11 +82,11 @@ def apply_proposal(path: Path) -> Dict[str, Any]:
     }
 
 
-def _append_log(proposal_path: Path, promoted: List[str],
-                skipped: List[Dict[str, str]]) -> None:
+def _append_log(proposal_path: Path, promoted: list[str],
+                skipped: list[dict[str, str]]) -> None:
     log = _promotion_log()
     log.parent.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).isoformat() + "Z"
+    ts = datetime.now(UTC).isoformat() + "Z"
     lines = [f"\n## [{ts}] proposal={proposal_path.name}"]
     for eid in promoted:
         lines.append(f"- PROMOTE  {eid}  query→proactive")

@@ -11,12 +11,12 @@ This resolves a *placeholder*; it never recomputes an already-assigned id.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from ...structure import resolver as _structure
 
 
-def _created_at(fm: Dict[str, Any]) -> str:
+def _created_at(fm: dict[str, Any]) -> str:
     """Extract a stable creation timestamp from frontmatter.
 
     `created_at` is the v4 many-valued form (list of {value, ...}); `created`
@@ -34,7 +34,7 @@ def _created_at(fm: Dict[str, Any]) -> str:
     return str(created) if created else ""
 
 
-def _discriminator(fm: Dict[str, Any], path: Path) -> str:
+def _discriminator(fm: dict[str, Any], path: Path) -> str:
     """A stable discriminator for the doc: its title, else its filename stem."""
     title = fm.get("title")
     if isinstance(title, str) and title.strip() and title.strip().lower() != "null":
@@ -42,7 +42,7 @@ def _discriminator(fm: Dict[str, Any], path: Path) -> str:
     return path.stem
 
 
-def entry_id_for(fm: Dict[str, Any], path: Path) -> str:
+def entry_id_for(fm: dict[str, Any], path: Path) -> str:
     """Content-based entry_id for a doc whose id is being resolved from PENDING."""
     return _structure.entry_id(
         "source",

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -16,17 +16,17 @@ class Rule:
     name: str
     severity: str         # FAIL | WARN | INFO
     automation: str       # auto | manual
-    spaces: List[str]
+    spaces: list[str]
     description: str
-    check: Optional[str]
-    fix: Optional[str]
-    db_query: Optional[str]
-    extras: Dict[str, Any]
+    check: str | None
+    fix: str | None
+    db_query: str | None
+    extras: dict[str, Any]
 
 
-def load_rules() -> Dict[str, Rule]:
+def load_rules() -> dict[str, Rule]:
     raw = yaml.safe_load(LINT_YAML.read_text())
-    out: Dict[str, Rule] = {}
+    out: dict[str, Rule] = {}
     for rid, rd in (raw.get("rules") or {}).items():
         known = {"id", "name", "severity", "automation", "spaces", "description",
                  "check", "fix", "db_query"}
@@ -45,6 +45,6 @@ def load_rules() -> Dict[str, Rule]:
     return out
 
 
-def defaults() -> Dict[str, Any]:
+def defaults() -> dict[str, Any]:
     raw = yaml.safe_load(LINT_YAML.read_text())
     return raw.get("defaults", {})

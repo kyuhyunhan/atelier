@@ -29,7 +29,7 @@ agent is never handed a cluster it would only re-synthesize.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ...util import config as _config
 from . import claims_io as _claims
@@ -41,7 +41,7 @@ def _vault_root() -> Path:
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _member_preview(vault: Path, entry_id: str) -> Dict[str, Any]:
+def _member_preview(vault: Path, entry_id: str) -> dict[str, Any]:
     """A compact preview of one proactive claim for the agent to read without
     opening the file."""
     found = _claims.find_claim_by_entry_id(entry_id, vault)
@@ -61,11 +61,11 @@ def _member_preview(vault: Path, entry_id: str) -> Dict[str, Any]:
 # ── coverage: a cluster already synthesized? ──────────────────────────────────
 
 
-def _synthesized_link_targets(vault: Path) -> List[set]:
+def _synthesized_link_targets(vault: Path) -> list[set]:
     """Every existing dream-synthesized claim's set of linked source claim ids.
     Used to skip a cluster a prior pass already generalized (idempotent re-runs).
     """
-    out: List[set] = []
+    out: list[set] = []
     for p in _claims.iter_claim_files(vault):
         got = _claims.read_claim(p)
         if got is None:
@@ -88,7 +88,7 @@ def _synthesized_link_targets(vault: Path) -> List[set]:
     return out
 
 
-def _is_covered(member_ids: List[str], covered_sets: List[set],
+def _is_covered(member_ids: list[str], covered_sets: list[set],
                 overlap_threshold: float) -> bool:
     target = set(member_ids)
     if not target:
@@ -107,7 +107,7 @@ def plan(*, min_shared_terms: int = 2,
          min_size: int = 2,
          min_projects: int = 1,
          overlap_threshold: float = 0.6,
-         limit: int = 20) -> Dict[str, Any]:
+         limit: int = 20) -> dict[str, Any]:
     """Phase 1 — cluster proactive claims into generalizable groups, each with
     member previews + a ready-to-fill `dream.synthesize` call. Clusters already
     covered by an existing synthesized claim are filtered out (RFC 0005 §7.1)."""
@@ -118,7 +118,7 @@ def plan(*, min_shared_terms: int = 2,
     )
 
     covered_sets = _synthesized_link_targets(vault)
-    plans: List[Dict[str, Any]] = []
+    plans: list[dict[str, Any]] = []
     skipped_covered = 0
     for c in clustered["clusters"]:
         member_ids = c["member_entry_ids"]
@@ -172,18 +172,18 @@ def plan(*, min_shared_terms: int = 2,
 # ── synthesize (agent text → engine-written always-claim) ─────────────────────
 
 
-def synthesize(*, source_claim_ids: List[str],
+def synthesize(*, source_claim_ids: list[str],
                statement: str,
                why: str = "",
                rel: str = "refines",
-               is_about: Optional[List[str]] = None,
+               is_about: list[str] | None = None,
                domain: str = "operational",
                sensitivity: str = "public",
-               project: Optional[str] = None,
-               cluster_key: Optional[str] = None,
+               project: str | None = None,
+               cluster_key: str | None = None,
                overlap_threshold: float = 0.6,
                skip_if_covered: bool = True,
-               ) -> Dict[str, Any]:
+               ) -> dict[str, Any]:
     """Write ONE new synthesized always-claim generalizing `source_claim_ids`
     (RFC 0005 §7.1). The agent supplies `statement`/`why`; the engine writes the
     node (`generated_by: dream`, `surfacing: always`, linked `rel` to each source,
@@ -204,8 +204,8 @@ def synthesize(*, source_claim_ids: List[str],
     # Collect the source claims' OWN upstream sources for the PROV chain, plus
     # any is_about entities to carry onto the generalization when the caller did
     # not pass them.
-    upstream: List[str] = []
-    inferred_about: List[str] = []
+    upstream: list[str] = []
+    inferred_about: list[str] = []
     for cid in source_claim_ids:
         found = _claims.find_claim_by_entry_id(cid, vault)
         if found is None:
@@ -240,15 +240,15 @@ def synthesize(*, source_claim_ids: List[str],
 # ── distill (proactive → always, T0 budget) ──────────────────────────────────
 
 
-def distill(*, claim_ids: List[str]) -> Dict[str, Any]:
+def distill(*, claim_ids: list[str]) -> dict[str, Any]:
     """Elevate named proactive claims to `always` (T0) — a field transition in
     place (RFC 0005 §7.1). The T0 budget is hard-capped at recall (recall_v7.
     T0_CAP); distilling more than fits simply means the recall ranker keeps the
     most relevant. Only claims currently at `proactive` are elevated; anything
     else is skipped (idempotent)."""
     vault = _vault_root()
-    elevated: List[str] = []
-    skipped: List[Dict[str, str]] = []
+    elevated: list[str] = []
+    skipped: list[dict[str, str]] = []
     for cid in claim_ids:
         found = _claims.find_claim_by_entry_id(cid, vault)
         if found is None:
@@ -268,7 +268,7 @@ def distill(*, claim_ids: List[str]) -> Dict[str, Any]:
 # ── nudge (cadence) ───────────────────────────────────────────────────────────
 
 
-def _days_between(iso_a: Optional[str], iso_b: str) -> Optional[float]:
+def _days_between(iso_a: str | None, iso_b: str) -> float | None:
     """Whole-ish days between two ISO timestamps; None if `iso_a` absent or
     unparseable."""
     if not iso_a:
@@ -282,7 +282,7 @@ def _days_between(iso_a: Optional[str], iso_b: str) -> Optional[float]:
     return (b - a).total_seconds() / 86400.0
 
 
-def nudge_info(*, now: str) -> Dict[str, Any]:
+def nudge_info(*, now: str) -> dict[str, Any]:
     """Single source of the dream-nudge decision, shared by the
     session_bootstrap model-context injection, the SessionStart systemMessage
     hook, and the statusline. Returns:
@@ -331,7 +331,7 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
     # ── long form (model context + systemMessage) ──
     long = ""
     if due:
-        bits: List[str] = []
+        bits: list[str] = []
         if pending > 0:
             bits.append(
                 f"{pending} proposed principle(s) await review "
@@ -350,7 +350,7 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
     # ── short form (statusline) ──
     short = ""
     if due:
-        segs: List[str] = []
+        segs: list[str] = []
         if accumulation_due and since:
             segs.append(f"{since} to dream")
         elif accumulation_due:
@@ -372,7 +372,7 @@ def nudge_info(*, now: str) -> Dict[str, Any]:
 # ── complete ──────────────────────────────────────────────────────────────────
 
 
-def complete(*, when: str) -> Dict[str, Any]:
+def complete(*, when: str) -> dict[str, Any]:
     """Phase 2 — advance the dream baseline after a clean pass. `when` is an ISO
     timestamp from the caller (engine keeps no clock for determinism)."""
     from . import principles as _principles

@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from . import config
 
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema" / "db" / "sql"
 
-_SHARED: Optional[sqlite3.Connection] = None
-_SHARED_PATH: Optional[Path] = None
+_SHARED: sqlite3.Connection | None = None
+_SHARED_PATH: Path | None = None
 
 
 def _needs_migration(conn: sqlite3.Connection, fresh: bool) -> bool:
@@ -27,7 +26,7 @@ def _needs_migration(conn: sqlite3.Connection, fresh: bool) -> bool:
     return row is None
 
 
-def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
+def connect(db_path: Path | None = None) -> sqlite3.Connection:
     p = db_path or config.DB_PATH
     config.ensure_cache_dir()
     fresh = not p.exists()
@@ -39,7 +38,7 @@ def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
     return conn
 
 
-def connect_shared(db_path: Optional[Path] = None) -> sqlite3.Connection:
+def connect_shared(db_path: Path | None = None) -> sqlite3.Connection:
     """Process-lifetime shared connection for the `atelier serve` daemon.
 
     All transports under one asyncio loop reuse the same connection so
@@ -84,11 +83,11 @@ def fetchall(conn: sqlite3.Connection, sql: str, *params) -> list[sqlite3.Row]:
     return list(conn.execute(sql, params))
 
 
-def fetchone(conn: sqlite3.Connection, sql: str, *params) -> Optional[sqlite3.Row]:
+def fetchone(conn: sqlite3.Connection, sql: str, *params) -> sqlite3.Row | None:
     return conn.execute(sql, params).fetchone()
 
 
-def get_meta(conn: sqlite3.Connection, key: str) -> Optional[str]:
+def get_meta(conn: sqlite3.Connection, key: str) -> str | None:
     row = fetchone(conn, "SELECT value FROM meta WHERE key=?", key)
     return row["value"] if row else None
 

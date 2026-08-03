@@ -13,16 +13,15 @@ references after the fact.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 import yaml
 
 from ...index import parse as _parse
 from ...util import config as _config
 from ...util import db as _db
-
 
 # RFC 0005 §7.1 — an operational learning is now a v7 `claim` page (its status is
 # the `ac_status` field). Every status scope therefore also fetches `claim`
@@ -51,15 +50,15 @@ def _vault_root() -> Path:
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _facet_clause(project: Optional[str], topic: Optional[str],
-                  aspect: Optional[str]) -> tuple[str, List[Any]]:
+def _facet_clause(project: str | None, topic: str | None,
+                  aspect: str | None) -> tuple[str, list[Any]]:
     """SQL + params for facet filtering via the indexed `learning_facets` table
     (RFC 0001). Classification lives in facets, resolved here — not in the path
     and not in a Python frontmatter scan. The 'project' facet was populated from
     `target_project or project_hint`, preserving the old OR semantics."""
     # Facet values are stored lowercased (reindex._facet_rows); lowercase the
     # query side too so the exact `=` match is case-insensitive end to end.
-    pairs: List[tuple[str, str]] = []
+    pairs: list[tuple[str, str]] = []
     if project:
         pairs.append(("project", project.lower()))
     if topic:
@@ -70,11 +69,11 @@ def _facet_clause(project: Optional[str], topic: Optional[str],
         " AND EXISTS (SELECT 1 FROM learning_facets lf "
         "WHERE lf.page_id=p.id AND lf.kind=? AND lf.value=?)"
         for _ in pairs)
-    params: List[Any] = [x for pair in pairs for x in pair]
+    params: list[Any] = [x for pair in pairs for x in pair]
     return sql, params
 
 
-def _lens_ok(fm: Dict[str, Any], lens: Optional[str]) -> bool:
+def _lens_ok(fm: dict[str, Any], lens: str | None) -> bool:
     """RFC 0006 ③ admission for one hit's frontmatter. `None` (internal
     callers) skips the filter; a named lens delegates to the ONE predicate
     (`structure.lenses.lens_admits_fm`) — never a re-implementation."""
@@ -84,7 +83,7 @@ def _lens_ok(fm: Dict[str, Any], lens: Optional[str]) -> bool:
     return _lenses.lens_admits_fm(lens, fm)
 
 
-def _lens_ok_json(frontmatter: str, lens: Optional[str]) -> bool:
+def _lens_ok_json(frontmatter: str, lens: str | None) -> bool:
     """`_lens_ok` over a pages-row JSON frontmatter string (the DB paths)."""
     if lens is None:
         return True
@@ -98,11 +97,11 @@ def _lens_ok_json(frontmatter: str, lens: Optional[str]) -> bool:
 
 def _grep_walk(root: Path, query: str,
                *, types: Iterable[str],
-               project: Optional[str],
-               topic: Optional[str],
-               aspect: Optional[str],
+               project: str | None,
+               topic: str | None,
+               aspect: str | None,
                limit: int,
-               lens: Optional[str] = None) -> List[Dict[str, Any]]:
+               lens: str | None = None) -> list[dict[str, Any]]:
     """Filesystem-side fallback when FTS hasn't indexed learnings yet. No DB, so
     facets are read straight from frontmatter here (the index is unavailable).
     Facet comparison delegates to recall._fm_has_facet so it is case-insensitive
@@ -110,7 +109,7 @@ def _grep_walk(root: Path, query: str,
     from . import recall as _recall
     from . import store as _store
     rx = re.compile(re.escape(query), re.I) if query else None
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for p, fm, body, status in _walk_searchable(root, _store):
         if not any(status == t.removeprefix("learning_") for t in types):
             continue
@@ -174,7 +173,7 @@ def _walk_searchable(root: Path, _store):
         yield p, fm, body, (fm.get("status") or "candidate")
 
 
-def _hit_from_row(row) -> Dict[str, Any]:
+def _hit_from_row(row) -> dict[str, Any]:
     """One result row (slug, page_type, space, frontmatter) → the search hit
     shape. Shared by the resolver path and the facet-only listing so the two
     can never drift in shape."""
@@ -191,7 +190,7 @@ def _hit_from_row(row) -> Dict[str, Any]:
     }
 
 
-def _claim_ac_ok(frontmatter: str, allowed: Optional[tuple]) -> bool:
+def _claim_ac_ok(frontmatter: str, allowed: tuple | None) -> bool:
     """A claim page passes the status filter only when its ac_status is in the
     allowed set. Non-claim (legacy learning_*) pages are unaffected — their
     page_type already encodes the status, so they always pass here."""
@@ -207,11 +206,11 @@ def _claim_ac_ok(frontmatter: str, allowed: Optional[tuple]) -> bool:
     return str(fm.get("ac_status") or "") in allowed
 
 
-def _resolve_search(query: str, types: tuple, *, project: Optional[str],
-                    topic: Optional[str], aspect: Optional[str],
+def _resolve_search(query: str, types: tuple, *, project: str | None,
+                    topic: str | None, aspect: str | None,
                     limit: int,
-                    ac_allowed: Optional[tuple] = None,
-                    lens: Optional[str] = None) -> List[Dict[str, Any]]:
+                    ac_allowed: tuple | None = None,
+                    lens: str | None = None) -> list[dict[str, Any]]:
     """Text-query search via the hybrid resolver (RFC 0002 P3).
 
     The resolver fuses lexical + (when available) semantic by RRF, scoped to the
@@ -219,8 +218,8 @@ def _resolve_search(query: str, types: tuple, *, project: Optional[str],
     EXISTS` filter on the fused page set — the resolver's `Scope` deliberately
     doesn't know about facets (RFC §3). Over-fetch (`limit*3`) before the facet
     filter so a restrictive facet still has fused depth to draw from."""
-    from ...search.engine import Scope
     from ...search import resolver as _resolver
+    from ...search.engine import Scope
     from . import recall as _recall
 
     try:
@@ -246,7 +245,7 @@ def _resolve_search(query: str, types: tuple, *, project: Optional[str],
             "SELECT p.id, p.slug, p.page_type, p.space, p.frontmatter "
             "FROM pages p WHERE p.id IN (" + ph + ") " + facet_sql,
             [*ids, *facet_params])}
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for c in cands:                     # iterate fused order; IN() is unordered
             r = rows.get(c.page_id)
             if r is None:                   # dropped by a facet filter
@@ -263,10 +262,10 @@ def _resolve_search(query: str, types: tuple, *, project: Optional[str],
         conn.close()
 
 
-def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
+def _listing_scan(types: tuple, facet_sql: str, facet_params: list[Any],
                   limit: int,
-                  ac_allowed: Optional[tuple] = None,
-                  lens: Optional[str] = None) -> List[Dict[str, Any]]:
+                  ac_allowed: tuple | None = None,
+                  lens: str | None = None) -> list[dict[str, Any]]:
     """Facet-only listing (no text query): a straight `pages` scan filtered by
     page_type + facets. NOT routed through the resolver — there is no query to
     fuse on. This is the 'list every accepted learning in project X' path."""
@@ -280,7 +279,7 @@ def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
                "FROM pages p WHERE p.page_type IN (" + placeholders + ") "
                + facet_sql + " LIMIT ?")
         seen: set[str] = set()
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for row in conn.execute(sql, [*types, *facet_params, limit * 3]):
             if row["slug"] in seen:
                 continue
@@ -299,11 +298,11 @@ def _listing_scan(types: tuple, facet_sql: str, facet_params: List[Any],
 
 def search(*, query: str = "",
            status: str = "accepted",
-           project: Optional[str] = None,
-           topic: Optional[str] = None,
-           aspect: Optional[str] = None,
+           project: str | None = None,
+           topic: str | None = None,
+           aspect: str | None = None,
            limit: int = 20,
-           lens: Optional[str] = None) -> Dict[str, Any]:
+           lens: str | None = None) -> dict[str, Any]:
     from ...search import fts as _fts
     vault = _vault_root()
     types = _STATUS_TO_TYPES.get(status, _STATUS_TO_TYPES["accepted"])
@@ -339,8 +338,8 @@ def search(*, query: str = "",
 # ── relink ─────────────────────────────────────────────────────────────────
 
 
-def relink(*, slug: str, links: List[str],
-           mode: str = "replace") -> Dict[str, Any]:
+def relink(*, slug: str, links: list[str],
+           mode: str = "replace") -> dict[str, Any]:
     """Update the `links:` array on an accepted learning.
 
     mode = "replace" (default) overwrites the existing list.
@@ -353,7 +352,7 @@ def relink(*, slug: str, links: List[str],
     vault = _vault_root()
     # Search by slug or entry_id in the flat notes/ store (RFC 0001).
     needle = slug.removesuffix(".md")
-    target: Optional[Path] = None
+    target: Path | None = None
     for p in _store.iter_accepted_files(vault):
         if p.stem == needle:
             target = p

@@ -12,8 +12,6 @@ deferred to v0.3.
 from __future__ import annotations
 
 import asyncio
-import os
-from typing import Any, Awaitable, Callable, Optional
 
 try:
     from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
@@ -30,8 +28,9 @@ from starlette.types import ASGIApp, Receive, Scope, Send  # type: ignore[import
 
 from ..util import config as _config
 from ..util import logging as log
-from . import auth, server as _server, tools as _tools
-
+from . import auth
+from . import server as _server
+from . import tools as _tools
 
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 _DEFAULT_PORT = 7322
@@ -74,7 +73,7 @@ class BearerMiddleware:
 
         request = Request(scope, receive=receive)
         header = request.headers.get("authorization", "")
-        token: Optional[str] = None
+        token: str | None = None
         if header.lower().startswith("bearer "):
             token = header.split(" ", 1)[1].strip()
 

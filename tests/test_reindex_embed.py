@@ -7,8 +7,6 @@ calls on re-runs.
 """
 from __future__ import annotations
 
-from typing import Dict
-
 import pytest
 
 from runtime.index import reindex as _reindex
@@ -24,7 +22,7 @@ from tests.conftest import write_page
 # is never reached when the extension is absent.
 
 
-def _seed(atelier_env: Dict) -> None:
+def _seed(atelier_env: dict) -> None:
     write_page(
         atelier_env["wiki"] / "wiki" / "entities" / "n.md",
         {"title": "N", "type": "entity", "category": "concept",

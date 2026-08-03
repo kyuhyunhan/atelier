@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import UTC
 from pathlib import Path
-from typing import List, Optional
 
 from .service import api
 from .util import logging as log
@@ -167,7 +167,6 @@ def _cmd_capture(args: argparse.Namespace) -> int:
 
 
 def _cmd_new_product(args: argparse.Namespace) -> int:
-    from .service import api as _api  # capture endpoint reused
     from .util import config
     cfg = config.load()
     builder_space = cfg.space_by_role("builder-territory").local
@@ -176,9 +175,10 @@ def _cmd_new_product(args: argparse.Namespace) -> int:
         log.error("product already exists", path=str(product_dir))
         return 1
     product_dir.mkdir(parents=True)
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from .structure import resolver as _structure
-    now = datetime.now(timezone.utc).date().isoformat()
+    now = datetime.now(UTC).date().isoformat()
     eid = _structure.entry_id("product", name=args.name)
     (product_dir / "README.md").write_text(
         f"---\n"
@@ -205,11 +205,12 @@ def _cmd_dream(args: argparse.Namespace) -> int:
     proactive claims worth generalizing); the actual generalization is done by
     an agent calling atelier_dream_synthesize. `atelier dream --complete`
     advances the cadence after a finished pass (RFC 0005 §7.1)."""
-    from .service.learnings import dream as _dr
     import json as _json
+
+    from .service.learnings import dream as _dr
     if args.status:
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        from datetime import datetime
+        now = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
         info = _dr.nudge_info(now=now)
         if args.json:
             print(_json.dumps(info, ensure_ascii=False))
@@ -218,8 +219,8 @@ def _cmd_dream(args: argparse.Namespace) -> int:
             print(info["short"])
         return 0
     if args.complete:
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        from datetime import datetime
+        now = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
         out = _dr.complete(when=now)
         print(f"dream complete @ {out['last_dream_at']}  "
               f"(proposed awaiting review: {out['proposed_awaiting_review']})")
@@ -247,10 +248,11 @@ def _cmd_nudges(args: argparse.Namespace) -> int:
     """Unified nudge surface (RFC 0005 §7) for the SessionStart hook / statusline.
     Prints all due nudges' `long` messages (one per line) by default, or the full
     machine-readable list with --json. Filesystem-backed, no running server."""
-    from datetime import datetime, timezone
-    from .service import nudges as _nudges
     import json as _json
-    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    from datetime import datetime
+
+    from .service import nudges as _nudges
+    now = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     if args.json:
         from dataclasses import asdict
         print(_json.dumps(
@@ -270,9 +272,10 @@ def _cmd_inject_preview(args: argparse.Namespace) -> int:
     and renders the same markdown the hooks emit, without a session or any
     side effects. Use it to see what a given client actually receives."""
     import os
+
     from .service.learnings import bootstrap as _bs
-    from .service.learnings import recall as _rc
     from .service.learnings import project as _proj
+    from .service.learnings import recall as _rc
 
     cwd = args.cwd or os.getcwd()
     res = _proj.resolve_project(cwd)
@@ -303,7 +306,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     if args.stdio:
         from .service import mcp_stdio  # noqa: F401  (registers on import)
     if args.http:
-        from .service import mcp_http   # noqa: F401  (PR-4)
+        from .service import mcp_http  # noqa: F401  (PR-4)
     # Background subsystem: self-gates on config vault.auto_commit.enabled.
     from .service import vault_autosync  # noqa: F401  (registers on import)
     return server.run()
@@ -350,9 +353,10 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
     (0006 stays frozen as the pillar record; 0009 has its own), and without it
     every new anchor would be stamped with the 0006 description — the
     misdescription the parameter exists to prevent."""
-    from .service.learnings import baseline as _bl
     import json as _json
     import sys as _sys
+
+    from .service.learnings import baseline as _bl
     def _refuse(why: str) -> int:
         # BOTH sinks on purpose: the log for the record, stderr because the
         # primary caller is a non-TTY subprocess (a workflow agent), and the
@@ -447,8 +451,9 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     """Independent verifier (RFC 0006 §6): recompute the after-state and score it
     against a FROZEN baseline under a rubric. Exit 0 = PASS, 1 = FAIL, so a
     workflow/CI stage can gate on the exit code."""
-    from .service.learnings import verify as _verify
     import json as _json
+
+    from .service.learnings import verify as _verify
     report = _verify.verify_against(Path(args.baseline), args.rubric,
                                     require_committed=not args.allow_uncommitted)
     print(_json.dumps(report, indent=2, ensure_ascii=False))
@@ -467,9 +472,10 @@ def _cmd_goal_verify(args: argparse.Namespace) -> int:
     NOT be retried in-round; §6). The three exit codes are what the workflow's
     verify stage branches on.
     """
+    import json as _json
+
     from .service.learnings import goal as _goal
     from .service.learnings.contract import ContractError
-    import json as _json
     try:
         report = _goal.verify_contract_run(
             Path(args.contract), Path(args.before),
@@ -653,7 +659,7 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     log.configure(level="debug" if args.verbose else None)

@@ -31,7 +31,7 @@ lets the evaluator be exhaustively property-tested.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # The baseline blocks whose leaves form the ENVELOPE namespace (§3.4). Ordered,
 # but membership is what matters. `vault.content_fingerprint` is synthetic (it
@@ -63,7 +63,7 @@ class ContractError(Exception):
 _MISSING = object()
 
 
-def _leaf(d: Dict[str, Any], dotted: str) -> Any:
+def _leaf(d: dict[str, Any], dotted: str) -> Any:
     """Resolve `a.b.c` to a leaf value, or `_MISSING` if any segment is absent.
 
     Deliberately does NOT default to 0 — that is the `_metric_not_regressed._get`
@@ -86,7 +86,7 @@ def _is_number(v: Any) -> bool:
 
 # ── the namespace (§3.4) ────────────────────────────────────────────────────
 
-def _numeric_leaves(block: Any, prefix: str) -> Dict[str, Any]:
+def _numeric_leaves(block: Any, prefix: str) -> dict[str, Any]:
     """Every numeric leaf under `block`, keyed by dotted path.
 
     Excludes `_`-prefixed keys (a readability convention) AND non-numeric leaves
@@ -94,7 +94,7 @@ def _numeric_leaves(block: Any, prefix: str) -> Dict[str, Any]:
     and lists (`eval.engine`, `eval.paraphrase.stale`) that can never be renamed,
     so membership is "numeric and not underscore-prefixed", not the prefix alone.
     """
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     if isinstance(block, dict):
         for k, v in block.items():
             if k.startswith("_"):
@@ -107,7 +107,7 @@ def _numeric_leaves(block: Any, prefix: str) -> Dict[str, Any]:
     return out
 
 
-def namespace(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+def namespace(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
     """The ENVELOPE namespace: the UNION of numeric leaf paths under the tracked
     blocks across both snapshots, plus the fingerprint if either side carries it.
 
@@ -132,8 +132,8 @@ def namespace(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
 _BOUND_KINDS = ("eq", "max", "min", "delta")
 
 
-def _check_bound(bound: Dict[str, Any], value: Any, *,
-                 before_value: Any = _MISSING) -> Tuple[bool, str]:
+def _check_bound(bound: dict[str, Any], value: Any, *,
+                 before_value: Any = _MISSING) -> tuple[bool, str]:
     """Evaluate one numeric bound against a measured value.
 
     `delta` is relative to the before-value and therefore needs one; the others
@@ -167,9 +167,9 @@ def _check_bound(bound: Dict[str, Any], value: Any, *,
 
 # ── the three layers ────────────────────────────────────────────────────────
 
-def _eval_intent(clauses: List[Dict[str, Any]], before: Dict, after: Dict,
-                 ) -> List[Dict[str, Any]]:
-    results: List[Dict[str, Any]] = []
+def _eval_intent(clauses: list[dict[str, Any]], before: dict, after: dict,
+                 ) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
     for clause in clauses:
         metric = clause.get("metric")
         bound = clause.get("to")
@@ -221,8 +221,8 @@ def _eval_intent(clauses: List[Dict[str, Any]], before: Dict, after: Dict,
     return results
 
 
-def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
-                   before: Dict, after: Dict) -> List[Dict[str, Any]]:
+def _eval_envelope(envelope: dict[str, Any], intent_metrics: set,
+                   before: dict, after: dict) -> list[dict[str, Any]]:
     mode = envelope.get("mode", "default-deny")
     if mode != "default-deny":
         raise ContractError(f"unknown envelope mode {mode!r} (only default-deny)")
@@ -236,7 +236,7 @@ def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
     # `vault.changed_paths.count` instead — "repaired 12 links" stays
     # distinguishable from "rewrote 400 files". A same-metric waiver omits
     # `bound.metric` and bounds the released metric itself.
-    waivers: Dict[str, Dict[str, Any]] = {}
+    waivers: dict[str, dict[str, Any]] = {}
     for w in envelope.get("waivers", []):
         release = w.get("release")
         bound = w.get("bound")
@@ -258,7 +258,7 @@ def _eval_envelope(envelope: Dict[str, Any], intent_metrics: set,
                 f"namespace — nothing to release (typo?)")
         waivers[release] = {"bound_metric": bound_metric, "to": bound_to}
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     for metric in sorted(ns):
         if metric in intent_metrics:
             continue                                # owned by INTENT, not envelope
@@ -319,7 +319,7 @@ def _values_equal(a: Any, b: Any) -> bool:
     return a == b
 
 
-def validate_supersedes(contract: Dict[str, Any]) -> List[Dict[str, Any]]:
+def validate_supersedes(contract: dict[str, Any]) -> list[dict[str, Any]]:
     """Shape-check the `supersedes` block and return its entries.
 
     §3.3: supersession is per-clause (invariant + metric + direction), and each
@@ -353,8 +353,8 @@ def validate_supersedes(contract: Dict[str, Any]) -> List[Dict[str, Any]]:
     return entries
 
 
-def evaluate(contract: Dict[str, Any], before: Dict[str, Any],
-             after: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate(contract: dict[str, Any], before: dict[str, Any],
+             after: dict[str, Any]) -> dict[str, Any]:
     """Score a contract against a (before, after) pair. Pure.
 
     Returns `{passed, intent, envelope}` where each layer is a list of per-clause

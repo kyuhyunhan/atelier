@@ -18,10 +18,9 @@ the RFC 0003 principle: the LLM produces an answer (ephemeral), never ingest sta
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from . import recall as _recall
-
 
 # The fixed answer shape every caller composes to. Single source of truth: carried
 # in the think() payload (so any caller has it inline) and referenced by the
@@ -55,7 +54,7 @@ an index absent from the bundle; (4) zero-coverage -> honest "no memory", not a 
 
 def think(*, query: str, project: str | None = None, top_k: int = 5,
           include_candidates: bool = False,
-          lens: str | None = None) -> Dict[str, Any]:
+          lens: str | None = None) -> dict[str, Any]:
     """Assemble a synthesis bundle over the hybrid resolver: cited evidence,
     gaps, and the composition contract.
 
@@ -83,7 +82,7 @@ def think(*, query: str, project: str | None = None, top_k: int = 5,
                 if _lenses.lens_admits_fm(lens, h.get("fm") or {})][:top_k]
     else:
         hits = _recall.rank_hits(query, project, types, top_k=top_k)
-    citations: List[Dict[str, Any]] = []
+    citations: list[dict[str, Any]] = []
     for idx, h in enumerate(hits, start=1):
         fm = h.get("fm") or {}
         citations.append({
@@ -94,7 +93,7 @@ def think(*, query: str, project: str | None = None, top_k: int = 5,
             "score": round(float(h["score"]), 5),
         })
 
-    gaps: List[str] = []
+    gaps: list[str] = []
     if not hits:
         gaps.append("no relevant memory found for this query")
     elif len(hits) < top_k:
@@ -104,7 +103,7 @@ def think(*, query: str, project: str | None = None, top_k: int = 5,
             "contract": SYNTHESIS_CONTRACT, "result_count": len(hits)}
 
 
-def compose(bundle: Dict[str, Any]) -> str:
+def compose(bundle: dict[str, Any]) -> str:
     """The deterministic, non-LLM floor answer for a think() bundle — pure string
     assembly, no I/O, no generation. Same bundle -> byte-identical output. It is
     the executable form of SYNTHESIS_CONTRACT: a contract-conformant cited answer a
@@ -116,7 +115,7 @@ def compose(bundle: Dict[str, Any]) -> str:
     # Defensive field access (compose is public; a headless caller may hand-build a
     # bundle): `n` falls back to position, slug/title to each other, so a citation
     # missing optional fields degrades gracefully instead of raising KeyError.
-    out: List[str] = ["## Answer"]
+    out: list[str] = ["## Answer"]
     if not citations:
         out.append("Memory has nothing on this query.")
     else:

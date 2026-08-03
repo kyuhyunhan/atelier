@@ -4,7 +4,6 @@ resolver (no path literals here)."""
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Optional
 
 from .. import structure as _structure
 from .loader import Rule
@@ -20,8 +19,8 @@ def _like_clause(column: str, prefixes: tuple) -> tuple:
 
 @register_check("check_raw_links_exist")
 def check_raw_links_exist(
-    conn: sqlite3.Connection, rule: Rule, space: Optional[str]
-) -> List[Finding]:
+    conn: sqlite3.Connection, rule: Rule, space: str | None
+) -> list[Finding]:
     """Graph pages whose content-tree link (live or legacy form) does not resolve."""
     target_clause, target_params = _like_clause("l.to_target", _structure.content_prefixes())
     slug_clause, slug_params = _like_clause("p.slug", _structure.graph_prefixes())
@@ -33,7 +32,7 @@ def check_raw_links_exist(
           AND  {target_clause}
           AND  {slug_clause}
     """
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     for r in conn.execute(sql, [*target_params, *slug_params]):
         findings.append(Finding(
             rule_id=rule.id,

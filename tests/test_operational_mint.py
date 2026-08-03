@@ -9,7 +9,6 @@ so the live write path is unchanged.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 from runtime.lint import validate_v4 as _val
 from runtime.service.learnings import claims_io as _ci
@@ -39,7 +38,7 @@ def test_source_id_is_pure_function_of_statement() -> None:
 # ── the mint: Source + Claim, LLM-free ───────────────────────────────────────
 
 
-def test_mint_writes_operational_source_and_claim(atelier_env: Dict) -> None:
+def test_mint_writes_operational_source_and_claim(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(
         statement="Prefer composition over inheritance for mixins",
@@ -72,7 +71,7 @@ def _parse(path: Path):
 # ── idempotency: the property that replaces the anchor's dedup role ───────────
 
 
-def test_mint_same_lesson_dedups_to_one_source_and_one_claim(atelier_env: Dict) -> None:
+def test_mint_same_lesson_dedups_to_one_source_and_one_claim(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     kw = dict(statement="Never mutate source material — only the vault",
               body="## Observation\nhard rule\n", project="atelier", vault=vault)
@@ -113,7 +112,7 @@ def _mutate_claim(path: Path, **fields) -> None:
         + "---\n" + body, encoding="utf-8")
 
 
-def test_re_mint_preserves_promoted_lifecycle_state(atelier_env: Dict) -> None:
+def test_re_mint_preserves_promoted_lifecycle_state(atelier_env: dict) -> None:
     """The live data-loss path: 98 absorbed claims sat at surfacing:proactive
     when this was found. A re-absorb after ANY upstream body edit would have
     demoted every one of them back to query."""
@@ -144,7 +143,7 @@ def test_re_mint_preserves_promoted_lifecycle_state(atelier_env: Dict) -> None:
     assert fm["links"] and fm["links"][0]["why"] == "curated by hand"
 
 
-def test_re_mint_does_not_resurrect_a_retracted_claim(atelier_env: Dict) -> None:
+def test_re_mint_does_not_resurrect_a_retracted_claim(atelier_env: dict) -> None:
     """A curator-retracted claim must stay retracted — otherwise absorb
     silently re-admits rejected material on every run."""
     vault = atelier_env["wiki"]
@@ -161,7 +160,7 @@ def test_re_mint_does_not_resurrect_a_retracted_claim(atelier_env: Dict) -> None
     assert fm["archived_at"] == "2026-07-02T00:00:00+00:00"
 
 
-def test_first_mint_still_writes(atelier_env: Dict) -> None:
+def test_first_mint_still_writes(atelier_env: dict) -> None:
     """Guard the guard: idempotency must not block the birth write."""
     vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(statement="A brand new lesson",
@@ -174,7 +173,7 @@ def test_first_mint_still_writes(atelier_env: Dict) -> None:
 # ── acceptance-criteria mirror (criteria.py reads these off the CLAIM) ────────
 
 
-def test_mint_id_invariant_to_whitespace_and_case(atelier_env: Dict) -> None:
+def test_mint_id_invariant_to_whitespace_and_case(atelier_env: dict) -> None:
     # Locks the RFC 0007 §4 invariant END-TO-END: the operational Source key
     # (sha256 of collapse+lower) and the claim id (write_operational_claim's
     # collapse + resolver._norm's lower) must normalize on the SAME basis. These
@@ -189,7 +188,7 @@ def test_mint_id_invariant_to_whitespace_and_case(atelier_env: Dict) -> None:
     assert a["claim"]["entry_id"] == b["claim"]["entry_id"]
 
 
-def test_mint_mirrors_session_fields_onto_claim(atelier_env: Dict) -> None:
+def test_mint_mirrors_session_fields_onto_claim(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(
         statement="Ship each PR via the ship-pr flow",
@@ -209,7 +208,7 @@ def test_mint_mirrors_session_fields_onto_claim(atelier_env: Dict) -> None:
 # ── additive enums validate end-to-end ───────────────────────────────────────
 
 
-def test_minted_nodes_pass_v7_validation(atelier_env: Dict) -> None:
+def test_minted_nodes_pass_v7_validation(atelier_env: dict) -> None:
     vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(
         statement="Markdown is truth; the DB is a projection",

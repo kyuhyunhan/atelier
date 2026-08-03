@@ -6,8 +6,6 @@ FtsLexical tests so the two modes prove the same contract behaviors.
 """
 from __future__ import annotations
 
-from typing import Dict
-
 import pytest
 
 # Needs the sqlite-vec extension (`semantic` extra); skip cleanly without it —
@@ -15,7 +13,14 @@ import pytest
 # `from tests.test_vecstore import CountingGateway` when the dep is absent.
 pytest.importorskip("sqlite_vec")
 
-from runtime.search.engine import RetrievalEngine, FtsLexical, VecSemantic, VecStore, Scope, Candidate
+from runtime.search.engine import (
+    Candidate,
+    FtsLexical,
+    RetrievalEngine,
+    Scope,
+    VecSemantic,
+    VecStore,
+)
 from runtime.search.engine.semantic import SemanticSearcher
 from runtime.util import db
 from tests.conftest import write_page
@@ -23,7 +28,7 @@ from tests.test_vecstore import CountingGateway
 
 
 @pytest.fixture
-def vec_env(atelier_env: Dict):
+def vec_env(atelier_env: dict):
     write_page(
         atelier_env["wiki"] / "wiki" / "entities" / "short.md",
         {"title": "Short", "type": "entity", "category": "concept",

@@ -7,7 +7,6 @@ is not frozen (uncommitted / outside git) must be refused. A real regression
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
@@ -35,7 +34,7 @@ def _freeze(tmp_path: Path) -> Path:
     return bp
 
 
-def test_verifier_passes_on_unchanged_vault(atelier_env: Dict, tmp_path: Path) -> None:
+def test_verifier_passes_on_unchanged_vault(atelier_env: dict, tmp_path: Path) -> None:
     _capture_accept("a"); _capture_accept("b")
     bp = _freeze(tmp_path)
     # No change between freeze and verify → every no-regression gate holds.
@@ -44,7 +43,7 @@ def test_verifier_passes_on_unchanged_vault(atelier_env: Dict, tmp_path: Path) -
     assert all(c["ok"] for c in report["checks"] if c["severity"] == "gate")
 
 
-def test_verifier_refuses_non_frozen_baseline(atelier_env: Dict, tmp_path: Path) -> None:
+def test_verifier_refuses_non_frozen_baseline(atelier_env: dict, tmp_path: Path) -> None:
     _capture_accept("a")
     bp = _freeze(tmp_path)
     # tmp_path is not a git repo → the frozen-baseline guard fails closed.
@@ -52,7 +51,7 @@ def test_verifier_refuses_non_frozen_baseline(atelier_env: Dict, tmp_path: Path)
         _verify.verify_against(bp, "P0")            # require_committed defaults True
 
 
-def test_verifier_fails_on_data_loss(atelier_env: Dict, tmp_path: Path) -> None:
+def test_verifier_fails_on_data_loss(atelier_env: dict, tmp_path: Path) -> None:
     _capture_accept("a"); _capture_accept("b")
     bp = _freeze(tmp_path)
 
@@ -70,14 +69,14 @@ def test_verifier_fails_on_data_loss(atelier_env: Dict, tmp_path: Path) -> None:
     assert dl["ok"] is False
 
 
-def test_unknown_rubric_raises(atelier_env: Dict, tmp_path: Path) -> None:
+def test_unknown_rubric_raises(atelier_env: dict, tmp_path: Path) -> None:
     _capture_accept("a")
     bp = _freeze(tmp_path)
     with pytest.raises(KeyError):
         _verify.verify_against(bp, "does-not-exist", require_committed=False)
 
 
-def test_p1_grounded_rubric(atelier_env: Dict, tmp_path: Path) -> None:
+def test_p1_grounded_rubric(atelier_env: dict, tmp_path: Path) -> None:
     from runtime.structure import manifest as _manifest
     _capture_accept("a")
     bp = _freeze(tmp_path)

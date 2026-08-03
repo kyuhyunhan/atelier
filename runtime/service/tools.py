@@ -22,16 +22,16 @@ handlers directly without setup.
 from __future__ import annotations
 
 import contextvars
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from datetime import UTC
+from typing import Any
 
 from ..util import config as _config
 from ..util import logging as _log
 from . import api as _api
 from . import auth as _auth
 from . import claims as _claims
-
 
 # ── Session contextvar (transport adapters set this) ───────────────────────
 
@@ -56,19 +56,19 @@ def current_session() -> _auth.Session:
 class ToolDef:
     name: str
     description: str
-    handler: Callable[..., Awaitable[Dict[str, Any]]]
-    claim: Optional[_claims.Claim] = None
-    lock_role: Optional[_claims.WriterRole] = None
+    handler: Callable[..., Awaitable[dict[str, Any]]]
+    claim: _claims.Claim | None = None
+    lock_role: _claims.WriterRole | None = None
 
 
-_REGISTRY: Dict[str, ToolDef] = {}
+_REGISTRY: dict[str, ToolDef] = {}
 
 
 def register(t: ToolDef) -> None:
     _REGISTRY[t.name] = t
 
 
-def iter_tools() -> List[ToolDef]:
+def iter_tools() -> list[ToolDef]:
     return list(_REGISTRY.values())
 
 
@@ -76,7 +76,7 @@ def get(name: str) -> ToolDef:
     return _REGISTRY[name]
 
 
-async def invoke(name: str, **params: Any) -> Dict[str, Any]:
+async def invoke(name: str, **params: Any) -> dict[str, Any]:
     """Direct dispatch path (used by tests + MCP transports).
 
     Runs claim + lock guards then awaits the handler. The active
@@ -105,9 +105,9 @@ def _validate_lens(lens: str) -> None:
             f"unknown lens {lens!r}; valid: {sorted(_lenses.lens_names())}")
 
 
-async def _h_search(query: str, space: Optional[str] = None,
+async def _h_search(query: str, space: str | None = None,
                     limit: int = 20, fallback: bool = False,
-                    lens: str = "dev") -> Dict[str, Any]:
+                    lens: str = "dev") -> dict[str, Any]:
     """Full-text search over indexed pages. Returns ranked hits, scoped by the
     serving `lens` (RFC 0006 ③): 'dev' (default) excludes personal-domain
     pages; 'full' is the wall-less cross-domain view."""
@@ -116,7 +116,7 @@ async def _h_search(query: str, space: Optional[str] = None,
                                 fallback=fallback, lens=lens)}
 
 
-async def _h_links(slug: str, direction: str = "both") -> Dict[str, Any]:
+async def _h_links(slug: str, direction: str = "both") -> dict[str, Any]:
     """Inbound and/or outbound `[[wikilinks]]` for a page."""
     from ..search import graph
     from ..util import db
@@ -126,20 +126,21 @@ async def _h_links(slug: str, direction: str = "both") -> Dict[str, Any]:
     return {"slug": slug, "inbound": inbound, "outbound": outbound}
 
 
-async def _h_list_pages(space: Optional[str] = None,
-                        page_type: Optional[str] = None,
-                        lens: str = "dev") -> Dict[str, Any]:
+async def _h_list_pages(space: str | None = None,
+                        page_type: str | None = None,
+                        lens: str = "dev") -> dict[str, Any]:
     """List indexed pages, optionally filtered by space or page_type. The
     serving `lens` (RFC 0006 ③) scopes the LISTING itself: a personal page
     listed is a personal page disclosed, so the dev lens drops rows its
     (kind, domain) frontmatter is not admitted for."""
     import json as _json
+
     from ..structure import lenses as _lenses
     from ..util import db
     _validate_lens(lens)
     conn = db.connect_shared()
     sql = "SELECT slug, page_type, space, frontmatter FROM pages WHERE 1=1"
-    params: List[Any] = []
+    params: list[Any] = []
     if page_type:
         sql += " AND page_type=?"
         params.append(page_type)
@@ -147,7 +148,7 @@ async def _h_list_pages(space: Optional[str] = None,
         sql += " AND space=?"
         params.append(space)
     sql += " ORDER BY space, slug"
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for r in conn.execute(sql, params):
         try:
             fm = _json.loads(r["frontmatter"] or "{}")
@@ -160,9 +161,9 @@ async def _h_list_pages(space: Optional[str] = None,
     return {"pages": rows}
 
 
-async def _h_lint(space: Optional[str] = None,
-                  rule_ids: Optional[List[str]] = None,
-                  apply_fixes: bool = False) -> Dict[str, Any]:
+async def _h_lint(space: str | None = None,
+                  rule_ids: list[str] | None = None,
+                  apply_fixes: bool = False) -> dict[str, Any]:
     """Run lint rules (L1/L3/L5/L6). With apply_fixes=true requires
     wiki-write claim and lock."""
     if apply_fixes:
@@ -173,7 +174,7 @@ async def _h_lint(space: Optional[str] = None,
     return _api.lint(space=space, rule_ids=rule_ids, apply_fixes=False)
 
 
-async def _h_doctor(remediate: bool = False, max_usd: float = 0.0) -> Dict[str, Any]:
+async def _h_doctor(remediate: bool = False, max_usd: float = 0.0) -> dict[str, Any]:
     """Drift diagnostics. With remediate=true requires the
     doctor-remediate claim."""
     if remediate:
@@ -182,8 +183,8 @@ async def _h_doctor(remediate: bool = False, max_usd: float = 0.0) -> Dict[str, 
     return _api.doctor(remediate=remediate, max_usd=max_usd)
 
 
-async def _h_sync(action: str, space: Optional[str] = None,
-                  message: Optional[str] = None) -> Dict[str, Any]:
+async def _h_sync(action: str, space: str | None = None,
+                  message: str | None = None) -> dict[str, Any]:
     """Git sync for the vault. action: status | pull | push | commit | commit-push.
     `commit`/`commit-push` stage+commit (and push) only if the tree is dirty and
     safe (repo toplevel, not mid-merge/locked); a failed push is surfaced, never
@@ -194,14 +195,14 @@ async def _h_sync(action: str, space: Optional[str] = None,
 # ── Write-side handlers ────────────────────────────────────────────────────
 
 
-async def _h_reindex(space: Optional[str] = None, full: bool = False) -> Dict[str, Any]:
+async def _h_reindex(space: str | None = None, full: bool = False) -> dict[str, Any]:
     """Rebuild the SQLite projection of markdown content."""
     return {"results": _api.reindex(space=space, full=full)}
 
 
 async def _h_capture(text: str, source: str = "manual",
-                     title: Optional[str] = None,
-                     domain: str = "inbox/undetermined") -> Dict[str, Any]:
+                     title: str | None = None,
+                     domain: str = "inbox/undetermined") -> dict[str, Any]:
     """Land a short note in the `inbox` intake domain (raw/inbox/).
 
     `domain` is carried as an explicit field (default `inbox/undetermined`); the
@@ -210,19 +211,19 @@ async def _h_capture(text: str, source: str = "manual",
     return _api.capture_text(text, source=source, title=title, domain=domain)
 
 
-async def _h_promote_propose() -> Dict[str, Any]:
+async def _h_promote_propose() -> dict[str, Any]:
     """List accepted query-only claims awaiting promotion; emit a proposal doc."""
     return _api.promote_propose()
 
 
-async def _h_promote_apply(proposal: str) -> Dict[str, Any]:
+async def _h_promote_apply(proposal: str) -> dict[str, Any]:
     """Apply a proposal — flip reviewed claims' surfacing query→proactive
     in place (a field transition, RFC 0005 §7.1 — no wiki page is written)."""
     return _api.promote_apply(proposal)
 
 
 async def _h_fix_pending(dry_run: bool = False,
-                          role: str = "librarian-territory") -> Dict[str, Any]:
+                          role: str = "librarian-territory") -> dict[str, Any]:
     """Resolve every `entry_id: PENDING` to a stable UUID5."""
     from .jobs import pending as _jp
     return _jp.fix_pending(dry_run=dry_run, role=role)
@@ -234,7 +235,7 @@ async def _h_fix_pending(dry_run: bool = False,
 
 async def _h_clip_image(url: str,
                          role: str = "librarian-territory",
-                         subdir: Optional[str] = None) -> Dict[str, Any]:
+                         subdir: str | None = None) -> dict[str, Any]:
     """Fetch a remote image into the vault and (when configured) return a CDN URL."""
     from .jobs import clip as _jc
     return _jc.clip_image(url=url, role=role, subdir=subdir)
@@ -242,8 +243,8 @@ async def _h_clip_image(url: str,
 
 async def _h_new_doc(template: str, name: str,
                       role: str = "librarian-territory",
-                      fields: Optional[Dict[str, Any]] = None
-                      ) -> Dict[str, Any]:
+                      fields: dict[str, Any] | None = None
+                      ) -> dict[str, Any]:
     """Scaffold a new document under raw/, workshop/products, or workshop/notes.
     (The 'learning' template is retired — operational learnings are born as a
     Claim via atelier_learning_capture; RFC 0005 §7.1.)"""
@@ -252,9 +253,9 @@ async def _h_new_doc(template: str, name: str,
                          fields=fields)
 
 
-async def _h_prepare_commit(paths: Optional[List[str]] = None,
+async def _h_prepare_commit(paths: list[str] | None = None,
                              dry_run: bool = False
-                             ) -> Dict[str, Any]:
+                             ) -> dict[str, Any]:
     """Recalculate word_count / embedded_assets / edited_at for
     pre-commit hygiene. LLM facets reclassification is deferred."""
     from .jobs import prepare as _jp
@@ -262,10 +263,10 @@ async def _h_prepare_commit(paths: Optional[List[str]] = None,
 
 
 async def _h_youtube(url: str, role: str = "librarian-territory",
-                      lang: Optional[str] = None,
+                      lang: str | None = None,
                       force_stt: bool = False,
                       staging_subdir: str = ""
-                      ) -> Dict[str, Any]:
+                      ) -> dict[str, Any]:
     """Ingest a YouTube URL directly into raw/knowledge/ (RFC 0005 §3.2 — no
     `_new/` staging; "awaiting atomization" is a derived state, not a place).
     When captions are unavailable and STT is not configured, returns
@@ -276,27 +277,27 @@ async def _h_youtube(url: str, role: str = "librarian-territory",
                               staging_subdir=staging_subdir)
 
 
-async def _h_validate(paths: Optional[List[str]] = None,
+async def _h_validate(paths: list[str] | None = None,
                       role: str = "librarian-territory",
-                      fail_fast: bool = False) -> Dict[str, Any]:
+                      fail_fast: bool = False) -> dict[str, Any]:
     """Validate frontmatter against schema v4. Read-only."""
     return _api.validate(paths=paths, role=role, fail_fast=fail_fast)
 
 
 async def _h_learning_capture(observation: str = "",
-                              why: Optional[str] = None,
-                              rule: Optional[str] = None,
-                              excerpt: Optional[str] = None,
-                              working_dir: Optional[str] = None,
-                              project_hint: Optional[str] = None,
-                              touches: Optional[List[str]] = None,
-                              session_id: Optional[str] = None,
-                              transcript_path: Optional[str] = None,
+                              why: str | None = None,
+                              rule: str | None = None,
+                              excerpt: str | None = None,
+                              working_dir: str | None = None,
+                              project_hint: str | None = None,
+                              touches: list[str] | None = None,
+                              session_id: str | None = None,
+                              transcript_path: str | None = None,
                               agent_kind: str = "claude-code",
                               hook: str = "manual",
                               observation_kind: str = "feedback",
                               require_why: bool = True
-                              ) -> Dict[str, Any]:
+                              ) -> dict[str, Any]:
     """Capture a learning — born directly as a v7 Claim (RFC 0005 §7.1:
     domain:operational, surfacing:query, ac_status:pending, generated_by:<hook>)
     that derives_from a thin session Source. No legacy candidates/ file.
@@ -352,8 +353,8 @@ async def _h_learning_capture(observation: str = "",
     return result
 
 
-def _extract_transcript_tail(path: Optional[str], *, max_msgs: int = 3,
-                              max_chars: int = 600) -> Optional[str]:
+def _extract_transcript_tail(path: str | None, *, max_msgs: int = 3,
+                              max_chars: int = 600) -> str | None:
     """Best-effort summary of the last few user/assistant turns from a
     Claude Code transcript JSONL file. Returns None on any error."""
     if not path:
@@ -364,7 +365,7 @@ def _extract_transcript_tail(path: Optional[str], *, max_msgs: int = 3,
         p = _Path(path).expanduser()
         if not p.exists():
             return None
-        msgs: List[tuple[str, str]] = []
+        msgs: list[tuple[str, str]] = []
         for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
                 m = _json.loads(line)
@@ -390,10 +391,10 @@ def _extract_transcript_tail(path: Optional[str], *, max_msgs: int = 3,
 
 
 async def _h_learning_review_pending(limit: int = 20,
-                                     project: Optional[str] = None,
-                                     since: Optional[str] = None,
-                                     as_of: Optional[str] = None
-                                     ) -> Dict[str, Any]:
+                                     project: str | None = None,
+                                     since: str | None = None,
+                                     as_of: str | None = None
+                                     ) -> dict[str, Any]:
     """List learning candidates with self-checked AC results. `limit` pages
     `items`; `total`/`max_age_days` always describe the whole queue (G4)."""
     from .learnings import review as _rev
@@ -403,11 +404,11 @@ async def _h_learning_review_pending(limit: int = 20,
 
 async def _h_learning_accept(candidate_slug: str,
                              target_topic: str,
-                             target_project: Optional[str] = None,
-                             links: Optional[List[str]] = None,
+                             target_project: str | None = None,
+                             links: list[str] | None = None,
                              override_unknown: bool = False,
                              override_must: bool = False
-                             ) -> Dict[str, Any]:
+                             ) -> dict[str, Any]:
     """Accept a pending learning claim: ac_status pending → passed in place
     (RFC 0005 §7.1 field transition, no file move). Refuses on must-fail unless
     override_must (a reviewed curator decision); forbidden criteria
@@ -424,14 +425,14 @@ async def _h_learning_accept(candidate_slug: str,
     )
 
 
-async def _h_learning_archive(candidate_slug: str, reason: str) -> Dict[str, Any]:
+async def _h_learning_archive(candidate_slug: str, reason: str) -> dict[str, Any]:
     """Archive a learning claim: ac_status → failed in place (field transition)."""
     from .learnings import review as _rev
     return _rev.archive(candidate_slug=candidate_slug, reason=reason)
 
 
 async def _h_learning_retract(slug: str, reason: str = "retracted"
-                              ) -> Dict[str, Any]:
+                              ) -> dict[str, Any]:
     """Retract a pending or accepted learning claim: ac_status → retracted in
     place (field transition)."""
     from .learnings import review as _rev
@@ -440,10 +441,10 @@ async def _h_learning_retract(slug: str, reason: str = "retracted"
 
 async def _h_learning_search(query: str = "",
                              status: str = "accepted",
-                             project: Optional[str] = None,
-                             topic: Optional[str] = None,
+                             project: str | None = None,
+                             topic: str | None = None,
                              limit: int = 20,
-                             lens: str = "dev") -> Dict[str, Any]:
+                             lens: str = "dev") -> dict[str, Any]:
     """Search the learnings domain (accepted by default). `lens` (RFC 0006 ③)
     scopes the result set — the claim pool is domain-mixed, so a dev-lens
     search never returns a personal-domain claim."""
@@ -453,21 +454,21 @@ async def _h_learning_search(query: str = "",
                       topic=topic, limit=limit, lens=lens)
 
 
-async def _h_learning_relink(slug: str, links: List[str],
-                             mode: str = "replace") -> Dict[str, Any]:
+async def _h_learning_relink(slug: str, links: list[str],
+                             mode: str = "replace") -> dict[str, Any]:
     """Set or merge the wiki backlinks on an accepted learning."""
     from .learnings import search as _ls
     return _ls.relink(slug=slug, links=links, mode=mode)
 
 
 async def _h_principle_add(title: str, rule: str, why: str,
-                            evidence: Optional[List[str]] = None,
+                            evidence: list[str] | None = None,
                             coverage: str = "cross-project",
                             priority: str = "on-relevant-prompt",
-                            target_topic: Optional[str] = None,
-                            notes: Optional[str] = None,
-                            slug: Optional[str] = None,
-                            ) -> Dict[str, Any]:
+                            target_topic: str | None = None,
+                            notes: str | None = None,
+                            slug: str | None = None,
+                            ) -> dict[str, Any]:
     """Add a principle directly. Caller supplies rule and why."""
     from .learnings import principles as _pr
     return _pr.add(title=title, rule=rule, why=why, evidence=evidence,
@@ -475,15 +476,15 @@ async def _h_principle_add(title: str, rule: str, why: str,
                     target_topic=target_topic, notes=notes, slug=slug)
 
 
-async def _h_principle_synthesize(source_slugs: List[str],
-                                    title: Optional[str] = None,
-                                    rule: Optional[str] = None,
-                                    why: Optional[str] = None,
+async def _h_principle_synthesize(source_slugs: list[str],
+                                    title: str | None = None,
+                                    rule: str | None = None,
+                                    why: str | None = None,
                                     coverage: str = "cross-project",
                                     priority: str = "on-relevant-prompt",
-                                    notes: Optional[str] = None,
-                                    slug: Optional[str] = None,
-                                    ) -> Dict[str, Any]:
+                                    notes: str | None = None,
+                                    slug: str | None = None,
+                                    ) -> dict[str, Any]:
     """Draft a principle from several accepted learnings. Body
     sections are scaffolded; caller may pass rule/why to fill them."""
     from .learnings import principles as _pr
@@ -492,23 +493,23 @@ async def _h_principle_synthesize(source_slugs: List[str],
                            priority=priority, notes=notes, slug=slug)
 
 
-async def _h_principle_list(priority: Optional[str] = None,
-                              coverage: Optional[str] = None
-                              ) -> Dict[str, Any]:
+async def _h_principle_list(priority: str | None = None,
+                              coverage: str | None = None
+                              ) -> dict[str, Any]:
     """List current principles, optionally filtered by priority / coverage."""
     from .learnings import principles as _pr
     items = _pr.list_all(priority=priority, coverage=coverage)
     return {"count": len(items), "items": items}
 
 
-async def _h_principle_archive(slug: str, reason: str) -> Dict[str, Any]:
+async def _h_principle_archive(slug: str, reason: str) -> dict[str, Any]:
     """Archive a principle: ac_status → retracted IN PLACE (field transition, no
     file move; RFC 0005 §7.1)."""
     from .learnings import principles as _pr
     return _pr.archive(slug=slug, reason=reason)
 
 
-async def _h_principle_review_proposed(limit: int = 50) -> Dict[str, Any]:
+async def _h_principle_review_proposed(limit: int = 50) -> dict[str, Any]:
     """Dream cycle ③ — list proposed principles awaiting promotion, with
     rule preview + evidence, for a fast batch review."""
     from .learnings import principles as _pr
@@ -516,9 +517,9 @@ async def _h_principle_review_proposed(limit: int = 50) -> Dict[str, Any]:
 
 
 async def _h_principle_approve(slug: str,
-                                priority: Optional[str] = None,
-                                coverage: Optional[str] = None
-                                ) -> Dict[str, Any]:
+                                priority: str | None = None,
+                                coverage: str | None = None
+                                ) -> dict[str, Any]:
     """Promote a proposed principle to accepted (optionally set priority,
     e.g. always-inject)."""
     from .learnings import principles as _pr
@@ -526,21 +527,21 @@ async def _h_principle_approve(slug: str,
 
 
 async def _h_principle_reject(slug: str, reason: str = "rejected"
-                               ) -> Dict[str, Any]:
+                               ) -> dict[str, Any]:
     """Reject a proposed principle → archived (never re-proposed)."""
     from .learnings import principles as _pr
     return _pr.reject(slug=slug, reason=reason)
 
 
 async def _h_recall(query: str,
-                     project: Optional[str] = None,
+                     project: str | None = None,
                      top_k: int = 5,
                      max_chars: int = 1500,
                      include_candidates: bool = False,
-                     relevance_threshold: Optional[float] = None,
+                     relevance_threshold: float | None = None,
                      tier: str = "proactive",
                      lens: str = "dev",
-                     ) -> Dict[str, Any]:
+                     ) -> dict[str, Any]:
     """Per-turn signal-detector retrieval.
 
     RFC 0005 §6: over v7 CLAIM nodes this applies the surfacing/sensitivity/
@@ -582,10 +583,10 @@ async def _h_recall(query: str,
 
 
 async def _h_think(query: str,
-                   project: Optional[str] = None,
+                   project: str | None = None,
                    top_k: int = 5,
                    include_candidates: bool = False,
-                   lens: str = "dev") -> Dict[str, Any]:
+                   lens: str = "dev") -> dict[str, Any]:
     """Query-time synthesis evidence over the learnings memory: the top-k cited
     passages + an explicit gap signal, for the caller to compose into an answer
     (RFC 0003 P5 — the engine assembles evidence; the agent synthesises prose).
@@ -601,7 +602,7 @@ async def _h_think(query: str,
                         include_candidates=include_candidates, lens=lens)
 
 
-async def _h_surfacing_audit(probe_k: int = 10) -> Dict[str, Any]:
+async def _h_surfacing_audit(probe_k: int = 10) -> dict[str, Any]:
     """Read-only retrieval observability: which accepted learnings can no longer
     be found by their *own* concept (gone dark). The instrument that makes
     silent omission visible — a content diff cannot show what stopped surfacing."""
@@ -610,7 +611,7 @@ async def _h_surfacing_audit(probe_k: int = 10) -> Dict[str, Any]:
 
 
 async def _h_lateral_plan(suggest: int = 4,
-                          overlap: float = 0.7) -> Dict[str, Any]:
+                          overlap: float = 0.7) -> dict[str, Any]:
     """Lateral mutator tee-up (read-only, deterministic): untagged learnings
     with body-derived tag suggestions, inert existing tags, flag-only
     near-duplicate groups, and (RFC 0006 ④a) dark-learning retraction candidates.
@@ -622,7 +623,7 @@ async def _h_lateral_plan(suggest: int = 4,
             "forgets": _lat.plan_forgets()}
 
 
-async def _h_lateral_apply(mapping: Dict[str, List[str]]) -> Dict[str, Any]:
+async def _h_lateral_apply(mapping: dict[str, list[str]]) -> dict[str, Any]:
     """Lateral mutator apply — snapshot-wrapped concept tagging of canonicals
     + mirrors with the body-echo gate (non-echoing tags rejected). Returns the
     surfacing diff; the caller MUST check `diff.newly_dark`."""
@@ -633,7 +634,7 @@ async def _h_lateral_apply(mapping: Dict[str, List[str]]) -> Dict[str, Any]:
 async def _h_learning_cluster(min_shared_terms: int = 3,
                                min_size: int = 2,
                                min_projects: int = 2,
-                               limit: int = 50) -> Dict[str, Any]:
+                               limit: int = 50) -> dict[str, Any]:
     """Dream cycle step ① — deterministic clustering of accepted learnings
     by shared salient terms + cross-project spread. Read-only; the agent
     generalizes each cluster into a principle (step ②)."""
@@ -642,7 +643,7 @@ async def _h_learning_cluster(min_shared_terms: int = 3,
                         min_projects=min_projects, limit=limit)
 
 
-async def _h_dream_status() -> Dict[str, Any]:
+async def _h_dream_status() -> dict[str, Any]:
     """Cadence info for the dream nudge: last dream time + accepted
     learnings accrued since."""
     from .learnings import cluster as _cl
@@ -653,7 +654,7 @@ async def _h_dream_plan(min_shared_terms: int = 2,
                          min_size: int = 2,
                          min_projects: int = 1,
                          overlap_threshold: float = 0.6,
-                         limit: int = 20) -> Dict[str, Any]:
+                         limit: int = 20) -> dict[str, Any]:
     """Dream cycle phase 1 (RFC 0005 §7.1) — cluster PROACTIVE claims into
     generalizable groups, each with member previews + a ready-to-fill
     atelier_dream_synthesize call. Already-synthesized clusters are filtered out.
@@ -666,16 +667,16 @@ async def _h_dream_plan(min_shared_terms: int = 2,
                     overlap_threshold=overlap_threshold, limit=limit)
 
 
-async def _h_dream_synthesize(source_claim_ids: List[str],
+async def _h_dream_synthesize(source_claim_ids: list[str],
                               statement: str,
                               why: str = "",
                               rel: str = "refines",
-                              is_about: Optional[List[str]] = None,
+                              is_about: list[str] | None = None,
                               domain: str = "operational",
                               sensitivity: str = "public",
-                              project: Optional[str] = None,
-                              cluster_key: Optional[str] = None,
-                              ) -> Dict[str, Any]:
+                              project: str | None = None,
+                              cluster_key: str | None = None,
+                              ) -> dict[str, Any]:
     """Dream cycle ② (RFC 0005 §7.1) — write ONE new synthesized claim that
     generalizes `source_claim_ids`. The engine writes the node (generated_by:
     dream, surfacing: always, linked `rel` ∈ supports|refines to each source);
@@ -691,10 +692,10 @@ async def _h_dream_synthesize(source_claim_ids: List[str],
 
 async def _h_atomize_write(source_entry_id: str,
                            created_at: str,
-                           entities: List[Dict[str, Any]],
-                           claims: List[Dict[str, Any]],
+                           entities: list[dict[str, Any]],
+                           claims: list[dict[str, Any]],
                            domain: str = "knowledge",
-                           ) -> Dict[str, Any]:
+                           ) -> dict[str, Any]:
     """Atomize write-path (RFC 0005 §7.2) — the engine's deterministic write for
     turning a raw Source into v7 graph nodes. The agent supplies ONLY judgement
     as structured input (which entities/claims, their phrasing + attribution);
@@ -710,7 +711,7 @@ async def _h_atomize_write(source_entry_id: str,
                               entities=entities, claims=claims)
 
 
-async def _h_dream_distill(claim_ids: List[str]) -> Dict[str, Any]:
+async def _h_dream_distill(claim_ids: list[str]) -> dict[str, Any]:
     """Dream cycle distill (RFC 0005 §7.1) — elevate named PROACTIVE claims to
     `always` (the capped T0 budget) by a field transition in place. Only claims
     currently at proactive are elevated; others are skipped."""
@@ -718,32 +719,34 @@ async def _h_dream_distill(claim_ids: List[str]) -> Dict[str, Any]:
     return _dr.distill(claim_ids=claim_ids)
 
 
-async def _h_dream_complete() -> Dict[str, Any]:
+async def _h_dream_complete() -> dict[str, Any]:
     """Dream cycle phase 2 — advance last_dream_at after a clean pass
     (clears the nudge). Call ONLY when the whole pass finished; an
     interrupted pass must skip this so the nudge re-fires."""
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from .learnings import dream as _dr
-    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    now = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     return _dr.complete(when=now)
 
 
-async def _h_nudges() -> Dict[str, Any]:
+async def _h_nudges() -> dict[str, Any]:
     """THE unified nudge surface (RFC 0005 §7) — every gated edge (atomize /
     promote / dream) normalized to one {kind,due,count,short,long} shape. The
     abstract surface callers (SessionStart hook, statusline) consume instead of
     three bespoke probes. Each edge is tolerant: a failing probe is reported
     not-due, never crashing the surface."""
     from dataclasses import asdict
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from . import nudges as _nudges
-    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    now = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     return {"nudges": [asdict(n) for n in _nudges.all_nudges(now=now)]}
 
 
-async def _h_session_bootstrap(working_dir: Optional[str] = None,
+async def _h_session_bootstrap(working_dir: str | None = None,
                                 max_chars: int = 6000,
-                                lens: str = "dev") -> Dict[str, Any]:
+                                lens: str = "dev") -> dict[str, Any]:
     """Return a markdown block intended for the *first turn* of a
     Claude Code session: always-inject principles + this project's learnings.
     `lens` (RFC 0006 ③) scopes the injected pool — this surface pushes content
@@ -760,21 +763,22 @@ async def _h_session_bootstrap(working_dir: Optional[str] = None,
 
 
 async def _h_absorb_claude_memory(dry_run: bool = False,
-                                   source_root: Optional[str] = None,
-                                   auto_accept_kinds: Optional[List[str]] = None
-                                   ) -> Dict[str, Any]:
+                                   source_root: str | None = None,
+                                   auto_accept_kinds: list[str] | None = None
+                                   ) -> dict[str, Any]:
     """Walk ~/.claude/projects/*/memory/*.md and import each as a v7 claim in
     graph/atomic/ (RFC 0005 §7.1 — accept/pending is the `ac_status` field, not
     a directory). Dedup by body hash via the vault-root ledger
     `.absorbed-from-claude.json`."""
     from pathlib import Path as _Path
+
     from .learnings import absorb_claude as _ac
     sr = _Path(source_root).expanduser() if source_root else None
     return _ac.absorb(dry_run=dry_run, source_root=sr,
                        auto_accept_kinds=auto_accept_kinds)
 
 
-async def _h_new_product(name: str) -> Dict[str, Any]:
+async def _h_new_product(name: str) -> dict[str, Any]:
     """Scaffold a new product in the builder territory."""
     cfg = _config.load()
     builder_space = cfg.space_by_role("builder-territory").local
@@ -782,9 +786,10 @@ async def _h_new_product(name: str) -> Dict[str, Any]:
     if product_dir.exists():
         raise FileExistsError(f"product already exists: {product_dir}")
     product_dir.mkdir(parents=True)
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from ..structure import resolver as _structure
-    now = datetime.now(timezone.utc).date().isoformat()
+    now = datetime.now(UTC).date().isoformat()
     eid = _structure.entry_id("product", name=name)
     (product_dir / "README.md").write_text(
         f"---\nschema_version: 4\nentry_id: {eid}\ntitle: {name}\n"
@@ -1144,7 +1149,7 @@ def add_to_fastmcp(app: Any) -> None:
 
         def _make(td: ToolDef, s: inspect.Signature):
             @functools.wraps(td.handler)
-            async def wrapper(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+            async def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
                 bound = s.bind(*args, **kwargs)
                 return await invoke(td.name, **bound.arguments)
             wrapper.__doc__ = td.description

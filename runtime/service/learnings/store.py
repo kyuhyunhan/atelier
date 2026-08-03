@@ -13,8 +13,9 @@ in RFC 0001; only the flat notes/ store remains.)
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
 from ...structure import resolver as _structure
 
@@ -51,7 +52,7 @@ def notes_root(vault: Path) -> Path:
     return learning_root(vault) / "notes"
 
 
-def accepted_roots(vault: Path) -> List[Path]:
+def accepted_roots(vault: Path) -> list[Path]:
     """Filesystem roots that hold accepted-learning markdown."""
     return [notes_root(vault)]
 
@@ -78,7 +79,7 @@ def iter_accepted_files(vault: Path) -> Iterator[Path]:
     yield from _iter_accepted_claims(vault, seen)
 
 
-def is_accepted_operational_claim(fm: Dict[str, Any]) -> bool:
+def is_accepted_operational_claim(fm: dict[str, Any]) -> bool:
     """The predicate for the accepted-learning pool: a v7 operational Claim that
     passed the acceptance gate. SINGLE definition, shared by the filesystem scan
     (`_iter_accepted_claims`) and the DB-projection count (`projection_counts`),
@@ -116,7 +117,7 @@ def _iter_accepted_claims(vault: Path, seen: set) -> Iterator[Path]:
 _MONTH_RX = re.compile(r"(\d{4})-(\d{2})")
 
 
-def month_shard(captured_at: Optional[str], *, fallback: str = "undated") -> str:
+def month_shard(captured_at: str | None, *, fallback: str = "undated") -> str:
     """The <YYYY-MM> shard for a note, from its immutable `captured_at`.
 
     Sharding on creation month (not accepted_at, which can change on re-accept)
@@ -130,6 +131,6 @@ def month_shard(captured_at: Optional[str], *, fallback: str = "undated") -> str
     return fallback
 
 
-def flat_dest(vault: Path, captured_at: Optional[str], filename: str) -> Path:
+def flat_dest(vault: Path, captured_at: str | None, filename: str) -> Path:
     """Destination path in the flat store for a note with the given filename."""
     return notes_root(vault) / month_shard(captured_at) / filename

@@ -4,7 +4,6 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 
 @dataclass
@@ -13,14 +12,14 @@ class GitStatus:
     clean: bool
     ahead: int
     behind: int
-    unstaged: List[str]
-    untracked: List[str]
+    unstaged: list[str]
+    untracked: list[str]
 
 
 _DEFAULT_TIMEOUT = 30  # seconds; git calls must never hang the caller
 
 
-def _git(local: Path, *args: str, timeout: Optional[float] = _DEFAULT_TIMEOUT) -> str:
+def _git(local: Path, *args: str, timeout: float | None = _DEFAULT_TIMEOUT) -> str:
     return subprocess.check_output(
         ["git", "-C", str(local), *args],
         stderr=subprocess.STDOUT, text=True, timeout=timeout,
@@ -30,8 +29,8 @@ def _git(local: Path, *args: str, timeout: Optional[float] = _DEFAULT_TIMEOUT) -
 def status(space_name: str, local: Path) -> GitStatus:
     porcelain = _git(local, "status", "--porcelain=v2", "--branch")
     ahead = behind = 0
-    unstaged: List[str] = []
-    untracked: List[str] = []
+    unstaged: list[str] = []
+    untracked: list[str] = []
     for line in porcelain.splitlines():
         if line.startswith("# branch.ab"):
             parts = line.split()
@@ -45,11 +44,11 @@ def status(space_name: str, local: Path) -> GitStatus:
     return GitStatus(space_name, clean, ahead, behind, unstaged, untracked)
 
 
-def pull(local: Path, timeout: Optional[float] = _DEFAULT_TIMEOUT) -> str:
+def pull(local: Path, timeout: float | None = _DEFAULT_TIMEOUT) -> str:
     return _git(local, "pull", "--ff-only", timeout=timeout)
 
 
-def push(local: Path, timeout: Optional[float] = _DEFAULT_TIMEOUT) -> str:
+def push(local: Path, timeout: float | None = _DEFAULT_TIMEOUT) -> str:
     return _git(local, "push", timeout=timeout)
 
 
@@ -57,7 +56,7 @@ def push(local: Path, timeout: Optional[float] = _DEFAULT_TIMEOUT) -> str:
 
 
 def commit(local: Path, message: str,
-           timeout: Optional[float] = _DEFAULT_TIMEOUT) -> str:
+           timeout: float | None = _DEFAULT_TIMEOUT) -> str:
     """Stage everything under the repo and commit — but only if something is
     actually staged. Returns the new commit sha, or the literal
     ``"nothing to commit"`` when the tree was clean (idempotent no-op).
@@ -76,7 +75,7 @@ def commit(local: Path, message: str,
 def commit_split(local: Path, human_tree: str, *,
                  human_prefix: str = "journal:",
                  machine_prefix: str = "chore(vault):",
-                 timeout: Optional[float] = _DEFAULT_TIMEOUT) -> List[str]:
+                 timeout: float | None = _DEFAULT_TIMEOUT) -> list[str]:
     """Two path-scoped commits instead of one ``add -A``: the HUMAN tree
     (``<human_tree>/`` — e.g. raw/, the content root) first, then everything
     else (graph/, workshop/, manifests — the engine/machine tree).
@@ -91,7 +90,7 @@ def commit_split(local: Path, human_tree: str, *,
     Skips either commit when its tree is clean (idempotent, like ``commit``).
     Returns the new shas, oldest first (0, 1, or 2 entries).
     """
-    shas: List[str] = []
+    shas: list[str] = []
     passes = (
         (human_prefix, [f"{human_tree.rstrip('/')}/"]),
         (machine_prefix, ["."]),        # add -A of the remainder after pass 1
@@ -110,7 +109,7 @@ def commit_split(local: Path, human_tree: str, *,
 
 
 def dirty_porcelain(local: Path,
-                    timeout: Optional[float] = _DEFAULT_TIMEOUT) -> str:
+                    timeout: float | None = _DEFAULT_TIMEOUT) -> str:
     """Raw ``git status --porcelain`` output (empty string == clean tree).
 
     Used as a quiescence fingerprint: the poller commits only once this
@@ -131,7 +130,7 @@ def is_repo_root(local: Path) -> bool:
         return False
 
 
-def _git_dir(local: Path) -> Optional[Path]:
+def _git_dir(local: Path) -> Path | None:
     try:
         out = _git(local, "rev-parse", "--git-dir", timeout=5).strip()
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):

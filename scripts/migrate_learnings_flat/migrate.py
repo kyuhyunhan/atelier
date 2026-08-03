@@ -25,7 +25,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import yaml
 
@@ -42,11 +41,11 @@ def _resolve_vault(cfg: _config.Config) -> Path:
 
 @dataclass
 class Result:
-    moved: List[str] = field(default_factory=list)
-    skipped: List[str] = field(default_factory=list)      # already in flat store
-    errors: List[str] = field(default_factory=list)
+    moved: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)      # already in flat store
+    errors: list[str] = field(default_factory=list)
 
-    def as_dict(self) -> Dict[str, object]:
+    def as_dict(self) -> dict[str, object]:
         return {"moved": self.moved, "skipped": self.skipped,
                 "errors": self.errors,
                 "counts": {"moved": len(self.moved),
@@ -59,7 +58,7 @@ def _is_index(name: str) -> bool:
     return stem in ("INDEX", "TAXONOMY")
 
 
-def migrate(vault: Path, *, apply: bool = False) -> Dict[str, object]:
+def migrate(vault: Path, *, apply: bool = False) -> dict[str, object]:
     """Move by-topic canonical files into notes/<YYYY-MM>/. Returns a report."""
     res = Result()
     by_topic = vault / "learnings" / "accepted" / "by-topic"
@@ -115,7 +114,7 @@ def migrate(vault: Path, *, apply: bool = False) -> Dict[str, object]:
     return res.as_dict()
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Flatten accepted learnings into notes/<YYYY-MM>/ (RFC 0001).")
     ap.add_argument("--apply", action="store_true",

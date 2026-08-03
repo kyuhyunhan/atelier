@@ -7,11 +7,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict
 
 from runtime.service import daemon as _daemon
 from runtime.service import vault_autosync as _autosync
-
 
 # ── plist spec (G2 crash-loop, G3 low priority) ─────────────────────────────
 
@@ -35,7 +33,7 @@ def test_install_writes_plist_and_loads(monkeypatch, tmp_path: Path) -> None:
 
     def fake_launchctl(*args):
         calls.append(args)
-        class R:  # noqa: N801 - stub
+        class R:
             returncode = 0
             stdout = ""
             stderr = ""
@@ -64,7 +62,7 @@ def _fake_status(n: int) -> str:
 
 def _capture_reindex(monkeypatch):
     from runtime.index import reindex as _reindex
-    seen: Dict[str, object] = {}
+    seen: dict[str, object] = {}
 
     def fake_reindex_space(cfg, name, full=False, **kw):
         seen["embed_gateway"] = kw.get("embed_gateway", "AUTO(default)")
@@ -75,13 +73,13 @@ def _capture_reindex(monkeypatch):
     return seen
 
 
-def test_small_commit_keeps_embeddings(atelier_env: Dict, monkeypatch) -> None:
+def test_small_commit_keeps_embeddings(atelier_env: dict, monkeypatch) -> None:
     seen = _capture_reindex(monkeypatch)
     _autosync._reindex_changed(_fake_status(3))          # 3 ≤ cap(50)
     assert seen["embed_gateway"] == "AUTO(default)"      # auto gateway kept
 
 
-def test_bulk_commit_skips_embeddings(atelier_env: Dict, monkeypatch) -> None:
+def test_bulk_commit_skips_embeddings(atelier_env: dict, monkeypatch) -> None:
     seen = _capture_reindex(monkeypatch)
     _autosync._reindex_changed(_fake_status(51))         # 51 > cap(50)
     assert seen["embed_gateway"] is None                 # G5: vectors deferred
@@ -90,11 +88,11 @@ def test_bulk_commit_skips_embeddings(atelier_env: Dict, monkeypatch) -> None:
 # ── session-anchored daemon (default: ensure/stop, no launchd) ──────────────
 
 
-def _pidfile(atelier_env: Dict) -> Path:
+def _pidfile(atelier_env: dict) -> Path:
     return atelier_env["cache"].parent / "serve.pid"
 
 
-def test_ensure_spawns_when_nothing_running(atelier_env: Dict, monkeypatch) -> None:
+def test_ensure_spawns_when_nothing_running(atelier_env: dict, monkeypatch) -> None:
     calls = []
 
     class FakeProc:
@@ -115,7 +113,7 @@ def test_ensure_spawns_when_nothing_running(atelier_env: Dict, monkeypatch) -> N
     assert kwargs["start_new_session"] is True            # G2: detached, no restart-on-crash
 
 
-def test_ensure_is_a_noop_when_already_running(atelier_env: Dict, monkeypatch) -> None:
+def test_ensure_is_a_noop_when_already_running(atelier_env: dict, monkeypatch) -> None:
     # "Running" is decided by the flock, not the pidfile's content (a reused
     # pid must never look alive) — so simulate it by actually holding the
     # lock, the same way a real `serve` process would.
@@ -131,7 +129,7 @@ def test_ensure_is_a_noop_when_already_running(atelier_env: Dict, monkeypatch) -
         _daemon._server._release_pidfile(pf)
 
 
-def test_stop_signals_the_running_pid(atelier_env: Dict, monkeypatch) -> None:
+def test_stop_signals_the_running_pid(atelier_env: dict, monkeypatch) -> None:
     pf = _daemon._server._acquire_pidfile()
     pf.write_text("9999")          # the pidfile's displayed pid (best-effort)
 
@@ -146,7 +144,7 @@ def test_stop_signals_the_running_pid(atelier_env: Dict, monkeypatch) -> None:
         _daemon._server._release_pidfile(pf)
 
 
-def test_ensure_ignores_a_reused_stale_pid_in_the_file(atelier_env: Dict, monkeypatch) -> None:
+def test_ensure_ignores_a_reused_stale_pid_in_the_file(atelier_env: dict, monkeypatch) -> None:
     """A clean stop leaves the pidfile's content stale on purpose (see
     server._release_pidfile). If that stale pid gets reused by some
     unrelated, currently-alive OS process, `ensure` must still spawn — it
@@ -169,6 +167,6 @@ def test_ensure_ignores_a_reused_stale_pid_in_the_file(atelier_env: Dict, monkey
     assert len(calls) == 1
 
 
-def test_stop_is_a_noop_when_nothing_running(atelier_env: Dict) -> None:
+def test_stop_is_a_noop_when_nothing_running(atelier_env: dict) -> None:
     out = _daemon.stop()
     assert out == {"stopped": False, "was_running": False}

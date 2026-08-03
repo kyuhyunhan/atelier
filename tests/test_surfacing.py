@@ -7,15 +7,10 @@ the kind of drop a git diff cannot show. The observer catches it.
 """
 from __future__ import annotations
 
-from typing import Dict
-
-import yaml
-
 from runtime.service import api
 from runtime.service.learnings import principles as _pr
 from runtime.service.learnings import surfacing as _sf
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 4, "agent_kind": "claude-code", "status": "accepted",
@@ -34,7 +29,7 @@ def _accepted(vault, topic, entry_id, body, *, project=None, touches=None):
                f"{entry_id}.md", fm, body)
 
 
-def test_snapshot_marks_self_findable_learning_visible(vault_env: Dict) -> None:
+def test_snapshot_marks_self_findable_learning_visible(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _accepted(vault, "architecture", "v1",
               "## Observation\n\ndepend on protocols not implementations\n",
@@ -45,7 +40,7 @@ def test_snapshot_marks_self_findable_learning_visible(vault_env: Dict) -> None:
     assert snap["v1"]["rank"] is not None
 
 
-def test_frontmatter_only_concept_no_longer_dark_under_fts(vault_env: Dict) -> None:
+def test_frontmatter_only_concept_no_longer_dark_under_fts(vault_env: dict) -> None:
     """RFC 0002 P1a closed this omission vector. A learning whose concept lives
     only in its frontmatter `touches`/`topic` — never its body — used to go dark
     under body-only FTS even with decoys burying it. Now frontmatter is indexed
@@ -69,7 +64,7 @@ def test_frontmatter_only_concept_no_longer_dark_under_fts(vault_env: Dict) -> N
     assert "decoy0" not in dark_ids     # body-findable → visible
 
 
-def test_principle_boost_does_not_push_accepted_learnings_dark(vault_env: Dict) -> None:
+def test_principle_boost_does_not_push_accepted_learnings_dark(vault_env: dict) -> None:
     """RFC 0002 P3 gate guard. Routing recall through the RRF resolver flipped the
     score convention to a compressed positive scale; the first cut used a whole
     mode-vote as the boost unit, which made a principle sharing a concept vault
@@ -97,7 +92,7 @@ def test_principle_boost_does_not_push_accepted_learnings_dark(vault_env: Dict) 
             f"acc{i} went dark — the principle boost is over-scaled again"
 
 
-def test_diff_detects_newly_dark(vault_env: Dict) -> None:
+def test_diff_detects_newly_dark(vault_env: dict) -> None:
     """The omission detector: a learning visible before but not after is the
     signal a reorganization pass must surface."""
     before = {"x": {"visible": True, "rank": 0, "title": "X", "project": "p",
@@ -109,8 +104,9 @@ def test_diff_detects_newly_dark(vault_env: Dict) -> None:
     assert d["regressions"] == 1
 
 
-def test_surfacing_audit_mcp_dispatch(vault_env: Dict) -> None:
+def test_surfacing_audit_mcp_dispatch(vault_env: dict) -> None:
     import asyncio
+
     from runtime.service import tools as _tools
 
     _accepted(vault_env["vault"], "architecture", "v1",
@@ -123,7 +119,7 @@ def test_surfacing_audit_mcp_dispatch(vault_env: Dict) -> None:
     assert out["total"] == 1
 
 
-def test_diff_separates_deletions_from_regressions(vault_env: Dict) -> None:
+def test_diff_separates_deletions_from_regressions(vault_env: dict) -> None:
     """A curated deletion (in `before`, gone from `after`) is reported under
     `removed`, NOT counted as a retrieval regression — else every retire pass
     would raise a false alarm (review SHOULD-3)."""
@@ -140,7 +136,7 @@ def test_diff_separates_deletions_from_regressions(vault_env: Dict) -> None:
     assert d["newly_dark"] == []
 
 
-def test_audit_excludes_navigational_views(vault_env: Dict) -> None:
+def test_audit_excludes_navigational_views(vault_env: dict) -> None:
     """INDEX/TAXONOMY are generated/navigational views that recall's noise
     filter can never return — probing them makes them dark BY CONSTRUCTION
     (observed on the live vault: TAXONOMY was permanently dark). The audit

@@ -27,9 +27,9 @@ program exists to prevent.
 from __future__ import annotations
 
 import inspect
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -42,7 +42,7 @@ _PII_PATTERNS_PATH = Path.home() / ".atelier" / "pii_patterns.txt"
 
 # ── 5.1 promote eligibility ─────────────────────────────────────────────────
 
-def _tally_eligible(fms: Any) -> Dict[str, Any]:
+def _tally_eligible(fms: Any) -> dict[str, Any]:
     """The ONE place an eligible claim becomes counts, shared by both data
     sources — `census.py`'s discipline, for the same reason: two paths that
     tally separately can disagree, and `sum(by_domain) != total` must not be
@@ -62,7 +62,7 @@ def _tally_eligible(fms: Any) -> Dict[str, Any]:
     `sum(by_domain.values())`, unaffected by the zero seeds.
     """
     from . import claims_io as _claims
-    by_domain: Dict[str, int] = {}
+    by_domain: dict[str, int] = {}
     for fm in fms:
         if not _claims.is_promote_candidate(fm):
             continue
@@ -73,7 +73,7 @@ def _tally_eligible(fms: Any) -> Dict[str, Any]:
     return {"total": sum(by_domain.values()), "by_domain": by_domain}
 
 
-def promote_eligible(*, vault: Optional[Path] = None) -> Dict[str, Any]:
+def promote_eligible(*, vault: Path | None = None) -> dict[str, Any]:
     """`{total, by_domain}` over `claims_io.is_promote_eligible` — the same
     predicate `promote.propose._eligible` uses, never a re-implementation
     (RFC 0009 §3.2 rule 1).
@@ -105,7 +105,7 @@ def promote_eligible(*, vault: Optional[Path] = None) -> Dict[str, Any]:
 
 # ── 5.2 pending age ─────────────────────────────────────────────────────────
 
-def _as_date(raw: Any) -> Optional[date]:
+def _as_date(raw: Any) -> date | None:
     s = str(raw or "")[:10]
     try:
         return date.fromisoformat(s)
@@ -113,7 +113,7 @@ def _as_date(raw: Any) -> Optional[date]:
         return None
 
 
-def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
+def pending_age(*, as_of: date, vault: Path | None = None) -> dict[str, Any]:
     """Age distribution of `ac_status: pending` claims, in days.
 
     The count is the wrong gate: draining the recent items while a 38-day tail
@@ -134,7 +134,7 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
     # frozen program anchor (docs/rfc/0009-baseline.json) captured its
     # pending_age under the old any-domain definition; values coincide (all
     # live pendings are operational) but the semantics changed here.
-    fms: List[Dict[str, Any]]
+    fms: list[dict[str, Any]]
     nodes = _pc._load_nodes()
     if nodes is not None:
         fms = [fm for fm in nodes["claims"] if _claims.is_pending_review(fm)]
@@ -148,7 +148,7 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
             if _claims.is_pending_review(fm):
                 fms.append(fm)
 
-    ages: List[int] = []
+    ages: list[int] = []
     for fm in fms:
         d = _as_date(fm.get("created_at") or fm.get("created"))
         if d is not None:
@@ -158,7 +158,7 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
             ages.append(max(0, (as_of - d).days))
     ages.sort()
 
-    out: Dict[str, Any] = {"count": len(fms), "dated": len(ages)}
+    out: dict[str, Any] = {"count": len(fms), "dated": len(ages)}
     if len(ages) < len(fms):
         # ABSTAIN — §5.4: key-absence, never a zero. An unmeasurable tail
         # returning `max: 0` would PASS a `≤ 7` ceiling while 36 undated claims
@@ -185,7 +185,7 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
 _LINK_TYPES = ("wikilink", "vault", "workshop", "concept")
 
 
-def dangling_links() -> Optional[Dict[str, Any]]:
+def dangling_links() -> dict[str, Any] | None:
     """Count of BROKEN links — an edge whose target page does not resolve. Wraps
     the production `broken_links` view (`links.to_page_id IS NULL`), the same
     referential-integrity definition doctor and `atelier_links` use, so the
@@ -230,7 +230,7 @@ def dangling_links() -> Optional[Dict[str, Any]]:
 _DANGLING_BASELINE_REL = ("graph", "meta", "dangling-baseline.yaml")
 
 
-def _default_dangling_baseline_path() -> Optional[Path]:
+def _default_dangling_baseline_path() -> Path | None:
     """The vault's accepted-dangling baseline path, or None if config is
     unreadable. Vault-held (not the engine repo) because some accepted targets
     are personal titles — hard rule #1."""
@@ -242,7 +242,7 @@ def _default_dangling_baseline_path() -> Optional[Path]:
         return None
 
 
-def _accepted_dangling_targets(path: Path) -> Optional[set]:
+def _accepted_dangling_targets(path: Path) -> set | None:
     """The accepted target strings from the baseline's `categories.*.targets`,
     or None if the file is absent/unreadable (→ `dangling_new` abstains rather
     than treat every target as a regression)."""
@@ -268,7 +268,7 @@ def _accepted_dangling_targets(path: Path) -> Optional[set]:
     return accepted
 
 
-def dangling_new(*, baseline_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+def dangling_new(*, baseline_path: Path | None = None) -> dict[str, Any] | None:
     """NEW (unaccepted) broken wikilinks — the regression signal that stays quiet
     on the accepted residual. `new` = current dangling wikilink TARGETS minus the
     accepted set in the vault baseline (`graph/meta/dangling-baseline.yaml`), a
@@ -325,8 +325,8 @@ _NOISE_MIN_YIELD = 20      # §5.4: below this, foreign_ratio is OMITTED (FAIL)
 _NOISE_PER_PROBE_TOPK = 25
 
 
-def cross_project_noise(*, fixture_path: Optional[Path] = None
-                        ) -> Optional[Dict[str, Any]]:
+def cross_project_noise(*, fixture_path: Path | None = None
+                        ) -> dict[str, Any] | None:
     """§5.4 — dev-session recall noise along the PROJECT axis.
 
     Runs the PRODUCTION dev-recall path (`recall_v7.rank_claims`, tier
@@ -383,7 +383,7 @@ def cross_project_noise(*, fixture_path: Optional[Path] = None
         return None
 
     from . import recall_v7 as _rv
-    seen: Dict[str, Dict[str, Any]] = {}
+    seen: dict[str, dict[str, Any]] = {}
     try:
         for q in queries:
             for h in _rv.rank_claims(q, project, tier="proactive",
@@ -394,7 +394,7 @@ def cross_project_noise(*, fixture_path: Optional[Path] = None
     except Exception:
         return None                    # recall path broke → environmental abstain
     returned = len(seen)
-    out: Dict[str, Any] = {"project": project, "returned": returned}
+    out: dict[str, Any] = {"project": project, "returned": returned}
     if returned >= _NOISE_MIN_YIELD:
         own = foreign = unowned = 0
         for h in seen.values():
@@ -421,7 +421,7 @@ def cross_project_noise(*, fixture_path: Optional[Path] = None
 
 # ── 5.3 guard liveness ──────────────────────────────────────────────────────
 
-def guard_liveness(*, pii_patterns_path: Optional[Path] = None) -> Dict[str, Any]:
+def guard_liveness(*, pii_patterns_path: Path | None = None) -> dict[str, Any]:
     """How many guard patterns are ACTIVE — not whether a file exists.
 
     RFC 0008 §6 specified the absent-file case deliberately (a no-op pass). The
@@ -462,7 +462,7 @@ _HOOK_PATH = (Path(__file__).resolve().parents[3]
 _PROBE_TOKEN = "SEEDED-PII-XYZZY"
 
 
-def seeded_probe_blocked(*, hook: Optional[Path] = None) -> Optional[int]:
+def seeded_probe_blocked(*, hook: Path | None = None) -> int | None:
     """1 iff the shipped pre-commit guard, executed in a hermetic scratch repo,
     BLOCKS a staged seeded match AND passes a clean stage; 0 if either half
     fails (a live defect — the guard is present but not guarding); None when
@@ -537,7 +537,7 @@ def seeded_probe_blocked(*, hook: Optional[Path] = None) -> Optional[int]:
 
 # ── 5.5 lens surface coverage ───────────────────────────────────────────────
 
-def _declared_surfaces() -> Optional[List[Dict[str, Any]]]:
+def _declared_surfaces() -> list[dict[str, Any]] | None:
     """The declared surface list, or None when it cannot be read.
 
     None rather than an exception: this file is a new hard dependency of
@@ -556,7 +556,7 @@ def _declared_surfaces() -> Optional[List[Dict[str, Any]]]:
     return list(surfaces) if isinstance(surfaces, list) else None
 
 
-def lens_param_present() -> Optional[Dict[str, Any]]:
+def lens_param_present() -> dict[str, Any] | None:
     """Content-returning MCP surfaces whose handler **accepts** a `lens`
     argument — a signature-level fact, and named for exactly that.
 
@@ -581,9 +581,9 @@ def lens_param_present() -> Optional[Dict[str, Any]]:
     declared = _declared_surfaces()
     if declared is None:
         return None
-    present: List[str] = []
-    absent: List[str] = []
-    unimplemented: List[str] = []
+    present: list[str] = []
+    absent: list[str] = []
+    unimplemented: list[str] = []
     for entry in declared:
         name = str(entry.get("name") or "")
         handler = getattr(_tools, f"_h_{name}", None)
@@ -604,9 +604,9 @@ def lens_param_present() -> Optional[Dict[str, Any]]:
 
 # ── the block ───────────────────────────────────────────────────────────────
 
-def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
-            pii_patterns_path: Optional[Path] = None,
-            probes_path: Optional[Path] = None) -> Dict[str, Any]:
+def metrics(*, as_of: date | None = None, vault: Path | None = None,
+            pii_patterns_path: Path | None = None,
+            probes_path: Path | None = None) -> dict[str, Any]:
     """The `metrics` block of a baseline (RFC 0009 §5).
 
     Two shape rules follow from §3.4, which makes ENVELOPE default-deny over
@@ -630,12 +630,12 @@ def metrics(*, as_of: Optional[date] = None, vault: Optional[Path] = None,
     a contract naming it there raises rather than reading a fabricated zero.
     Any counter that cannot measure omits its key the same way.
     """
-    stamp = as_of or datetime.now(timezone.utc).date()
+    stamp = as_of or datetime.now(UTC).date()
     gl = guard_liveness(pii_patterns_path=pii_patterns_path)
     probe = seeded_probe_blocked()
     if probe is not None:                # abstain → leaf omitted (§5.4)
         gl["seeded_probe_blocked"] = probe
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "promote_eligible": promote_eligible(vault=vault),
         "pending_age": pending_age(as_of=stamp, vault=vault),
         "guard_liveness": gl,

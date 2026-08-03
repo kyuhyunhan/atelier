@@ -22,15 +22,15 @@ A single-line entry per operation is appended to `<content_root>/learning/log.md
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from ...util import config as _config
 from . import claims_io as _claims
 from . import criteria as _crit
 from . import store as _store
-
 
 # ── filesystem helpers ───────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ def _vault_root() -> Path:
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _is_operational(fm: Dict[str, Any]) -> bool:
+def _is_operational(fm: dict[str, Any]) -> bool:
     return str(fm.get("domain") or "") == "operational"
 
 
@@ -58,10 +58,10 @@ def _iter_pending(vault: Path) -> Iterable[tuple]:
             yield p, fm, body
 
 
-def _accepted_entry_ids(vault: Path) -> List[str]:
+def _accepted_entry_ids(vault: Path) -> list[str]:
     """entry_ids of operational claims that already passed the gate — the
     novelty index (don't re-accept an id already accepted)."""
-    ids: List[str] = []
+    ids: list[str] = []
     for p in _claims.iter_claim_files(vault):
         got = _claims.read_claim(p)
         if got is None:
@@ -89,15 +89,15 @@ def _append_log(vault: Path, line: str) -> None:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
 # ── review_pending ──────────────────────────────────────────────────────────
 
 
-def review_pending(*, limit: int = 20, project: Optional[str] = None,
-                   since: Optional[str] = None,
-                   as_of: Optional[str] = None) -> Dict[str, Any]:
+def review_pending(*, limit: int = 20, project: str | None = None,
+                   since: str | None = None,
+                   as_of: str | None = None) -> dict[str, Any]:
     """The pending review queue (RFC 0009 G4).
 
     `limit` pages `items` only — `total` and `max_age_days` always describe the
@@ -120,19 +120,20 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
     while this surface reads the markdown files, so between an edit and the
     next reindex the two can legitimately disagree — the equality holds on a
     reindexed vault."""
-    from datetime import datetime as _dt, timezone as _tz
+    from datetime import datetime as _dt
+
     from .metrics import _as_date
     vault = _vault_root()
     accepted_ids = _accepted_entry_ids(vault)
     criteria = _crit.load(vault)
     # UTC date, matching metrics()' as_of stamp — a local-midnight default
     # would let an unfiltered call disagree with the metric by a day.
-    ref = _as_date(as_of) if as_of else _dt.now(_tz.utc).date()
+    ref = _as_date(as_of) if as_of else _dt.now(UTC).date()
 
     total = 0
-    ages: List[int] = []
+    ages: list[int] = []
     undated = 0
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for p, fm, body in _iter_pending(vault):
         if project and fm.get("project_hint") != project:
             continue
@@ -162,7 +163,7 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
                 "should": check.should,
                 "forbidden": check.forbidden,
             })
-    out: Dict[str, Any] = {"count": len(items), "total": total,
+    out: dict[str, Any] = {"count": len(items), "total": total,
                            "items": items, "vault": str(vault)}
     if undated == 0:
         # Empty ages with zero undated == a drained queue: max 0 is a REAL
@@ -175,11 +176,11 @@ def review_pending(*, limit: int = 20, project: Optional[str] = None,
 # ── accept (the acceptance gate: ac_status pending → passed) ──────────────────
 
 
-def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
-           target_project: Optional[str] = None,
-           links: Optional[List[str]] = None,
+def accept(*, candidate_slug: str, target_topic: str | None = None,
+           target_project: str | None = None,
+           links: list[str] | None = None,
            override_unknown: bool = False,
-           override_must: bool = False) -> Dict[str, Any]:
+           override_must: bool = False) -> dict[str, Any]:
     vault = _vault_root()
     path, fm, body = _find(vault, candidate_slug)
 
@@ -209,7 +210,7 @@ def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
                      "despite a must heuristic miss"),
         })
 
-    ac_results: Dict[str, Any] = {
+    ac_results: dict[str, Any] = {
         "must": check.must,
         "should": check.should,
         "forbidden": check.forbidden,
@@ -248,7 +249,7 @@ def accept(*, candidate_slug: str, target_topic: Optional[str] = None,
 # ── archive ──────────────────────────────────────────────────────────────────
 
 
-def archive(*, candidate_slug: str, reason: str) -> Dict[str, Any]:
+def archive(*, candidate_slug: str, reason: str) -> dict[str, Any]:
     vault = _vault_root()
     path, fm, body = _find(vault, candidate_slug)
     new_fm = _claims.set_ac_status(path, fm, body, new_status="failed",
@@ -261,7 +262,7 @@ def archive(*, candidate_slug: str, reason: str) -> Dict[str, Any]:
 # ── retract ──────────────────────────────────────────────────────────────────
 
 
-def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
+def retract(*, slug: str, reason: str = "retracted") -> dict[str, Any]:
     vault = _vault_root()
     path, fm, body = _find(vault, slug)
     from_state = "accepted" if str(fm.get("ac_status")) == "passed" else "candidate"
@@ -277,7 +278,7 @@ def retract(*, slug: str, reason: str = "retracted") -> Dict[str, Any]:
 # ── helper ────────────────────────────────────────────────────────────────────
 
 
-def _rewrite(path: Path, fm: Dict[str, Any], body: str) -> None:
+def _rewrite(path: Path, fm: dict[str, Any], body: str) -> None:
     """Re-emit a claim file with re-derived content_hash (facet hint update)."""
     fm = dict(fm)
     fm.pop("content_hash", None)

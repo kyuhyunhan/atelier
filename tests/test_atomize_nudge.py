@@ -8,7 +8,6 @@ An un-atomized source is a DERIVED state: a Source node with no Claim
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
 
 import yaml
 
@@ -16,11 +15,10 @@ from runtime.service.learnings import atomize as _atomize
 from runtime.service.learnings import bootstrap as _bs
 from runtime.structure import resolver as _structure
 
-
 # ── fixtures: write v7 source / claim nodes into the atomic graph dirs ────────
 
 
-def _write_node(vault: Path, dirpath: str, name: str, fm: Dict) -> None:
+def _write_node(vault: Path, dirpath: str, name: str, fm: dict) -> None:
     d = vault / dirpath
     d.mkdir(parents=True, exist_ok=True)
     serialized = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
@@ -53,24 +51,24 @@ def _set_atomize_cfg(home: Path, *, after: int) -> None:
     cfg_path.write_text(yaml.safe_dump(data))
 
 
-def _vault(atelier_env: Dict) -> Path:
+def _vault(atelier_env: dict) -> Path:
     return atelier_env["wiki"]
 
 
 # ── count: |sources| − |sources with a derived claim| ────────────────────────
 
 
-def test_count_zero_when_no_sources(atelier_env: Dict) -> None:
+def test_count_zero_when_no_sources(atelier_env: dict) -> None:
     assert _atomize.unatomized_count(vault=_vault(atelier_env)) == 0
 
 
-def test_count_all_sources_unatomized(atelier_env: Dict) -> None:
+def test_count_all_sources_unatomized(atelier_env: dict) -> None:
     v = _vault(atelier_env)
     _source(v, "s1"); _source(v, "s2"); _source(v, "s3")
     assert _atomize.unatomized_count(vault=v) == 3
 
 
-def test_count_excludes_atomized_sources(atelier_env: Dict) -> None:
+def test_count_excludes_atomized_sources(atelier_env: dict) -> None:
     v = _vault(atelier_env)
     _source(v, "s1"); _source(v, "s2"); _source(v, "s3")
     _claim(v, "c1", ["s1"])             # s1 atomized
@@ -78,14 +76,14 @@ def test_count_excludes_atomized_sources(atelier_env: Dict) -> None:
     assert _atomize.unatomized_count(vault=v) == 1   # only s3 remains
 
 
-def test_count_handles_scalar_derived_from(atelier_env: Dict) -> None:
+def test_count_handles_scalar_derived_from(atelier_env: dict) -> None:
     v = _vault(atelier_env)
     _source(v, "s1")
     _claim(v, "c1", "s1")              # bare scalar, not a list
     assert _atomize.unatomized_count(vault=v) == 0
 
 
-def test_count_ignores_dangling_claim(atelier_env: Dict) -> None:
+def test_count_ignores_dangling_claim(atelier_env: dict) -> None:
     """A claim derived_from a nonexistent source cannot lower the count below
     the real un-atomized set (we intersect with the real source ids)."""
     v = _vault(atelier_env)
@@ -97,14 +95,14 @@ def test_count_ignores_dangling_claim(atelier_env: Dict) -> None:
 # ── nudge_info: {due, count, short, long} ────────────────────────────────────
 
 
-def test_nudge_not_due_when_no_backlog(atelier_env: Dict) -> None:
+def test_nudge_not_due_when_no_backlog(atelier_env: dict) -> None:
     info = _atomize.nudge_info(vault=_vault(atelier_env))
     assert info["due"] is False
     assert info["count"] == 0
     assert info["long"] == "" and info["short"] == ""
 
 
-def test_nudge_due_with_backlog(atelier_env: Dict) -> None:
+def test_nudge_due_with_backlog(atelier_env: dict) -> None:
     v = _vault(atelier_env)
     _source(v, "s1"); _source(v, "s2")
     info = _atomize.nudge_info(vault=v)
@@ -115,7 +113,7 @@ def test_nudge_due_with_backlog(atelier_env: Dict) -> None:
     assert "2 to atomize" in info["short"]
 
 
-def test_nudge_threshold_respected(atelier_env: Dict) -> None:
+def test_nudge_threshold_respected(atelier_env: dict) -> None:
     _set_atomize_cfg(atelier_env["home"], after=3)
     v = _vault(atelier_env)
     _source(v, "s1"); _source(v, "s2")
@@ -125,7 +123,7 @@ def test_nudge_threshold_respected(atelier_env: Dict) -> None:
     assert _atomize.nudge_info(vault=v)["due"] is True
 
 
-def test_nudge_singular_noun(atelier_env: Dict) -> None:
+def test_nudge_singular_noun(atelier_env: dict) -> None:
     v = _vault(atelier_env)
     _source(v, "s1")
     info = _atomize.nudge_info(vault=v)
@@ -143,7 +141,7 @@ def _personal_source(vault: Path, eid: str) -> None:
     })
 
 
-def test_nudge_splits_personal_from_atomizable(atelier_env: Dict) -> None:
+def test_nudge_splits_personal_from_atomizable(atelier_env: dict) -> None:
     """Policy 1 / RFC 0007: the nudge splits the backlog by the human-gate — a
     private-domain (personal) Source is human-gated, other domains are
     skill-atomizable — so it never says 'run atelier-atomize' on a diary."""
@@ -157,7 +155,7 @@ def test_nudge_splits_personal_from_atomizable(atelier_env: Dict) -> None:
     assert "1 personal" in long and "human-gated" in long          # personal → gated
 
 
-def test_nudge_personal_only_is_human_gated(atelier_env: Dict) -> None:
+def test_nudge_personal_only_is_human_gated(atelier_env: dict) -> None:
     """A personal-only backlog must NOT tell the human to run `atelier-atomize`
     (the confusion this fixes) — it reads as human-gated instead."""
     v = _vault(atelier_env)
@@ -168,7 +166,7 @@ def test_nudge_personal_only_is_human_gated(atelier_env: Dict) -> None:
     assert "`atelier-atomize`" not in long          # not the skill CTA for personal
 
 
-def test_bootstrap_surfaces_atomize_nudge(atelier_env: Dict) -> None:
+def test_bootstrap_surfaces_atomize_nudge(atelier_env: dict) -> None:
     v = _vault(atelier_env)
     _source(v, "s1"); _source(v, "s2")
     out = _bs.bootstrap(working_dir=str(v.parent / "someproj"),
@@ -178,7 +176,7 @@ def test_bootstrap_surfaces_atomize_nudge(atelier_env: Dict) -> None:
     assert "2 sources to atomize" in out["markdown"]
 
 
-def test_bootstrap_no_atomize_nudge_when_empty(atelier_env: Dict) -> None:
+def test_bootstrap_no_atomize_nudge_when_empty(atelier_env: dict) -> None:
     out = _bs.bootstrap(working_dir=str(_vault(atelier_env).parent / "someproj"),
                         now="2026-06-19T12:00:00+00:00")
     assert out["atomize_nudge"] is False

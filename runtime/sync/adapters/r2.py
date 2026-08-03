@@ -7,14 +7,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 
 @dataclass
 class AssetStatus:
     space: str
-    local_only: List[str]
-    remote_only: List[str]
+    local_only: list[str]
+    remote_only: list[str]
     in_sync: int
 
 

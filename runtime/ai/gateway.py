@@ -19,8 +19,9 @@ import json
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Protocol, Sequence, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from ..util import logging as log
 
@@ -77,7 +78,7 @@ class EmbeddingGateway(Protocol):
     @property
     def dim(self) -> int: ...
 
-    def embed(self, texts: Sequence[str]) -> List[List[float]]: ...
+    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
 # transport: (url, payload) -> parsed JSON dict. Injected so unit tests never
@@ -114,8 +115,8 @@ class OllamaGateway:
     def dim(self) -> int:
         return self._dim
 
-    def embed(self, texts: Sequence[str]) -> List[List[float]]:
-        out: List[List[float]] = []
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        out: list[list[float]] = []
         for i in range(0, len(texts), self._batch):
             batch = list(texts[i:i + self._batch])
             resp = self._transport(f"{self._url}/api/embed",
@@ -136,7 +137,7 @@ class OllamaGateway:
 
 def from_config(settings: EmbeddingSettings,
                 transport: Transport = _http_transport,
-                *, warmup: bool = True) -> Optional[EmbeddingGateway]:
+                *, warmup: bool = True) -> EmbeddingGateway | None:
     """Auto-when-reachable (RFC 0002 P2): return a live gateway, or None when
     embeddings are disabled (or, with warmup, the provider doesn't answer).
     Callers treat None as 'skip the semantic substrate' — never an error.

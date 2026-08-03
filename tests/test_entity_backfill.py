@@ -1,13 +1,10 @@
 """RFC 0003 P3 — the deterministic entity-stub backfill (connect the orphan island)."""
 from __future__ import annotations
 
-from typing import Dict
-
 from runtime.service import api
 from runtime.service.learnings import entity_backfill as eb
 from runtime.util import db
 from tests.conftest import write_page
-
 
 _BASE = {
     "schema_version": 4, "agent_kind": "claude-code", "status": "accepted",
@@ -23,7 +20,7 @@ def _accepted(vault, entry_id, touches, body="## Observation\n\nfoo bar.\n"):
     write_page(vault / "learnings" / "notes" / "2026-01" / f"{entry_id}.md", fm, body)
 
 
-def test_backfill_creates_stub_that_resolves_dangling_concept_edge(atelier_env: Dict):
+def test_backfill_creates_stub_that_resolves_dangling_concept_edge(atelier_env: dict):
     vault = atelier_env["wiki"]
     # Two learnings share concept 'dependency-direction'; no entity page exists.
     _accepted(vault, "a", ["dependency-direction"])
@@ -62,7 +59,7 @@ def test_backfill_creates_stub_that_resolves_dangling_concept_edge(atelier_env: 
     assert still_dangling == 0, "no concept edge should remain dangling"
 
 
-def test_backfill_is_idempotent(atelier_env: Dict):
+def test_backfill_is_idempotent(atelier_env: dict):
     vault = atelier_env["wiki"]
     _accepted(vault, "a", ["dependency-direction"])
     api.reindex(space="wiki", full=True)
@@ -77,7 +74,7 @@ def test_backfill_is_idempotent(atelier_env: Dict):
     assert second["skipped"] >= 1
 
 
-def test_backfill_skips_concepts_an_existing_entity_already_covers(atelier_env: Dict):
+def test_backfill_skips_concepts_an_existing_entity_already_covers(atelier_env: dict):
     vault = atelier_env["wiki"]
     # An entity already covers 'dependency-direction' via an alias.
     write_page(

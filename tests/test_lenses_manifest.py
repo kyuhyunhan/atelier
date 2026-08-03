@@ -6,7 +6,6 @@ from pathlib import Path
 from runtime.structure import lenses as _lenses
 from runtime.structure import manifest as _manifest
 
-
 # ── lens vocabulary ─────────────────────────────────────────────────────────
 
 def test_lens_names_and_default() -> None:

@@ -11,14 +11,13 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
 SEED = Path(__file__).resolve().parents[1] / "examples" / "vault-seed"
 
 
-def _install_seed(vault_env: Dict) -> Path:
+def _install_seed(vault_env: dict) -> Path:
     vault = vault_env["vault"]
     for sub in SEED.iterdir():
         if sub.name == "README.md" and sub.parent == SEED:
@@ -42,7 +41,7 @@ def _sources(vault: Path):
             yield p, fm
 
 
-def test_seed_reindexes_validates_no_lint_fails(vault_env: Dict) -> None:
+def test_seed_reindexes_validates_no_lint_fails(vault_env: dict) -> None:
     _install_seed(vault_env)
     from runtime.service import api
     stats = api.reindex(full=True)
@@ -73,7 +72,7 @@ def test_seed_reindexes_validates_no_lint_fails(vault_env: Dict) -> None:
     assert n >= 3, f"entity wikilinks do not resolve (resolved links: {n})"
 
 
-def test_seed_atomize_nudge_is_actually_due(vault_env: Dict) -> None:
+def test_seed_atomize_nudge_is_actually_due(vault_env: dict) -> None:
     """The README promises `atelier nudges` shows work — pin it. Two Sources
     (the inbox capture and the soil note) have no derived Claim."""
     _install_seed(vault_env)
@@ -84,7 +83,7 @@ def test_seed_atomize_nudge_is_actually_due(vault_env: Dict) -> None:
     assert info["count"] >= 2 and info["due"], f"atomize nudge not due: {info}"
 
 
-def test_seed_keeps_every_kind_tier_and_gate(vault_env: Dict) -> None:
+def test_seed_keeps_every_kind_tier_and_gate(vault_env: dict) -> None:
     vault = _install_seed(vault_env)
     claims = [fm for _, fm in _atomic_nodes(vault) if fm["kind"] == "claim"]
     kinds = ({fm["kind"] for _, fm in _atomic_nodes(vault)}
@@ -101,7 +100,7 @@ def test_seed_keeps_every_kind_tier_and_gate(vault_env: Dict) -> None:
     assert any(l.get("rel") == "refines" for c in dream for l in c.get("links", []))
 
 
-def test_seed_entry_ids_follow_the_engine_templates(vault_env: Dict) -> None:
+def test_seed_entry_ids_follow_the_engine_templates(vault_env: dict) -> None:
     """SHOULD-3 of the seed review: ids must be the engine's own dedup keys,
     or atomizing the seed's raw notes mints DUPLICATE entities. Recomputing
     through resolver.entry_id makes the convention self-verifying — the seed
@@ -116,6 +115,7 @@ def test_seed_entry_ids_follow_the_engine_templates(vault_env: Dict) -> None:
                               derived_from="|".join(sorted(fm["derived_from"])))
         assert fm["entry_id"] == want, f"{p.name}: unconventional entry_id"
     import hashlib
+
     from runtime.service.learnings.claims_io import _content_hash
     for p, fm in _sources(vault):
         # discriminator class is video_id|url|HASH (structure.yaml) — title is

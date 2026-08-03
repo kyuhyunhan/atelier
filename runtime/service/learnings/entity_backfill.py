@@ -25,11 +25,10 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import yaml
 
-from ...index import reindex as _reindex   # reuse _norm so resolution can't drift
+from ...index import reindex as _reindex  # reuse _norm so resolution can't drift
 from ...structure import resolver as _structure
 
 
@@ -68,7 +67,7 @@ def _resolvable_norms(conn: sqlite3.Connection) -> set:
     return keys
 
 
-def plan_stubs(conn: sqlite3.Connection) -> List[StubPlan]:
+def plan_stubs(conn: sqlite3.Connection) -> list[StubPlan]:
     """Distinct learning concepts (touches+topic) not already resolvable → one
     StubPlan each, ordered for determinism. Concepts that collapse to the same
     slug yield one plan (first concept string wins as the alias seed)."""
@@ -76,7 +75,7 @@ def plan_stubs(conn: sqlite3.Connection) -> List[StubPlan]:
     concepts = [r["value"] for r in conn.execute(
         "SELECT DISTINCT value FROM learning_facets "
         "WHERE kind IN ('touches','topic') AND value <> '' ORDER BY value")]
-    plans: List[StubPlan] = []
+    plans: list[StubPlan] = []
     seen_slug: set = set()
     for c in concepts:
         if _reindex._norm(c) in resolvable:
@@ -113,14 +112,14 @@ def _stub_markdown(concept: str, created: str) -> str:
 
 
 def backfill(conn: sqlite3.Connection, *, vault: Path, created: str,
-             plans: Optional[List[StubPlan]] = None) -> Dict[str, object]:
+             plans: list[StubPlan] | None = None) -> dict[str, object]:
     """Create a stub file per plan, if missing. Returns stats + the created paths.
 
     `created` is injected (caller passes a date) so the tool itself is free of
     wall-clock — two runs on the same vault produce the identical file set, and a
     file that already exists is left byte-untouched (create-if-missing)."""
     plans = plan_stubs(conn) if plans is None else plans
-    created_paths: List[str] = []
+    created_paths: list[str] = []
     skipped = 0
     for p in plans:
         path = vault / p.rel_path

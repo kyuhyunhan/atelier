@@ -8,10 +8,8 @@ must walk the same set the indexer does, or every data page reads as drift.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 from runtime.util import fs
-
 
 # ── walk_indexable: coverage + exclusions ───────────────────────────────────
 
@@ -98,7 +96,7 @@ def test_parse_data_file_survives_malformed(tmp_path: Path):
 
 # ── e2e: indexed, searchable, classified, no drift ──────────────────────────
 
-def test_yaml_is_searchable_by_content_and_classified_data(vault_env: Dict):
+def test_yaml_is_searchable_by_content_and_classified_data(vault_env: dict):
     vault = vault_env["vault"]
     (vault / "wiki").mkdir(parents=True, exist_ok=True)
     (vault / "wiki" / "contract.yaml").write_text(
@@ -111,7 +109,7 @@ def test_yaml_is_searchable_by_content_and_classified_data(vault_env: Dict):
     assert any(h["page_type"] == "data" for h in hits if "contract.yaml" in h["slug"])
 
 
-def test_secret_yaml_not_indexed(vault_env: Dict):
+def test_secret_yaml_not_indexed(vault_env: dict):
     vault = vault_env["vault"]
     (vault / "secrets").mkdir(parents=True, exist_ok=True)
     (vault / "secrets" / "creds.yaml").write_text("api_key: SUPERSECRETVALUE\n")
@@ -121,7 +119,7 @@ def test_secret_yaml_not_indexed(vault_env: Dict):
     assert not any("creds.yaml" in h["slug"] for h in hits)
 
 
-def test_doctor_drift_clean_after_yaml_indexing(vault_env: Dict):
+def test_doctor_drift_clean_after_yaml_indexing(vault_env: dict):
     vault = vault_env["vault"]
     (vault / "wiki").mkdir(parents=True, exist_ok=True)
     (vault / "wiki" / "spec.yaml").write_text("k: v\n")

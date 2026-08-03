@@ -11,8 +11,8 @@ and a thin adapter later — no new graph code, just a new consumer.
 from __future__ import annotations
 
 import sqlite3
-
-from typing import List, Protocol, Sequence, runtime_checkable
+from collections.abc import Sequence
+from typing import Protocol, runtime_checkable
 
 from .types import Candidate, Scope
 
@@ -27,7 +27,7 @@ class RelationalSearcher(Protocol):
     proximity (e.g. inverse hop-distance)."""
 
     def search(self, seeds: Sequence[int], *, scope: Scope = Scope(),
-               k: int = 10) -> List[Candidate]:
+               k: int = 10) -> list[Candidate]:
         ...
 
 
@@ -45,9 +45,9 @@ class LinkRelational:
         self._conn = conn
 
     def search(self, seeds: Sequence[int], *, scope: Scope = Scope(),
-               k: int = 10) -> List[Candidate]:
-        from ..graph import neighbors_by_id
+               k: int = 10) -> list[Candidate]:
         from ..engine.sqlite_scope import scope_where
+        from ..graph import neighbors_by_id
 
         seed_ids = [int(s) for s in seeds]
         if not seed_ids:
@@ -68,7 +68,7 @@ class LinkRelational:
         sql.extend(clauses)
         params.extend(sp)
         rows = {r["id"]: r for r in self._conn.execute("\n".join(sql), params)}
-        out: List[Candidate] = []
+        out: list[Candidate] = []
         # Nearer neighbours first; id as a stable, content-free tie-break.
         for pid in sorted(dist, key=lambda x: (dist[x], x)):
             r = rows.get(pid)

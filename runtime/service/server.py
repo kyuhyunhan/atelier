@@ -16,14 +16,13 @@ import errno
 import fcntl
 import os
 import signal
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Awaitable, Callable, List, Optional
 
 from ..util import config as _config
 from ..util import db as _db
 from ..util import logging as log
-
 
 TransportTask = Callable[["Supervisor"], Awaitable[None]]
 
@@ -75,7 +74,7 @@ class AlreadyRunning(RuntimeError):
 
     def __init__(self, pid: int) -> None:
         detail = (f"kill {pid}" if pid else "wait a moment and retry — it may "
-                  f"still be writing its pid")
+                  "still be writing its pid")
         super().__init__(
             f"atelier serve is already running"
             f"{f' (pid {pid})' if pid else ''}. "
@@ -143,8 +142,8 @@ class Supervisor:
         return not self.shutdown.is_set()
 
 
-_TRANSPORTS: List[TransportTask] = []
-_BACKGROUNDS: List[TransportTask] = []
+_TRANSPORTS: list[TransportTask] = []
+_BACKGROUNDS: list[TransportTask] = []
 
 
 def register_transport(task: TransportTask) -> None:
@@ -168,7 +167,7 @@ async def _idle(sup: Supervisor) -> None:
     await sup.shutdown.wait()
 
 
-async def _run(transports: List[TransportTask]) -> int:
+async def _run(transports: list[TransportTask]) -> int:
     cfg = _config.load()
     log.configure()                   # defensive: ensure the file sink exists
     _db.connect_shared()  # warm and migrate
@@ -207,7 +206,7 @@ async def _run(transports: List[TransportTask]) -> int:
     return 0
 
 
-def run(transports: Optional[List[TransportTask]] = None) -> int:
+def run(transports: list[TransportTask] | None = None) -> int:
     """Synchronous entry. CLI calls this; tests call _run() directly.
 
     Returns 0 on clean shutdown, 3 if another instance already holds the

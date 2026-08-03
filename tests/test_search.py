@@ -56,8 +56,8 @@ def test_fts_dedups_multi_chunk_pages(atelier_env):
 
 
 def test_graph_inbound_outbound(atelier_env):
-    from runtime.service import api
     from runtime.search import graph
+    from runtime.service import api
     from runtime.util import db
 
     wiki = atelier_env["wiki"]

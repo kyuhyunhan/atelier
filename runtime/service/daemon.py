@@ -55,7 +55,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..util import logging as log
 from . import server as _server
@@ -97,9 +97,9 @@ def _log_dir() -> Path:
     return _config.CACHE_DIR.parent / "logs"
 
 
-def render_plist(*, python_exe: Optional[str] = None,
-                 engine_root: Optional[Path] = None,
-                 log_dir: Optional[Path] = None) -> Dict[str, Any]:
+def render_plist(*, python_exe: str | None = None,
+                 engine_root: Path | None = None,
+                 log_dir: Path | None = None) -> dict[str, Any]:
     """The launchd agent definition as a dict (pure; serialized by install).
 
     Guardrails G2/G3 are HERE, in the spec, not in prose: ThrottleInterval,
@@ -130,7 +130,7 @@ def _gui_domain() -> str:
     return f"gui/{os.getuid()}"
 
 
-def install() -> Dict[str, Any]:
+def install() -> dict[str, Any]:
     """Write the plist and load the agent. Idempotent: an already-loaded agent
     is booted out first so a re-install picks up plist changes.
 
@@ -169,7 +169,7 @@ def install() -> Dict[str, Any]:
             "error": (r.stderr.strip() or None) if not ok else None}
 
 
-def uninstall() -> Dict[str, Any]:
+def uninstall() -> dict[str, Any]:
     """The kill switch: boot the agent out and remove the plist."""
     r = _launchctl("bootout", f"{_gui_domain()}/{LABEL}")
     if r.returncode != 0:                                 # legacy fallback
@@ -182,7 +182,7 @@ def uninstall() -> Dict[str, Any]:
     return {"label": LABEL, "plist_removed": removed}
 
 
-def status() -> Dict[str, Any]:
+def status() -> dict[str, Any]:
     """Combined visibility: is ANY serve alive (session-anchored, the default
     path), and is the opt-in launchd agent additionally installed/loaded?"""
     session_running, session_pid, _pf = _pidfile_state()
@@ -190,8 +190,8 @@ def status() -> Dict[str, Any]:
     installed = plist_path().exists()
     r = _launchctl("print", f"{_gui_domain()}/{LABEL}")
     loaded = r.returncode == 0
-    pid: Optional[int] = None
-    state: Optional[str] = None
+    pid: int | None = None
+    state: str | None = None
     if loaded:
         for line in r.stdout.splitlines():
             ln = line.strip()
@@ -237,7 +237,7 @@ def _pidfile_state():
     return True, pid, pf
 
 
-def ensure() -> Dict[str, Any]:
+def ensure() -> dict[str, Any]:
     """Spawn `serve --http` detached iff nothing alive holds the pidfile.
 
     Runs as a child of the caller's process tree (Terminal / Claude Code),
@@ -280,7 +280,7 @@ def ensure() -> Dict[str, Any]:
     return {"started": True, "already_running": False, "pid": proc.pid}
 
 
-def stop() -> Dict[str, Any]:
+def stop() -> dict[str, Any]:
     """Kill switch for the session-anchored daemon: SIGTERM the pidfile's
     owner (serve's own shutdown handler releases the pidfile on exit)."""
     running, pid, pf = _pidfile_state()

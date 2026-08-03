@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
-from typing import Dict
 
 from runtime.service import api as _api
 from runtime.service.learnings import cluster as _cl
@@ -62,7 +61,7 @@ def _seed_queue(vault: Path) -> None:
 AS_OF = "2026-07-23"
 
 
-def test_g4_total_is_visible_beyond_the_limit(atelier_env: Dict) -> None:
+def test_g4_total_is_visible_beyond_the_limit(atelier_env: dict) -> None:
     """No silent cap: `limit` pages `items`, but `total` and `max_age_days`
     describe the WHOLE queue."""
     vault = Path(_cl._vault_root())
@@ -73,7 +72,7 @@ def test_g4_total_is_visible_beyond_the_limit(atelier_env: Dict) -> None:
     assert got["max_age_days"] == 38              # 2026-06-15 → 2026-07-23
 
 
-def test_g4_items_carry_age_days(atelier_env: Dict) -> None:
+def test_g4_items_carry_age_days(atelier_env: dict) -> None:
     vault = Path(_cl._vault_root())
     _seed_queue(vault)
     got = _rev.review_pending(as_of=AS_OF)
@@ -83,7 +82,7 @@ def test_g4_items_carry_age_days(atelier_env: Dict) -> None:
     assert ages["p-stale"] == 38
 
 
-def test_g4_surface_equals_pending_age_metric(atelier_env: Dict) -> None:
+def test_g4_surface_equals_pending_age_metric(atelier_env: dict) -> None:
     """THE gate: surface totals == `pending_age.count` / `.max` on the same
     as_of — provable only because both sides now share one predicate."""
     vault = Path(_cl._vault_root())
@@ -94,7 +93,7 @@ def test_g4_surface_equals_pending_age_metric(atelier_env: Dict) -> None:
     assert surface["max_age_days"] == metric["max"] == 38
 
 
-def test_g4_knowledge_pending_is_counted_by_neither(atelier_env: Dict) -> None:
+def test_g4_knowledge_pending_is_counted_by_neither(atelier_env: dict) -> None:
     """The unified predicate, pinned at the boundary: a pending knowledge claim
     is not reviewable (the acceptance gate is operational-only) and neither the
     surface nor the metric counts it — the drift the old split allowed."""
@@ -107,7 +106,7 @@ def test_g4_knowledge_pending_is_counted_by_neither(atelier_env: Dict) -> None:
     assert surface["total"] == metric["count"] == 3
 
 
-def test_g4_empty_queue_measures_zero_on_both_sides(atelier_env: Dict) -> None:
+def test_g4_empty_queue_measures_zero_on_both_sides(atelier_env: dict) -> None:
     """Review [MUST] regression: a DRAINED queue is a measurable max of 0 on
     BOTH sides — the surface must not abstain (omitting the key fabricates
     'could not measure' on the queue's most desirable state, and breaks the
@@ -122,7 +121,7 @@ def test_g4_empty_queue_measures_zero_on_both_sides(atelier_env: Dict) -> None:
 
 
 def test_g4_undated_pending_still_counts_and_age_is_none(
-        atelier_env: Dict) -> None:
+        atelier_env: dict) -> None:
     """An undated pending must not vanish from the queue (that would hide it
     from review); its age is None and max_age_days abstains — mirroring
     pending_age's dated/count split (§5.4)."""

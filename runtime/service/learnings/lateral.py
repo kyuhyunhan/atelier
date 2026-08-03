@@ -27,7 +27,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from . import cluster as _cluster
 from . import surfacing as _surfacing
@@ -44,7 +44,7 @@ def _vault_root() -> Path:
     return _config.vault_root()   # the ONE accessor (RFC 0001 §6 / #98)
 
 
-def _body_tokens(path: Path) -> Set[str]:
+def _body_tokens(path: Path) -> set[str]:
     """All word tokens of the page body, lowercased — the echo universe.
     Wider than salient_terms (keeps short tokens like `kb`), because the echo
     gate asks "does FTS index this word at all?", not "is it salient?"."""
@@ -56,13 +56,13 @@ def _body_tokens(path: Path) -> Set[str]:
     return {t.lower() for t in _TOKEN_RX.findall(body)}
 
 
-def _echoes(tag: str, body_tokens: Set[str]) -> bool:
+def _echoes(tag: str, body_tokens: set[str]) -> bool:
     toks = [t for t in _TAG_SPLIT.split(tag.lower()) if t]
     return any(t in body_tokens for t in toks)
 
 
-def _topic_tokens(topic: str, project: str) -> Set[str]:
-    out: Set[str] = set()
+def _topic_tokens(topic: str, project: str) -> set[str]:
+    out: set[str] = set()
     for s in (topic, project):
         out.update(t for t in _TAG_SPLIT.split((s or "").lower()) if t)
     return out
@@ -71,7 +71,7 @@ def _topic_tokens(topic: str, project: str) -> Set[str]:
 # ── plan: tags ───────────────────────────────────────────────────────────────
 
 
-def plan_tags(*, suggest: int = DEFAULT_SUGGESTIONS) -> Dict[str, Any]:
+def plan_tags(*, suggest: int = DEFAULT_SUGGESTIONS) -> dict[str, Any]:
     """Tee up the tagging work, deterministically. Returns:
 
     - `untagged` — learnings with no `touches`, each with up to `suggest`
@@ -88,8 +88,8 @@ def plan_tags(*, suggest: int = DEFAULT_SUGGESTIONS) -> Dict[str, Any]:
     learnings = _cluster.load_accepted(vault)
     df: Counter = Counter(t for l in learnings for t in set(l.terms))
 
-    untagged: List[Dict[str, Any]] = []
-    inert: List[Dict[str, Any]] = []
+    untagged: list[dict[str, Any]] = []
+    inert: list[dict[str, Any]] = []
     for l in learnings:
         if not l.touches:
             skip = _topic_tokens(l.topic, l.project)
@@ -129,7 +129,7 @@ def plan_tags(*, suggest: int = DEFAULT_SUGGESTIONS) -> Dict[str, Any]:
 # ── apply: tags ──────────────────────────────────────────────────────────────
 
 
-def _insert_touches(path: Path, tags: List[str]) -> bool:
+def _insert_touches(path: Path, tags: list[str]) -> bool:
     """Textually insert a `touches:` block before the closing frontmatter
     fence. Minimal-diff by design (no YAML round-trip — the vault's files are
     user content; re-serializing would churn them cosmetically). Idempotent:
@@ -153,8 +153,8 @@ def _insert_touches(path: Path, tags: List[str]) -> bool:
     return True
 
 
-def apply_tags(mapping: Dict[str, List[str]],
-               *, probe_k: Optional[int] = None) -> Dict[str, Any]:
+def apply_tags(mapping: dict[str, list[str]],
+               *, probe_k: int | None = None) -> dict[str, Any]:
     """Apply `entry_id → tags` to canonicals (the by-project mirror was retired,
     RFC 0001), snapshot-wrapped:
 
@@ -184,8 +184,8 @@ def apply_tags(mapping: Dict[str, List[str]],
     learnings = {l.entry_id: l for l in _cluster.load_accepted(vault)}
 
     applied = skipped = fully_rejected = mirror_skipped = 0
-    rejected: Dict[str, List[str]] = {}
-    unknown: List[str] = []
+    rejected: dict[str, list[str]] = {}
+    unknown: list[str] = []
     for eid, tags in mapping.items():
         l = learnings.get(eid)
         if l is None:
@@ -225,7 +225,7 @@ def apply_tags(mapping: Dict[str, List[str]],
 # ── plan: merges (flag-only) ─────────────────────────────────────────────────
 
 
-def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> Dict[str, Any]:
+def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> dict[str, Any]:
     """Flag groups of near-duplicate learnings (salient-term Jaccard ≥
     `overlap`). FLAG-ONLY by design: merging or retiring a learning is
     high-blast-radius (it changes what the vault remembers), so v1 reports
@@ -235,7 +235,7 @@ def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> Dict[str, Any]:
     learnings = _cluster.load_accepted(vault)
 
     # union-find over pairs above the overlap threshold
-    parent: Dict[str, str] = {l.entry_id: l.entry_id for l in learnings}
+    parent: dict[str, str] = {l.entry_id: l.entry_id for l in learnings}
 
     def find(x: str) -> str:
         while parent[x] != x:
@@ -247,7 +247,7 @@ def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> Dict[str, Any]:
     # corpus is in the hundreds; the mutator runs in infrequent batches). Past
     # that, pre-filter pairs with an inverted term→learnings index so only
     # pairs sharing ≥1 salient term are compared (review S2).
-    pair_overlap: Dict[frozenset, float] = {}
+    pair_overlap: dict[frozenset, float] = {}
     for i, a in enumerate(learnings):
         for b in learnings[i + 1:]:
             j = _cluster.jaccard(a.terms, b.terms)
@@ -255,12 +255,12 @@ def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> Dict[str, Any]:
                 pair_overlap[frozenset((a.entry_id, b.entry_id))] = j
                 parent[find(a.entry_id)] = find(b.entry_id)
 
-    groups_map: Dict[str, List[str]] = {}
+    groups_map: dict[str, list[str]] = {}
     for l in learnings:
         groups_map.setdefault(find(l.entry_id), []).append(l.entry_id)
 
     by_id = {l.entry_id: l for l in learnings}
-    groups: List[Dict[str, Any]] = []
+    groups: list[dict[str, Any]] = []
     for members in groups_map.values():
         if len(members) < 2:
             continue
@@ -284,7 +284,7 @@ def plan_merges(*, overlap: float = DEFAULT_MERGE_OVERLAP) -> Dict[str, Any]:
 # ── forgetting (RFC 0006 Pillar ④a — flag-only, mirrors plan_merges) ────────
 
 
-def plan_forgets(*, probe_k: int = _surfacing.DEFAULT_PROBE_K) -> Dict[str, Any]:
+def plan_forgets(*, probe_k: int = _surfacing.DEFAULT_PROBE_K) -> dict[str, Any]:
     """Flag accepted learnings the surfacing audit reports DARK — unreachable by
     their own concept right now — as retraction CANDIDATES.
 

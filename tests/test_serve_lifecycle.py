@@ -8,15 +8,12 @@ Verifies the asyncio supervisor:
 from __future__ import annotations
 
 import asyncio
-from typing import Dict
-
-import pytest
 
 from runtime.service import server
 from runtime.util import db
 
 
-def test_supervisor_idles_and_drains_on_shutdown(atelier_env: Dict) -> None:
+def test_supervisor_idles_and_drains_on_shutdown(atelier_env: dict) -> None:
     """No transports registered: supervisor must still come up, idle, and
     exit cleanly when shutdown is set externally."""
     transports_seen: list[bool] = []
@@ -47,7 +44,7 @@ def test_supervisor_idles_and_drains_on_shutdown(atelier_env: Dict) -> None:
     assert db._SHARED is None
 
 
-def test_serve_supports_zero_transports(atelier_env: Dict) -> None:
+def test_serve_supports_zero_transports(atelier_env: dict) -> None:
     """PR-1 scaffold: with no transports registered, _idle is used and
     the supervisor still drains cleanly when shutdown fires."""
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
@@ -33,18 +33,18 @@ _FM_PLUMBING_KEYS = frozenset({
 @dataclass
 class Chunk:
     position: int
-    heading_path: Optional[str]
+    heading_path: str | None
     text: str
 
 
 @dataclass
 class ParsedPage:
-    frontmatter: Dict[str, Any]
+    frontmatter: dict[str, Any]
     body: str
-    chunks: List[Chunk]
+    chunks: list[Chunk]
 
 
-def split_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
+def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     """Return (frontmatter, body). frontmatter is {} if absent."""
     m = FRONTMATTER_RE.match(text)
     if not m:
@@ -59,13 +59,13 @@ def split_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
     return fm, body
 
 
-def chunk_body(body: str) -> List[Chunk]:
+def chunk_body(body: str) -> list[Chunk]:
     """Split body into paragraph-level chunks, tracking heading path."""
-    chunks: List[Chunk] = []
-    heading_stack: List[str] = []  # stack of (level, text) flattened by replacement
-    levels: List[int] = []
+    chunks: list[Chunk] = []
+    heading_stack: list[str] = []  # stack of (level, text) flattened by replacement
+    levels: list[int] = []
     pos = 0
-    buf: List[str] = []
+    buf: list[str] = []
 
     def flush() -> None:
         nonlocal pos, buf
@@ -97,12 +97,12 @@ def chunk_body(body: str) -> List[Chunk]:
     return chunks
 
 
-def _searchable_fm_values(fm: Dict[str, Any]) -> List[str]:
+def _searchable_fm_values(fm: dict[str, Any]) -> list[str]:
     """Ordered string values worth indexing from frontmatter: scalars and
     list-of-string members, minus the plumbing denylist and any `*_at` field.
     Non-string scalars (ints, bools) and nested structures are skipped — they
     are not free-text retrieval signal."""
-    out: List[str] = []
+    out: list[str] = []
     for key, val in fm.items():
         if not isinstance(key, str):
             continue
@@ -120,7 +120,7 @@ def _searchable_fm_values(fm: Dict[str, Any]) -> List[str]:
     return out
 
 
-def frontmatter_chunk(fm: Dict[str, Any], position: int = 0) -> Optional[Chunk]:
+def frontmatter_chunk(fm: dict[str, Any], position: int = 0) -> Chunk | None:
     """A synthetic chunk carrying frontmatter values into FTS (RFC 0002 P1a), so
     a page whose concept lives only in a tag (`touches`, `target_topic`, …) is
     retrievable. Returns None when frontmatter has no searchable text."""
@@ -149,11 +149,11 @@ def is_data_path(path: Path) -> bool:
     return path.suffix.lower() in _fs.DATA_SUFFIXES
 
 
-def _flatten(value: Any, prefix: str = "") -> List[str]:
+def _flatten(value: Any, prefix: str = "") -> list[str]:
     """Flatten a nested yaml/json structure into `key.path: scalar` lines so FTS
     can match both the keys and the leaf values. Lists index their members by
     index path. Scalars render as `prefix: value`."""
-    lines: List[str] = []
+    lines: list[str] = []
     if isinstance(value, dict):
         for k, v in value.items():
             key = f"{prefix}.{k}" if prefix else str(k)
@@ -174,8 +174,8 @@ def parse_data_file(path: Path) -> ParsedPage:
     indexer). Frontmatter is the top-level mapping when present, so `title` and
     friends still populate the generated columns."""
     text = path.read_text(encoding="utf-8", errors="replace")
-    fm: Dict[str, Any] = {}
-    lines: List[str]
+    fm: dict[str, Any] = {}
+    lines: list[str]
     try:
         if path.suffix.lower() == ".json":
             import json as _json

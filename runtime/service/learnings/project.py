@@ -41,7 +41,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ...util import config as _config
 
@@ -52,7 +52,7 @@ SELF_SLUG = "atelier-self"
 @dataclass(frozen=True)
 class ProjectResolution:
     """The resolved project plus provenance for telemetry / loud warnings."""
-    slug: Optional[str]      # None only when no working_dir and no explicit hint
+    slug: str | None      # None only when no working_dir and no explicit hint
     source: str              # explicit|config-map|marker|vault-self|basename|none
     known: bool              # some accepted learning carries this project (facet)
 
@@ -60,7 +60,7 @@ class ProjectResolution:
 # ── vault root (mirrors the per-module _vault_root helpers) ──────────────────
 
 
-def _vault_root(cfg: Optional[_config.Config]) -> Optional[Path]:
+def _vault_root(cfg: _config.Config | None) -> Path | None:
     if cfg is None:
         return None
     try:
@@ -69,7 +69,7 @@ def _vault_root(cfg: Optional[_config.Config]) -> Optional[Path]:
         return None
 
 
-def _is_known(vault: Optional[Path], slug: Optional[str]) -> bool:
+def _is_known(vault: Path | None, slug: str | None) -> bool:
     """True if any accepted learning carries this project (RFC 0001: a facet
     query, not a by-project directory check). DB first; on a cold/missing index
     fall back to a frontmatter scan of the flat store."""
@@ -89,8 +89,8 @@ def _is_known(vault: Optional[Path], slug: Optional[str]) -> bool:
     except Exception:
         pass
     # Fallback: scan the flat store's frontmatter (no DB / not yet indexed).
-    from . import store as _store
     from ...index import parse as _parse
+    from . import store as _store
     for p in _store.iter_accepted_files(Path(vault)):
         try:
             fm, _ = _parse.split_frontmatter(p.read_text(encoding="utf-8"))
@@ -104,7 +104,7 @@ def _is_known(vault: Optional[Path], slug: Optional[str]) -> bool:
 # ── layer 2: config project_map ──────────────────────────────────────────────
 
 
-def _project_map(cfg: Optional[_config.Config]) -> dict:
+def _project_map(cfg: _config.Config | None) -> dict:
     if cfg is None:
         return {}
     raw: dict[str, Any] = getattr(cfg, "raw", None) or {}
@@ -120,13 +120,13 @@ def _resolve_path(raw_path: str) -> str:
         return str(Path(raw_path).expanduser())
 
 
-def _match_project_map(cfg: Optional[_config.Config], wd: Path) -> Optional[str]:
+def _match_project_map(cfg: _config.Config | None, wd: Path) -> str | None:
     """Exact path match wins; otherwise the longest matching path-prefix."""
     pm = _project_map(cfg)
     if not pm:
         return None
     wd_s = str(wd)
-    best: Optional[tuple[int, str]] = None
+    best: tuple[int, str] | None = None
     for raw_path, project in pm.items():
         cand = _resolve_path(str(raw_path))
         if wd_s == cand:
@@ -140,7 +140,7 @@ def _match_project_map(cfg: Optional[_config.Config], wd: Path) -> Optional[str]
 # ── layer 3: marker file (.atelier-project) ──────────────────────────────────
 
 
-def _read_marker(wd: Path) -> Optional[str]:
+def _read_marker(wd: Path) -> str | None:
     """Walk up from `wd` reading the first non-empty line of a
     `.atelier-project` file. Stops at the git root (a dir containing
     `.git`) or the filesystem root — the project boundary."""
@@ -166,7 +166,7 @@ def _read_marker(wd: Path) -> Optional[str]:
 # ── layer 5: durable git-root identity (linked worktrees) ────────────────────
 
 
-def _git_root_main(wd: Path) -> Optional[Path]:
+def _git_root_main(wd: Path) -> Path | None:
     """If `wd` is inside a *linked* git worktree, return the MAIN repo root
     (the toplevel of the primary worktree). Returns None for a primary repo
     (where `.git` is a directory — basename already gives a stable slug) or a
@@ -209,9 +209,9 @@ def _git_root_main(wd: Path) -> Optional[Path]:
 # ── the accessor ─────────────────────────────────────────────────────────────
 
 
-def resolve_project(working_dir: Optional[str], *,
-                    explicit: Optional[str] = None,
-                    cfg: Optional[_config.Config] = None,
+def resolve_project(working_dir: str | None, *,
+                    explicit: str | None = None,
+                    cfg: _config.Config | None = None,
                     need_known: bool = True) -> ProjectResolution:
     """Resolve a session's project slug via the layered chain. `cfg` is
     loaded lazily when omitted; pass it to avoid a redundant config read.
@@ -230,7 +230,7 @@ def resolve_project(working_dir: Optional[str], *,
             cfg = None
     vault = _vault_root(cfg)
 
-    def finalize(slug: Optional[str], source: str) -> ProjectResolution:
+    def finalize(slug: str | None, source: str) -> ProjectResolution:
         return ProjectResolution(
             slug=slug, source=source,
             known=_is_known(vault, slug) if need_known else False)

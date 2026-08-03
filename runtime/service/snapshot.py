@@ -21,9 +21,9 @@ from __future__ import annotations
 import json
 import subprocess
 import tarfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..util import config as _config
 from ..util import logging as _log
@@ -61,14 +61,14 @@ def _tree_dirty(vault: Path) -> bool:
 
 def _timestamp() -> str:
     # Compact, sortable, filesystem-safe: 20260704T073000Z
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _snapshots_dir() -> Path:
     return _atelier_home() / "snapshots"
 
 
-def create() -> Dict[str, Any]:
+def create() -> dict[str, Any]:
     """Freeze a rollback point. Additive only — never mutates the vault.
 
     Tags the vault at HEAD (when it is a git repo) and tars the `~/.atelier`
@@ -79,8 +79,8 @@ def create() -> Dict[str, Any]:
     dest = _snapshots_dir() / ts
     dest.mkdir(parents=True, exist_ok=True)
 
-    tag: Optional[str] = None
-    vault_sha: Optional[str] = None
+    tag: str | None = None
+    vault_sha: str | None = None
     if _is_git_repo(vault):
         head = _git(vault, "rev-parse", "HEAD")
         vault_sha = head.stdout.strip() or None
@@ -96,7 +96,7 @@ def create() -> Dict[str, Any]:
 
     # Tar the durables (relative to home so restore untars back over home).
     tar_path = dest / "durables.tar.gz"
-    captured: List[str] = []
+    captured: list[str] = []
     with tarfile.open(tar_path, "w:gz") as tar:
         for rel in _DURABLE_RELPATHS:
             src = home / rel
@@ -124,12 +124,12 @@ def create() -> Dict[str, Any]:
     return manifest
 
 
-def list_snapshots() -> List[Dict[str, Any]]:
+def list_snapshots() -> list[dict[str, Any]]:
     """All snapshots, newest first, read from their manifests."""
     root = _snapshots_dir()
     if not root.exists():
         return []
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for d in sorted(root.iterdir(), reverse=True):
         mf = d / "manifest.json"
         if mf.is_file():
@@ -140,7 +140,7 @@ def list_snapshots() -> List[Dict[str, Any]]:
     return out
 
 
-def restore(snapshot_id: str, *, force: bool = False) -> Dict[str, Any]:
+def restore(snapshot_id: str, *, force: bool = False) -> dict[str, Any]:
     """Roll the vault + durables back to a snapshot. DESTRUCTIVE.
 
     Guard: refuses a dirty vault tree unless `force=True`, so uncommitted work is
@@ -167,7 +167,7 @@ def restore(snapshot_id: str, *, force: bool = False) -> Dict[str, Any]:
     # Untar durables back over the atelier home.
     home = _atelier_home()
     tar_path = Path(manifest.get("durables_tar") or (dest / "durables.tar.gz"))
-    restored_durables: List[str] = []
+    restored_durables: list[str] = []
     if tar_path.is_file():
         with tarfile.open(tar_path, "r:gz") as tar:
             # `filter="data"` (3.12+) blocks path traversal / unsafe members; we

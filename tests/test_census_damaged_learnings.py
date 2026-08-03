@@ -7,13 +7,11 @@ from `also_in`) while grading confidence.
 """
 from __future__ import annotations
 
-from typing import Dict
-
 from scripts.census_damaged_learnings import census as _census
 from tests.conftest import write_page
 
 
-def _by_topic(vault, topic: str, name: str, fm: Dict) -> None:
+def _by_topic(vault, topic: str, name: str, fm: dict) -> None:
     write_page(vault / "learnings" / "accepted" / "by-topic" / topic /
                f"{name}.md", fm, "## Observation\n\nbody\n")
 
@@ -25,7 +23,7 @@ _ACCEPTED = {
 }
 
 
-def test_census_keys_on_absorb_provenance_not_layer_tokens(vault_env: Dict) -> None:
+def test_census_keys_on_absorb_provenance_not_layer_tokens(vault_env: dict) -> None:
     vault = vault_env["vault"]
     # (a) absorbed, target_topic IS a canonical layer + carries layer field → high
     _by_topic(vault, "cross-cutting", "a", {
@@ -50,7 +48,7 @@ def test_census_keys_on_absorb_provenance_not_layer_tokens(vault_env: Dict) -> N
     assert rep["damaged"] == 2
 
 
-def test_census_captures_recovery_data_and_confidence(vault_env: Dict) -> None:
+def test_census_captures_recovery_data_and_confidence(vault_env: dict) -> None:
     vault = vault_env["vault"]
     _by_topic(vault, "client", "a", {
         **_ACCEPTED, "entry_id": "A", "agent_kind": "absorbed",

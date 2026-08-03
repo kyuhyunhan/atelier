@@ -3,7 +3,6 @@ legacy) are single-sourced from the structure resolver (no path literals here)."
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Optional
 
 from .. import structure as _structure
 from .loader import Rule
@@ -12,8 +11,8 @@ from .runner import Finding, register_check
 
 @register_check("check_orphan_pages")
 def check_orphan_pages(
-    conn: sqlite3.Connection, rule: Rule, space: Optional[str]
-) -> List[Finding]:
+    conn: sqlite3.Connection, rule: Rule, space: str | None
+) -> list[Finding]:
     excluded = set(rule.extras.get("excluded_slugs") or [])
     prefixes = _structure.graph_prefixes()
     slug_clause = " OR ".join("p.slug LIKE ?" for _ in prefixes)
@@ -25,7 +24,7 @@ def check_orphan_pages(
         WHERE  ({slug_clause})
           AND  (bc.inbound_count IS NULL OR bc.inbound_count = 0)
     """
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     for r in conn.execute(sql, slug_params):
         if r["slug"] in excluded:
             continue

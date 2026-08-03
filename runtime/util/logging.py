@@ -26,7 +26,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _ROOT = "atelier"
 _HANDLER_TAG = "_atelier_handler"          # marks handlers we own (idempotency)
@@ -67,13 +67,13 @@ def _category_of(logger_name: str) -> str:
 # ── config-defensive resolution (never raises) ───────────────────────────────
 
 
-def _resolve_log_path(explicit: Optional[Path]) -> Path:
+def _resolve_log_path(explicit: Path | None) -> Path:
     if explicit:
         return Path(explicit).expanduser()
     env = os.environ.get("ATELIER_LOG_FILE")
     if env:
         return Path(env).expanduser()
-    from . import config as _config       # lazy: config imports widely
+    from . import config as _config  # lazy: config imports widely
     try:
         cfg_file = _config.load().logging.file
     except Exception:
@@ -83,7 +83,7 @@ def _resolve_log_path(explicit: Optional[Path]) -> Path:
     return Path(_config.CACHE_DIR).parent / "logs" / "atelier.log"
 
 
-def _resolve_level(explicit: Optional[str]) -> str:
+def _resolve_level(explicit: str | None) -> str:
     if explicit:
         return explicit
     env = os.environ.get("ATELIER_LOG_LEVEL")
@@ -96,7 +96,7 @@ def _resolve_level(explicit: Optional[str]) -> str:
         return "info"
 
 
-def _resolve_console(explicit: Optional[bool]) -> bool:
+def _resolve_console(explicit: bool | None) -> bool:
     if explicit is not None:
         return explicit
     from . import config as _config
@@ -106,7 +106,7 @@ def _resolve_console(explicit: Optional[bool]) -> bool:
         return True
 
 
-def _find_tagged(logger: _logging.Logger, tag: str) -> Optional[_logging.Handler]:
+def _find_tagged(logger: _logging.Logger, tag: str) -> _logging.Handler | None:
     for h in logger.handlers:
         if getattr(h, _HANDLER_TAG, None) == tag:
             return h
@@ -116,9 +116,9 @@ def _find_tagged(logger: _logging.Logger, tag: str) -> Optional[_logging.Handler
 # ── configuration ────────────────────────────────────────────────────────────
 
 
-def configure(*, level: Optional[str] = None, stdio: bool = False,
-              console: Optional[bool] = None, bridge_libraries: bool = False,
-              log_file: Optional[Path] = None) -> None:
+def configure(*, level: str | None = None, stdio: bool = False,
+              console: bool | None = None, bridge_libraries: bool = False,
+              log_file: Path | None = None) -> None:
     """Set up (idempotently) the single file sink and optional stderr console."""
     global _configured
     logger = _logging.getLogger(_ROOT)

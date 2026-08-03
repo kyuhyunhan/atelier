@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from typing import Any, Dict
+from typing import Any
 
 
 def upsert_entity_from_page(
     conn: sqlite3.Connection,
     slug: str,
-    frontmatter: Dict[str, Any],
+    frontmatter: dict[str, Any],
 ) -> None:
     """Called per entity page during reindex. Idempotent."""
     aliases = frontmatter.get("aliases") or []

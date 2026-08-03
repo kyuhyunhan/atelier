@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
-from runtime.service import api as _api
 from runtime.service.learnings import capture as _cap
 from runtime.service.learnings import cluster as _cl
 from runtime.service.learnings import lateral as _lat
@@ -20,7 +18,7 @@ def _capture_accept(seed: str, project: str = "lexio", topic: str = "t") -> None
     _rev.accept(candidate_slug=cap["entry_id"], target_topic=topic, target_project=project)
 
 
-def test_plan_forgets_is_a_pure_read(atelier_env: Dict) -> None:
+def test_plan_forgets_is_a_pure_read(atelier_env: dict) -> None:
     _capture_accept("a"); _capture_accept("b")
     vault = Path(_cl._vault_root())
     before = sum(1 for _ in _store.iter_accepted_files(vault))
@@ -36,7 +34,7 @@ def test_plan_forgets_is_a_pure_read(atelier_env: Dict) -> None:
     assert "human" in plan["note"]                # flag-only is documented, not implicit
 
 
-def test_plan_forgets_uses_the_same_audit_as_the_omission_gate(atelier_env: Dict) -> None:
+def test_plan_forgets_uses_the_same_audit_as_the_omission_gate(atelier_env: dict) -> None:
     """The forgetting candidate set and INV-4's dark_count must come from the
     SAME measurement — no second, drifting definition of 'forgettable'."""
     _capture_accept("a")
@@ -47,7 +45,7 @@ def test_plan_forgets_uses_the_same_audit_as_the_omission_gate(atelier_env: Dict
 
 
 def test_flagged_dark_candidate_is_retracted_end_to_end(
-        atelier_env: Dict, monkeypatch) -> None:
+        atelier_env: dict, monkeypatch) -> None:
     """Drive the FULL loop this pillar exists to enable: a genuinely dark
     learning appears in plan_forgets()'s candidates (with a real, human-readable
     `slug` — not entry_id duplicated), gets retracted using that candidate's own

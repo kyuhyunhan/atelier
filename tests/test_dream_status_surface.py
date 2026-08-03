@@ -27,7 +27,7 @@ def _accept(seed: str, project: str = "lexio") -> str:
                        rule=f"rule {seed}",
                        working_dir=f"/Users/me/workspaces/{project}",
                        session_id=seed, hook="Stop")
-    out = _rev.accept(candidate_slug=cap["entry_id"],
+    _rev.accept(candidate_slug=cap["entry_id"],
                       target_topic="t", target_project=project)
     # The dream cadence counts the PROACTIVE pool (dream's input) — elevate the
     # accepted claim to proactive so it counts toward the nudge threshold.
@@ -54,7 +54,8 @@ def test_nudge_info_not_due_below_threshold(atelier_env: dict) -> None:
 
 def test_nudge_info_due_on_count(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     info = _dr.nudge_info(now="2026-05-29T12:00:00+00:00")
     assert info["due"] is True
     assert info["proactive_since"] == 2
@@ -88,7 +89,8 @@ def test_nudge_info_pending_segment(atelier_env: dict) -> None:
 
 def test_cli_status_compact_line(atelier_env: dict, capsys) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     rc = cli_main(["dream", "--status"])
     assert rc == 0
     out = capsys.readouterr().out.strip()
@@ -108,7 +110,8 @@ def test_cli_status_empty_when_nothing_due(atelier_env: dict, capsys) -> None:
 def test_cli_status_json(atelier_env: dict, capsys) -> None:
     import json
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     rc = cli_main(["dream", "--status", "--json"])
     assert rc == 0
     data = json.loads(capsys.readouterr().out)

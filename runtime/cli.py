@@ -96,9 +96,11 @@ def _cmd_list(args: argparse.Namespace) -> int:
         sql = "SELECT slug, page_type, space FROM pages WHERE 1=1"
         params: list = []
         if args.type:
-            sql += " AND page_type=?"; params.append(args.type)
+            sql += " AND page_type=?"
+            params.append(args.type)
         if args.space:
-            sql += " AND space=?"; params.append(args.space)
+            sql += " AND space=?"
+            params.append(args.space)
         sql += " ORDER BY space, slug"
         for r in conn.execute(sql, params):
             print(f"{r['space']:8} {r['page_type']:14} {r['slug']}")
@@ -508,30 +510,39 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--verbose", "-v", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("setup");                  s.set_defaults(func=_cmd_setup)
+    s = sub.add_parser("setup")
+    s.set_defaults(func=_cmd_setup)
 
     s = sub.add_parser("reindex")
-    s.add_argument("--space"); s.add_argument("--full", action="store_true")
+    s.add_argument("--space")
+    s.add_argument("--full", action="store_true")
     s.add_argument("--incremental", action="store_true", default=True)
     s.set_defaults(func=_cmd_reindex)
 
     s = sub.add_parser("search")
-    s.add_argument("query"); s.add_argument("--space"); s.add_argument("--limit", type=int, default=20)
-    s.add_argument("--explain", action="store_true"); s.add_argument("--fallback", action="store_true")
+    s.add_argument("query")
+    s.add_argument("--space")
+    s.add_argument("--limit", type=int, default=20)
+    s.add_argument("--explain", action="store_true")
+    s.add_argument("--fallback", action="store_true")
     s.set_defaults(func=_cmd_search)
 
     s = sub.add_parser("links")
     s.add_argument("slug")
     g = s.add_mutually_exclusive_group()
-    g.add_argument("--inbound", action="store_true"); g.add_argument("--outbound", action="store_true")
+    g.add_argument("--inbound", action="store_true")
+    g.add_argument("--outbound", action="store_true")
     s.set_defaults(func=_cmd_links)
 
     s = sub.add_parser("list")
-    s.add_argument("--type"); s.add_argument("--space")
+    s.add_argument("--type")
+    s.add_argument("--space")
     s.set_defaults(func=_cmd_list)
 
     s = sub.add_parser("lint")
-    s.add_argument("--space"); s.add_argument("--rule"); s.add_argument("--fix", action="store_true")
+    s.add_argument("--space")
+    s.add_argument("--rule")
+    s.add_argument("--fix", action="store_true")
     s.add_argument("--show", type=int, default=20)
     s.set_defaults(func=_cmd_lint)
 
@@ -548,7 +559,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=_cmd_sync)
 
     s = sub.add_parser("capture")
-    s.add_argument("--text", required=True); s.add_argument("--source", default="manual")
+    s.add_argument("--text", required=True)
+    s.add_argument("--source", default="manual")
     s.add_argument("--title")
     s.add_argument("--domain", default="inbox/undetermined")
     s.set_defaults(func=_cmd_capture)

@@ -598,7 +598,7 @@ def reject(*, slug: str, reason: str = "rejected") -> dict[str, Any]:
     dedup check in synthesize() consults retracted principle claims, so a rejected
     cluster is never re-proposed by a later dream pass."""
     vault = _vault_root()
-    path, fm, _body = _find(vault, slug)
+    _path, fm, _body = _find(vault, slug)
     if _status_of(fm) != "proposed":
         raise ValueError(
             f"{slug}: only proposed principles can be rejected "

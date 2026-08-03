@@ -44,7 +44,7 @@ def _clauses() -> list[dict[str, Any]]:
     try:
         data = yaml.safe_load(_INVARIANTS_YAML.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as e:
-        raise ContractError(f"cannot read the invariant map: {e}")
+        raise ContractError(f"cannot read the invariant map: {e}") from e
     if not isinstance(data, dict) or not isinstance(data.get("clauses"), list):
         raise ContractError("invariant map is malformed (no `clauses` list)")
     return list(data["clauses"])
@@ -223,7 +223,7 @@ def verify_contract_run(contract_path: Path, before_path: Path, *, repo: Path,
     try:
         before = json.loads(Path(before_path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        raise ContractError(f"round baseline unreadable: {e}")
+        raise ContractError(f"round baseline unreadable: {e}") from e
     after = _baseline.generate(vault=vault,
                                captured_date=captured_date
                                or before.get("captured_date"))

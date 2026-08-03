@@ -181,7 +181,7 @@ def test_a_pinned_fixture_without_a_declared_path_raises(tmp_path: Path):
                    fixture_sha=_f.sha256_file(fixture),
                    fixture_path=None)          # pinned, but never located
     _commit(repo, "g.json", ct, "add contract")
-    with pytest.raises(ContractError, match="no.*fixture_path"):
+    with pytest.raises(ContractError, match=r"no.*fixture_path"):
         _f.check_pins(ct, repo=repo, contract_path=repo / "g.json",
                       before_path=before, fixture_path=fixture)
 

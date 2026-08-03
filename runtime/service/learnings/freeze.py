@@ -58,7 +58,7 @@ def _contract_relpath(repo: Path, contract_path: Path) -> str:
         return str(Path(contract_path).resolve().relative_to(repo.resolve()))
     except ValueError:
         raise ContractError(
-            f"contract {contract_path} is not inside the repo {repo}")
+            f"contract {contract_path} is not inside the repo {repo}") from None
 
 
 def contract_commit(repo: Path, contract_path: Path) -> str:
@@ -96,7 +96,7 @@ def read_committed_contract(repo: Path, contract_path: Path) -> dict[str, Any]:
     try:
         data = json.loads(out)
     except json.JSONDecodeError as e:
-        raise ContractError(f"committed contract {rel} is not valid JSON: {e}")
+        raise ContractError(f"committed contract {rel} is not valid JSON: {e}") from e
     if not isinstance(data, dict):
         raise ContractError(f"committed contract {rel} is not an object")
     return data
@@ -129,7 +129,7 @@ def check_pins(contract: dict[str, Any], *, repo: Path, contract_path: Path,
         # A missing round baseline is an untrustworthy-harness condition, not a
         # FAIL — it must surface as the typed hard-abort, never a raw
         # FileNotFoundError the CLI would report as exit 1 and the loop retry.
-        raise ContractError(f"round baseline unreadable: {e}")
+        raise ContractError(f"round baseline unreadable: {e}") from e
     if got_before != want_before:
         raise ContractError(
             f"round baseline hash mismatch: pinned {want_before[:12]}…, "

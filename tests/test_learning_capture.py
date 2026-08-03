@@ -113,8 +113,8 @@ def test_capture_mirrors_session_fields_onto_claim_and_source(atelier_env: dict)
     assert cfm.get("working_dir") == "/Users/me/workspaces/lexio"
     assert cfm.get("project_hint") == "lexio"               # has_project_tag
     vault = atelier_env["wiki"]
-    src = [p for p in vault.rglob("*.md")
-           if _read_fm(p).get("entry_id") == result["source_entry_id"]][0]
+    src = next(p for p in vault.rglob("*.md")
+               if _read_fm(p).get("entry_id") == result["source_entry_id"])
     assert _read_fm(src).get("session_id") == "sess-mirror"  # also on the Source
 
 

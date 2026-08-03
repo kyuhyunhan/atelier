@@ -227,7 +227,7 @@ def _validate_one(path: Path, rel_path: str,
                 errors.extend(_check_field_spec(fname, fm[fname], fspec))
         return errors
 
-    ptype, spec = _match_page_type(rel_path, overlays)
+    _ptype, spec = _match_page_type(rel_path, overlays)
     if spec is None:
         return errors  # no overlay claims this path — minimal check only.
 

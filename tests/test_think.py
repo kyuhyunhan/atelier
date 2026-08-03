@@ -116,8 +116,8 @@ def test_compose_falls_back_when_snippet_empty():
               "citations": [{"n": 1, "slug": "graph/entities/x", "title": "X",
                              "snippet": "", "score": 1.0}]}
     answer = _think.compose(bundle)
-    first = [ln for ln in answer.split("## Answer", 1)[1]
-             .split("## Caveats", 1)[0].splitlines() if ln.strip()][0]
+    first = next(ln for ln in answer.split("## Answer", 1)[1]
+                 .split("## Caveats", 1)[0].splitlines() if ln.strip())
     assert "X" in first and re.search(r"\[1\]", first)
 
 

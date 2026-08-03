@@ -91,7 +91,7 @@ def _bump_one(path: Path, root: Path) -> tuple[bool, str | None, dict[str, Any]]
     """Return (would_change, reason, new_frontmatter). reason='already-v4'
     means the file is at target; would_change is False."""
     text = path.read_text(encoding="utf-8")
-    fm, body = _parse.split_frontmatter(text)
+    fm, _body = _parse.split_frontmatter(text)
 
     current = fm.get("schema_version")
     if current == TARGET_VERSION:

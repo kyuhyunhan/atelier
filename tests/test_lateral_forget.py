@@ -19,7 +19,8 @@ def _capture_accept(seed: str, project: str = "lexio", topic: str = "t") -> None
 
 
 def test_plan_forgets_is_a_pure_read(atelier_env: dict) -> None:
-    _capture_accept("a"); _capture_accept("b")
+    _capture_accept("a")
+    _capture_accept("b")
     vault = Path(_cl._vault_root())
     before = sum(1 for _ in _store.iter_accepted_files(vault))
 

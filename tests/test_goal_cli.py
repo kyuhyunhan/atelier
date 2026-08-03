@@ -26,16 +26,21 @@ def _git(repo: Path, *a: str) -> str:
 
 
 def _repo(tmp_path: Path) -> Path:
-    r = tmp_path / "repo"; r.mkdir()
-    _git(r, "init", "-q"); _git(r, "config", "user.email", "t@t")
+    r = tmp_path / "repo"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@t")
     _git(r, "config", "user.name", "t")
-    (r / "seed").write_text("s\n"); _git(r, "add", "seed"); _git(r, "commit", "-qm", "base")
+    (r / "seed").write_text("s\n")
+    _git(r, "add", "seed")
+    _git(r, "commit", "-qm", "base")
     return r
 
 
 def _claim(vault: Path, name: str) -> None:
     eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
-    d = vault / "graph" / "atomic"; d.mkdir(parents=True, exist_ok=True)
+    d = vault / "graph" / "atomic"
+    d.mkdir(parents=True, exist_ok=True)
     (d / f"{name}.md").write_text(
         f"---\nschema_version: 7\nentry_id: {eid}\nkind: claim\ndomain: knowledge\n"
         f"sensitivity: public\nsurfacing: query\ncreated_at: 2026-07-01T00:00:00+00:00\n"
@@ -47,15 +52,18 @@ def _setup(vault: Path, tmp_path: Path, intent):
     _api.reindex(space="wiki", full=True)
     before = _baseline.generate(vault=vault, captured_date="2026-07-24")
     before["_file_digests"] = _vault_state.file_digests(vault)
-    bp = tmp_path / "before.json"; bp.write_text(json.dumps(before), encoding="utf-8")
+    bp = tmp_path / "before.json"
+    bp.write_text(json.dumps(before), encoding="utf-8")
     repo = _repo(tmp_path)
     contract = {"id": "G", "intent": intent, "envelope": {"mode": "default-deny"},
                 "pins": {"before_sha256": _freeze.sha256_file(bp),
                          "captured_at_head": _git(repo, "rev-parse", "HEAD"),
                          "fixture_sha256": None}}
-    rel = "docs/goals/G.json"; (repo / "docs/goals").mkdir(parents=True)
+    rel = "docs/goals/G.json"
+    (repo / "docs/goals").mkdir(parents=True)
     (repo / rel).write_text(json.dumps(contract), encoding="utf-8")
-    _git(repo, "add", rel); _git(repo, "commit", "-qm", "freeze")
+    _git(repo, "add", rel)
+    _git(repo, "commit", "-qm", "freeze")
     return repo, bp
 
 

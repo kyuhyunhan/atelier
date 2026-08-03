@@ -21,7 +21,6 @@ def test_reindex_path_matches_full_reindex(atelier_env: dict) -> None:
                  working_dir="/Users/me/workspaces/lexio", session_id="a", hook="Stop")
     vault = Path(_cl._vault_root())
     claim = _claim_files(vault)[0]
-    cfg = _config.load()
 
     # Full reindex → the parity oracle for this slug.
     _api.reindex(space="wiki", full=True)
@@ -38,8 +37,11 @@ def test_reindex_path_matches_full_reindex(atelier_env: dict) -> None:
     conn = _db.connect()
     full_page, full_chunks = _snapshot(conn)
     # Wipe the page (chunks cascade), then reindex ONLY that file.
-    conn.execute("DELETE FROM pages WHERE slug=?", (slug,)); conn.commit(); conn.close()
+    conn.execute("DELETE FROM pages WHERE slug=?", (slug,))
+    conn.commit()
+    conn.close()
 
+    cfg = _config.load()
     _reindex.reindex_path(cfg, claim)
 
     conn = _db.connect()
@@ -74,7 +76,6 @@ def test_reindex_path_is_the_change_feed(atelier_env: dict) -> None:
     cap = _cap.capture(observation="obs bravo", why="w", rule="r",
                        working_dir="/Users/me/workspaces/lexio",
                        session_id="b", hook="Stop")
-    cfg = _config.load()
     conn = _db.connect()
     before = _db.fetchone(conn, "SELECT count(*) c FROM pages WHERE page_type='claim'")["c"]
     conn.close()

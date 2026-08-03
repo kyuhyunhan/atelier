@@ -57,7 +57,7 @@ def test_add_accepted_still_default(atelier_env: dict) -> None:
 
 
 def test_add_rejects_archived_status(atelier_env: dict) -> None:
-    with pytest.raises(ValueError, match="proposed|accepted"):
+    with pytest.raises(ValueError, match=r"proposed|accepted"):
         _pr.add(title="x", rule="r", why="w", status="archived")
 
 
@@ -112,8 +112,8 @@ def test_synthesize_skips_when_already_covered(atelier_env: dict) -> None:
 def test_dedup_checks_archived_so_rejected_not_reproposed(atelier_env: dict) -> None:
     s1, e1 = _accept("lexio", "testing", "a")
     s2, e2 = _accept("bht", "testing", "b")
-    out = _pr.synthesize(source_slugs=[s1, s2], title="rejected rule",
-                         source_entry_ids=[e1, e2], slug="rejected-rule")
+    _pr.synthesize(source_slugs=[s1, s2], title="rejected rule",
+                   source_entry_ids=[e1, e2], slug="rejected-rule")
     # User rejects it → archived.
     _pr.archive(slug="rejected-rule", reason="not a real principle")
     # Next dream re-clusters the same members → must be skipped (archived).

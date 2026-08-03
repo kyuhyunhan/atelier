@@ -64,13 +64,17 @@ def test_count_zero_when_no_sources(atelier_env: dict) -> None:
 
 def test_count_all_sources_unatomized(atelier_env: dict) -> None:
     v = _vault(atelier_env)
-    _source(v, "s1"); _source(v, "s2"); _source(v, "s3")
+    _source(v, "s1")
+    _source(v, "s2")
+    _source(v, "s3")
     assert _atomize.unatomized_count(vault=v) == 3
 
 
 def test_count_excludes_atomized_sources(atelier_env: dict) -> None:
     v = _vault(atelier_env)
-    _source(v, "s1"); _source(v, "s2"); _source(v, "s3")
+    _source(v, "s1")
+    _source(v, "s2")
+    _source(v, "s3")
     _claim(v, "c1", ["s1"])             # s1 atomized
     _claim(v, "c2", ["s2"])             # s2 atomized
     assert _atomize.unatomized_count(vault=v) == 1   # only s3 remains
@@ -104,7 +108,8 @@ def test_nudge_not_due_when_no_backlog(atelier_env: dict) -> None:
 
 def test_nudge_due_with_backlog(atelier_env: dict) -> None:
     v = _vault(atelier_env)
-    _source(v, "s1"); _source(v, "s2")
+    _source(v, "s1")
+    _source(v, "s2")
     info = _atomize.nudge_info(vault=v)
     assert info["due"] is True
     assert info["count"] == 2
@@ -116,7 +121,8 @@ def test_nudge_due_with_backlog(atelier_env: dict) -> None:
 def test_nudge_threshold_respected(atelier_env: dict) -> None:
     _set_atomize_cfg(atelier_env["home"], after=3)
     v = _vault(atelier_env)
-    _source(v, "s1"); _source(v, "s2")
+    _source(v, "s1")
+    _source(v, "s2")
     info = _atomize.nudge_info(vault=v)
     assert info["due"] is False            # 2 < 3 threshold
     _source(v, "s3")
@@ -168,7 +174,8 @@ def test_nudge_personal_only_is_human_gated(atelier_env: dict) -> None:
 
 def test_bootstrap_surfaces_atomize_nudge(atelier_env: dict) -> None:
     v = _vault(atelier_env)
-    _source(v, "s1"); _source(v, "s2")
+    _source(v, "s1")
+    _source(v, "s2")
     out = _bs.bootstrap(working_dir=str(v.parent / "someproj"),
                         now="2026-06-19T12:00:00+00:00")
     assert out["atomize_nudge"] is True

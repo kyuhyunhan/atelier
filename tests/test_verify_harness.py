@@ -35,7 +35,8 @@ def _freeze(tmp_path: Path) -> Path:
 
 
 def test_verifier_passes_on_unchanged_vault(atelier_env: dict, tmp_path: Path) -> None:
-    _capture_accept("a"); _capture_accept("b")
+    _capture_accept("a")
+    _capture_accept("b")
     bp = _freeze(tmp_path)
     # No change between freeze and verify → every no-regression gate holds.
     report = _verify.verify_against(bp, "P0", require_committed=False)
@@ -52,7 +53,8 @@ def test_verifier_refuses_non_frozen_baseline(atelier_env: dict, tmp_path: Path)
 
 
 def test_verifier_fails_on_data_loss(atelier_env: dict, tmp_path: Path) -> None:
-    _capture_accept("a"); _capture_accept("b")
+    _capture_accept("a")
+    _capture_accept("b")
     bp = _freeze(tmp_path)
 
     # Simulate loss: delete every accepted claim file, then reindex so the

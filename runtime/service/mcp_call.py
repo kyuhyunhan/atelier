@@ -202,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     # `--require_why false` lets session-end hooks land a candidate without a why
     # (judged later by curation) — RFC 0004 phase 1.
     p.add_argument("--require_why")
-    args, extra = p.parse_known_args(argv)
+    args, _extra = p.parse_known_args(argv)
 
     stdin_raw: str | None = None
     if args.payload_from_stdin and not sys.stdin.isatty():

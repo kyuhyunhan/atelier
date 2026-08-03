@@ -411,7 +411,7 @@ def _validate_strict(cfg: Config, path: Path) -> None:
                 )
 
     if problems:
-        lines = "\n  - ".join([""] + problems)
+        lines = "\n  - ".join(["", *problems])
         raise ValueError(
             f"atelier config at {path} has unresolved placeholders. "
             f"Edit it and try again:{lines}"

@@ -123,7 +123,7 @@ def test_apply_repairs_slug_and_retires_bare_noun_entity(
 
 
 def test_second_apply_is_a_no_op(atelier_env: dict, tmp_path: Path) -> None:
-    vault, claim, _ = _seed(atelier_env, tmp_path, make_real_dir=True)
+    _vault, claim, _ = _seed(atelier_env, tmp_path, make_real_dir=True)
     _run("--apply")
     first = claim.read_text(encoding="utf-8")
     _run("--apply")
@@ -131,7 +131,7 @@ def test_second_apply_is_a_no_op(atelier_env: dict, tmp_path: Path) -> None:
 
 
 def test_dry_run_writes_nothing(atelier_env: dict, tmp_path: Path) -> None:
-    vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
+    _vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
     before = claim.read_text(encoding="utf-8")
     _run()                                             # no --apply
     assert claim.read_text(encoding="utf-8") == before
@@ -155,7 +155,7 @@ def test_dry_run_preview_matches_what_apply_retires(
         atelier_env: dict, tmp_path: Path, capsys) -> None:
     """The preview must not under-report: what it names is exactly what the
     apply run unlinks."""
-    vault, _claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
+    _vault, _claim, ent = _seed(atelier_env, tmp_path, make_real_dir=True)
     _run()
     previewed = "'hub'" in capsys.readouterr().out
     _run("--apply")
@@ -170,7 +170,7 @@ def test_absent_project_dir_is_skipped_not_guessed(
     """The project directory does not exist here, so the decode cannot be
     verified. The script must leave the claim alone rather than rewrite it
     from a guessed path."""
-    vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=False)
+    _vault, claim, ent = _seed(atelier_env, tmp_path, make_real_dir=False)
     before = claim.read_text(encoding="utf-8")
     _run("--apply")
     assert claim.read_text(encoding="utf-8") == before

@@ -106,7 +106,7 @@ def _acquire_pidfile() -> Path:
             existing = int(pf.read_text().strip() or "0")
         except (ValueError, OSError):
             existing = 0
-        raise AlreadyRunning(existing)
+        raise AlreadyRunning(existing) from None
     os.ftruncate(fd, 0)
     os.write(fd, str(os.getpid()).encode())
     os.fsync(fd)

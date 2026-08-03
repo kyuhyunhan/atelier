@@ -61,7 +61,10 @@ def test_format_has_time_level_category_and_kv(_reset: Path) -> None:
 
 def test_level_tokens_incl_warn_mapping(_reset: Path) -> None:
     alog.set_level("debug")
-    alog.debug("c.d"); alog.info("c.i"); alog.warn("c.w"); alog.error("c.e")
+    alog.debug("c.d")
+    alog.info("c.i")
+    alog.warn("c.w")
+    alog.error("c.e")
     t = _reset.read_text()
     assert "[DEBUG] [c] d" in t
     assert "[INFO] [c] i" in t
@@ -104,7 +107,8 @@ def test_level_filtering_and_set_level(_reset: Path) -> None:
 
 def test_env_level_override(_reset: Path, monkeypatch) -> None:
     monkeypatch.setenv("ATELIER_LOG_LEVEL", "debug")
-    _clear_handlers(); alog._configured = False
+    _clear_handlers()
+    alog._configured = False
     alog.debug("e.shown")
     assert "shown" in _reset.read_text()
 
@@ -113,7 +117,8 @@ def test_env_level_override(_reset: Path, monkeypatch) -> None:
 
 
 def test_stdio_mode_never_writes_stdout(_reset: Path, capsys) -> None:
-    _clear_handlers(); alog._configured = False
+    _clear_handlers()
+    alog._configured = False
     alog.configure(stdio=True, console=True)   # console requested but stdio wins
     alog.error("x.boom")
     cap = capsys.readouterr()
@@ -123,7 +128,8 @@ def test_stdio_mode_never_writes_stdout(_reset: Path, capsys) -> None:
 
 def test_console_handler_off_when_not_a_tty(_reset: Path, monkeypatch) -> None:
     monkeypatch.setattr(sys.stderr, "isatty", lambda: False, raising=False)
-    _clear_handlers(); alog._configured = False
+    _clear_handlers()
+    alog._configured = False
     alog.configure(console=True, stdio=False)
     console = [h for h in stdlib_logging.getLogger("atelier").handlers
                if getattr(h, alog._HANDLER_TAG, None) == "console"]

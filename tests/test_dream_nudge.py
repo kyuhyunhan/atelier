@@ -28,7 +28,7 @@ def _accept(seed: str, project: str = "lexio") -> str:
         working_dir=f"/Users/me/workspaces/{project}",
         session_id=seed, hook="Stop",
     )
-    out = _rev.accept(candidate_slug=cap["entry_id"],
+    _rev.accept(candidate_slug=cap["entry_id"],
                        target_topic="t", target_project=project)
     # The dream cadence counts the PROACTIVE pool (dream's input), not accepted
     # learnings — so elevate the accepted claim to proactive to make it count.
@@ -58,7 +58,8 @@ def test_no_nudge_below_threshold(atelier_env: dict) -> None:
 
 def test_nudge_on_count_threshold(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b")
+    _accept("a")
+    _accept("b")
     out = _bs.bootstrap(working_dir="/Users/me/workspaces/lexio",
                         now="2026-05-28T12:00:00+00:00")
     assert out["nudge"] is True
@@ -116,7 +117,9 @@ def test_nudge_on_pending_proposed(atelier_env: dict) -> None:
 
 def test_interrupted_dream_keeps_nudge_armed(atelier_env: dict) -> None:
     _set_dream_cfg(atelier_env["home"], after_accepted=2, after_days=7)
-    _accept("a"); _accept("b"); _accept("c")
+    _accept("a")
+    _accept("b")
+    _accept("c")
     # Simulate an interrupted pass: a proposed draft was written but
     # mark_dream_complete was NEVER called (last_dream_at stays None).
     _pr.add(title="half done", rule="r", why="w", status="proposed",

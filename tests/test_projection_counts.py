@@ -43,7 +43,8 @@ def _fs_unatomized(vault) -> int:
 
 
 def test_accepted_count_projection_matches_filesystem(atelier_env: dict) -> None:
-    _capture_accept("a"); _capture_accept("b")
+    _capture_accept("a")
+    _capture_accept("b")
     _reindex()
     vault = _cl._vault_root()
     projected = _pc.accepted_operational()
@@ -53,7 +54,8 @@ def test_accepted_count_projection_matches_filesystem(atelier_env: dict) -> None
 
 def test_promote_eligible_projection_matches_filesystem(atelier_env: dict) -> None:
     # accepted claims are surfacing:query + ac_status:passed → promote-eligible.
-    _capture_accept("a"); _capture_accept("b")
+    _capture_accept("a")
+    _capture_accept("b")
     _reindex()
     projected = _pc.promote_eligible(limit=50)
     assert projected == 2
@@ -73,7 +75,8 @@ def test_unatomized_projection_matches_filesystem(atelier_env: dict) -> None:
 
 
 def test_cold_db_returns_none_and_caller_falls_back(atelier_env: dict) -> None:
-    _capture_accept("a"); _capture_accept("b")
+    _capture_accept("a")
+    _capture_accept("b")
     # No reindex: the pages table has no claim/source rows.
     assert _pc.accepted_operational() is None          # projection abstains
     # the filesystem counterpart still answers the accepted count.

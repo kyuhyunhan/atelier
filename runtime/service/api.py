@@ -15,7 +15,7 @@ from . import auth, claims
 
 def reindex(space: str | None = None, full: bool = False,
             token: str | None = None) -> list[dict[str, Any]]:
-    ctx = auth.authenticate(token)
+    auth.authenticate(token)
     from ..index import reindex as _reindex
     cfg = config.load()
     statses = (

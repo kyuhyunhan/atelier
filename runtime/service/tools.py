@@ -37,7 +37,7 @@ from . import claims as _claims
 
 
 _current: contextvars.ContextVar[_auth.Session] = contextvars.ContextVar(
-    "atelier.current_session", default=_auth.local_cli_session()
+    "atelier.current_session", default=_auth.local_cli_session()  # noqa: B039 — one shared local-CLI session IS the default
 )
 
 

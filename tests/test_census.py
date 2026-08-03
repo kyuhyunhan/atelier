@@ -30,7 +30,8 @@ def _reindex() -> None:
 
 
 def test_census_projection_matches_filesystem(atelier_env: dict) -> None:
-    _capture_accept("a"); _capture_accept("b")
+    _capture_accept("a")
+    _capture_accept("b")
     _reindex()
     vault = Path(_cl._vault_root())
     projected = _census.census()                       # warm DB → projection path

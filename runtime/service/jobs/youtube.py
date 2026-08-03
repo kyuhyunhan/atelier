@@ -111,7 +111,7 @@ def _pick_subtitles(meta: dict[str, Any], lang: str | None
         for code in ("en", "ko"):
             if code in track_map:
                 return _select_vtt(track_map[code])
-        for code, entries in track_map.items():
+        for _code, entries in track_map.items():
             v = _select_vtt(entries)
             if v:
                 return v

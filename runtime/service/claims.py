@@ -19,10 +19,10 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class Claim(str, Enum):
+class Claim(StrEnum):
     WIKI_WRITE       = "wiki-write"            # was librarian-write
     LEARNINGS_WRITE  = "learnings-write"       # was builder-write (workshop folds here)
     CAPTOR_WRITE     = "captor-write"          # learnings/candidates/ append
@@ -35,7 +35,7 @@ class Claim(str, Enum):
 # Writer-role identifiers used as lock keys. Aligned with Claim values
 # but kept separate so the lock layer doesn't conflate "claim required"
 # with "what subtree this writes to". Keyed by subtree, not agent persona.
-class WriterRole(str, Enum):
+class WriterRole(StrEnum):
     WIKI      = "wiki-write"
     LEARNINGS = "learnings-write"
     CAPTOR    = "captor-write"

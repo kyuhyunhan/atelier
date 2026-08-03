@@ -171,7 +171,7 @@ class VecStore:
             batch = misses[i:i + max(1, commit_batch)]
             vectors = gateway.embed([t for _, t in batch])
             with self._conn:
-                for (h, _), vec in zip(batch, vectors):
+                for (h, _), vec in zip(batch, vectors, strict=True):
                     blob = _pack(vec)
                     self._conn.execute(
                         "INSERT OR REPLACE INTO embedding_cache "

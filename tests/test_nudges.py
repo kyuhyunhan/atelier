@@ -67,7 +67,8 @@ def test_atomize_not_due_when_empty(vault_env: dict) -> None:
 
 def test_atomize_due_normalized(vault_env: dict) -> None:
     v = _vault(vault_env)
-    _source(v, "s1"); _source(v, "s2")
+    _source(v, "s1")
+    _source(v, "s2")
     a = {n.kind: n for n in _nudges.all_nudges(now=_NOW)}["atomize"]
     assert a.due is True
     assert a.count == 2

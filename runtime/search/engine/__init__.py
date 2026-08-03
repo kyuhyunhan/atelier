@@ -22,7 +22,6 @@ implementation is the point of P0 — the roadmap is encoded in the type system.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from .lexical import FtsLexical, LexicalSearcher
 from .relational import LinkRelational, RelationalSearcher

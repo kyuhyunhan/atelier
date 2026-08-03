@@ -15,6 +15,11 @@ markdown content — held in your own private repositories — into a queryable,
 synthesizable, self-linting brain. It is a public substrate; the content layer
 that runs on top of it is private to each adopter.
 
+**Claude Code-native, MCP-accessible.** atelier's daily loop (session
+bootstrap, signal recall, learning capture) is delivered through Claude Code
+hooks. Any MCP client can query the vault, but the full write–ask–tend
+contract currently assumes Claude Code.
+
 ## Architecture
 
 Three layers, two stewards.

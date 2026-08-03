@@ -15,10 +15,6 @@ classifiers = [
   "Topic :: Text Processing :: Indexing",
 ]
 
-[project.urls]
-Homepage = "https://github.com/kyuhyunhan/atelier"
-Changelog = "https://github.com/kyuhyunhan/atelier/blob/main/CHANGELOG.md"
-Issues = "https://github.com/kyuhyunhan/atelier/issues"
 license = { text = "MIT" }
 authors = [{ name = "The atelier authors" }]
 dependencies = [
@@ -28,6 +24,11 @@ dependencies = [
     # sqlite3 — stdlib
     # git — shell out via subprocess
 ]
+
+[project.urls]
+Homepage = "https://github.com/kyuhyunhan/atelier"
+Changelog = "https://github.com/kyuhyunhan/atelier/blob/main/CHANGELOG.md"
+Issues = "https://github.com/kyuhyunhan/atelier/issues"
 
 [project.optional-dependencies]
 dev = [

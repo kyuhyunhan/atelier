@@ -43,6 +43,13 @@ touch ~/.atelier/voices/{librarian,builder}.md
 Edit `~/.atelier/config.yaml` to point at your two spaces. The example file
 is annotated.
 
+> **Try it before you commit content:** `examples/vault-seed/` is a
+> 15-page synthetic vault (fictional people, invented notes) that exercises
+> every node kind, surfacing tier, and the lens wall. Point a throwaway
+> config at a copy of it and run the day-one workflow below — its README
+> walks the tour. The suite pins the seed (`tests/test_vault_seed.py`), so
+> it always matches the live schema.
+
 ---
 
 ## Day-one workflow

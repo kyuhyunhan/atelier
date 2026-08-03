@@ -37,7 +37,7 @@ def test_concept_probe_falls_back_to_statement() -> None:
 
 def test_v7_accepted_claim_is_probeable_and_visible(atelier_env: Dict) -> None:
     _capture_accept("alpha")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     snap = _surf.snapshot()
     assert snap, "expected the accepted v7 claim in the snapshot"

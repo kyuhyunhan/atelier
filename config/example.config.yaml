@@ -14,8 +14,8 @@
 # All content (raw/, wiki/, workshop/, learnings/) lives in one repo.
 #
 # Vault location: prefer a plain, non-cloud-synced path such as
-# ~/vaults/gorae over ~/Documents/gorae, ~/Desktop/gorae, or
-# ~/Downloads/gorae. Two independent reasons:
+# ~/vaults/<name> over ~/Documents/<name>, ~/Desktop/<name>, or
+# ~/Downloads/<name>. Two independent reasons:
 #   - macOS TCC gates those three folders; a process spawned by launchd
 #     (`atelier daemon install`, opt-in/advanced) cannot read a vault there
 #     without a manual Full Disk Access grant per machine. The default
@@ -25,10 +25,10 @@
 #   - ~/Documents is commonly iCloud-synced; iCloud's own file versioning
 #     can race with git's, producing spurious local diffs.
 vault:
-  local: <REQUIRED — absolute path to your gorae vault directory>
+  local: <REQUIRED — absolute path to your vault directory>
   remote:
     type: github
-    url:  <REQUIRED — github.com/<your-username>/<your-gorae-repo>>
+    url:  <REQUIRED — github.com/<your-username>/<your-vault-repo>>
     branch: main
   assets:
     type: r2
@@ -191,7 +191,7 @@ channels:
 
 # ── Legacy spaces (deprecated, accepted only when `vault:` absent) ────────────
 # spaces:
-#   gorae:
+#   wiki:
 #     role: librarian-territory
 #     local: <path>
 #     remote: { type: github, url: <...>, branch: main }

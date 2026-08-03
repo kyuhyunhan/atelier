@@ -26,7 +26,7 @@ from tests.conftest import write_page
 
 def _seed(atelier_env: Dict) -> None:
     write_page(
-        atelier_env["gorae"] / "wiki" / "entities" / "n.md",
+        atelier_env["wiki"] / "wiki" / "entities" / "n.md",
         {"title": "N", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27"},
@@ -40,7 +40,7 @@ def test_reindex_with_gateway_embeds_and_reports(atelier_env):
     _seed(atelier_env)
     cfg = _config.load()
     gw = CountingGateway()
-    stats = _reindex.reindex_space(cfg, "gorae", full=True, embed_gateway=gw)
+    stats = _reindex.reindex_space(cfg, "wiki", full=True, embed_gateway=gw)
     assert stats.chunks_embedded > 0
     assert stats.chunks_reused == 0
     assert len(gw.embedded) == stats.chunks_embedded
@@ -52,10 +52,10 @@ def test_second_reindex_reuses_cache_zero_gateway_calls(atelier_env):
     _seed(atelier_env)
     cfg = _config.load()
     gw = CountingGateway()
-    _reindex.reindex_space(cfg, "gorae", full=True, embed_gateway=gw)
+    _reindex.reindex_space(cfg, "wiki", full=True, embed_gateway=gw)
     calls_after_first = len(gw.embedded)
 
-    stats2 = _reindex.reindex_space(cfg, "gorae", full=True, embed_gateway=gw)
+    stats2 = _reindex.reindex_space(cfg, "wiki", full=True, embed_gateway=gw)
     assert len(gw.embedded) == calls_after_first       # determinism guarantee
     assert stats2.chunks_embedded == 0
     assert stats2.chunks_reused > 0
@@ -66,7 +66,7 @@ def test_reindex_without_gateway_is_unchanged(atelier_env):
     as it was pre-P2 — stats zero, no sidecar dependency touched."""
     _seed(atelier_env)
     cfg = _config.load()
-    stats = _reindex.reindex_space(cfg, "gorae", full=True, embed_gateway=None)
+    stats = _reindex.reindex_space(cfg, "wiki", full=True, embed_gateway=None)
     assert stats.chunks_embedded == 0 and stats.chunks_reused == 0
     assert stats.pages_seen > 0                        # normal indexing happened
 
@@ -100,7 +100,7 @@ def test_gateway_failure_does_not_abort_reindex(atelier_env):
             raise OSError("provider died mid-pass")
 
     # Must not raise.
-    stats = _reindex.reindex_space(cfg, "gorae", full=True, embed_gateway=BoomGateway())
+    stats = _reindex.reindex_space(cfg, "wiki", full=True, embed_gateway=BoomGateway())
     assert stats.pages_seen > 0           # lexical reindex completed
     assert stats.chunks_embedded == 0     # embed pass aborted cleanly
 

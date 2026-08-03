@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Tuple
 
 
 def _normalize_pattern(pattern: str) -> str:
-    """The gorae overlay declares digests with the human-readable token
+    """The vault overlay declares digests with the human-readable token
     ``YYYY-MM``; treat it as a glob for classification. (The validator keeps
     its own stricter ``filename_pattern`` regex, so precision is not lost.)"""
     return pattern.replace("YYYY-MM", "*")

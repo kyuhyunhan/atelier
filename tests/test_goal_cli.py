@@ -45,7 +45,7 @@ def _claim(vault: Path, name: str) -> None:
 
 def _setup(vault: Path, tmp_path: Path, intent):
     _claim(vault, "a")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     before = _baseline.generate(vault=vault, captured_date="2026-07-24")
     before["_file_digests"] = _vault_state.file_digests(vault)
     bp = tmp_path / "before.json"; bp.write_text(json.dumps(before), encoding="utf-8")
@@ -75,7 +75,7 @@ def test_exit_1_on_fail(atelier_env: Dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     repo, bp = _setup(vault, tmp_path, intent=[])
     _claim(vault, "injected")                              # undeclared delta
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     assert _run(repo, bp, vault) == 1
 
 

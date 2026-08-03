@@ -116,7 +116,7 @@ fields:
   source:
     type: string
     nullable: true
-    description: "Capture channel: mobile | web-clipper | manual | gorae-new"
+    description: "Capture channel: mobile | web-clipper | manual | vault-new"
 
   inbox_status:
     type: string

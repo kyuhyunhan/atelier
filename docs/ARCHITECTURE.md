@@ -74,7 +74,7 @@ can be deleted at any time and rebuilt from Layer 2 via `atelier reindex`.
      │    Librarian     │              │     Builder      │
      │  ─────────────   │              │  ─────────────   │
      │ WRITE: graph/**  │              │  WRITE: workshop │
-     │ READ: provenance/│              │  READ:  gorae/** │
+     │ READ: provenance/│              │  READ:  vault/** │
      │ READ:  workshop  │              │ READ: provenance/│
      │                  │              │                  │
      │  ops: ingest,    │              │  ops: new-prod,  │
@@ -113,7 +113,7 @@ Single-writer per space is the integrity invariant. Promotion from workshop
 
 ## Data Flow
 
-### Ingest (gorae)
+### Ingest (vault)
 
 ```
 human writes raw/personal/diary/2026/05/15.md
@@ -141,7 +141,7 @@ human writes raw/personal/diary/2026/05/15.md
 Librarian agent
         │
         ▼
-1. atelier search "X" --space gorae --mode graph
+1. atelier search "X" --mode graph
    → SQLite FTS5 + links table BFS
 2. drill down into ranked pages
 3. (optional) cross-space search workshop for product context
@@ -596,7 +596,7 @@ on stdlib `logging` (`runtime/util/logging.py`). Every line is structured and
 always carries **time and category**:
 
 ```
-2026-06-03T16:04:25+09:00 [INFO] [vault-autosync] ready vault=/…/gorae interval=30
+2026-06-03T16:04:25+09:00 [INFO] [vault-autosync] ready vault=/…/my-vault interval=30
 ```
 
 - **Category = logger name.** The façade keeps `log.info("sync.commit", k=v)`;
@@ -630,7 +630,7 @@ five named entry points:
 | Reservation | Where | Active in |
 |---|---|---|
 | `base.yaml.source` and `inbox_status` | schema/data/base.yaml | Phase 1 (defined, nullable) |
-| `raw/inbox/` directory | gorae | Phase 9 (created on first capture) |
+| `raw/inbox/` directory | vault | Phase 9 (created on first capture) |
 | `runtime/service/capture.py` | runtime | Phase 7 (function, no HTTP) |
 | `claims.py` `mobile-claim` enum | runtime/service | Phase 7 (placeholder) |
 | `config.channels.mobile` | example.config.yaml | Phase 0 (commented) |

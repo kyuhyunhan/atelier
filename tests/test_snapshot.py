@@ -25,7 +25,7 @@ def _init_repo(vault: Path) -> None:
 
 
 def test_create_is_additive_and_records_tag(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _init_repo(vault)
     m = _snap.create()
     assert m["tag"] and m["vault_sha"]                 # git repo → tag + sha
@@ -36,7 +36,7 @@ def test_create_is_additive_and_records_tag(atelier_env: Dict) -> None:
 
 
 def test_restore_rolls_vault_and_durables_back(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     home = atelier_env["home"]
     _init_repo(vault)
     m = _snap.create()
@@ -57,7 +57,7 @@ def test_restore_rolls_vault_and_durables_back(atelier_env: Dict) -> None:
 
 
 def test_restore_refuses_dirty_tree_without_force(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _init_repo(vault)
     m = _snap.create()
     (vault / "dirty.md").write_text("uncommitted\n")   # dirty working tree

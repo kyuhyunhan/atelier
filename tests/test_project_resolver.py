@@ -31,7 +31,7 @@ def _set_project_map(home: Path, mapping: Dict[str, str]) -> None:
 
 
 def _vault(atelier_env: Dict) -> Path:
-    return atelier_env["gorae"]            # librarian-territory == vault root
+    return atelier_env["wiki"]            # librarian-territory == vault root
 
 
 # ── precedence chain ────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ def _capture_accept(seed: str, project: str = "lexio") -> None:
 
 
 def _reindex() -> None:
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
 
 def _fs_unatomized(vault) -> int:
@@ -87,7 +87,7 @@ def test_legacy_notes_present_abstains_and_stays_correct(atelier_env: Dict) -> N
     # can't represent) sits next to a v7 claim. The accepted count must NOT
     # silently drop the note: the projection abstains and the filesystem
     # fallback — which unions notes/ with graph/atomic — answers.
-    note = (atelier_env["gorae"] / "raw" / "learning" / "notes"
+    note = (atelier_env["wiki"] / "raw" / "learning" / "notes"
             / "2026-05" / "legacy.md")
     note.parent.mkdir(parents=True, exist_ok=True)
     note.write_text("---\ntitle: a legacy accepted note\n---\n\nbody\n",

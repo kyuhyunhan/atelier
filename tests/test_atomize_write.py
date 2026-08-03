@@ -38,7 +38,7 @@ def _read(path: Path) -> Dict:
 
 
 def test_atomize_write_creates_entities_and_claims(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
                              domain="knowledge", entities=_ENTITIES,
                              claims=_CLAIMS, vault=vault)
@@ -63,7 +63,7 @@ def test_atomize_write_creates_entities_and_claims(atelier_env: Dict) -> None:
 
 
 def test_atomize_write_is_idempotent(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     first = _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
                                domain="knowledge", entities=_ENTITIES,
                                claims=_CLAIMS, vault=vault)
@@ -80,7 +80,7 @@ def test_atomize_write_produces_schema_valid_nodes(atelier_env: Dict) -> None:
     # The real gate: every node atomize_write writes must pass the v7 validator
     # (this is what catches an out-of-enum `type` like the once-missing `Model`).
     from runtime.lint import validate_v4 as _v
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
                              domain="knowledge", entities=_ENTITIES,
                              claims=_CLAIMS, vault=vault)
@@ -105,12 +105,12 @@ def test_atomize_write_rejects_unknown_entity_type(atelier_env: Dict) -> None:
         _cio.atomize_write(
             source_entry_id=SRC, created_at=CREATED, domain="knowledge",
             entities=[{"type": "Wombat", "pref_label": "x"}],
-            claims=[], vault=atelier_env["gorae"])
+            claims=[], vault=atelier_env["wiki"])
 
 
 def test_atomize_write_rejects_malformed_items(atelier_env: Dict) -> None:
     import pytest
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     with pytest.raises(ValueError, match="pref_label"):
         _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
                            domain="knowledge", entities=[{"type": "Concept"}],
@@ -125,7 +125,7 @@ def test_atomize_write_rejects_malformed_items(atelier_env: Dict) -> None:
 def test_atomize_write_is_about_is_case_insensitive(atelier_env: Dict) -> None:
     # A declared entity is reused when a claim's is_about differs only in case —
     # no silent duplicate Concept of a different type (the id normalizes lower).
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _cio.atomize_write(
         source_entry_id=SRC, created_at=CREATED, domain="knowledge",
         entities=[{"type": "Model", "pref_label": "Claude Fable"}],
@@ -140,7 +140,7 @@ def test_atomize_write_is_about_is_case_insensitive(atelier_env: Dict) -> None:
 
 
 def test_atomize_write_undeclared_is_about_has_a_node(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _cio.atomize_write(source_entry_id=SRC, created_at=CREATED,
                        domain="knowledge", entities=_ENTITIES,
                        claims=_CLAIMS, vault=vault)
@@ -150,7 +150,7 @@ def test_atomize_write_undeclared_is_about_has_a_node(atelier_env: Dict) -> None
 
 
 def test_atomize_write_personal_is_private(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _cio.atomize_write(
         source_entry_id=SRC, created_at=CREATED, domain="personal",
         entities=[{"type": "Concept", "pref_label": "묵상"}],

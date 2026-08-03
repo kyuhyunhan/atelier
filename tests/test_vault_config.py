@@ -21,8 +21,8 @@ def _write_config(home: Path, data: Dict) -> None:
 
 
 def _base_workspace(atelier_env: Dict) -> Path:
-    """Return the gorae path the conftest seeded."""
-    return atelier_env["gorae"]
+    """Return the wiki path the conftest seeded."""
+    return atelier_env["wiki"]
 
 
 def test_vault_block_synthesizes_role_spaces(atelier_env: Dict) -> None:
@@ -67,7 +67,7 @@ def test_legacy_spaces_block_still_works(atelier_env: Dict) -> None:
 
     cfg = _config.load()
     assert cfg.vault is None
-    assert "gorae" in cfg.spaces
+    assert "wiki" in cfg.spaces
 
 
 def test_both_blocks_present_is_refused(atelier_env: Dict) -> None:
@@ -135,11 +135,11 @@ def test_vault_root_falls_back_to_the_librarian_space(atelier_env: Dict) -> None
     local root — byte-identical to what every duplicated helper computed."""
     from runtime.util import config as _config
     ws = atelier_env["home"] / "ws"
-    (ws / "gorae").mkdir(parents=True)
+    (ws / "wiki").mkdir(parents=True)
     (ws / "workshop").mkdir(parents=True)
     _write_config(atelier_env["home"], {
         "spaces": {
-            "gorae": {"role": "librarian-territory", "local": str(ws / "gorae"),
+            "wiki": {"role": "librarian-territory", "local": str(ws / "wiki"),
                       "remote": {"type": "github", "url": "github.com/t/g",
                                  "branch": "main"}},
             "workshop": {"role": "builder-territory", "local": str(ws / "workshop"),
@@ -148,5 +148,5 @@ def test_vault_root_falls_back_to_the_librarian_space(atelier_env: Dict) -> None
         },
     })
     cfg = _config.load()
-    assert cfg.vault_root() == ws / "gorae"
-    assert _config.vault_root() == ws / "gorae"      # module entry point too
+    assert cfg.vault_root() == ws / "wiki"
+    assert _config.vault_root() == ws / "wiki"      # module entry point too

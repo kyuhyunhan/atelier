@@ -154,7 +154,7 @@ def test_user_memory_lands_private(atelier_env: Dict) -> None:
     fm, _ = split_frontmatter(Path(out["candidates"][0]["path"]).read_text())
     assert fm["sensitivity"] == "private"
     assert "pii_flag" not in fm                  # private by TYPE, not by PII
-    src_fms = list(_source_fms(atelier_env["gorae"]))
+    src_fms = list(_source_fms(atelier_env["wiki"]))
     assert len(src_fms) == 1 and src_fms[0]["sensitivity"] == "private"
 
 
@@ -182,7 +182,7 @@ def test_pii_hit_demotes_and_flags(atelier_env: Dict) -> None:
     fm, _ = split_frontmatter(Path(out["accepted"][0]["path"]).read_text())
     assert fm["sensitivity"] == "private"
     assert fm["pii_flag"] is True
-    src_fms = list(_source_fms(atelier_env["gorae"]))
+    src_fms = list(_source_fms(atelier_env["wiki"]))
     assert src_fms[0]["sensitivity"] == "private"
     assert src_fms[0]["pii_flag"] is True
 
@@ -251,9 +251,9 @@ def test_body_only_revision_refreshes_source_and_keeps_the_claim(
     assert rec["path"] == first["accepted"][0]["path"]
 
     # the Source now carries the revised body (not the stale v1)
-    src_fms = list(_source_fms(atelier_env["gorae"]))
+    src_fms = list(_source_fms(atelier_env["wiki"]))
     assert len(src_fms) == 1                        # same node, not a fork
     assert src_fms[0].get("revised_at")
-    src_dir = atelier_env["gorae"] / _structure.operational_source_dir()
+    src_dir = atelier_env["wiki"] / _structure.operational_source_dir()
     text = next(iter(src_dir.glob("*.md"))).read_text(encoding="utf-8")
     assert "v2 revised body" in text and "v1 body" not in text

@@ -29,7 +29,7 @@ def _write(path: Path, fm: Dict, body: str = "body\n") -> None:
 
 
 def test_fix_pending_dry_run(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _write(vault / "raw" / "x.md", {"schema_version": 4, "entry_id": "PENDING"})
     out = _pp.fix_pending(dry_run=True)
     assert out["count"] == 1
@@ -38,7 +38,7 @@ def test_fix_pending_dry_run(atelier_env: Dict) -> None:
 
 
 def test_fix_pending_apply(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _write(vault / "raw" / "x.md", {"schema_version": 4, "entry_id": "PENDING"})
     out = _pp.fix_pending(dry_run=False)
     assert out["count"] == 1
@@ -90,14 +90,14 @@ def test_clip_image_writes_local_file(atelier_env: Dict) -> None:
     assert p.exists()
     assert p.read_bytes() == b"PNGDATA"
     assert p.suffix == ".png"
-    # vault-relative path lives under gorae-resources/
-    assert out["rel"].startswith("gorae-resources/")
+    # vault-relative path lives under the neutral default asset dir
+    assert out["rel"].startswith("assets/")
 
 
 def test_clip_image_returns_cdn_when_configured(atelier_env: Dict) -> None:
     cfg_path = atelier_env["home"] / "config.yaml"
     data = yaml.safe_load(cfg_path.read_text())
-    data["spaces"]["gorae"]["assets"] = {"type": "r2",
+    data["spaces"]["wiki"]["assets"] = {"type": "r2",
                                           "cdn": "https://cdn.example/"}
     cfg_path.write_text(yaml.safe_dump(data))
     out = _clip.clip_image(
@@ -105,7 +105,7 @@ def test_clip_image_returns_cdn_when_configured(atelier_env: Dict) -> None:
         fetch=_fake_fetch(b"JPGDATA", "image/jpeg"),
     )
     assert out["cdn"] is not None
-    assert out["cdn"].startswith("https://cdn.example/gorae-resources/")
+    assert out["cdn"].startswith("https://cdn.example/assets/")
 
 
 # ── new_doc (PR-14) ────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ def test_all_new_tools_registered() -> None:
 
 def test_mcp_dispatch_fix_pending(atelier_env: Dict) -> None:
     from runtime.service import tools as _tools
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _write(vault / "raw" / "y.md", {"schema_version": 4, "entry_id": "PENDING"})
     async def go() -> Dict:
         return await _tools.invoke("atelier_fix_pending", dry_run=False)

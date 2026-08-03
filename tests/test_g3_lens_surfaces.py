@@ -47,7 +47,7 @@ def _seed_mixed_claims(vault: Path) -> None:
         encoding="utf-8")
     (d / "g3-personal.md").write_text(
         _claim_md("g3-personal", domain="personal"), encoding="utf-8")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
 
 def _run(tool: str, **params: Any) -> Dict[str, Any]:
@@ -190,7 +190,7 @@ def test_dev_push_excludes_foreign_projects_but_query_reaches_them(
     (d / "g3-foreign.md").write_text(
         _claim_md("g3-foreign", domain="operational", project="projB"),
         encoding="utf-8")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     def _slugs(hits: List[Dict[str, Any]]) -> set:
         return {h["slug"].rsplit("/", 1)[-1] for h in hits}

@@ -41,7 +41,7 @@ def _fm(path) -> Dict:
 
 
 def _source_file(env: Dict) -> Path:
-    d = env["gorae"] / _structure.operational_source_dir()
+    d = env["wiki"] / _structure.operational_source_dir()
     return next(iter(sorted(d.glob("*.md"))))
 
 
@@ -56,8 +56,8 @@ def test_minted_source_is_not_in_the_atomize_backlog(atelier_env: Dict) -> None:
     _seed(root, "m1", description="a durable rule",
           body="## Rule\n" + "word " * 400)          # deliberately LONG
     _ac.absorb(dry_run=False, source_root=root)
-    assert _atomize.unatomized_count(vault=atelier_env["gorae"]) == 0
-    assert _atomize.nudge_info(vault=atelier_env["gorae"])["due"] is False
+    assert _atomize.unatomized_count(vault=atelier_env["wiki"]) == 0
+    assert _atomize.nudge_info(vault=atelier_env["wiki"])["due"] is False
 
 
 def test_long_memories_still_mint_rather_than_route_to_atomize(
@@ -72,7 +72,7 @@ def test_long_memories_still_mint_rather_than_route_to_atomize(
     assert len(out["accepted"]) == 2
     statements = {_fm(r["path"])["statement"] for r in out["accepted"]}
     assert statements == {"short rule", "long rule"}
-    assert _atomize.unatomized_count(vault=atelier_env["gorae"]) == 0
+    assert _atomize.unatomized_count(vault=atelier_env["wiki"]) == 0
 
 
 # ── 2. deep atomize is additive: the mint claim survives ─────────────────────
@@ -96,13 +96,13 @@ def test_deep_atomize_adds_claims_without_touching_the_mint(
                  "is_about": ["deep concept"]},
                 {"statement": "second fact holds", "attributed_to": "self",
                  "is_about": ["deep concept"]}],
-        vault=atelier_env["gorae"])
+        vault=atelier_env["wiki"])
 
     assert res["claims_written"] == 2
     # the minted claim is byte-identical — atomization is purely additive
     assert mint_path.read_text(encoding="utf-8") == mint_before
     # and all three claims derive from the SAME Source
-    claim_dir = atelier_env["gorae"] / _structure.atomic_claim_dir()
+    claim_dir = atelier_env["wiki"] / _structure.atomic_claim_dir()
     derived = [fm for fm in (_fm(p) for p in claim_dir.glob("*.md"))
                if fm.get("kind") == "claim"
                and src_id in (fm.get("derived_from") or [])]
@@ -131,9 +131,9 @@ def test_deep_atomize_inherits_a_private_source(atelier_env: Dict) -> None:
         entities=[{"type": "Concept", "pref_label": "a preference"}],
         claims=[{"statement": "a derived detail", "attributed_to": "self",
                  "is_about": ["a preference"]}],
-        vault=atelier_env["gorae"])
+        vault=atelier_env["wiki"])
 
-    claim_dir = atelier_env["gorae"] / _structure.atomic_claim_dir()
+    claim_dir = atelier_env["wiki"] / _structure.atomic_claim_dir()
     derived = [fm for fm in (_fm(p) for p in claim_dir.glob("*.md"))
                if fm.get("generated_by") == "atomize"]
     assert len(derived) == res["claims_written"] == 1
@@ -161,9 +161,9 @@ def test_deep_atomize_inherits_a_pii_demoted_source(atelier_env: Dict) -> None:
         entities=[{"type": "Concept", "pref_label": "deploy"}],
         claims=[{"statement": "a deploy step exists", "attributed_to": "self",
                  "is_about": ["deploy"]}],
-        vault=atelier_env["gorae"])
+        vault=atelier_env["wiki"])
 
-    claim_dir = atelier_env["gorae"] / _structure.atomic_claim_dir()
+    claim_dir = atelier_env["wiki"] / _structure.atomic_claim_dir()
     derived = [fm for fm in (_fm(p) for p in claim_dir.glob("*.md"))
                if fm.get("generated_by") == "atomize"]
     assert derived and all(fm["sensitivity"] == "private" for fm in derived)
@@ -182,9 +182,9 @@ def test_public_source_still_yields_public_claims(atelier_env: Dict) -> None:
         entities=[{"type": "Concept", "pref_label": "a topic"}],
         claims=[{"statement": "a derived public fact", "attributed_to": "self",
                  "is_about": ["a topic"]}],
-        vault=atelier_env["gorae"])
+        vault=atelier_env["wiki"])
 
-    claim_dir = atelier_env["gorae"] / _structure.atomic_claim_dir()
+    claim_dir = atelier_env["wiki"] / _structure.atomic_claim_dir()
     derived = [fm for fm in (_fm(p) for p in claim_dir.glob("*.md"))
                if fm.get("generated_by") == "atomize"]
     assert derived and all(fm["sensitivity"] == "public" for fm in derived)
@@ -194,7 +194,7 @@ def test_personal_domain_stays_private_when_the_source_is_public(
         atelier_env: Dict) -> None:
     """Policy 1 is unchanged: `domain: personal` is private regardless of what
     the Source says. The new inheritance only ADDS a tightening path."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     src = _claims.write_operational_source(
         statement="a public operational source", body="body\n", vault=vault)
     _claims.atomize_write(

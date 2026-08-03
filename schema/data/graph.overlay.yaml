@@ -13,7 +13,7 @@
 # fields — the same base + typed-extension discipline as the legacy overlays.
 
 inherits: base
-spaces: [gorae]
+spaces: [vault]
 
 page_types:
 

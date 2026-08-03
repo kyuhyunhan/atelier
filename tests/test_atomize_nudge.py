@@ -54,7 +54,7 @@ def _set_atomize_cfg(home: Path, *, after: int) -> None:
 
 
 def _vault(atelier_env: Dict) -> Path:
-    return atelier_env["gorae"]
+    return atelier_env["wiki"]
 
 
 # ── count: |sources| − |sources with a derived claim| ────────────────────────

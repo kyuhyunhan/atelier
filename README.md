@@ -160,7 +160,7 @@ Then register atelier as an MCP server in `~/.claude/mcp.json`:
 
 Now `claude` in any project directory can call `atelier_search`,
 `atelier_youtube`, `atelier_learning_capture`, etc. against your one
-gorae vault.
+content vault.
 
 See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the system contract, and
@@ -184,7 +184,7 @@ See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
   legacy two-space (`librarian-territory` + `builder-territory`) model
   is collapsed into one repo. Workshop content + per-product memory
   absorbed by one-shot migration scripts.
-- **Learnings domain** — `gorae/learnings/{candidates,accepted,principles}/`
+- **Learnings domain** — `<vault>/learnings/{candidates,accepted,principles}/`
   with agent-driven capture (a SessionStart disposition + a substance
   gate keep captures substantive), acceptance-criteria-gated
   promotion, cross-project **principles**, session-start injection,
@@ -195,7 +195,7 @@ See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
   rationale (trigger model, interruption resilience).
 - **Capability ports** — `atelier_{validate, fix_pending,
   prepare_commit, clip_image, new_doc, youtube}` replace the proto-engine
-  scripts inside gorae. See `scripts/gorae_cleanup/CHECKLIST.md` to
+  scripts inside the vault. See `scripts/vault_cleanup/CHECKLIST.md` to
   remove them.
 
 ### Backlog deferred to v0.3+

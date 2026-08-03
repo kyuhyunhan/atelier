@@ -27,7 +27,7 @@ def _capture_accept(seed: str, project: str = "lexio") -> None:
 
 
 def _reindex() -> None:
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
 
 def test_census_projection_matches_filesystem(atelier_env: Dict) -> None:

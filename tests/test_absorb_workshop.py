@@ -40,7 +40,7 @@ def test_dry_run_does_not_write(atelier_env: Dict, capsys, tmp_path: Path) -> No
     out = capsys.readouterr().out
     assert "would do" in out
     # Nothing actually copied:
-    assert not (atelier_env["gorae"] / "workshop").exists()
+    assert not (atelier_env["wiki"] / "workshop").exists()
     assert not profiles_dir.exists()
 
 
@@ -51,7 +51,7 @@ def test_apply_copies_products_and_notes(atelier_env: Dict, tmp_path: Path) -> N
     rc = _ab.absorb(apply=True, profiles_dir=profiles_dir)
     assert rc == 0
 
-    workshop = atelier_env["gorae"] / "workshop"
+    workshop = atelier_env["wiki"] / "workshop"
     assert (workshop / "products" / "lexio" / "README.md").read_text() == "# lexio\n"
     assert (workshop / "products" / "lexio" / "spec" / "intro.md").read_text() == "intro\n"
     # profile.local.yaml extracted out of the vault:
@@ -66,9 +66,9 @@ def test_apply_copies_products_and_notes(atelier_env: Dict, tmp_path: Path) -> N
 
 
 def test_conflict_blocks_apply(atelier_env: Dict, tmp_path: Path) -> None:
-    """If gorae/workshop/products/lexio already exists, --apply must refuse."""
+    """If wiki/workshop/products/lexio already exists, --apply must refuse."""
     _seed_builder(atelier_env["workshop"])
-    pre = atelier_env["gorae"] / "workshop" / "products" / "lexio"
+    pre = atelier_env["wiki"] / "workshop" / "products" / "lexio"
     pre.mkdir(parents=True)
     (pre / "README.md").write_text("pre-existing\n")
 

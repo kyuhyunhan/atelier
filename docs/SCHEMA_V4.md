@@ -1,7 +1,7 @@
 # atelier Schema (v4 → v5, RFC 0003)
 
 Schema v4 was the first version under atelier's authority — a non-breaking evolution of
-gorae's Schema v3. **RFC 0003 then evolved it to v5** (provenance/sensitivity as
+the proto-vault's Schema v3. **RFC 0003 then evolved it to v5** (provenance/sensitivity as
 first-class fields, the `raw/`→`provenance/` and `wiki/`→`graph/` renames, learnings
 relocated under `provenance/learning/`, digests/synthesis retired to query-time, themes
 folded into `domain` entities). This doc reflects the current (v5) state; the v3→v4 and
@@ -15,7 +15,7 @@ RFC 0003 sections below record the evolution. Canonical definition lives in
 | File | Role |
 |---|---|
 | `schema/data/base.yaml` | Common frontmatter fields shared across all spaces |
-| `schema/data/gorae.overlay.yaml` | gorae space: provenance sources + graph (entity) page types |
+| `schema/data/vault.overlay.yaml` | vault space: provenance sources + graph (entity) page types |
 | `schema/data/workshop.overlay.yaml` | workshop space: products, notes, logs |
 | `schema/data/learnings.overlay.yaml` | learnings domain: candidate / accepted / principle / archived |
 | `schema/data/linking.yaml` | URI scheme, wikilink syntax, backward compat rules |
@@ -31,7 +31,7 @@ RFC 0003 sections below record the evolution. Canonical definition lives in
 | Item | v3 | v4 |
 |---|---|---|
 | `schema_version` field value | `3` | `4` |
-| Schema authority | `gorae/SCHEMA.md` (inline) | `atelier/schema/data/*.yaml` |
+| Schema authority | `<vault>/SCHEMA.md` (inline) | `atelier/schema/data/*.yaml` |
 | Lint rules | Prose in SCHEMA.md | Machine-readable `lint.yaml` |
 | DB | None | SQLite (`~/.atelier/cache/atelier.db`) |
 | Mobile fields | Not present | `source`, `inbox_status` in `base.yaml` (nullable, not validated until Phase H) |
@@ -57,7 +57,7 @@ layer, so the rename is non-breaking for existing links.
 
 ### Migration
 
-`atelier reindex --space gorae --full` auto-migrates v3 files:
+`atelier reindex --full` auto-migrates v3 files:
 1. Reads frontmatter, detects `schema_version: 3`.
 2. Writes `schema_version: 4` back via the writeback layer.
 3. Records the migration in `meta` table.
@@ -87,9 +87,9 @@ Defined in `schema/data/base.yaml`. All spaces inherit these.
 
 ---
 
-## Gorae Overlay (gorae space)
+## Vault Overlay (vault space)
 
-Defined in `schema/data/gorae.overlay.yaml`. Paths cover both the canonical
+Defined in `schema/data/vault.overlay.yaml`. Paths cover both the canonical
 post-RFC-0003 prefix and the legacy one (for un-migrated vaults).
 
 ### Page types
@@ -174,7 +174,7 @@ Defined in `schema/db/sql/0001_initial.sql`. Stored at `~/.atelier/cache/atelier
 The DB is **derived and gitignored**. It can be rebuilt at any time with:
 
 ```
-atelier reindex --space gorae --full
+atelier reindex --full
 atelier reindex --space workshop --full
 ```
 
@@ -185,13 +185,13 @@ atelier reindex --space workshop --full
 Defined in `schema/data/linking.yaml`.
 
 ```
-[[gorae:graph/entities/foo.md]]         # qualified cross-space link
-[[gorae:graph/entities/example.md|example]]      # with display label
+[[vault:graph/entities/foo.md]]         # qualified cross-space link
+[[vault:graph/entities/example.md|example]]      # with display label
 [[workshop:products/bar/README.md]]     # workshop link
-[[provenance/personal/diary/2026/01/01.md]]    # bare link (resolved as gorae:)
+[[provenance/personal/diary/2026/01/01.md]]    # bare link (resolved as vault:)
 ```
 
 Bare and legacy-prefixed links (`[[raw/...]]`, `[[wiki/...]]`, `[[provenance/...]]`,
-`[[graph/...]]`) are treated as `gorae:`-scoped during
+`[[graph/...]]`) are treated as `vault:`-scoped during
 indexing. The linker records the resolved form; source files are not rewritten until
 `atelier promote apply` is run.

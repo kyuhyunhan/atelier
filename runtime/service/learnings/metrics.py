@@ -172,7 +172,7 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
 
 # ── dangling links (enables G5 wiki-link repair) ────────────────────────────
 
-# The link_type enum, from `linker.py` (wikilink/gorae/workshop) plus the
+# The link_type enum, from `linker.py` (wikilink/vault/workshop) plus the
 # `concept` edge minted in `reindex.py`. KEEP IN SYNC with those two: a new
 # link_type added there but not here loses its zero-seed and reintroduces the
 # keyset-instability this list fixes (an unknown type is still COUNTED correctly
@@ -182,7 +182,7 @@ def pending_age(*, as_of: date, vault: Optional[Path] = None) -> Dict[str, Any]:
 # union rule (§3.4) on an unrelated goal, the same reason `_tally_eligible` seeds
 # its domains. `wikilink` is the subset a wiki-link repair (G5) targets; the
 # others are counted for honesty but are not "wiki links".
-_LINK_TYPES = ("wikilink", "gorae", "workshop", "concept")
+_LINK_TYPES = ("wikilink", "vault", "workshop", "concept")
 
 
 def dangling_links() -> Optional[Dict[str, Any]]:

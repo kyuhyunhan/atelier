@@ -3,7 +3,7 @@
 Mechanical port of the proto-engine's `clip-images` workflow:
 - fetch the URL (stdlib urllib; no third-party deps for v0.2)
 - choose a stable filename from the URL hash + extension
-- save under `<vault>/gorae-resources/<YYYY>/<MM>/<name>.<ext>`
+- save under `<vault>/<assets.dir>/<YYYY>/<MM>/<name>.<ext>` (default `assets/`)
 - record asset metadata for the matching markdown frontmatter
 
 R2 upload is delegated to runtime.sync.adapters.r2.push() once it's
@@ -24,7 +24,7 @@ from typing import Any, Dict, Optional
 from ...util import config as _config
 
 
-_DEFAULT_DIR = "gorae-resources"
+
 
 
 def _vault_root() -> Path:
@@ -49,13 +49,15 @@ def _slug_from_url(url: str) -> str:
 
 def clip_image(*, url: str,
                role: str = "librarian-territory",
-               subdir: str = _DEFAULT_DIR,
+               subdir: Optional[str] = None,
                fetch: Optional[Any] = None) -> Dict[str, Any]:
     """Download `url` into the vault and return local + CDN paths.
 
     `fetch` lets tests inject a stub; default uses urllib.
     """
     vault = _vault_root()
+    if subdir is None:
+        subdir = _config.load().asset_dir()
     today = datetime.utcnow().date()
     target_dir = vault / subdir / f"{today.year:04d}" / f"{today.month:02d}"
     target_dir.mkdir(parents=True, exist_ok=True)

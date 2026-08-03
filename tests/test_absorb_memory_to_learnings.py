@@ -44,19 +44,19 @@ def _flat_files(vault: Path) -> List[Path]:
 
 
 def test_dry_run_no_writes(atelier_env: Dict, capsys) -> None:
-    _seed_workshop(atelier_env["gorae"] / "workshop")
+    _seed_workshop(atelier_env["wiki"] / "workshop")
     rc = _ab.absorb(apply=False)
     assert rc == 0
-    assert not (atelier_env["gorae"] / "learnings").exists()
+    assert not (atelier_env["wiki"] / "learnings").exists()
     out = capsys.readouterr().out
     assert "plans:" in out and "dry-run" in out
 
 
 def test_apply_writes_flat_notes_with_aspects_no_topic(atelier_env: Dict) -> None:
-    _seed_workshop(atelier_env["gorae"] / "workshop")
+    _seed_workshop(atelier_env["wiki"] / "workshop")
     rc = _ab.absorb(apply=True)
     assert rc == 0
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
 
     # Flat store, no mirror trees.
     assert not (vault / "learnings" / "accepted" / "by-topic").exists()
@@ -83,13 +83,13 @@ def test_apply_writes_flat_notes_with_aspects_no_topic(atelier_env: Dict) -> Non
 
 
 def test_apply_is_idempotent_via_stable_entry_id(atelier_env: Dict) -> None:
-    _seed_workshop(atelier_env["gorae"] / "workshop")
+    _seed_workshop(atelier_env["wiki"] / "workshop")
     assert _ab.absorb(apply=True) == 0
     # Second run: destinations already exist → reported as conflicts, refuses.
     rc = _ab.absorb(apply=True)
     assert rc == 2
     # still exactly two notes (no duplication)
-    assert len(_flat_files(atelier_env["gorae"])) == 2
+    assert len(_flat_files(atelier_env["wiki"])) == 2
 
 
 def test_missing_workshop_handled(atelier_env: Dict) -> None:

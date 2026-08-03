@@ -265,7 +265,7 @@ def test_recall_collapses_canonical_and_mirror_copies(atelier_env: Dict) -> None
     from runtime.service import api
     _accept("zqxwv flicker phenomenon on mount", "why it matters",
              "stabilize keys", project="bht", topic="rendering")
-    api.reindex(space="gorae", full=True)          # index both on-disk copies
+    api.reindex(space="wiki", full=True)          # index both on-disk copies
     out = _rc.recall(query="zqxwv flicker", top_k=5)
     assert out["count"] == 1                       # was 2 before dedup
 
@@ -274,7 +274,7 @@ def test_recall_excludes_generated_files_from_fts(atelier_env: Dict) -> None:
     from runtime.service import api
     _accept("zqxwv flicker phenomenon on mount", "why it matters",
              "stabilize keys", project="bht", topic="rendering")
-    api.reindex(space="gorae", full=True)          # also indexes by-project INDEX.md
+    api.reindex(space="wiki", full=True)          # also indexes by-project INDEX.md
     out = _rc.recall(query="zqxwv flicker", top_k=10)
     blob = " ".join(it["slug"] for it in out["items"])
     assert "INDEX" not in blob

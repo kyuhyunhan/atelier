@@ -52,11 +52,11 @@ def _reset(tmp_path, monkeypatch) -> Path:
 
 
 def test_format_has_time_level_category_and_kv(_reset: Path) -> None:
-    alog.info("vault-autosync.ready", vault="/x/gorae", interval=30, push=True)
+    alog.info("vault-autosync.ready", vault="/x/my-vault", interval=30, push=True)
     line = _reset.read_text().strip()
     assert re.match(
         rf"^{TS} \[INFO\] \[vault-autosync\] ready "
-        rf"vault=/x/gorae interval=30 push=True$", line), line
+        rf"vault=/x/my-vault interval=30 push=True$", line), line
 
 
 def test_level_tokens_incl_warn_mapping(_reset: Path) -> None:

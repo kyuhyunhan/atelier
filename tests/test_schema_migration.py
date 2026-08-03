@@ -41,8 +41,8 @@ def _seed_v4_file(root: Path, rel: str) -> Path:
 
 
 def test_dry_run_makes_no_changes(atelier_env: Dict, capsys) -> None:
-    gorae = atelier_env["gorae"]
-    p = _seed_v3_file(gorae, "raw/personal/diary/2026/05/old.md")
+    wiki = atelier_env["wiki"]
+    p = _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")
     before = p.read_text()
 
     rc = _mig.migrate(role="librarian-territory", apply=False, force=False)
@@ -55,8 +55,8 @@ def test_dry_run_makes_no_changes(atelier_env: Dict, capsys) -> None:
 
 
 def test_apply_rewrites_frontmatter(atelier_env: Dict) -> None:
-    gorae = atelier_env["gorae"]
-    p = _seed_v3_file(gorae, "raw/personal/diary/2026/05/old.md")
+    wiki = atelier_env["wiki"]
+    p = _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")
 
     rc = _mig.migrate(role="librarian-territory", apply=True, force=False)
     assert rc == 0
@@ -70,8 +70,8 @@ def test_apply_rewrites_frontmatter(atelier_env: Dict) -> None:
 
 
 def test_idempotent_second_run(atelier_env: Dict, capsys) -> None:
-    gorae = atelier_env["gorae"]
-    _seed_v3_file(gorae, "raw/personal/diary/2026/05/old.md")
+    wiki = atelier_env["wiki"]
+    _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")
     assert _mig.migrate(role="librarian-territory", apply=True, force=False) == 0
     capsys.readouterr()  # drain
     rc = _mig.migrate(role="librarian-territory", apply=True, force=False)
@@ -81,9 +81,9 @@ def test_idempotent_second_run(atelier_env: Dict, capsys) -> None:
 
 
 def test_already_v4_files_are_skipped(atelier_env: Dict, capsys) -> None:
-    gorae = atelier_env["gorae"]
-    _seed_v4_file(gorae, "wiki/entities/foo.md")
-    _seed_v3_file(gorae, "raw/personal/diary/2026/05/old.md")
+    wiki = atelier_env["wiki"]
+    _seed_v4_file(wiki, "wiki/entities/foo.md")
+    _seed_v3_file(wiki, "raw/personal/diary/2026/05/old.md")
 
     rc = _mig.migrate(role="librarian-territory", apply=False, force=False)
     assert rc == 0

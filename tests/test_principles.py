@@ -87,7 +87,7 @@ def test_evidence_bearing_principle_leaves_no_orphaned_anchor(atelier_env: Dict)
     derived_from, orphaning it (unatomized_count 0 -> 1); post-M3 no anchor file
     is created (stays 0)."""
     from runtime.service.learnings import atomize as _at
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     cap = _cap.capture(observation="a lesson", why="it matters",
                        working_dir="/w", session_id="s1", hook="manual")
     assert _at.unatomized_count(vault=vault) == 0        # capture leaves a clean state
@@ -104,7 +104,7 @@ def test_evidence_less_principle_born_from_own_source(atelier_env: Dict) -> None
     shared anchor — and that Source is not left orphaned."""
     from runtime.service.learnings import atomize as _at
     from runtime.index.parse import split_frontmatter
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _pr.add(title="evidence-less rule", rule="always X", why="because",
                   slug="evidence-less-rule")
     cfm = _read_fm(Path(out["path"]))
@@ -234,7 +234,7 @@ def test_reject_proposed_is_retracted_field(atelier_env: Dict) -> None:
 
 def test_no_legacy_principle_dirs_written(atelier_env: Dict) -> None:
     # The gate clause: no runtime write path targets the legacy directories.
-    root = atelier_env["gorae"]
+    root = atelier_env["wiki"]
     _pr.add(title="p1", rule="r", why="w", priority="always-inject")
     s = _accept("x", "y", "rx", project="lexio")
     d = _pr.synthesize(source_slugs=[s], title="p2", rule="r", why="w")

@@ -33,7 +33,7 @@ def learning_root(vault: Path) -> Path:
     Resolves to `<content_root>/learning/` when it exists on disk (the canonical
     home after the P6 move), else falls back to the legacy top-level `learnings/`.
     The fallback is kept as permanent backward-compat: a vault that predates the move,
-    or a fixture that seeds `learnings/`, still resolves correctly. The gorae vault
+    or a fixture that seeds `learnings/`, still resolves correctly. The live vault
     is migrated; this resolver is what made the `git mv` a non-event to every
     reader and writer."""
     # Canonical home (content_root/learning) and its pre-P6 top-level alias

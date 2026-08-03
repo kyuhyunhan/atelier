@@ -13,7 +13,7 @@ class Link:
     to_target: str      # exact text as written
     to_space: str       # caller's space for bare links; scheme for scoped links
     to_slug: str        # space-relative path (no scheme prefix)
-    link_type: str      # 'wikilink' | 'gorae' | 'workshop'
+    link_type: str      # 'wikilink' | 'vault' | 'workshop'
 
 
 def extract_links(body: str, default_space: str = "") -> List[Link]:
@@ -24,7 +24,7 @@ def extract_links(body: str, default_space: str = "") -> List[Link]:
             scheme, _, rest = target.partition(":")
             scheme = scheme.strip()
             slug = rest.strip()
-            if scheme in ("gorae", "workshop"):
+            if scheme in ("vault", "workshop"):
                 out.append(Link(
                     to_target=target,
                     to_space=scheme,

@@ -86,7 +86,7 @@ def _memory_path(atelier_env: Dict, real_dir: Path) -> str:
 
 def _seed(atelier_env: Dict, tmp_path: Path, *, make_real_dir: bool):
     """A claim absorbed from `<tmp>/org/identity-hub`, mangled to `hub`."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     real = tmp_path / "org" / "identity-hub"
     if make_real_dir:
         real.mkdir(parents=True)
@@ -184,7 +184,7 @@ def test_guard_does_not_invert_an_already_repaired_claim(
     """The dangerous case: a claim ALREADY carrying the correct slug, on a
     machine missing the project dir. An unguarded run would compute the naive
     basename, see a 'mismatch', and rewrite it back to the mangled value."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     gone = tmp_path / "org" / "identity-hub"           # never created
     _write_entity(vault, eid="ent-ok", label="identity-hub")
     claim = _write_claim(vault, eid="c1", project="identity-hub",
@@ -201,7 +201,7 @@ def test_pre_mint_claims_without_source_path_are_untouched(
         atelier_env: Dict, tmp_path: Path) -> None:
     """Pre-RFC-0007 absorbs carry no `source_path`, so there is nothing to key
     on — they must be skipped, not guessed at."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     d = vault / _structure.atomic_claim_dir()
     d.mkdir(parents=True, exist_ok=True)
     fm = {"entry_id": "legacy", "schema_version": 7, "kind": "claim",

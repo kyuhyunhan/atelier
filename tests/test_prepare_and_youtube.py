@@ -22,7 +22,7 @@ def _write(path: Path, fm: Dict, body: str) -> None:
 
 
 def test_prepare_resolves_pending_entry_id(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     p = vault / "raw" / "personal" / "diary" / "n.md"
     _write(p, {"schema_version": 4, "entry_id": "PENDING"},
            "hello world body of three words")
@@ -33,7 +33,7 @@ def test_prepare_resolves_pending_entry_id(atelier_env: Dict) -> None:
 
 
 def test_prepare_recalculates_word_count(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     p = vault / "raw" / "personal" / "diary" / "n.md"
     _write(p, {"schema_version": 4, "entry_id": "abc", "word_count": 99},
            "alpha beta gamma delta")
@@ -44,7 +44,7 @@ def test_prepare_recalculates_word_count(atelier_env: Dict) -> None:
 
 
 def test_prepare_detects_embedded_assets(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     body = "see ![alt](images/cover.png) and ![](images/sub.png)\n"
     p = vault / "raw" / "k" / "with-images.md"
     _write(p, {"schema_version": 4, "entry_id": "abc"}, body)
@@ -54,7 +54,7 @@ def test_prepare_detects_embedded_assets(atelier_env: Dict) -> None:
 
 
 def test_prepare_dry_run_no_writes(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     p = vault / "raw" / "x" / "stale.md"
     _write(p, {"schema_version": 4, "entry_id": "abc"}, "hello")
     before = p.read_text()
@@ -132,7 +132,7 @@ def test_youtube_source_node_is_schema_valid(atelier_env: Dict) -> None:
         metadata_runner=lambda url: _FAKE_METADATA,
         text_fetcher=lambda url: _FAKE_VTT,
     )
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     findings = _v.validate_paths([Path(out["path"])], vault_root=vault)
     v0 = [f for f in findings if f.rule_id == "V0"]
     assert v0 == [], f"source node schema-invalid: {[f.message for f in v0]}"
@@ -308,7 +308,7 @@ def test_config_youtube_cookies_default_none(tmp_path: Path) -> None:
 
 def test_mcp_dispatch_prepare(atelier_env: Dict) -> None:
     from runtime.service import tools as _tools
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     p = vault / "raw" / "x" / "p.md"
     _write(p, {"schema_version": 4, "entry_id": "PENDING"}, "body")
     async def go() -> Dict:

@@ -59,7 +59,7 @@ def test_search_sanitizes_punctuated_query(atelier_env: Dict) -> None:
 def test_grep_fallback_facet_is_case_insensitive(atelier_env: Dict) -> None:
     """The DB-absent grep fallback must filter facets case-insensitively, exactly
     like the DB path — no silent mismatch (round-2 regression guard)."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     # write directly + do NOT reindex → forces the grep fallback (no FTS rows)
     p = vault / "learnings" / "notes" / "2026-01" / "g.md"
     p.parent.mkdir(parents=True, exist_ok=True)

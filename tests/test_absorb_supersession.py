@@ -48,7 +48,7 @@ def _fm(path) -> Dict:
 
 
 def _ledger(env: Dict) -> Dict:
-    p = env["gorae"] / ".absorbed-from-claude.json"
+    p = env["wiki"] / ".absorbed-from-claude.json"
     return json.loads(p.read_text(encoding="utf-8"))
 
 
@@ -143,7 +143,7 @@ def test_body_only_revision_updates_source_body_sha_and_keeps_id(
     root = _croot(atelier_env)
     p = _seed(root, "-w-p1", "m1", description="a durable rule", body="v1\n")
     _ac.absorb(dry_run=False, source_root=root)
-    src_dir = atelier_env["gorae"] / _structure.operational_source_dir()
+    src_dir = atelier_env["wiki"] / _structure.operational_source_dir()
     src_file = next(iter(src_dir.glob("*.md")))
     before = _fm(src_file)
 
@@ -394,7 +394,7 @@ def test_shared_description_guard_survives_a_legacy_co_owner(
     shared_path = Path(first["accepted"][0]["path"])
 
     # simulate a pre-M2 absorb for p2: strip its claim_id from the ledger
-    led_path = atelier_env["gorae"] / ".absorbed-from-claude.json"
+    led_path = atelier_env["wiki"] / ".absorbed-from-claude.json"
     led = json.loads(led_path.read_text(encoding="utf-8"))
     p2_sha = led["by_path"]["-w-p2/m2.md"]
     led["by_sha"][p2_sha].pop("claim_id", None)
@@ -414,7 +414,7 @@ def test_missing_source_is_recreated_not_silently_dropped(
     root = _croot(atelier_env)
     p = _seed(root, "-w-p1", "m1", description="a rule", body="v1\n")
     _ac.absorb(dry_run=False, source_root=root)
-    src_dir = atelier_env["gorae"] / _structure.operational_source_dir()
+    src_dir = atelier_env["wiki"] / _structure.operational_source_dir()
     next(iter(src_dir.glob("*.md"))).unlink()
     assert list(src_dir.glob("*.md")) == []
 

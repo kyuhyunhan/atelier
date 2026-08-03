@@ -61,8 +61,8 @@ def test_principle_lifecycle_writes_no_legacy_index(atelier_env: Dict) -> None:
     _pr.add(title="rule one", rule="r", why="w",
             priority="always-inject", slug="rule-one")
     _pr.archive(slug="rule-one", reason="x")
-    legacy = atelier_env["gorae"] / "learnings" / "principles" / "INDEX.md"
-    canonical = (atelier_env["gorae"] / "provenance" / "learning"
+    legacy = atelier_env["wiki"] / "learnings" / "principles" / "INDEX.md"
+    canonical = (atelier_env["wiki"] / "provenance" / "learning"
                  / "principles" / "INDEX.md")
     assert not legacy.exists()
     assert not canonical.exists()

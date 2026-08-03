@@ -37,7 +37,7 @@ tooling. Content (the actual user IP) lives in separate private repos.
 6. **Mobile is reserved, not built.** Schema fields, capture function,
    claim enums for mobile exist but remain inactive in `v0.1`.
 7. **Never mutate source material — only the vault.** atelier writes
-   *only* to its own configured vault (`gorae`) and the artifacts it
+   *only* to its own configured vault and the artifacts it
    produces there. Everything atelier ingests *from* is **read-only and
    off-limits for modification or deletion**, including:
    - **Claude Code's own memory** (`~/.claude/projects/*/memory/**`) —
@@ -75,7 +75,7 @@ tooling. Content (the actual user IP) lives in separate private repos.
 | Implementation history (archival) | `docs/_archive/IMPLEMENTATION_LOG.md` |
 | Schema spec (data) | `schema/data/*.yaml` |
 | DB schema | `schema/db/sql/*.sql` |
-| Space overlays | `schema/data/{gorae,workshop,learnings}.overlay.yaml` |
+| Space overlays | `schema/data/{vault,workshop,learnings}.overlay.yaml` |
 | Learnings redesign (flat facets) | `docs/rfc/0001-flat-facet-learnings.md` |
 | User config template | `config/example.config.yaml` |
 

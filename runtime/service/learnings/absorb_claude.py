@@ -1,4 +1,4 @@
-"""Absorb Claude Code's per-project auto-memory into gorae/learnings/.
+"""Absorb Claude Code's per-project auto-memory into <vault>/learnings/.
 
 Claude Code maintains a per-project memory tree at:
 

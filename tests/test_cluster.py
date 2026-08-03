@@ -105,14 +105,14 @@ def _proactive(vault: Path, eid: str) -> None:
 
 
 def test_dream_status_counts_since_baseline(atelier_env: Dict) -> None:
-    _proactive(atelier_env["gorae"], "p1")
+    _proactive(atelier_env["wiki"], "p1")
     st = _cl.dream_status()
     assert st["proactive_since_last_dream"] >= 1
     assert st["last_dream_at"] is None
 
 
 def test_mark_dream_complete_resets_baseline(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _proactive(vault, "p1")
     _cl.mark_dream_complete(when="2026-05-28T20:00:00+09:00")
     st = _cl.dream_status()

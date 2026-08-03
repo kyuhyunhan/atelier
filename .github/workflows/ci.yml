@@ -60,6 +60,19 @@ jobs:
           done < <(git diff --name-only --diff-filter=ACM "$range")
           exit $viol
 
+  static:
+    # ruff + mypy. A third required check once green across a few PRs — same
+    # promotion path the test job took. Rule-set rationale lives in pyproject.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff mypy
+      - run: ruff check runtime/ tests/ examples/ scripts/
+      - run: mypy runtime/
+
   test:
     runs-on: ubuntu-latest
     steps:

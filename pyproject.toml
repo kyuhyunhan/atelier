@@ -17,6 +17,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
 ]
 serve = [
     "mcp>=1.0,<2",
@@ -43,3 +45,31 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["runtime*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# F: real defects (unused imports/vars, undefined names). E4/E7/E9: the pycodestyle
+# subset that is behavior-adjacent. I: deterministic import order. UP: py311
+# modernization (List->list etc). B: bugbear traps. RUF: ruff's own correctness set.
+# Deliberately NOT enabled: S (bandit) and BLE — this engine's log-and-continue
+# except blocks are a design choice (provider flake tolerance), not oversights.
+select = ["F", "E4", "E7", "E9", "I", "UP", "B", "RUF"]
+ignore = [
+  "B008",    # function call in default arg — argparse/typer-style defaults used deliberately
+  "RUF001", "RUF002", "RUF003",  # ambiguous-unicode: Korean prose in docstrings trips these
+]
+
+[tool.ruff.lint.per-file-ignores]
+# tests monkeypatch and re-import mid-function on purpose
+"tests/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+no_strict_optional = true
+# Baseline posture: catch real type defects without demanding annotations.
+# Tighten module-by-module as the codebase grows types.
+check_untyped_defs = true

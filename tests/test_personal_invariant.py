@@ -60,7 +60,7 @@ def test_L8_flags_public_claim_from_personal_source(atelier_env: Dict) -> None:
     src = _write_source(vault, "diary1", "personal")
     _write_claim(vault, "leaky", derived_from=src,
                  domain="personal", sensitivity="public")   # the violation
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     out = _api.lint(rule_ids=["L8"])
     l8 = [f for f in out["findings"] if f["rule_id"] == "L8"]
@@ -76,7 +76,7 @@ def test_L8_green_when_personal_claim_is_private(atelier_env: Dict) -> None:
     know = _write_source(vault, "kdoc", "knowledge", sensitivity="public")
     _write_claim(vault, "know", derived_from=know,
                  domain="knowledge", sensitivity="public")   # public source: fine
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     out = _api.lint(rule_ids=["L8"])
     assert [f for f in out["findings"] if f["rule_id"] == "L8"] == []

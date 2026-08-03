@@ -46,21 +46,21 @@ class CountingGateway:
 def indexed_env(atelier_env: Dict, monkeypatch):
     """Two indexed pages; returns (env, main_conn_factory)."""
     write_page(
-        atelier_env["gorae"] / "wiki" / "entities" / "a.md",
+        atelier_env["wiki"] / "wiki" / "entities" / "a.md",
         {"title": "A", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# A\n\nalpha body text.\n",
     )
     write_page(
-        atelier_env["gorae"] / "wiki" / "entities" / "b.md",
+        atelier_env["wiki"] / "wiki" / "entities" / "b.md",
         {"title": "B", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# B\n\nbeta body text, longer.\n",
     )
     from runtime.service import api
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
     return atelier_env
 
 

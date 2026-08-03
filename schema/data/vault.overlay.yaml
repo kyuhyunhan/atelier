@@ -1,10 +1,10 @@
-# atelier schema v5 — gorae-space overlay
-# Governs all pages in the `gorae` space.
+# atelier schema v5 — vault-space overlay
+# Governs all pages in the `vault` space.
 # Writer: wiki/** is wiki-write; raw/** is human-owned (read-only to the engine).
 # (RFC 0001 retired the "Librarian" agent persona — this is a space contract.)
 
 inherits: base
-spaces: [gorae]
+spaces: [vault]
 
 page_types:
 

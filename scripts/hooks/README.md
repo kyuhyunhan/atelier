@@ -133,7 +133,7 @@ enable either one alone.
 
 The hook adapter forwards the Claude Code stop/session-end payload (JSON)
 to `atelier_learning_capture` along with the current working directory.
-The engine writes a candidate to `gorae/learnings/candidates/<date>/`.
+The engine writes a candidate to `<vault>/learnings/candidates/<date>/`.
 At review time (`atelier_learning_review_pending`) you decide which to
 accept; everything else stays in the candidates pile until the
 retention cutoff archives it.

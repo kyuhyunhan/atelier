@@ -4,7 +4,7 @@ One consolidated, append-only sink: `~/.atelier/logs/atelier.log` (override with
 `ATELIER_LOG_FILE` or `logging.file` in config). Every line carries time and
 category:
 
-    2026-06-03T16:04:25+09:00 [INFO] [vault-autosync] ready vault=/…/gorae interval=30
+    2026-06-03T16:04:25+09:00 [INFO] [vault-autosync] ready vault=/…/my-vault interval=30
 
 The public façade (`debug/info/warn/error(msg, **kv)`, `set_level`) is unchanged
 so existing call sites need no edits. The first dotted segment of `msg` is the

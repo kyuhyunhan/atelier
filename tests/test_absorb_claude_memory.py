@@ -201,10 +201,10 @@ def test_absorb_accepts_feedback_and_reference(atelier_env: Dict, tmp_path: Path
         # raw/operational/ — NOT the shared raw/inbox anchor.
         assert fm["derived_from"] and isinstance(fm["derived_from"], list)
         src_id = fm["derived_from"][0]
-        srcs = [p for p in atelier_env["gorae"].rglob("*.md")
+        srcs = [p for p in atelier_env["wiki"].rglob("*.md")
                 if split_frontmatter(p.read_text())[0].get("entry_id") == src_id]
         assert len(srcs) == 1
-        rel = srcs[0].relative_to(atelier_env["gorae"]).as_posix()
+        rel = srcs[0].relative_to(atelier_env["wiki"]).as_posix()
         assert rel.startswith("raw/operational/"), rel
         assert not rel.endswith("operational-capture.md"), rel
 

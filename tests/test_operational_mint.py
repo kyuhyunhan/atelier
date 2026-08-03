@@ -40,7 +40,7 @@ def test_source_id_is_pure_function_of_statement() -> None:
 
 
 def test_mint_writes_operational_source_and_claim(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(
         statement="Prefer composition over inheritance for mixins",
         body="## Observation\nseen again today\n",
@@ -73,7 +73,7 @@ def _parse(path: Path):
 
 
 def test_mint_same_lesson_dedups_to_one_source_and_one_claim(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     kw = dict(statement="Never mutate source material — only the vault",
               body="## Observation\nhard rule\n", project="atelier", vault=vault)
 
@@ -117,7 +117,7 @@ def test_re_mint_preserves_promoted_lifecycle_state(atelier_env: Dict) -> None:
     """The live data-loss path: 98 absorbed claims sat at surfacing:proactive
     when this was found. A re-absorb after ANY upstream body edit would have
     demoted every one of them back to query."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     kw = dict(statement="Route paths that must agree through one accessor",
               project="atelier", vault=vault)
 
@@ -147,7 +147,7 @@ def test_re_mint_preserves_promoted_lifecycle_state(atelier_env: Dict) -> None:
 def test_re_mint_does_not_resurrect_a_retracted_claim(atelier_env: Dict) -> None:
     """A curator-retracted claim must stay retracted — otherwise absorb
     silently re-admits rejected material on every run."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     kw = dict(statement="A lesson the curator later retracted",
               body="## Observation\nx\n", project="atelier", vault=vault)
     first = _ci.mint_operational_claim(ac_status="passed", **kw)
@@ -163,7 +163,7 @@ def test_re_mint_does_not_resurrect_a_retracted_claim(atelier_env: Dict) -> None
 
 def test_first_mint_still_writes(atelier_env: Dict) -> None:
     """Guard the guard: idempotency must not block the birth write."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(statement="A brand new lesson",
                                      body="## Observation\nnew\n",
                                      project="atelier", vault=vault)
@@ -180,7 +180,7 @@ def test_mint_id_invariant_to_whitespace_and_case(atelier_env: Dict) -> None:
     # collapse + resolver._norm's lower) must normalize on the SAME basis. These
     # are two independent code paths today; if either drifts, both ids diverge
     # and this test fails — the guard the reviewer asked for against M2 refactors.
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     a = _ci.mint_operational_claim(statement="Guard the  RETURN  path",
                                    body="x", vault=vault)
     b = _ci.mint_operational_claim(statement="guard the return path",
@@ -190,7 +190,7 @@ def test_mint_id_invariant_to_whitespace_and_case(atelier_env: Dict) -> None:
 
 
 def test_mint_mirrors_session_fields_onto_claim(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(
         statement="Ship each PR via the ship-pr flow",
         body="## Observation\nworkflow\n", project="lexio",
@@ -210,7 +210,7 @@ def test_mint_mirrors_session_fields_onto_claim(atelier_env: Dict) -> None:
 
 
 def test_minted_nodes_pass_v7_validation(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     out = _ci.mint_operational_claim(
         statement="Markdown is truth; the DB is a projection",
         body="## Observation\ninvariant\n", project="atelier", vault=vault)

@@ -2,13 +2,13 @@
 
 # ── Registered URI schemes ────────────────────────────────────────────────────
 schemes:
-  gorae:
-    prefix: "gorae:"
-    config_key: "spaces.gorae.local"   # resolved from ~/.atelier/config.yaml
+  vault:
+    prefix: "vault:"
+    config_key: "spaces.vault.local"   # resolved from ~/.atelier/config.yaml
     examples:
-      - "[[gorae:wiki/entities/foo.md]]"
-      - "[[gorae:raw/personal/diary/2026/01/01.md]]"
-      - "[[gorae:wiki/themes/example.md|example theme]]"
+      - "[[vault:wiki/entities/foo.md]]"
+      - "[[vault:raw/personal/diary/2026/01/01.md]]"
+      - "[[vault:wiki/themes/example.md|example theme]]"
 
   workshop:
     prefix: "workshop:"
@@ -28,10 +28,10 @@ syntax:
 
 # ── Backward compatibility (v3 → v4) ─────────────────────────────────────────
 backward_compat:
-  v3_implicit_space: gorae
+  v3_implicit_space: vault
   description: >
     v3 wikilinks written as [[raw/...]] or [[wiki/...]] are treated as
-    gorae-space links during indexing. The linker records the resolved
+    vault-space links during indexing. The linker records the resolved
     form in the links table; source files are NOT rewritten unless
     atelier promote apply is run.
   rewrite_on_promote: true
@@ -40,8 +40,8 @@ backward_compat:
 link_types:
   wikilink:
     description: "Bare [[...]] — resolved to space by context or backward_compat rule"
-  gorae:
-    description: "Explicit [[gorae:...]]"
+  vault:
+    description: "Explicit [[vault:...]]"
   workshop:
     description: "Explicit [[workshop:...]]"
 

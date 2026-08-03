@@ -68,7 +68,7 @@ def _freeze_round_baseline(vault: Path, tmp_path: Path) -> Path:
     """The round baseline (before.json), carrying the per-file digest map so a
     fingerprint waiver could be scored — it lives outside the repo, like the real
     one under ~/.atelier/cache."""
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     before = _baseline.generate(vault=vault, captured_date="2026-07-24")
     before["_file_digests"] = _vault_state.file_digests(vault)
     p = tmp_path / "before.json"
@@ -122,7 +122,7 @@ def test_a_real_injected_delta_fails_end_to_end(atelier_env: Dict,
 
     # inject the delta: a new eligible claim, then reindex so the projection sees it
     _write_claim(vault, "injected")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     report = _goal.verify_contract_run(contract_path, before_path, repo=repo,
                                        vault=vault, captured_date="2026-07-24")
@@ -172,7 +172,7 @@ def test_a_declared_reduction_passes_end_to_end(atelier_env: Dict,
     doomed = vault / "graph" / "atomic" / "doomed.md"
     doomed.write_text(doomed.read_text(encoding="utf-8").replace(
         "sensitivity: public", "sensitivity: private"), encoding="utf-8")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     report = _goal.verify_contract_run(contract_path, before_path, repo=repo,
                                        vault=vault, captured_date="2026-07-24")

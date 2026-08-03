@@ -56,7 +56,7 @@ def _seed_queue(vault: Path) -> None:
     # unification neither side counts them.
     _write_claim(vault, "p-passed", domain="operational", ac_status="passed")
     _write_claim(vault, "k-pending", domain="knowledge", ac_status="pending")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
 
 AS_OF = "2026-07-23"
@@ -114,7 +114,7 @@ def test_g4_empty_queue_measures_zero_on_both_sides(atelier_env: Dict) -> None:
     asserted equality with the metric's `max: 0`)."""
     vault = Path(_cl._vault_root())
     _write_claim(vault, "p-passed", domain="operational", ac_status="passed")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     surface = _rev.review_pending(as_of=AS_OF)
     metric = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
     assert surface["total"] == metric["count"] == 0
@@ -129,7 +129,7 @@ def test_g4_undated_pending_still_counts_and_age_is_none(
     vault = Path(_cl._vault_root())
     _write_claim(vault, "p-undated", domain="operational", ac_status="pending",
                  created_at="")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     got = _rev.review_pending(as_of=AS_OF)
     item = next(i for i in got["items"] if i["slug"] == "p-undated")
     assert item["age_days"] is None

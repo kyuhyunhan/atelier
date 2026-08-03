@@ -71,7 +71,7 @@ def _capture_reindex(monkeypatch):
         return _reindex.ReindexStats(space=name)
 
     monkeypatch.setattr(_reindex, "reindex_space", fake_reindex_space)
-    monkeypatch.setattr(_reindex, "canonical_spaces", lambda cfg: ["gorae"])
+    monkeypatch.setattr(_reindex, "canonical_spaces", lambda cfg: ["wiki"])
     return seen
 
 

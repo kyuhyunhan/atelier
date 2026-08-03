@@ -1,12 +1,12 @@
 """Schema v4 frontmatter validator.
 
 Driven entirely by `schema/data/base.yaml` + the matching overlay
-(gorae.overlay.yaml, workshop.overlay.yaml, learnings.overlay.yaml).
+(vault.overlay.yaml, workshop.overlay.yaml, learnings.overlay.yaml).
 Returns a list of Findings shaped like the rest of the lint pipeline,
 but is invoked separately so non-frontmatter rules (L1/L3/L5/L6) can
 stay independent.
 
-Replaces the proto-engine's `gorae validate` (Schema v3). The corpus
+Replaces the proto-engine's `validate` command (Schema v3). The corpus
 invariant — every entry_id unique — is also enforced when given a full
 file set rather than a subset.
 """
@@ -60,7 +60,7 @@ def _all_overlays() -> List[Dict[str, Any]]:
     # is intentionally NOT in this path-matched list (see _v7_spec_for). Its
     # path_pattern `graph/*.md` would otherwise shadow legacy graph/ pages.
     return [
-        _load_overlay("gorae"),
+        _load_overlay("vault"),
         _load_overlay("workshop"),
         _load_overlay("learnings"),
     ]

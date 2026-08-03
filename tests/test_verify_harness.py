@@ -29,7 +29,7 @@ def _capture_accept(seed: str, project: str = "lexio") -> None:
 
 
 def _freeze(tmp_path: Path) -> Path:
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     bp = tmp_path / "baseline.json"
     _baseline.write(bp)
     return bp
@@ -62,7 +62,7 @@ def test_verifier_fails_on_data_loss(atelier_env: Dict, tmp_path: Path) -> None:
     vault = Path(_cl._vault_root())
     for p in list(_store.iter_accepted_files(vault)):
         p.unlink()
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     report = _verify.verify_against(bp, "P0", require_committed=False)
     assert report["passed"] is False

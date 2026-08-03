@@ -59,13 +59,13 @@ def test_classify_by_kind_v7():
     # A flat graph/<id>.md is classified by `kind`, before legacy path globs.
     for kind in ("source", "entity", "claim"):
         fm = {"schema_version": 7, "kind": kind}
-        assert classify("gorae", "graph/some-uuid.md", fm) == kind
+        assert classify("wiki", "graph/some-uuid.md", fm) == kind
 
 
 def test_classify_legacy_still_path_based():
     # v5 graph/entities/ page (no v7 kind) still classifies by path.
     fm = {"schema_version": 5, "type": "entity"}
-    assert classify("gorae", "graph/entities/foo.md", fm) == "entity"
+    assert classify("wiki", "graph/entities/foo.md", fm) == "entity"
 
 
 # --- validation: valid passes, broken fails -----------------------------

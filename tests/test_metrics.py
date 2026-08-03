@@ -68,7 +68,7 @@ def test_promote_eligible_matches_the_production_predicate(
     _write_claim(vault, "private-one", domain="knowledge", sensitivity="private")
     _write_claim(vault, "not-query", domain="knowledge", sensitivity="public",
                  surfacing="proactive")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     got = _metrics.promote_eligible(vault=vault)
     rows = _propose._eligible(limit=10_000)
@@ -105,7 +105,7 @@ def test_pending_age_reports_the_tail_not_just_the_count(
                  ac_status="pending", created_at="2026-07-20T00:00:00+00:00")
     _write_claim(vault, "stale", domain="operational", sensitivity="public",
                  ac_status="pending", created_at="2026-06-15T00:00:00+00:00")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     got = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
     assert got["count"] == 2
@@ -120,7 +120,7 @@ def test_pending_age_is_reproducible_because_as_of_is_a_parameter(
     vault = Path(_cl._vault_root())
     _write_claim(vault, "p", domain="operational", sensitivity="public",
                  ac_status="pending", created_at="2026-07-01T00:00:00+00:00")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     day1 = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
     day2 = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
@@ -351,7 +351,7 @@ def test_pending_age_abstains_when_the_tail_is_unmeasurable(
             f"---\nschema_version: 7\nentry_id: {eid}\nkind: claim\n"
             f"domain: operational\nsensitivity: public\nac_status: pending\n"
             f"statement: statement of {n}\n---\n\nbody\n", encoding="utf-8")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     got = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
     assert got["count"] == 2 and got["dated"] == 0
@@ -364,7 +364,7 @@ def test_pending_age_clamps_a_claim_newer_than_as_of(atelier_env: Dict) -> None:
     vault = Path(_cl._vault_root())
     _write_claim(vault, "future", domain="operational", sensitivity="public",
                  ac_status="pending", created_at="2026-08-01T00:00:00+00:00")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     got = _metrics.pending_age(as_of=datetime.date(2026, 7, 23), vault=vault)
     assert got["max"] == 0                             # not negative
 
@@ -379,7 +379,7 @@ def test_promote_eligible_parity_between_projection_and_filesystem(
     _write_claim(vault, "o1", domain="operational", sensitivity="public",
                  ac_status="passed")
     from_fs = _metrics.promote_eligible(vault=vault)   # cold DB → filesystem
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     from_db = _metrics.promote_eligible(vault=vault)   # warm DB → projection
     assert from_fs == from_db
     assert sum(from_db["by_domain"].values()) == from_db["total"]
@@ -438,7 +438,7 @@ def test_surfacing_measures_the_vault_it_is_given_not_the_configured_one(
     configured = Path(_cl._vault_root())
     _write_claim(configured, "here", domain="operational", sensitivity="public",
                  ac_status="passed")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     empty = tmp_path / "other-vault"
     empty.mkdir()
@@ -454,7 +454,7 @@ def test_eval_self_probe_follows_the_same_vault_as_surfacing(
     configured = Path(_cl._vault_root())
     _write_claim(configured, "probe-me", domain="operational",
                  sensitivity="public", ac_status="passed")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     empty = tmp_path / "other-vault"
     empty.mkdir()
@@ -522,7 +522,7 @@ def test_dangling_links_counts_the_broken_links_view(atelier_env: Dict) -> None:
                {"title": "Src", "type": "entity", "category": "concept",
                 "created": "2026-05-27", "updated": "2026-05-27"},
                "# Src\n\nlinks to [[real]] and to [[does-not-exist]].\n")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     got = _metrics.dangling_links()
     conn = _db.connect()
@@ -531,7 +531,7 @@ def test_dangling_links_counts_the_broken_links_view(atelier_env: Dict) -> None:
     assert got["total"] == view_count == 1            # only [[does-not-exist]]
     # by_type is SEEDED with every known link_type at 0 (namespace stability),
     # with the one real broken wikilink counted.
-    assert got["by_type"] == {"wikilink": 1, "gorae": 0, "workshop": 0, "concept": 0}
+    assert got["by_type"] == {"wikilink": 1, "vault": 0, "workshop": 0, "concept": 0}
 
 
 def test_dangling_links_seeded_keys_are_stable_across_baselines(
@@ -543,9 +543,9 @@ def test_dangling_links_seeded_keys_are_stable_across_baselines(
     write_page(Path(_cl._vault_root()) / "wiki" / "entities" / "p.md",
                {"title": "P", "type": "entity", "category": "concept",
                 "created": "2026-05-27", "updated": "2026-05-27"}, "# P\n")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     got = _metrics.dangling_links()
-    assert set(got["by_type"]) == {"wikilink", "gorae", "workshop", "concept"}
+    assert set(got["by_type"]) == {"wikilink", "vault", "workshop", "concept"}
 
 
 def test_dangling_links_real_zero_on_a_healthy_reindexed_vault(
@@ -558,7 +558,7 @@ def test_dangling_links_real_zero_on_a_healthy_reindexed_vault(
                {"title": "Solo", "type": "entity", "category": "concept",
                 "created": "2026-05-27", "updated": "2026-05-27"},
                "# Solo\n\nno links here.\n")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     got = _metrics.dangling_links()
     assert got is not None and got["total"] == 0      # real measurement, not None
 
@@ -597,7 +597,7 @@ def test_dangling_links_in_the_metrics_block_when_measurable(
     write_page(Path(_cl._vault_root()) / "wiki" / "entities" / "p.md",
                {"title": "P", "type": "entity", "category": "concept",
                 "created": "2026-05-27", "updated": "2026-05-27"}, "# P\n")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     out = _metrics.metrics(as_of=datetime.date(2026, 7, 27),
                            vault=Path(_cl._vault_root()))
     assert "dangling_links" in out and "total" in out["dangling_links"]
@@ -621,7 +621,7 @@ def _seed_two_danglers(vault: Path) -> None:
                {"title": "Src", "type": "entity", "category": "concept",
                 "created": "2026-05-27", "updated": "2026-05-27"},
                "# Src\n\nlinks to [[does-not-exist]] and [[also-missing]].\n")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
 
 def test_dangling_new_is_set_difference_not_count(atelier_env: Dict, tmp_path) -> None:

@@ -16,8 +16,8 @@ not by a one-shot run.
 
 ```bash
 atelier doctor                       # all six diagnoses should be OK
-atelier reindex                      # incremental; should finish <1s for gorae
-atelier lint --space gorae --show 0  # report counts only
+atelier reindex                      # incremental; should finish <1s on a typical vault
+atelier lint --show 0  # report counts only
 ```
 
 Drop anything surprising into this file under `## Findings`.
@@ -25,8 +25,8 @@ Drop anything surprising into this file under `## Findings`.
 ### Weekly checks (Sunday)
 
 ```bash
-atelier reindex --full --space gorae
-atelier lint --space gorae --fix     # apply L3/L4 fixes
+atelier reindex --full
+atelier lint --fix     # apply L3/L4 fixes
 atelier sync status                  # both spaces clean=True?
 ```
 

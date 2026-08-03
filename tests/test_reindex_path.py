@@ -25,7 +25,7 @@ def test_reindex_path_matches_full_reindex(atelier_env: Dict) -> None:
     cfg = _config.load()
 
     # Full reindex → the parity oracle for this slug.
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     from runtime.util import fs as _fs
     slug = _fs.slug_for(vault, claim)
 
@@ -91,7 +91,7 @@ def test_reindex_path_is_the_change_feed(atelier_env: Dict) -> None:
 def test_routing_columns_present_and_indexed(atelier_env: Dict) -> None:
     _cap.capture(observation="obs charlie", why="w", rule="r",
                  working_dir="/Users/me/workspaces/lexio", session_id="c", hook="Stop")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     conn = _db.connect()
     # table_xinfo (not table_info) lists generated columns.
     cols = {r[1] for r in conn.execute("PRAGMA table_xinfo(pages)")}

@@ -58,7 +58,7 @@ def test_dev_lens_excludes_personal_full_keeps_it(atelier_env: Dict) -> None:
     _capture_accept_operational("ops")
     vault = Path(_cl._vault_root())
     _write_personal_claim(vault, "diary")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
     def _domains(hits):
         return [str((h.get("fm") or {}).get("domain") or "") for h in hits]

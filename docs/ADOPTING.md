@@ -13,7 +13,7 @@ Once it's running, day-to-day use is three verbs — see `docs/USING.md`.
 ## What you need
 
 - Two content repositories (or directories) you own:
-  - **gorae-like space** for personal/knowledge content (raw + wiki)
+  - **vault space** for personal/knowledge content (raw + wiki)
   - **workshop-like space** for products and build notes
 - Python 3.11+
 - git
@@ -49,10 +49,10 @@ is annotated.
 
 ```bash
 atelier setup                                 # verify config + apply DB schema
-atelier reindex --space gorae --full          # index your provenance/ + graph/
+atelier reindex --full          # index your provenance/ + graph/
 atelier reindex --space workshop --full       # index your products
 atelier doctor                                # confirm all six checks green
-atelier lint --space gorae --show 20          # see what needs cleanup
+atelier lint --show 20          # see what needs cleanup
 ```
 
 If `atelier doctor` shows anything other than six ✓, fix that before doing
@@ -77,7 +77,7 @@ overlays.
 
 | Thing to customize | Where |
 |---|---|
-| Page types | `schema/data/{gorae,workshop,learnings}.overlay.yaml` |
+| Page types | `schema/data/{vault,workshop,learnings}.overlay.yaml` |
 | Lint rules | `schema/data/lint.yaml` (severity, automation, queries) |
 | Voice (per-user) | `~/.atelier/voices/{librarian,builder}.md` (out of tree) |
 | PII guard regexes | `~/.atelier/pii_patterns.txt` (out of tree) |

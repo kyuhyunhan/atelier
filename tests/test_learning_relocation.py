@@ -40,16 +40,16 @@ def test_both_path_forms_classify_to_expected_type(sub: str, ptype: str) -> None
     prefix exactly as the legacy learnings/ prefix — including the
     INDEX-before-glob specificity ordering, and outranking the generic
     `provenance/**/*.md` raw_source catch-all."""
-    assert classify("gorae", f"learnings/{sub}", {}) == ptype
-    assert classify("gorae", f"raw/learning/{sub}", {}) == ptype
+    assert classify("wiki", f"learnings/{sub}", {}) == ptype
+    assert classify("wiki", f"raw/learning/{sub}", {}) == ptype
 
 
 @pytest.mark.parametrize("sub", _EQUIV_SUBS)
 def test_both_path_forms_are_equivalent(sub: str) -> None:
     """The relocation must be type-preserving: legacy and relocated forms
     classify identically, even where the resulting type is `unknown`."""
-    assert classify("gorae", f"learnings/{sub}", {}) == \
-        classify("gorae", f"raw/learning/{sub}", {})
+    assert classify("wiki", f"learnings/{sub}", {}) == \
+        classify("wiki", f"raw/learning/{sub}", {})
 
 
 def test_learning_root_resolves_to_live_tree(tmp_path: Path) -> None:
@@ -61,7 +61,7 @@ def test_learning_root_resolves_to_live_tree(tmp_path: Path) -> None:
     # neither exists → legacy default (E1 no-op: fresh vaults stay on learnings/)
     assert store.learning_root(vault) == vault / "learnings"
 
-    # only legacy exists → legacy (the current gorae state)
+    # only legacy exists → legacy (the current wiki state)
     (vault / "learnings").mkdir()
     assert store.learning_root(vault) == vault / "learnings"
 

@@ -1,5 +1,5 @@
 # atelier schema v5 — Learnings overlay
-# Governs the `gorae/learnings/` subtree.
+# Governs the `vault/learnings/` subtree.
 #
 # Lifecycle: capture (Stop / SessionEnd hook) → candidate → reviewed →
 # accepted (flat notes/<YYYY-MM>/) or archived. Aggressive capture is

@@ -50,7 +50,7 @@ def _seed_claims(vault: Path, *, own: int, foreign: int) -> None:
             f"statement: alpha beta gamma finding number {i}\n---\n\n"
             f"alpha beta gamma body {i}\n",
             encoding="utf-8")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
 
 
 def test_abstains_without_a_fixture(tmp_path: Path) -> None:
@@ -126,7 +126,7 @@ def test_unowned_dilution_is_visible_in_the_composition(
             f"statement: alpha beta gamma insight {i}\n---\n\n"
             f"alpha beta gamma body {i}\n",
             encoding="utf-8")
-    _api.reindex(space="gorae", full=True)
+    _api.reindex(space="wiki", full=True)
     fx = tmp_path / "probes.json"
     _write_fixture(fx)
     got = _metrics.cross_project_noise(fixture_path=fx)

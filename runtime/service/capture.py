@@ -6,7 +6,7 @@ can exercise it locally:
     atelier capture --text "..." --source web-clipper
 
 A capture lands in the first-class `inbox` intake domain
-(`gorae/raw/inbox/{ts}-{slug}.md`, via `resolver.inbox_dir()`) carrying an
+(`<vault>/raw/inbox/{ts}-{slug}.md`, via `resolver.inbox_dir()`) carrying an
 explicit `domain` FIELD (default `inbox/undetermined`) and `inbox_status:
 pending`. RFC 0005 §2/§3: classification is a frontmatter field, never the
 landing path — the old `personal/inbox/` path decreed every captured note
@@ -43,7 +43,7 @@ def capture(
     sensitivity: str = "private",
     ctx: Optional[claims.CallContext] = None,
 ) -> Path:
-    """Land a capture into the `inbox` intake domain (gorae/raw/inbox/).
+    """Land a capture into the `inbox` intake domain (<vault>/raw/inbox/).
 
     The doc carries `domain` as an explicit FIELD (default `inbox/undetermined`);
     it is NOT decreed personal-by-channel. Returns the new file path.

@@ -140,6 +140,28 @@ class Config:
             return self.vault.local
         return self.space_by_role("librarian-territory").local
 
+    def asset_dir(self) -> str:
+        """Vault-relative directory clipped assets land in (`vault.assets.dir`).
+
+        A config KEY, not an engine constant: the dir name appears in embedded
+        asset paths inside vault markdown, so an existing vault must be able to
+        keep its historical name while fresh adopters get the neutral default."""
+        if self.vault is not None:
+            d = (self.vault.assets or {}).get("dir")
+            if d:
+                return str(d)
+        else:
+            # Legacy `spaces:` shape: the librarian space's assets block is the
+            # same knob — without this branch a legacy machine could not pin its
+            # historical dir, the exact failure the key exists to prevent.
+            try:
+                d = (self.space_by_role("librarian-territory").assets or {}).get("dir")
+                if d:
+                    return str(d)
+            except KeyError:
+                pass
+        return "assets"
+
     def space_by_role(self, role: str) -> SpaceConfig:
         """Resolve a space by its declared role (e.g. 'librarian-territory').
 

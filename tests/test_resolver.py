@@ -86,21 +86,21 @@ def _seed(atelier_env):
     """Two indexed pages: 'widget-note' matches the lexical word 'caching';
     'ephemeral-store' does NOT — only a semantic vote can surface it."""
     write_page(
-        atelier_env["gorae"] / "wiki" / "entities" / "widget-note.md",
+        atelier_env["wiki"] / "wiki" / "entities" / "widget-note.md",
         {"title": "Widget Note", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# Widget\n\nthe widget caching layer avoids recompute.\n",
     )
     write_page(
-        atelier_env["gorae"] / "wiki" / "entities" / "ephemeral-store.md",
+        atelier_env["wiki"] / "wiki" / "entities" / "ephemeral-store.md",
         {"title": "Ephemeral Store", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# Ephemeral\n\na transient buffer discarded every turn.\n",
     )
     from runtime.service import api
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
 
 def _page_id(conn, slug_like: str) -> int:
@@ -115,7 +115,7 @@ def test_resolve_lexical_only_when_semantic_unwired(atelier_env):
     conn = db.connect()
     try:
         eng = RetrievalEngine(lexical=FtsLexical(conn))   # semantic=None
-        hits = resolve("caching", engine=eng, scope=Scope(space="gorae"), k=5)
+        hits = resolve("caching", engine=eng, scope=Scope(space="wiki"), k=5)
     finally:
         conn.close()
     assert hits, "lexical-only resolve should still find the body word"
@@ -139,7 +139,7 @@ def test_resolve_fuses_semantic_only_page_into_results(atelier_env):
                       score=0.2, snippet="SEM_EPHEMERAL"),
         ])
         eng = RetrievalEngine(lexical=FtsLexical(conn), semantic=sem)
-        hits = resolve("caching", engine=eng, scope=Scope(space="gorae"),
+        hits = resolve("caching", engine=eng, scope=Scope(space="wiki"),
                        gateway=_FakeGateway(), k=5)
     finally:
         conn.close()
@@ -159,7 +159,7 @@ def test_resolve_prefers_lexical_highlighted_snippet(atelier_env):
         sem = _FakeSemantic([Candidate(page_id=wid, slug=wslug, page_type=wtype,
                                        score=0.1, snippet="SEM_WIDGET")])
         eng = RetrievalEngine(lexical=FtsLexical(conn), semantic=sem)
-        hits = resolve("caching", engine=eng, scope=Scope(space="gorae"),
+        hits = resolve("caching", engine=eng, scope=Scope(space="wiki"),
                        gateway=_FakeGateway(), k=5)
     finally:
         conn.close()
@@ -177,7 +177,7 @@ def test_resolve_degrades_to_lexical_when_gateway_raises(atelier_env):
                                        score=0.1, snippet="SEM")])
         eng = RetrievalEngine(lexical=FtsLexical(conn), semantic=sem)
         # Gateway raises → resolve must fall back to lexical-only, not propagate.
-        hits = resolve("caching", engine=eng, scope=Scope(space="gorae"),
+        hits = resolve("caching", engine=eng, scope=Scope(space="wiki"),
                        gateway=_BrokenGateway(), k=5)
     finally:
         conn.close()
@@ -197,7 +197,7 @@ def test_build_context_lexical_only_when_embeddings_off(atelier_env):
         assert isinstance(ctx.engine.lexical, LexicalSearcher)
         assert ctx.engine.semantic is None
         assert ctx.gateway is None
-        hits = resolve("caching", engine=ctx.engine, scope=Scope(space="gorae"),
+        hits = resolve("caching", engine=ctx.engine, scope=Scope(space="wiki"),
                        gateway=ctx.gateway, k=5)
         assert hits and "widget-note" in hits[0].slug
     finally:
@@ -220,7 +220,7 @@ def test_relational_surfaces_a_concept_sibling(atelier_env):
     matches NO query term itself, surfaces via the relational graph vote —
     learning A → entity → sibling B (2 hops). This is the dead-P4 revival the
     RFC 0003 stub backfill enables."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     # The shared entity (basename normalizes to the concept the learnings touch).
     write_page(vault / "wiki" / "entities" / "widgetry.md",
                {"title": "Widgetry", "type": "entity", "category": "concept",
@@ -240,7 +240,7 @@ def test_relational_surfaces_a_concept_sibling(atelier_env):
                 "touches": ["widgetry"]},
                "## Observation\n\nalpha beta gamma delta.\n")
     from runtime.service import api
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
     conn = db.connect()
     ctx = build_context(conn)

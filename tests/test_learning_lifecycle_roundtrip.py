@@ -116,7 +116,7 @@ def test_born_nodes_pass_the_v7_schema_validator(atelier_env: Dict) -> None:
         observation="overlay bug", why="needs a stable key", rule="stabilize keys",
         working_dir="/Users/me/workspaces/lexio", touches=["react-rendering"],
         session_id="s", hook="Stop")
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     # L2 Entity/Claim nodes live FLAT under graph/atomic/ (RFC 0005 P9.4); this
     # one rglob picks up both kinds (source nodes live in raw/, not graph/), and
     # already includes the captured claim at out["path"], so dedup on resolve().
@@ -134,7 +134,7 @@ def test_accepted_claim_is_discoverable_as_accepted(atelier_env: Dict) -> None:
     sees it without per-reader edits."""
     from runtime.service.learnings import store as _store
     out = _capture_good()
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     # pending → not yet in the accepted pool
     assert out["path"] not in {str(p) for p in _store.iter_accepted_files(vault)}
     _rev.accept(candidate_slug=out["entry_id"], target_topic="t",

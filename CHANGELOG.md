@@ -4,6 +4,33 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — the default content space is now `vault`, not the maintainer's name
+
+First step of the open-sourcing track: the engine no longer bakes the
+maintainer's persona name in as the default space. `gorae.overlay.yaml` →
+`vault.overlay.yaml`; the cross-space link scheme `[[gorae:...]]` → `[[vault:...]]`;
+the capture-channel enum and the `_LINK_TYPES` metric key follow. Measured before
+renaming: the scheme had **zero** live uses in vault content and the channel enum
+zero writers, so no alias or migration shim is carried — the rename is a pure
+identifier change, verified invisible on a live vault (dangling 95, `dangling_new`
+0, doctor all-OK, byte-identical projection counts).
+
+The one genuinely coupled surface was the clipped-asset directory, whose name is
+embedded in vault markdown asset paths and so CANNOT silently change: it is now a
+config key (`vault.assets.dir`, default `assets/`) instead of an engine constant.
+An existing vault keeps its historical directory by setting the key; fresh
+adopters get the neutral default and never learn the old name.
+
+Also renamed: the test fixtures' legacy two-space config (`wiki` + `workshop`
+now), `scripts/gorae_cleanup/` → `scripts/vault_cleanup/`, and every
+current-contract doc (README, ADOPTING, ARCHITECTURE, SCHEMA_V4, OPS_NOTES,
+example config). Historical records — RFCs, this changelog's own history,
+`docs/_archive/` — are deliberately untouched: they describe what was true when
+written. The maintainer commit identity (`gorae <…>`) stays, per the explicit
+CLAUDE.md exception. The v3→v4 migrator keeps the literal legacy dir name it
+exists to migrate.
+
+
 ### Removed — the `graph/index.md` catalog and `atelier_index_regen` (retired, not repaired)
 
 The last open item from the RFC 0009 dangling arc (issue #87), closed by
@@ -24,7 +51,8 @@ Every line of evidence pointed one way:
   written an *empty* index (`page_count: 0`) — and the file had been stale for
   six weeks without anyone noticing, which is itself a consumer census.
 
-The `wiki_index` page_type **stays** in `schema/data/gorae.overlay.yaml` as a
+The `wiki_index` page_type **stays** in `schema/data/vault.overlay.yaml` (né
+`gorae.overlay.yaml`, renamed below) as a
 classification-only rule: nothing writes that type anymore, but an adopter's
 legacy vault may still hold such a file, and dropping the rule would make it
 classify as unknown. Classification is a statement about a path, not a

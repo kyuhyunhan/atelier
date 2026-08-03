@@ -1,4 +1,5 @@
-"""Regression coverage for the v0.2 gorae→vault single-vault rename.
+"""Regression coverage for the v0.2 single-vault collapse (the maintainer-named
+space → `vault:` config shape).
 
 Locks in: schema-driven (space-independent) classification, space-agnostic
 lint, D2 phantom-drift dedup, cross-domain + alias link resolution, and the
@@ -32,7 +33,7 @@ def test_classify_schema_driven_both_layouts() -> None:
         "products/demo/README.md": "product_readme",
     }
     for slug, expected in cases.items():
-        for space in ("gorae", "vault-builder", "workshop", ""):
+        for space in ("wiki", "vault-builder", "workshop", ""):
             assert classify(space, slug, {}) == expected, (slug, space)
 
 

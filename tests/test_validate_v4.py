@@ -24,7 +24,7 @@ def _uid() -> str:
 
 
 def test_valid_learning_candidate_passes(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
         "entry_id": _uid(),
@@ -44,7 +44,7 @@ def test_valid_learning_candidate_passes(atelier_env: Dict) -> None:
 def test_v5_accepted_with_facets_and_no_topic_passes(atelier_env: Dict) -> None:
     """RFC 0001 / P1: an accepted learning may be schema_version 5, carry
     `aspect[]` + typed `links`, and omit `target_topic` (now optional)."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "schema_version": 5,
         "entry_id": _uid(),
@@ -70,7 +70,7 @@ def test_v5_accepted_with_facets_and_no_topic_passes(atelier_env: Dict) -> None:
 def test_v4_accepted_in_notes_still_valid(atelier_env: Dict) -> None:
     """Backward-compat: a v4 accepted record (with target_topic) in the flat
     notes/ store remains valid (schema_version accepts {4, 5})."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
         "entry_id": _uid(),
@@ -92,7 +92,7 @@ def test_accepted_missing_required_field_fails(atelier_env: Dict) -> None:
     """Proves the learning_accepted overlay actually matches notes/ paths: a
     missing required field (accepted_at) must FAIL validation, not slip through
     the path-unmatched minimal check."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "schema_version": 5,
         "entry_id": _uid(),
@@ -111,7 +111,7 @@ def test_accepted_missing_required_field_fails(atelier_env: Dict) -> None:
 
 
 def test_missing_required_field_fails(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
         "entry_id": _uid(),
@@ -131,7 +131,7 @@ def test_domain_entity_validates_without_first_mention(atelier_env: Dict) -> Non
     single first_mention. The schema must accept category=domain AND treat
     first_mention as optional (616 existing domain/concept entities already lack
     it)."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "title": "AI Engineering", "type": "entity", "category": "domain",
         "source_count": 44, "created": "2026-04-08", "updated": "2026-04-08",
@@ -154,7 +154,7 @@ def test_present_first_mention_still_pattern_checked(atelier_env: Dict) -> None:
     """Making first_mention optional must NOT stop pattern-checking it when
     present — a malformed value on a person entity still fails (the field_specs
     loop fires on presence, independent of required_fields)."""
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "title": "홍길동", "type": "entity", "category": "person",
         "first_mention": "2013-7",        # malformed: needs YYYY-MM
@@ -168,7 +168,7 @@ def test_present_first_mention_still_pattern_checked(atelier_env: Dict) -> None:
 
 
 def test_wrong_schema_version_fails(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {"schema_version": 3, "entry_id": _uid()}
     p = vault / "raw" / "old.md"
     _write(p, fm)
@@ -177,7 +177,7 @@ def test_wrong_schema_version_fails(atelier_env: Dict) -> None:
 
 
 def test_const_mismatch_fails(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
         "entry_id": _uid(),
@@ -196,7 +196,7 @@ def test_const_mismatch_fails(atelier_env: Dict) -> None:
 
 
 def test_duplicate_entry_id_corpus_check(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     eid = _uid()
     common = {
         "schema_version": 4,
@@ -217,7 +217,7 @@ def test_duplicate_entry_id_corpus_check(atelier_env: Dict) -> None:
 
 
 def test_api_validate_returns_summary(atelier_env: Dict) -> None:
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {"schema_version": 3, "entry_id": _uid()}
     _write(vault / "raw" / "stale.md", fm)
     out = _api.validate(role="librarian-territory")
@@ -227,7 +227,7 @@ def test_api_validate_returns_summary(atelier_env: Dict) -> None:
 
 def test_mcp_dispatch_validate(atelier_env: Dict) -> None:
     from runtime.service import tools as _tools
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     fm = {
         "schema_version": 4,
         "entry_id": _uid(),

@@ -90,7 +90,7 @@ def test_capture_derives_from_its_own_operational_source(atelier_env: Dict) -> N
                       working_dir="/w2", session_id="s3", hook="manual")
     assert a2["source_entry_id"] == a["source_entry_id"]
 
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     sources = [p for p in vault.rglob("*.md")
                if _read_fm(p).get("kind") == "source"
                and _read_fm(p).get("entry_id") == a["source_entry_id"]]
@@ -114,7 +114,7 @@ def test_capture_mirrors_session_fields_onto_claim_and_source(atelier_env: Dict)
     assert cfm.get("session_id") == "sess-mirror"           # tied_to_event
     assert cfm.get("working_dir") == "/Users/me/workspaces/lexio"
     assert cfm.get("project_hint") == "lexio"               # has_project_tag
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     src = [p for p in vault.rglob("*.md")
            if _read_fm(p).get("entry_id") == result["source_entry_id"]][0]
     assert _read_fm(src).get("session_id") == "sess-mirror"  # also on the Source
@@ -129,7 +129,7 @@ def test_capture_source_lands_in_raw_not_graph(atelier_env: Dict) -> None:
         working_dir="/Users/me/workspaces/lexio", session_id="sess-raw",
         hook="manual",
     )
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     matches = [p for p in vault.rglob("*.md")
                if _read_fm(p).get("entry_id") == result["source_entry_id"]]
     assert len(matches) == 1
@@ -158,7 +158,7 @@ def test_capture_resolves_project_to_is_about_entity(atelier_env: Dict) -> None:
     # Entity nodes live FLAT under graph/atomic/ (P9.4), keyed by the `kind`
     # field — so filter on kind, not on a kind subdir.
     from runtime.structure import resolver as _structure
-    ents = atelier_env["gorae"] / _structure.atomic_entity_dir()
+    ents = atelier_env["wiki"] / _structure.atomic_entity_dir()
     ent_ids = {
         _read_fm(p).get("entry_id")
         for p in ents.rglob("*.md")
@@ -169,7 +169,7 @@ def test_capture_resolves_project_to_is_about_entity(atelier_env: Dict) -> None:
 
 def test_capture_inside_vault_tags_atelier_self(atelier_env: Dict) -> None:
     """working_dir under the vault root → project_hint = atelier-self."""
-    cwd = atelier_env["gorae"] / "wiki"
+    cwd = atelier_env["wiki"] / "wiki"
     cwd.mkdir(exist_ok=True)
     result = _cap.capture(
         observation="dogfooding atelier itself",
@@ -320,6 +320,6 @@ def test_capture_refuses_when_vault_missing(atelier_env: Dict,
     """Vault root must exist; otherwise we surface a real error. (Provide
     a why so the substance gate passes and we reach the vault check.)"""
     import shutil as _sh
-    _sh.rmtree(atelier_env["gorae"])
+    _sh.rmtree(atelier_env["wiki"])
     with pytest.raises(FileNotFoundError):
         _cap.capture(observation="foo", why="bar", hook="Stop")

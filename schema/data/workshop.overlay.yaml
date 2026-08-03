@@ -20,7 +20,7 @@ page_types:
         type: string
         enum: [active, paused, archived, shipped]
       tags:        { type: array, items: { type: string } }
-      related_wiki: { type: array, items: { type: string }, description: "wikilinks into gorae space" }
+      related_wiki: { type: array, items: { type: string }, description: "wikilinks into the vault space" }
       version:     { type: string }
       created:     { type: string, format: date }
       updated:     { type: string, format: date }
@@ -60,6 +60,6 @@ page_types:
 promotion:
   description: "Builder→wiki pathway. Governed by runtime/promote/."
   eligible_types: [product_readme, note]
-  target_space: gorae
+  target_space: vault
   target_types: [synthesis, theme, entity]
   requires_librarian_review: true

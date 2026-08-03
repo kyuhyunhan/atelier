@@ -16,14 +16,14 @@ from tests.conftest import write_page
 
 def _seed_and_index(atelier_env):
     write_page(
-        atelier_env["gorae"] / "wiki" / "entities" / "widget-note.md",
+        atelier_env["wiki"] / "wiki" / "entities" / "widget-note.md",
         {"title": "Widget Note", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# Widget\n\nthe widget caching layer avoids recompute.\n",
     )
     from runtime.service import api
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
 
 def test_ftslexical_satisfies_protocol(atelier_env):
@@ -38,7 +38,7 @@ def test_ftslexical_returns_candidates_with_page_id(atelier_env):
     _seed_and_index(atelier_env)
     conn = db.connect()
     try:
-        hits = FtsLexical(conn).search("caching", scope=Scope(space="gorae"), k=5)
+        hits = FtsLexical(conn).search("caching", scope=Scope(space="wiki"), k=5)
     finally:
         conn.close()
     assert hits, "expected a lexical hit for an indexed body word"
@@ -89,14 +89,14 @@ def test_scope_where_emits_a_clause_per_set_field():
     """The shared scope→SQL helper: one AND-clause + one param per set field,
     nothing for unset fields (so the default Scope filters nothing)."""
     clauses, params = scope_where(
-        Scope(space="gorae", page_types=("entity", "digest"),
+        Scope(space="wiki", page_types=("entity", "digest"),
               provenance="knowledge", sensitivity="public"), "p")
     joined = " ".join(clauses)
     assert "p.space = ?" in joined
     assert "p.page_type IN (?,?)" in joined
     assert "p.provenance = ?" in joined
     assert "p.sensitivity = ?" in joined
-    assert params == ["gorae", "entity", "digest", "knowledge", "public"]
+    assert params == ["wiki", "entity", "digest", "knowledge", "public"]
     # default scope → no filtering
     assert scope_where(Scope(), "p") == ([], [])
 
@@ -115,7 +115,7 @@ def _seed_two_provenances(atelier_env):
     """Two indexed pages with the same body word but different provenance fields,
     so a provenance scope must pick exactly one."""
     write_page(
-        atelier_env["gorae"] / "wiki" / "entities" / "knowledge-note.md",
+        atelier_env["wiki"] / "wiki" / "entities" / "knowledge-note.md",
         {"title": "Knowledge Note", "type": "entity", "category": "concept",
          "first_mention": "2026-01", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27",
@@ -123,14 +123,14 @@ def _seed_two_provenances(atelier_env):
         "# K\n\nthe shared keyword widgetly appears here.\n",
     )
     write_page(
-        atelier_env["gorae"] / "raw" / "personal" / "diary" / "2026" / "05" / "p.md",
+        atelier_env["wiki"] / "raw" / "personal" / "diary" / "2026" / "05" / "p.md",
         {"title": "Personal Note", "type": "raw_source",
          "created": "2026-05-27", "updated": "2026-05-27",
          "provenance": "personal", "sensitivity": "private"},
         "# P\n\nthe shared keyword widgetly appears here too.\n",
     )
     from runtime.service import api
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
 
 def test_provenance_column_is_populated_from_frontmatter(atelier_env):

@@ -24,7 +24,7 @@ def test_chunk_body_tracks_headings():
 def test_linker_extracts_bare_and_scoped():
     from runtime.index.linker import extract_links
     body = "see [[themes/example]] and [[workshop:products/foo/README.md]]"
-    links = extract_links(body, default_space="gorae")
+    links = extract_links(body, default_space="wiki")
     assert len(links) == 2
     bare = next(l for l in links if l.link_type == "wikilink")
     scoped = next(l for l in links if l.link_type == "workshop")
@@ -37,22 +37,22 @@ def test_full_reindex_end_to_end(atelier_env):
     from runtime.service import api
     from runtime.util import db
 
-    gorae = atelier_env["gorae"]
+    wiki = atelier_env["wiki"]
     write_page(
-        gorae / "wiki" / "themes" / "example.md",
+        wiki / "wiki" / "themes" / "example.md",
         {"title": "example-theme", "type": "theme", "scope": "personal",
          "source_count": 0, "created": "2026-05-27", "updated": "2026-05-27"},
         "# example-theme\n\ncf. [[entities/foo]]\n",
     )
     write_page(
-        gorae / "wiki" / "entities" / "foo.md",
+        wiki / "wiki" / "entities" / "foo.md",
         {"title": "foo", "type": "entity", "category": "concept",
          "first_mention": "2026-05", "source_count": 0,
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# foo\n\nrelated to [[themes/example]]\n",
     )
 
-    statses = api.reindex(space="gorae", full=True)
+    statses = api.reindex(space="wiki", full=True)
     assert statses[0]["pages_changed"] == 2
 
     conn = db.connect()
@@ -67,9 +67,9 @@ def test_full_reindex_end_to_end(atelier_env):
 
 def test_classify_page_types():
     from runtime.index.classify import classify
-    assert classify("gorae", "wiki/digests/2026-05.md", {}) == "digest"
-    assert classify("gorae", "wiki/entities/foo.md", {}) == "entity"
-    assert classify("gorae", "raw/personal/diary/2026/05/15.md", {}) == "raw_source"
+    assert classify("wiki", "wiki/digests/2026-05.md", {}) == "digest"
+    assert classify("wiki", "wiki/entities/foo.md", {}) == "entity"
+    assert classify("wiki", "raw/personal/diary/2026/05/15.md", {}) == "raw_source"
     assert classify("workshop", "products/foo/README.md", {}) == "product_readme"
     assert classify("workshop", "products/foo/adr/0001-bar.md", {}) == "product_page"
 
@@ -141,21 +141,21 @@ def test_bare_basename_resolves_to_deep_path_source(atelier_env):
     from runtime.service import api
     from runtime.util import db
 
-    gorae = atelier_env["gorae"]
+    wiki = atelier_env["wiki"]
     write_page(
-        gorae / "raw" / "personal" / "writings" / "2-months-more.md",
+        wiki / "raw" / "personal" / "writings" / "2-months-more.md",
         {"title": "2-months-more", "type": "raw_source",
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# 2-months-more\n\nbody\n",
     )
     write_page(
-        gorae / "graph" / "index.md",
+        wiki / "graph" / "index.md",
         {"title": "wiki-index", "type": "index",
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# index\n\n- [[2-months-more]]\n",
     )
 
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
     conn = db.connect()
     try:
@@ -179,22 +179,22 @@ def test_ambiguous_basename_does_not_resolve(atelier_env):
     from runtime.service import api
     from runtime.util import db
 
-    gorae = atelier_env["gorae"]
+    wiki = atelier_env["wiki"]
     for sub in ("personal/writings", "personal/diary"):
         write_page(
-            gorae / "raw" / sub.split("/")[0] / sub.split("/")[1] / "dup.md",
+            wiki / "raw" / sub.split("/")[0] / sub.split("/")[1] / "dup.md",
             {"title": "dup", "type": "raw_source",
              "created": "2026-05-27", "updated": "2026-05-27"},
             "# dup\n\nbody\n",
         )
     write_page(
-        gorae / "graph" / "index.md",
+        wiki / "graph" / "index.md",
         {"title": "wiki-index", "type": "index",
          "created": "2026-05-27", "updated": "2026-05-27"},
         "# index\n\n- [[dup]]\n",
     )
 
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
     conn = db.connect()
     try:
@@ -230,13 +230,13 @@ def test_bare_timestamp_wikilink_resolves_via_session_id(atelier_env):
     from runtime.service import api
     from runtime.util import db
 
-    gorae = atelier_env["gorae"]
-    _write_claim(gorae, "c0ffee", "## Observation\n\nthe target.\n",
+    wiki = atelier_env["wiki"]
+    _write_claim(wiki, "c0ffee", "## Observation\n\nthe target.\n",
                  session_id="20260514T0530")
-    _write_claim(gorae, "beef00",
+    _write_claim(wiki, "beef00",
                  "## Observation\n\nrefines [[20260514T0530]].\n")
 
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
     conn = db.connect()
     try:
@@ -257,13 +257,13 @@ def test_path_form_provenance_timestamp_resolves_via_session_id(atelier_env):
     from runtime.service import api
     from runtime.util import db
 
-    gorae = atelier_env["gorae"]
-    _write_claim(gorae, "c0ffee", "## Observation\n\nthe target.\n",
+    wiki = atelier_env["wiki"]
+    _write_claim(wiki, "c0ffee", "## Observation\n\nthe target.\n",
                  session_id="20260514T0530")
     link = "[[provenance/learning/notes/2026-05/20260514T0530-some-slug.md]]"
-    _write_claim(gorae, "beef00", f"## Observation\n\nrefines {link}.\n")
+    _write_claim(wiki, "beef00", f"## Observation\n\nrefines {link}.\n")
 
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
     conn = db.connect()
     try:
@@ -285,18 +285,18 @@ def test_ambiguous_or_absent_session_id_stays_null(atelier_env):
     from runtime.service import api
     from runtime.util import db
 
-    gorae = atelier_env["gorae"]
+    wiki = atelier_env["wiki"]
     # Two claims share the SAME session_id → ambiguous → dropped.
-    _write_claim(gorae, "aaaa11", "## Observation\n\ndup a.\n",
+    _write_claim(wiki, "aaaa11", "## Observation\n\ndup a.\n",
                  session_id="20260514T0530")
-    _write_claim(gorae, "bbbb22", "## Observation\n\ndup b.\n",
+    _write_claim(wiki, "bbbb22", "## Observation\n\ndup b.\n",
                  session_id="20260514T0530")
     # Referencer points at the ambiguous stamp AND an orphan stamp no claim owns.
     _write_claim(
-        gorae, "cccc33",
+        wiki, "cccc33",
         "## Observation\n\nsee [[20260514T0530]] and [[20991231T2359]].\n")
 
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
     conn = db.connect()
     try:

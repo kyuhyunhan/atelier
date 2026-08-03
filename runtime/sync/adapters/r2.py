@@ -19,7 +19,7 @@ class AssetStatus:
 
 
 def status(space_name: str, local: Path, bucket: str | None = None) -> AssetStatus:
-    """Compare local _attachments / gorae-resources / etc. to R2 bucket listing.
+    """Compare local _attachments / asset dirs / etc. to the R2 bucket listing.
 
     v0.1: returns empty status — no R2 call made.
     """

@@ -111,7 +111,7 @@ def test_accept_writes_log_entry(atelier_env: Dict) -> None:
     _rev.accept(candidate_slug=good["entry_id"],
                 target_topic="search-fallback",
                 target_project="lexio")
-    log = (atelier_env["gorae"] / "learnings" / "log.md").read_text()
+    log = (atelier_env["wiki"] / "learnings" / "log.md").read_text()
     assert "accept" in log
     assert "search-fallback" in log
 
@@ -234,7 +234,7 @@ def test_accept_does_not_move_or_delete_the_claim_file(atelier_env: Dict) -> Non
                 target_project="lexio")
     assert path.exists()                  # same file stays put
     # no legacy candidates/ tree was ever created
-    assert not (atelier_env["gorae"] / "learnings" / "candidates").exists()
+    assert not (atelier_env["wiki"] / "learnings" / "candidates").exists()
 
 
 def test_lifecycle_ops_leave_other_claims_untouched(atelier_env: Dict) -> None:

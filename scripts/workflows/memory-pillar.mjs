@@ -65,7 +65,7 @@ phase('Verify')
 const verdict = await agent(
   `You are the INDEPENDENT verifier for RFC 0006 pillar ${PILLAR}. Do NOT trust ` +
   `the implementer's summary; verify from the tools.\n\n` +
-  `1. Ensure the vault is reindexed: run \`atelier reindex --space gorae\`.\n` +
+  `1. Ensure the vault is reindexed: run \`atelier reindex\`.\n` +
   `2. Run: \`atelier verify --baseline ${BASELINE} --rubric ${RUBRIC}\`. Exit 0 = PASS, ` +
   `1 = FAIL. Read the printed JSON report.\n` +
   `3. Return whether it passed, the names+details of any failing GATE checks, and a ` +

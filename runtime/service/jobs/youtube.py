@@ -1,6 +1,6 @@
 """PR-16: YouTube ingestion — yt-dlp + optional OpenAI STT.
 
-Mechanical port of the proto-engine's `gorae youtube` pipeline:
+Mechanical port of the proto-engine's youtube pipeline:
 
 1. Fetch video metadata with `yt-dlp -J`.
 2. Try to download subtitles (manual first, then auto). If present,

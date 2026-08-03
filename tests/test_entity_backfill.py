@@ -24,11 +24,11 @@ def _accepted(vault, entry_id, touches, body="## Observation\n\nfoo bar.\n"):
 
 
 def test_backfill_creates_stub_that_resolves_dangling_concept_edge(atelier_env: Dict):
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     # Two learnings share concept 'dependency-direction'; no entity page exists.
     _accepted(vault, "a", ["dependency-direction"])
     _accepted(vault, "b", ["dependency-direction", "layering"])
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
 
     conn = db.connect()
     try:
@@ -46,7 +46,7 @@ def test_backfill_creates_stub_that_resolves_dangling_concept_edge(atelier_env: 
     assert (vault / "graph" / "entities" / "dependency-direction.md").exists()
 
     # Reindex picks up the new stubs → the concept edges now RESOLVE.
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
     conn = db.connect()
     try:
         still_dangling = conn.execute(
@@ -63,9 +63,9 @@ def test_backfill_creates_stub_that_resolves_dangling_concept_edge(atelier_env: 
 
 
 def test_backfill_is_idempotent(atelier_env: Dict):
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     _accepted(vault, "a", ["dependency-direction"])
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
     conn = db.connect()
     try:
         first = eb.backfill(conn, vault=vault, created="2026-06-12")
@@ -78,7 +78,7 @@ def test_backfill_is_idempotent(atelier_env: Dict):
 
 
 def test_backfill_skips_concepts_an_existing_entity_already_covers(atelier_env: Dict):
-    vault = atelier_env["gorae"]
+    vault = atelier_env["wiki"]
     # An entity already covers 'dependency-direction' via an alias.
     write_page(
         vault / "graph" / "entities" / "dep-dir.md",
@@ -89,7 +89,7 @@ def test_backfill_skips_concepts_an_existing_entity_already_covers(atelier_env: 
         "# Dependency Direction\n\nthe rule.\n",
     )
     _accepted(vault, "a", ["dependency-direction"])
-    api.reindex(space="gorae", full=True)
+    api.reindex(space="wiki", full=True)
     conn = db.connect()
     try:
         plans = eb.plan_stubs(conn)

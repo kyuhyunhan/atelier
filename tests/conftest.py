@@ -19,16 +19,16 @@ os.environ.setdefault("ATELIER_EMBED", "off")
 
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
-    """A throwaway directory with gorae + workshop subspaces seeded."""
-    gorae = tmp_path / "gorae"
+    """A throwaway directory with wiki + workshop subspaces seeded."""
+    wiki = tmp_path / "wiki"
     workshop = tmp_path / "workshop"
     # Canonical post-RFC-0005-P2 structure (raw/ + graph/). Tests that
     # specifically exercise the legacy wiki//provenance//learnings/ trees or the
     # rename aliasing create those dirs themselves.
-    (gorae / "raw" / "personal" / "diary" / "2026" / "05").mkdir(parents=True)
-    (gorae / "raw" / "knowledge").mkdir(parents=True)
-    (gorae / "graph" / "entities").mkdir(parents=True)
-    (gorae / "graph" / "sources").mkdir(parents=True)
+    (wiki / "raw" / "personal" / "diary" / "2026" / "05").mkdir(parents=True)
+    (wiki / "raw" / "knowledge").mkdir(parents=True)
+    (wiki / "graph" / "entities").mkdir(parents=True)
+    (wiki / "graph" / "sources").mkdir(parents=True)
     (workshop / "products" / "demo").mkdir(parents=True)
     return tmp_path
 
@@ -47,9 +47,9 @@ def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, P
 
     config_yaml = {
         "spaces": {
-            "gorae":    {"local": str(workspace / "gorae"),
+            "wiki":     {"local": str(workspace / "wiki"),
                          "remote": {"type": "github",
-                                    "url": "github.com/test/gorae", "branch": "main"},
+                                    "url": "github.com/test/wiki", "branch": "main"},
                          "role": "librarian-territory"},
             "workshop": {"local": str(workspace / "workshop"),
                          "remote": {"type": "github",
@@ -87,7 +87,7 @@ def atelier_env(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, P
     monkeypatch.setattr(_metrics, "_PII_PATTERNS_PATH",
                         home / "pii_patterns.txt")
 
-    return {"home": home, "gorae": workspace / "gorae",
+    return {"home": home, "wiki": workspace / "wiki",
             "workshop": workspace / "workshop", "cache": cache,
             "claude_projects": workspace / "claude_projects"}
 
@@ -99,7 +99,7 @@ def vault_env(atelier_env: Dict[str, Path], monkeypatch: pytest.MonkeyPatch
     production v0.2 shape. Reuses atelier_env's home/cache/monkeypatching and
     overwrites config.yaml with a vault block."""
     home = atelier_env["home"]
-    vault = atelier_env["gorae"].parent / "vault"
+    vault = atelier_env["wiki"].parent / "vault"
     # Note: raw/learning/notes is intentionally NOT pre-seeded — the flat
     # accepted store is created on demand by writers; pre-creating it would break
     # "nothing moved" dry-run assertions (mirrors the pre-migration fixture).

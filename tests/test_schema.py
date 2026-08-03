@@ -19,11 +19,11 @@ def test_base_yaml_loads_and_versions_7():
         assert f in data["fields"], f"missing v7 common-base field {f}"
 
 
-def test_gorae_overlay_has_5_wiki_page_types():
-    data = yaml.safe_load((SCHEMA / "gorae.overlay.yaml").read_text())
+def test_vault_overlay_has_5_wiki_page_types():
+    data = yaml.safe_load((SCHEMA / "vault.overlay.yaml").read_text())
     # RFC 0001: no `agent:` field — overlays are space contracts, not personas.
     assert "agent" not in data
-    assert "gorae" in data["spaces"]
+    assert "vault" in data["spaces"]
     wiki_types = {"digest", "source", "entity", "theme", "synthesis"}
     assert wiki_types <= set(data["page_types"])
 
@@ -37,9 +37,9 @@ def test_workshop_overlay_has_workshop_space():
 
 def test_linking_yaml_registers_both_schemes():
     data = yaml.safe_load((SCHEMA / "linking.yaml").read_text())
-    assert "gorae" in data["schemes"]
+    assert "vault" in data["schemes"]
     assert "workshop" in data["schemes"]
-    assert data["backward_compat"]["v3_implicit_space"] == "gorae"
+    assert data["backward_compat"]["v3_implicit_space"] == "vault"
 
 
 def test_lint_yaml_defines_l1_through_l8():

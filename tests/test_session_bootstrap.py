@@ -169,7 +169,7 @@ def test_bootstrap_cross_cuts_on_explicit_touches(atelier_env: Dict) -> None:
     lx = _accept("lexio", topic="architecture")
     # `touches` isn't set by accept; tag both notes with a shared concept. The
     # flat store (RFC 0001) means we locate each by stem, not a by-topic path.
-    vault = atelier_env["gorae"]            # vault root
+    vault = atelier_env["wiki"]            # vault root
     by_stem = {p.stem: p for p in _store.iter_accepted_files(vault)}
     for stem in (a, lx):
         p = by_stem[stem]

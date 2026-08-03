@@ -9,7 +9,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS pages (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   slug         TEXT    NOT NULL UNIQUE,  -- space-relative path e.g. "wiki/entities/foo.md"
-  space        TEXT    NOT NULL,         -- 'gorae' | 'workshop'
+  space        TEXT    NOT NULL,         -- 'vault' | 'workshop'
   page_type    TEXT    NOT NULL,         -- 'raw_source' | 'digest' | 'entity' | ...
   frontmatter  TEXT    NOT NULL,         -- JSON; original YAML parsed and stored as JSON
   content_hash TEXT    NOT NULL,         -- SHA-1 hex of raw file bytes (change detection)
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS links (
   from_page  INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
   to_target  TEXT    NOT NULL,           -- raw wikilink string as written in markdown
   to_page_id INTEGER REFERENCES pages(id) ON DELETE SET NULL,  -- NULL = broken link
-  link_type  TEXT    NOT NULL            -- 'wikilink' | 'gorae' | 'workshop' | 'concept'
+  link_type  TEXT    NOT NULL            -- 'wikilink' | 'vault' | 'workshop' | 'concept'
 );
 
 CREATE TABLE IF NOT EXISTS entities (

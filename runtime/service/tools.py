@@ -234,7 +234,7 @@ async def _h_fix_pending(dry_run: bool = False,
 
 async def _h_clip_image(url: str,
                          role: str = "librarian-territory",
-                         subdir: str = "gorae-resources") -> Dict[str, Any]:
+                         subdir: Optional[str] = None) -> Dict[str, Any]:
     """Fetch a remote image into the vault and (when configured) return a CDN URL."""
     from .jobs import clip as _jc
     return _jc.clip_image(url=url, role=role, subdir=subdir)

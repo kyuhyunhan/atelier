@@ -41,7 +41,7 @@ _DEFAULT_EXCLUDES = (
     "node_modules",        # npm install artifacts
     "web",                 # Next.js apps (content-coupled)
     "schemas",             # JSON-schema source files (different beast)
-    "gorae-resources",     # R2 asset mirror
+    "gorae-resources",     # legacy R2 asset-mirror dir name (pre-rename vaults)
     "learnings",           # atelier-owned domain (already v4)
     "BACKLOG.md",          # operator scratchpad at the root
     "SCHEMA.md",           # legacy v3 schema doc

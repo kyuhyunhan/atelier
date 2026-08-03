@@ -66,7 +66,8 @@ def test_seed_reindexes_validates_no_lint_fails(vault_env: Dict) -> None:
     conn = _db.connect()
     try:
         n = conn.execute(
-            "SELECT COUNT(*) FROM links WHERE to_page_id IS NOT NULL").fetchone()[0]
+            "SELECT COUNT(*) FROM links WHERE to_page_id IS NOT NULL "
+            "AND to_target IN ('SQLite', '홍길동')").fetchone()[0]
     finally:
         conn.close()
     assert n >= 3, f"entity wikilinks do not resolve (resolved links: {n})"

@@ -27,6 +27,7 @@ import sqlite3
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from .engine import Candidate, RetrievalEngine, Scope
 
@@ -195,7 +196,7 @@ class ResolverContext:
 
     engine: RetrievalEngine
     gateway: object | None = None
-    _store: object | None = None
+    _store: Any = None    # duck-typed vec-store handle (open/close)
 
     def close(self) -> None:
         if self._store is not None:

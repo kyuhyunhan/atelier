@@ -297,8 +297,8 @@ def _cluster_items(items: list[Learning], *, vault: Path,
     clusters: list[Cluster] = []
     emitted_member_sets: list[set[str]] = []   # by entry_id, for dedup
 
-    for term, idxs in seeds:
-        members = sorted(idxs)
+    for term, seed_idxs in seeds:
+        members = sorted(seed_idxs)
         entry_ids = sorted(items[m].entry_id for m in members)
         member_id_set = set(entry_ids)
 
@@ -324,12 +324,12 @@ def _cluster_items(items: list[Learning], *, vault: Path,
         if len(common) < min_shared_terms:
             continue
 
-        projects = sorted({items[m].project for m in members if items[m].project})
+        cluster_projects = sorted({items[m].project for m in members if items[m].project})
         clusters.append(Cluster(
             cluster_key=_cluster_key(entry_ids),
             member_slugs=sorted(items[m].slug for m in members),
             member_entry_ids=entry_ids,
-            projects=projects,
+            projects=cluster_projects,
             shared_terms=common[:12],
             size=len(members),
         ))

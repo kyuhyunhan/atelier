@@ -54,7 +54,7 @@ async def run(sup: _server.Supervisor) -> None:
     except (asyncio.CancelledError, KeyboardInterrupt):
         raise
     except Exception as e:  # pragma: no cover - transport-level
-        log.error("mcp-stdio.crash", err=type(e).__name__, msg=str(e))
+        log.error("mcp-stdio.crash", err=type(e).__name__, detail=str(e))
         raise
     finally:
         sup.shutdown.set()

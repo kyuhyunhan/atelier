@@ -226,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         result = _call(url, token, args.tool, params)
     except (urllib.error.URLError, OSError) as e:
         log.error("mcp-call.rpc-error", tool=args.tool,
-                  err=type(e).__name__, msg=str(e))
+                  err=type(e).__name__, detail=str(e))
         return 0 if not args.strict else 1
 
     if "error" in result:

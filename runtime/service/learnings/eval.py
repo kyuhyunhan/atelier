@@ -237,7 +237,7 @@ def _engine_label() -> str:
             if ctx.engine.semantic is None or ctx.gateway is None:
                 return "lexical-rrf"        # not wired for hybrid (e.g. EMBED=off)
             try:
-                vecs = ctx.gateway.embed(["_engine_label_canary_"])
+                vecs = ctx.gateway.embed(["_engine_label_canary_"])  # type: ignore[attr-defined]
                 healthy = bool(vecs) and bool(vecs[0])
             except Exception:               # provider down / timeout / bad dim
                 healthy = False

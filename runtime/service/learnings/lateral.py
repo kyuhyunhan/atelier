@@ -172,7 +172,7 @@ def apply_tags(mapping: dict[str, list[str]],
     (per-entry tags dropped by the gate, regardless of counter).
     """
     from .. import api as _api
-    kw = {"probe_k": probe_k} if probe_k is not None else {}
+    kw: dict[str, Any] = {"probe_k": probe_k} if probe_k is not None else {}
 
     vault = _vault_root()
     # Concurrency note: the MCP tool layer serializes callers via the CURATOR

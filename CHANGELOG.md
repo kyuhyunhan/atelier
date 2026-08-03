@@ -4,6 +4,25 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Added — static analysis as a third CI gate (ruff + mypy)
+
+Open-sourcing track item 5. 19k lines of runtime Python were verified only by
+execution; before accepting external PRs the tree gets a static gate. Rule-set
+rationale lives in pyproject (bandit/blind-except deliberately OFF — this
+engine's log-and-continue except blocks are a posture, not oversights; E741
+ignored by policy). The tree was brought to zero in three reviewable layers:
+config, a purely mechanical `ruff --fix` pass (2,724 fixes, suite-verified),
+and judged hand-fixes.
+
+mypy's first pass earned its keep immediately: of 13 errors, three were the
+same **latent crash bug** — `log.error("event", msg=...)` collides with the
+logger's positional `msg` parameter, so the error handler itself raises
+TypeError and masks the original failure, at exactly the three places that
+report transport/RPC crashes. The other ten were type drift (a reused loop
+variable changing element type, a wrapped ASGI app reusing its inner name,
+duck-typed handles now declared as such).
+
+
 ### Added — `examples/vault-seed/`, a pinned synthetic demo vault
 
 Open-sourcing track item 3. A new adopter's first experience was an empty

@@ -114,8 +114,8 @@ def build_app(cfg: _config.Config) -> tuple[FastMCP, ASGIApp, str, int]:
     )
     _tools.add_to_fastmcp(fmcp)
 
-    asgi = fmcp.streamable_http_app()
-    asgi = BearerMiddleware(asgi, token_env=token_env)
+    inner = fmcp.streamable_http_app()
+    asgi = BearerMiddleware(inner, token_env=token_env)
     return fmcp, asgi, bind, port
 
 

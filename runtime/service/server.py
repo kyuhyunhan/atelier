@@ -16,15 +16,16 @@ import errno
 import fcntl
 import os
 import signal
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from ..util import config as _config
 from ..util import db as _db
 from ..util import logging as log
 
-TransportTask = Callable[["Supervisor"], Awaitable[None]]
+TransportTask = Callable[["Supervisor"], Coroutine[Any, Any, None]]
 
 
 # ── single-instance guard (pidfile, kernel-arbitrated via flock) ───────────
@@ -199,7 +200,7 @@ async def _run(transports: list[TransportTask]) -> int:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for r in results:
             if isinstance(r, Exception) and not isinstance(r, asyncio.CancelledError):
-                log.warn("transport.error", err=type(r).__name__, msg=str(r))
+                log.warn("transport.error", err=type(r).__name__, detail=str(r))
         _db.close_shared()
         _release_pidfile(pidfile)
         log.info("serve.stopped")

@@ -31,6 +31,11 @@ vault:
     url:  <REQUIRED — github.com/<your-username>/<your-vault-repo>>
     branch: main
   assets:
+    # dir: assets            # vault-relative folder clipped assets land in.
+    #                        # Default `assets/`. Set this if your vault already
+    #                        # has a historical asset folder under another name —
+    #                        # the name is embedded in markdown asset paths, so
+    #                        # changing it silently would split your assets.
     type: r2
     bucket: <OPTIONAL — your R2 bucket name>
     cdn:    <OPTIONAL — https://your-cdn-url/>

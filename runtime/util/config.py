@@ -150,6 +150,16 @@ class Config:
             d = (self.vault.assets or {}).get("dir")
             if d:
                 return str(d)
+        else:
+            # Legacy `spaces:` shape: the librarian space's assets block is the
+            # same knob — without this branch a legacy machine could not pin its
+            # historical dir, the exact failure the key exists to prevent.
+            try:
+                d = (self.space_by_role("librarian-territory").assets or {}).get("dir")
+                if d:
+                    return str(d)
+            except KeyError:
+                pass
         return "assets"
 
     def space_by_role(self, role: str) -> SpaceConfig:

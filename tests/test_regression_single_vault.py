@@ -1,4 +1,5 @@
-"""Regression coverage for the v0.2 wiki→vault single-vault rename.
+"""Regression coverage for the v0.2 single-vault collapse (the maintainer-named
+space → `vault:` config shape).
 
 Locks in: schema-driven (space-independent) classification, space-agnostic
 lint, D2 phantom-drift dedup, cross-domain + alias link resolution, and the

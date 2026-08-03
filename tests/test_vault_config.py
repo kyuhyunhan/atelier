@@ -150,3 +150,28 @@ def test_vault_root_falls_back_to_the_librarian_space(atelier_env: Dict) -> None
     cfg = _config.load()
     assert cfg.vault_root() == ws / "wiki"
     assert _config.vault_root() == ws / "wiki"      # module entry point too
+
+
+def test_asset_dir_default_and_pin(vault_env, monkeypatch):
+    """`vault.assets.dir` — neutral default, per-machine pin (PR #107)."""
+    import yaml
+    from runtime.util import config as _config
+    cfg_path = vault_env["home"] / "config.yaml"
+    raw = yaml.safe_load(cfg_path.read_text())
+    assert _config.load(cfg_path).asset_dir() == "assets"          # default
+    raw["vault"]["assets"] = {"dir": "historic-resources"}
+    cfg_path.write_text(yaml.safe_dump(raw))
+    assert _config.load(cfg_path).asset_dir() == "historic-resources"
+
+
+def test_asset_dir_legacy_spaces_shape(atelier_env):
+    """The legacy `spaces:` shape pins through the librarian space's assets
+    block — without the fallback a legacy machine silently loses the knob."""
+    import yaml
+    from runtime.util import config as _config
+    cfg_path = atelier_env["home"] / "config.yaml"
+    raw = yaml.safe_load(cfg_path.read_text())
+    assert _config.load(cfg_path).asset_dir() == "assets"
+    raw["spaces"]["wiki"]["assets"] = {"dir": "historic-resources"}
+    cfg_path.write_text(yaml.safe_dump(raw))
+    assert _config.load(cfg_path).asset_dir() == "historic-resources"

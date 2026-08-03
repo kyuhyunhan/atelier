@@ -51,7 +51,8 @@ Every line of evidence pointed one way:
   written an *empty* index (`page_count: 0`) — and the file had been stale for
   six weeks without anyone noticing, which is itself a consumer census.
 
-The `wiki_index` page_type **stays** in `schema/data/gorae.overlay.yaml` as a
+The `wiki_index` page_type **stays** in `schema/data/vault.overlay.yaml` (né
+`gorae.overlay.yaml`, renamed below) as a
 classification-only rule: nothing writes that type anymore, but an adopter's
 legacy vault may still hold such a file, and dropping the rule would make it
 classify as unknown. Classification is a statement about a path, not a

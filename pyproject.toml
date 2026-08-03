@@ -4,6 +4,17 @@ version = "0.1.0"
 description = "Methodology layer for a sovereign memory system"
 readme = "README.md"
 requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Text Processing :: Indexing",
+]
+
 license = { text = "MIT" }
 authors = [{ name = "The atelier authors" }]
 dependencies = [
@@ -13,6 +24,11 @@ dependencies = [
     # sqlite3 — stdlib
     # git — shell out via subprocess
 ]
+
+[project.urls]
+Homepage = "https://github.com/kyuhyunhan/atelier"
+Changelog = "https://github.com/kyuhyunhan/atelier/blob/main/CHANGELOG.md"
+Issues = "https://github.com/kyuhyunhan/atelier/issues"
 
 [project.optional-dependencies]
 dev = [

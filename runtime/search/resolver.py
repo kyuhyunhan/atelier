@@ -27,15 +27,14 @@ import sqlite3
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from .engine import Candidate, RetrievalEngine, Scope
 
-
-class EmbedGateway(Protocol):
-    """The one method retrieval needs from an embedding provider."""
-
-    def embed(self, texts: list[str]) -> list[list[float]]: ...
+if TYPE_CHECKING:
+    # Type-only: the runtime import of the AI layer stays function-local
+    # (module import time must not touch providers) — see build_context.
+    from ..ai.gateway import EmbeddingGateway
 
 
 # Rank-smoothing constant (Cormack, Clarke & Buettcher 2009). Larger C flattens
@@ -95,7 +94,7 @@ def rrf_fuse(rankings: Sequence[Sequence[int]]) -> list[int]:
 
 
 def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
-            gateway: EmbedGateway | None = None, k: int = 10) -> list[Candidate]:
+            gateway: EmbeddingGateway | None = None, k: int = 10) -> list[Candidate]:
     """Run every wired mode over `query`, fuse with RRF, return top-`k` Candidates.
 
     Modes:
@@ -174,7 +173,7 @@ def resolve(query: str, *, engine: RetrievalEngine, scope: Scope = Scope(),
     return out
 
 
-def _embed_query(query: str, gateway: EmbedGateway) -> list[float]:
+def _embed_query(query: str, gateway: EmbeddingGateway) -> list[float]:
     """One query → one embedding, or `[]` on any gateway failure. A read-path
     embedding failure (provider went down between bundle build and this call)
     must degrade to lexical-only, never raise — same posture as P2's reindex."""
@@ -202,7 +201,7 @@ class ResolverContext:
     DB connection is the caller's to close, as everywhere else)."""
 
     engine: RetrievalEngine
-    gateway: EmbedGateway | None = None
+    gateway: EmbeddingGateway | None = None
     _store: Any = None    # duck-typed vec-store handle (open/close)
 
     def close(self) -> None:

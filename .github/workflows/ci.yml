@@ -72,9 +72,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install (same extras as the test job — without them
-          # ignore_missing_imports turns starlette/mcp into Any and mypy
-          # goes blind to one of the 13 findings this gate exists to catch)
+      # Same extras as the test job: without them ignore_missing_imports turns
+      # starlette/mcp into Any and mypy goes blind to one of the very 13
+      # findings this gate exists to catch (PR #112 review, demonstrated).
+      - name: Install with the extras mypy needs
         run: pip install -e ".[dev,serve,semantic]"
       - run: ruff check runtime/ tests/ examples/ scripts/
       - run: mypy runtime/

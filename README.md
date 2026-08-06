@@ -1,225 +1,141 @@
 # atelier
 
-> **atelier is the engine.**
-> A public, distributable methodology layer for a sovereign personal memory
-> system. atelier knows nothing about *your* content: no user-specific paths,
-> repo names, topics, or identifiers live in this repo. All binding to your
-> world is supplied at runtime via `~/.atelier/config.yaml`.
-
----
-
-## What it is
-
-`atelier` defines schemas, agent persona contracts, and the runtime that turns
-markdown content — held in your own private repositories — into a queryable,
-synthesizable, self-linting brain. It is a public substrate; the content layer
-that runs on top of it is private to each adopter.
-
 **Most memory systems remember everything automatically. atelier makes
-memories earn their place.** A capture must carry its *why* to pass the
-acceptance gate; a memory earns promotion through surfacing tiers
-(query ⊂ proactive ⊂ always, the last hard-capped — 12 slots against 4,486
-claims today); every claim keeps a provenance chain to the immutable source
-it came from; and lens walls keep personal content out of coding sessions
-structurally, not by ranking luck. Retrieval numbers, with methodology and
-limits: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+memories earn their place.**
 
-**Claude Code-native, MCP-accessible.** atelier's daily loop (session
-bootstrap, signal recall, learning capture) is delivered through Claude Code
-hooks. Any MCP client can query the vault, but the full write–ask–tend
-contract currently assumes Claude Code.
+atelier turns markdown you own — notes, sources, captured lessons, kept in
+your **private** git repos — into a queryable, self-linting memory for AI
+agents. The engine is public and knows nothing about your content; everything
+personal binds at runtime through `~/.atelier/config.yaml`.
 
-## Architecture
+**Claude Code-native, MCP-accessible.** The daily loop (session bootstrap,
+signal recall, learning capture) is delivered through Claude Code hooks. Any
+MCP client can query the vault; the full write–ask–tend contract currently
+assumes Claude Code.
 
-Three layers, two stewards.
+## Why it's different
 
-**Layers**
+Where other memory systems auto-extract and rank, atelier gives memory an
+**editorial process**:
 
-- **Layer 1 — `atelier`** (this repo): the engine. Schemas, role contracts,
-  runtime, sync adapters, lint rules. Culture-neutral, distributable, content-agnostic.
-- **Layer 2 — content** (private per-user): markdown corpora in your own private
-  GitHub repos (or any git host) + asset stores. Owned by you; never enters
-  this repo.
-- **Layer 3 — local**: working copies + a derived SQLite index + per-host
-  config under `~/.atelier/`. Ephemeral; regenerable from Layer 2 at any time.
+- **An acceptance gate** — a captured lesson must carry its *why*, or it is
+  rejected. Memories start unproven and earn their status.
+- **Budgeted surfacing tiers** — `query ⊂ proactive ⊂ always`, and the
+  always-tier is hard-capped (12 slots against 4,486 claims today). Nothing
+  floods your context by default.
+- **Provenance chains** — every claim derives from an immutable source node;
+  "where did this memory come from" always has an answer.
+- **Lens walls** — one graph, but a coding session structurally cannot see
+  your diary (`dev` / `life` / `full` lenses + a `private` sensitivity gate
+  that is lint-enforced, not ranking luck).
 
-**Stewards**
+**Measured, on this repo's own eval harness** (methodology and limits in
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md)):
 
-- **Librarian** — owns the wiki integration layer (digests, sources, entities,
-  themes, syntheses) in whichever space you configure with
-  `role: librarian-territory`.
-- **Builder** — owns the workshop (per-product working memory) in whichever
-  space you configure with `role: builder-territory`.
+| Probe set | lexical-rrf | hybrid | Δ |
+|---|---|---|---|
+| paraphrase Recall@5 | 0.636 | **0.773** | +13.6 pp |
+| self-probe Recall@5 | 1.000 | 0.990 | −1.0 pp |
 
-A single SQLite database at `~/.atelier/cache/atelier.db` projects the markdown
-content for fast queries; it is derived, gitignored, and rebuildable from
-source at any time.
+Hybrid pays where wording diverges from storage; the numbers are
+self-measured, not comparative — we make no "beats X" claims.
 
-## Content model — the atomic knowledge graph
+## Try it in five minutes
 
-The content layer is an atomic property graph in three layers. **Markdown is
-truth; the DB is a projection.** See
-[`docs/rfc/0005-atomic-knowledge-graph.md`](docs/rfc/0005-atomic-knowledge-graph.md)
-for the full design and
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the system contract.
-
-**Layers**
-
-- **`raw/` (L1)** — immutable **Source** nodes: the original artifact plus full
-  provenance. A Source lands directly in its domain dir (`raw/<domain>/`); there
-  is no staging area.
-- **`graph/` (L2)** — flat **Entity + Claim** nodes, content-addressed. Claims
-  are atomic assertions; Entities are canonical subjects shared across sources.
-  `entry_id` is identity-based (never path-based), so nodes are rename- and
-  shard-safe.
-- **`~/.atelier/cache` (L3)** — a SQLite + vector projection. Derived,
-  gitignored, rebuildable from L1/L2 at any time.
-
-**Flow**
-
-```
-intake → atomize → project → recall
-```
-
-- **intake** — a Source lands in `raw/<domain>/`. "Un-atomized" is not a place
-  but a derived state: a Source with no Claim derived from it.
-- **atomize** — Source → Claims + Entities. Deterministic-bound (content-addressed
-  dedup); the LLM writes the claims. Human-ratified, run via `atelier-atomize`.
-- **project** — `reindex` rebuilds L3 with claim-granular embeddings.
-- **recall** — ranked by
-  `gate(surfacing) × domain_prior × relevance × sensitivity`. `private` nodes are
-  never pushed; the always-tier is capped by a hard budget.
-
-**Surfacing ladder.** Recall eligibility is a static ladder where each transition
-is a gate:
-
-```
-query (born, pending) ⊂ proactive (accepted) ⊂ always (dream-distilled)
-```
-
-### Triggers
-
-Steady-state principle: **automate the deterministic, gate the generative, and
-nudge so nothing silently backs up.** There is no system cron.
-
-- **Automatic / deterministic**
-  - **autosync poller** — 30 s, quiescence-gated; commits, pushes, and reindexes
-    changed files.
-  - **hook-capture** — SessionEnd / PreCompact; an operational learning is born
-    as a `surfacing: query`, pending Claim.
-  - **recall** — fires on UserPromptSubmit.
-- **Human-ratified / gated**
-  - **atomize** — Source → Claims + Entities, run via `atelier-atomize`.
-  - **promote** — `query → proactive` behind the acceptance gate, via
-    `atelier-consolidate`.
-  - **dream** — `proactive → always`: distill into the capped always-tier and
-    synthesize cross-claim generalizations, via `atelier-consolidate`.
-- **Nudges** — the unified `atelier_nudges` surface shows un-atomized,
-  eligible-to-promote, and dream-due work at SessionStart, so the gated edges
-  never silently back up.
-
-## Engine contract — what atelier MUST NOT know
-
-A strict invariant enforced by config validation and code review:
-
-- **No user-specific paths** as defaults (no `~/Documents/yourthing/`).
-- **No user-specific repo names** in source or commit metadata.
-- **No domain/cultural keywords** baked into the runtime (those live in
-  `~/.atelier/voices/{librarian,builder}.md` — out of tree).
-- **No fallbacks for missing config.** atelier refuses to start if
-  `~/.atelier/config.yaml` contains placeholders. Adoption requires
-  *deliberate* configuration.
-
-This is what makes atelier *public-safe* despite operating on private content:
-the engine is severed from the content by design, not by convention.
-
-## Quick start
+A synthetic demo vault ships with the repo — fictional people, invented
+notes, every node kind and tier represented:
 
 ```bash
-git clone https://github.com/<your-username>/atelier ~/workspaces/atelier
-cd ~/workspaces/atelier
-python3 -m venv .venv && .venv/bin/pip install -e ".[serve]"
-./scripts/setup
-# create ~/.atelier/{cache,voices,secrets} and copy config:
-cp config/example.config.yaml ~/.atelier/config.yaml
-# edit ~/.atelier/config.yaml — fill every <REQUIRED> field before continuing
-atelier setup
+cp -r examples/vault-seed /tmp/seed-vault
+# point a throwaway ~/.atelier/config.yaml at it, then:
 atelier reindex --full
+atelier search "WAL"        # retrieval
+atelier nudges              # pending curation work
+atelier doctor              # health checks
+```
 
-# Start the long-running engine. Claude Code in any directory connects
-# to this process over MCP (HTTP, loopback + bearer):
+[`examples/vault-seed/README.md`](examples/vault-seed/README.md) is the tour.
+The suite pins the seed against the live schema, so it cannot rot.
+
+## Install
+
+macOS/Linux, Python 3.11+, git. Your vault is any (private) git repo; start
+empty or with the seed.
+
+```bash
+git clone https://github.com/<your-fork>/atelier ~/workspaces/atelier
+cd ~/workspaces/atelier
+python3 -m venv .venv && .venv/bin/pip install -e ".[serve,semantic]"
+./scripts/setup                              # pre-commit guard + ~/.atelier check
+cp config/example.config.yaml ~/.atelier/config.yaml
+# fill every <REQUIRED> field — atelier refuses to start on placeholders
+atelier setup && atelier reindex --full
+
+# the long-running engine (MCP over HTTP, loopback + bearer):
 echo "ATELIER_MCP_HTTP_TOKEN=$(openssl rand -hex 24)" >> ~/.atelier/secrets/.env
 atelier serve --http
 ```
 
-All engine and hook output lands in one append-only log,
-`~/.atelier/logs/atelier.log` (override `ATELIER_LOG_FILE`; tune via the
-`logging:` config block or `ATELIER_LOG_LEVEL`). Each line is
-`ISO-8601 [LEVEL] [category] event key=value` and survives restarts — no shell
-redirection needed. `tail -f ~/.atelier/logs/atelier.log` to watch.
-
-Then register atelier as an MCP server in `~/.claude/mcp.json`:
+Register it once in `~/.claude/mcp.json`:
 
 ```json
-{
-  "mcpServers": {
-    "atelier": {
-      "transport": "http",
-      "url": "http://127.0.0.1:7322/mcp",
-      "headers": { "Authorization": "Bearer ${ATELIER_MCP_HTTP_TOKEN}" }
-    }
-  }
-}
+{ "mcpServers": { "atelier": {
+    "transport": "http", "url": "http://127.0.0.1:7322/mcp",
+    "headers": { "Authorization": "Bearer ${ATELIER_MCP_HTTP_TOKEN}" } } } }
 ```
 
-Now `claude` in any project directory can call `atelier_search`,
-`atelier_youtube`, `atelier_learning_capture`, etc. against your one
-content vault.
+Full walkthrough: [`docs/ADOPTING.md`](docs/ADOPTING.md). Logs:
+`~/.atelier/logs/atelier.log`.
 
-See [`docs/ADOPTING.md`](docs/ADOPTING.md) for a longer walkthrough,
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the system contract, and
-[`CHANGELOG.md`](CHANGELOG.md) for release scope.
+## Daily use — three verbs
+
+Everything else is machinery underneath these:
+
+- **Write (쓴다)** — drop markdown in the vault. The autosync poller commits,
+  pushes, and reindexes within ~60 s; you never run git for normal work.
+- **Ask (묻는다)** — talk to Claude. Session start injects context; relevant
+  lessons surface per prompt; deeper recall happens over MCP mid-task.
+- **Tend (돌본다)** — answer the nudges when you feel like it: atomize new
+  sources, promote proven lessons, let the dream pass distill principles.
+
+## How it works
+
+Three layers: **markdown is truth, the DB is a projection.**
+
+```
+your vault (private git)          ~/.atelier/cache (disposable)
+raw/     immutable Sources   →    SQLite + FTS5 + vectors
+graph/   Claims + Entities   →    rebuilt by `atelier reindex`
+```
+
+A Source lands in `raw/`; atomize mints content-addressed Claims and
+Entities from it; reindex projects everything into a local SQLite cache;
+recall serves it back ranked by
+`gate(surfacing) × domain_prior × relevance × sensitivity`. Deleting the
+cache loses nothing.
+
+Deep dives: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (system
+contract), [`docs/rfc/`](docs/rfc/) (design history, 0001–0009, every item
+shipped or formally dispositioned).
+
+## What the engine must never know
+
+Enforced by config validation, lint, CI, and review — not convention:
+
+- No user paths, repo names, or cultural keywords in the engine; personal
+  voice lives out-of-tree in `~/.atelier/voices/`.
+- No silent defaults for content locations — placeholder config refuses to
+  start.
+- No writes outside the configured vault; sources it ingests from are
+  read-only.
 
 ## Status
 
-`v0.2.4`. Engine + single-vault model + learnings domain.
-
-### What v0.2 added
-
-- **Single-vault rename regression fix + unification** (v0.2.4) —
-  classification is now schema-overlay-driven and space-identity-independent;
-  lint/promote are space-agnostic; doctor D2 no longer false-reports phantom
-  drift; cross-domain wikilinks resolve to one canonical entity; new **D7**
-  learnings-mirror reconcile (`atelier_learning_reconcile`).
-
-- **`atelier serve`** long-running engine; **MCP stdio + HTTP** transports
-  with bearer-auth + asyncio role locks.
-- **Single-vault model** — `vault:` + `subtrees:` config blocks; the
-  legacy two-space (`librarian-territory` + `builder-territory`) model
-  is collapsed into one repo. Workshop content + per-product memory
-  absorbed by one-shot migration scripts.
-- **Learnings domain** — `<vault>/learnings/{candidates,accepted,principles}/`
-  with agent-driven capture (a SessionStart disposition + a substance
-  gate keep captures substantive), acceptance-criteria-gated
-  promotion, cross-project **principles**, session-start injection,
-  per-turn signal recall, Claude-Code-memory absorption, and a
-  **usage-coupled dream cycle** for automated principle synthesis. See
-  *Learnings domain & dream cycle* in
-  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design
-  rationale (trigger model, interruption resilience).
-- **Capability ports** — `atelier_{validate, fix_pending,
-  prepare_commit, clip_image, new_doc, youtube}` replace the proto-engine
-  scripts inside the vault. See `scripts/vault_cleanup/CHECKLIST.md` to
-  remove them.
-
-### Backlog deferred to v0.3+
-
-- LLM facets reclass on prepare_commit; OpenAI STT path on YouTube
-- Discord transport (out of scope by user decision)
-- OAuth for MCP HTTP (currently static bearer + loopback only)
-- launchd / autostart (foreground-only by user decision)
-- Full R2 sync adapter; automatic AC scoring on learnings; vector /
-  hybrid search; L2 hallucination lint
+`v0.2`, single-vault model, actively developed by one maintainer.
+[`CHANGELOG.md`](CHANGELOG.md) carries the release history;
+[`CONTRIBUTING.md`](CONTRIBUTING.md) states this repo's (unusual) rules
+before your first PR; [`SECURITY.md`](SECURITY.md) scopes what is
+security-relevant on a local-first engine.
 
 ## License
 

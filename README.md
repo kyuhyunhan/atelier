@@ -129,6 +129,23 @@ The distinction that matters: after ingest + reindex a document is
 atomize does it become **memory**: split into facts that can earn their way
 up the surfacing tiers and be recalled without being asked for by name.
 
+### What runs itself, and what waits for you
+
+| Step | personal | knowledge / operational |
+|---|---|---|
+| commit + push (autosync) | automatic | automatic |
+| reindex → searchable | automatic | automatic |
+| **atomize → memory** | **manual, always** | **manual, always** |
+
+Atomize is never automatic in any domain — it needs LLM judgment, costs
+tokens, and touches your content, so a human pulls the trigger every time.
+The `personal` domain adds one more layer on top of that manual gate: the
+nudge *counts* its backlog but will not suggest running it — agents atomize
+personal sources only when you explicitly direct it, and the derived claims
+land `sensitivity: private` automatically (lint-enforced), which blocks them
+from ever being pushed proactively. A diary entry cannot become ambient
+context by accident; there is no code path for it.
+
 Deep dives: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (system
 contract), [`docs/rfc/`](docs/rfc/) (design history, 0001–0009, every item
 shipped or formally dispositioned).

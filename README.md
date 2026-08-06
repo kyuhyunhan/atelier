@@ -114,6 +114,21 @@ recall serves it back ranked by
 `gate(surfacing) × domain_prior × relevance × sensitivity`. Deleting the
 cache loses nothing.
 
+### The five words you'll actually meet
+
+| Term | What it is | Who does it |
+|---|---|---|
+| **ingest** | putting a document into the vault's `raw/` as a file — that's all it is | you (or an agent on your behalf) |
+| **Source** | the document once it's in `raw/`: an immutable original, never edited or summarized | (a state, not an action) |
+| **autosync** | the background poller that notices changed files and commits + pushes + reindexes for you | the engine, automatic |
+| **reindex** | re-projecting all markdown into the local SQLite cache that search and recall read | the engine, automatic |
+| **atomize** | extracting atomic facts (Claims) and subjects (Entities) from a Source into `graph/` | an LLM extracts, you ratify |
+
+The distinction that matters: after ingest + reindex a document is
+**searchable** (like a file in a drive — found when asked). Only after
+atomize does it become **memory**: split into facts that can earn their way
+up the surfacing tiers and be recalled without being asked for by name.
+
 Deep dives: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (system
 contract), [`docs/rfc/`](docs/rfc/) (design history, 0001–0009, every item
 shipped or formally dispositioned).

@@ -15,6 +15,15 @@ markdown content — held in your own private repositories — into a queryable,
 synthesizable, self-linting brain. It is a public substrate; the content layer
 that runs on top of it is private to each adopter.
 
+**Most memory systems remember everything automatically. atelier makes
+memories earn their place.** A capture must carry its *why* to pass the
+acceptance gate; a memory earns promotion through surfacing tiers
+(query ⊂ proactive ⊂ always, the last hard-capped — 12 slots against 4,486
+claims today); every claim keeps a provenance chain to the immutable source
+it came from; and lens walls keep personal content out of coding sessions
+structurally, not by ranking luck. Retrieval numbers, with methodology and
+limits: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
 **Claude Code-native, MCP-accessible.** atelier's daily loop (session
 bootstrap, signal recall, learning capture) is delivered through Claude Code
 hooks. Any MCP client can query the vault, but the full write–ask–tend

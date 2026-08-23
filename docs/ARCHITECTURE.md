@@ -623,16 +623,18 @@ audit snapshots of context injected into each Claude session, left untouched.
 ## Mobile Reservation
 
 The mobile channel is **out of scope for v0.1** but the architecture preserves
-three surviving vocabulary entries. Hard rule #6 (no dormant reservations)
+two surviving vocabulary entries. Hard rule #6 (no dormant reservations)
 draws the line at **producers**: a vocabulary entry with no writer costs
 nothing and stays; a landing directory, a writer, or a lifecycle field is
 deleted until something actually needs it (the `inbox` lane, `atelier_capture`,
-and `inbox_status` were retired 2026-08-14 on exactly that test):
+and `inbox_status` were retired 2026-08-14 on exactly that test). Note what
+is NOT in this table: `base.yaml.source` reads like a mobile reservation but
+`new-doc --template raw` writes it on every run — a live field with an active
+producer, never a dormant one:
 
 | Reservation | Where | Active in |
 |---|---|---|
-| `base.yaml.source` | schema/data/base.yaml | vocabulary only — no writer |
-| `claims.py` `mobile-claim` enum | runtime/service | vocabulary only — no writer |
+| `claims.py` `mobile-claim` enum | runtime/service | vocabulary only — no tool checks it |
 | `config.channels.mobile` | example.config.yaml | vocabulary only — commented out |
 
 v0.3 turns these on by adding an HTTPS endpoint and a mobile client. No

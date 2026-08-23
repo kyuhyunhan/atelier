@@ -36,10 +36,11 @@ deliberate resurrection.
 
 Hard rule #6 changed accordingly: **no dormant reservations** — a declared but
 never-exercised path is deleted, not kept warm. Applying that criterion to the
-rest of the mobile reservation table found two more things: `base.yaml.source`
-is not a reservation at all (`new-doc --template raw` writes it on every run,
-so it left the table rather than the codebase), and `mobile-claim` was still
-being *granted* to every bearer-authenticated caller while this commit deleted
+rest of the mobile reservation table found two more things:
+`base.yaml.source` is not a reservation at all (`new-doc --template raw`
+writes it on every run, so it left the table rather than the codebase), and
+`mobile-claim` was still being *granted* to every bearer-authenticated
+caller while this commit deleted
 its only checker — a capability nothing checks is exactly the dormant shape, so
 the grant is dropped and returns with the tool that checks it. A future mobile door brings its
 own landing lane when it is actually built.

@@ -74,7 +74,7 @@ def test_seed_reindexes_validates_no_lint_fails(vault_env: dict) -> None:
 
 def test_seed_atomize_nudge_is_actually_due(vault_env: dict) -> None:
     """The README promises `atelier nudges` shows work — pin it. Two Sources
-    (the inbox capture and the soil note) have no derived Claim."""
+    (the drip-irrigation clip and the soil note) have no derived Claim."""
     _install_seed(vault_env)
     from runtime.service import api
     api.reindex(full=True)

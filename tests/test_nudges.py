@@ -27,7 +27,7 @@ _NOW = "2026-06-19T12:00:00+00:00"
 # ── fixtures: write v7 source / claim nodes ──────────────────────────────────
 
 
-def _source(vault: Path, eid: str, subdir: str = "inbox") -> None:
+def _source(vault: Path, eid: str, subdir: str = "off-lane") -> None:
     write_page(
         vault / _structure.source_scan_root() / subdir / f"{eid}.md",
         {"entry_id": eid, "schema_version": 7, "kind": "source",

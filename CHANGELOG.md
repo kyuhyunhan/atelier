@@ -22,7 +22,14 @@ Gone: `runtime/service/capture.py`, the `atelier_capture` MCP tool, the
 domain enums and the lens manifest, the `inbox_status` field and its overlay
 block, and two L6 lint exemptions for a `personal/inbox/` path that never held
 a file. `new_doc`'s `raw` template now lands in `raw/personal/` instead of a
-`raw/personal/inbox/` that was never created. Three tests pin the retirement
+`raw/personal/inbox/` that was never created.
+
+One coupling worth stating plainly (review [Q]): those L6 exemptions were the
+*designated* coverage for that template's output — dead only because the
+template had never been run, not because the path was unreachable. So
+`atelier new-doc --template raw` now emits docs that L6 `check_stale_sources`
+flags at INFO. That is the honest signal: `covered_by: inbox_status` was always
+a fiction, since nothing ever read that field. Three tests pin the retirement
 (module absent via `find_spec`, tool unregistered, `inbox` rejected as an
 intake domain and absent from the schema enum), each reverse-tested against a
 deliberate resurrection.

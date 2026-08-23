@@ -130,6 +130,9 @@ def intake_subpath(domain: str) -> str:
     return intake[domain]
 
 
+# --- Homes ----------------------------------------------------------------
+
+
 def home(page_type: str) -> str:
     """Vault-relative write dir for a node `page_type`.
 
@@ -150,8 +153,9 @@ def source_scan_root() -> str:
 
     RFC 0005 §3: a Source IS the ingested artifact upgraded to an L1 node, so it
     lives in the content tree (`raw/…`) — artifact-backed sources under
-    raw/<domain>/. There is no graph source home. The atomize nudge (§7.2) enumerates Source nodes by scanning
-    THIS root recursively and filtering on `kind: source` (the discriminator is
+    raw/<domain>/. There is no graph source home. The atomize nudge (§7.2)
+    enumerates Source nodes by scanning THIS root recursively and filtering on
+    `kind: source` (the discriminator is
     a FIELD, never the path), so any raw/ source counts regardless of subdir.
     """
     return content_root()

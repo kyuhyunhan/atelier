@@ -194,8 +194,9 @@ def test_capture_tool_is_unregistered() -> None:
 
 
 def test_inbox_is_not_an_intake_domain() -> None:
-    """Schema-level: `inbox` must not come back as an intake lane or a domain
-    enum value — the two places a resurrection would land."""
+    """Schema-level: `inbox` must not come back as an intake lane, a source
+    domain, or an entity in_scheme value — the three places a resurrection
+    would land, each independently load-bearing."""
     import pytest as _pytest
 
     from runtime.structure import resolver as _resolver
@@ -208,5 +209,8 @@ def test_inbox_is_not_an_intake_domain() -> None:
     import yaml
     overlay = yaml.safe_load(
         (Path(__file__).resolve().parents[1] / "schema/data/graph.overlay.yaml").read_text())
-    dom = overlay["page_types"]["source"]["field_specs"]["domain"]["enum"]
-    assert "inbox" not in dom
+    pt = overlay["page_types"]
+    assert "inbox" not in pt["source"]["field_specs"]["domain"]["enum"]
+    # entity carries its own vocabulary (in_scheme) — an in_scheme-only
+    # resurrection passed every assert until this line existed.
+    assert "inbox" not in pt["entity"]["field_specs"]["in_scheme"]["items"]["enum"]

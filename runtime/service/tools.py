@@ -204,6 +204,7 @@ async def _h_reindex(space: str | None = None, full: bool = False) -> dict[str, 
 # zero producers and zero consumers across the vault's whole git history;
 # see the CHANGELOG entry. Two tests pin that it stays gone.
 
+
 async def _h_promote_propose() -> dict[str, Any]:
     """List accepted query-only claims awaiting promotion; emit a proposal doc."""
     return _api.promote_propose()

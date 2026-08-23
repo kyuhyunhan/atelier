@@ -118,7 +118,6 @@ fields:
     nullable: true
     description: "Capture channel: mobile | web-clipper | manual | vault-new"
 
-
 upgrades:
   v3_to_v4:
     description: "Non-breaking. schema_version bump only; all field meanings preserved."

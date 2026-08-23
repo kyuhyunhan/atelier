@@ -22,8 +22,8 @@ roots:
 
 # --- Intake ---------------------------------------------------------------
 # domain -> write dir RELATIVE TO content_root (personal, knowledge) or
-# to the vault root (workshop, which lives outside content_root). The four
-# The intakes (personal · knowledge · operational · workshop) are cosmetic
+# to the vault root (workshop, which lives outside content_root). The intakes
+# (personal · knowledge · operational · workshop) are cosmetic
 # landing dirs; ALL classification is a frontmatter field, never the path.
 #
 # RETIRED 2026-08-14: `inbox` was a first-class intake for domain-undetermined

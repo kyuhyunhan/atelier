@@ -122,7 +122,7 @@ def test_new_doc_raw(atelier_env: dict) -> None:
                       fields={"title": "Quick capture"})
     p = Path(out["path"])
     assert p.exists()
-    assert "raw/personal/inbox/2026-05-28-note.md" in str(p)
+    assert "raw/personal/2026-05-28-note.md" in str(p)
     text = p.read_text()
     assert "Quick capture" in text
 
@@ -171,3 +171,46 @@ def test_mcp_dispatch_fix_pending(atelier_env: dict) -> None:
         return await _tools.invoke("atelier_fix_pending", dry_run=False)
     out = asyncio.run(go())
     assert out["count"] == 1
+
+
+# ── inbox intake retirement (2026-08-14) ──────────────────────────────────
+#
+# `raw/inbox/` was a first-class intake for domain-undetermined captures. It
+# received zero organic documents across the vault's entire git history and its
+# only writer (`atelier_capture`) was never called; `inbox_status`, the field it
+# stamped, had no reader. Retired whole rather than repaired — same evidence bar
+# as the index_regen retirement (#87). These pin that it stays gone.
+
+def test_capture_service_is_gone() -> None:
+    """Asserts on find_spec, not ImportError: the latter also passes when the
+    module is present but raises internally — the case a retirement guard most
+    needs to fail on."""
+    assert importlib.util.find_spec("runtime.service.capture") is None
+
+
+def test_capture_tool_is_unregistered() -> None:
+    from runtime.service import tools as _tools
+    assert "atelier_capture" not in {t.name for t in _tools.iter_tools()}
+
+
+def test_inbox_is_not_an_intake_domain() -> None:
+    """Schema-level: `inbox` must not come back as an intake lane, a source
+    domain, or an entity in_scheme value — the three places a resurrection
+    would land, each independently load-bearing."""
+    import pytest as _pytest
+
+    from runtime.structure import resolver as _resolver
+    with _pytest.raises(KeyError):
+        _resolver.intake_dir("inbox")
+    assert not hasattr(_resolver, "inbox_dir")
+
+    from pathlib import Path
+
+    import yaml
+    overlay = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / "schema/data/graph.overlay.yaml").read_text())
+    pt = overlay["page_types"]
+    assert "inbox" not in pt["source"]["field_specs"]["domain"]["enum"]
+    # entity carries its own vocabulary (in_scheme) — an in_scheme-only
+    # resurrection passed every assert until this line existed.
+    assert "inbox" not in pt["entity"]["field_specs"]["in_scheme"]["items"]["enum"]

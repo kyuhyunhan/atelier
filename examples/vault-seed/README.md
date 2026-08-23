@@ -39,7 +39,7 @@ atelier doctor              # D1–D6 and D8 on a healthy tiny vault
 | domains + the dev/life/full lens wall | knowledge / operational vs the `personal` diary claim |
 | `sensitivity: private` never pushed proactively | `seed-clm-tomatoes` (derived from the private diary) |
 | the learning accept gate (pending → passed) | `seed-clm-learning-pending` vs `-passed` |
-| the atomize nudge counting un-derived Sources | the inbox capture + the soil note (both have no Claim) |
+| the atomize nudge counting un-derived Sources | the drip-irrigation clip + the soil note (both have no Claim) |
 | entity wikilinks in claim bodies | `[[SQLite]]`, `[[홍길동]]` resolve via the entity alias index |
 | builder territory | `workshop/products/demo-widget/` |
 

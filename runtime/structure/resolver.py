@@ -77,7 +77,7 @@ def expand_content_root(value: str) -> str:
     """Expand a `{content_root}` placeholder in a structural path string.
 
     The ONE composition point for content-rooted schema data (homes,
-    overlay path_patterns, inbox.path). Strings without the placeholder pass
+    overlay path_patterns). Strings without the placeholder pass
     through unchanged, so callers may pass already-absolute structural paths.
     """
     return value.replace("{content_root}", content_root())
@@ -113,7 +113,7 @@ def intake_dir(domain: str) -> str:
     top-level tree. Returns a vault-relative POSIX path.
     """
     intake = _data()["intake"]
-    if domain not in intake or domain == "inbox_subpath":
+    if domain not in intake:
         raise KeyError(f"unknown intake domain: {domain!r}")
     sub = intake[domain]
     if domain == "workshop":
@@ -125,31 +125,14 @@ def intake_subpath(domain: str) -> str:
     """The raw intake `sub` for a domain, RELATIVE to its base (content_root for
     personal/knowledge, vault root for workshop). e.g. personal -> `personal`."""
     intake = _data()["intake"]
-    if domain not in intake or domain == "inbox_subpath":
+    if domain not in intake:
         raise KeyError(f"unknown intake domain: {domain!r}")
     return intake[domain]
 
 
-def inbox_subpath() -> str:
-    """Legacy leaf name under the personal intake dir (today: `inbox`).
-
-    Retained only for the un-migrated new_doc `raw` template. New captures land
-    in the first-class `inbox` intake domain via `inbox_dir()` / `intake_dir`.
-    """
-    return _data()["intake"]["inbox_subpath"]
-
-
-def inbox_dir() -> str:
-    """Ad-hoc capture landing dir — the first-class `inbox` intake domain.
-
-    RFC 0005 §3: `inbox` is a sibling of personal/knowledge (today: `raw/inbox`),
-    NOT a leaf under personal. A manual capture is domain-*undetermined*; its
-    domain is an explicit frontmatter field, never decreed by the landing path.
-    """
-    return intake_dir("inbox")
-
-
 # --- Homes ----------------------------------------------------------------
+
+
 def home(page_type: str) -> str:
     """Vault-relative write dir for a node `page_type`.
 
@@ -170,22 +153,12 @@ def source_scan_root() -> str:
 
     RFC 0005 §3: a Source IS the ingested artifact upgraded to an L1 node, so it
     lives in the content tree (`raw/…`) — artifact-backed sources under
-    raw/<domain>/, the thin session Source under raw/inbox/. There is no graph
-    source home. The atomize nudge (§7.2) enumerates Source nodes by scanning
-    THIS root recursively and filtering on `kind: source` (the discriminator is
+    raw/<domain>/. There is no graph source home. The atomize nudge (§7.2)
+    enumerates Source nodes by scanning THIS root recursively and filtering on
+    `kind: source` (the discriminator is
     a FIELD, never the path), so any raw/ source counts regardless of subdir.
     """
     return content_root()
-
-
-def session_source_dir() -> str:
-    """Vault-relative dir where a capture's thin SESSION Source is born.
-
-    RFC 0005 §3/§7.1: a manual/operational capture is domain-undetermined at the
-    door, so its thin session Source lands in the inbox intake (today raw/inbox),
-    NOT in graph/. Single-sourced from inbox_dir() so a root/intake flip moves it.
-    """
-    return inbox_dir()
 
 
 def operational_source_dir() -> str:
@@ -193,7 +166,7 @@ def operational_source_dir() -> str:
 
     RFC 0007: operational input is domain-known and already atomic, so it lands
     as its own content-addressed Source in the `operational` intake lane
-    (today raw/operational), NOT on the shared inbox anchor. Single-sourced from
+    (today raw/operational), NOT on a shared anchor. Single-sourced from
     intake_dir() so a root/intake flip moves it.
     """
     return intake_dir("operational")

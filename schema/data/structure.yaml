@@ -21,26 +21,21 @@ roots:
   graph_root: graph
 
 # --- Intake ---------------------------------------------------------------
-# domain -> write dir RELATIVE TO content_root (personal, knowledge, inbox) or
-# to the vault root (workshop, which lives outside content_root). The four
-# intakes (personal · knowledge · inbox · workshop, RFC 0005 §3) are cosmetic
+# domain -> write dir RELATIVE TO content_root (personal, knowledge) or
+# to the vault root (workshop, which lives outside content_root). The intakes
+# (personal · knowledge · operational · workshop) are cosmetic
 # landing dirs; ALL classification is a frontmatter field, never the path.
 #
-# `inbox` is a FIRST-CLASS intake sibling of personal/knowledge — NOT a leaf
-# under personal. RFC 0005 §2/§3: a manual capture is domain-*undetermined*; the
-# old `personal/inbox/` path decreed every captured note "personal" by channel
-# accident. A capture now lands in `raw/inbox/` carrying an explicit `domain`
-# field (default `inbox/undetermined`); classification is field-based.
-#
-# inbox_subpath is retained as the legacy leaf name only for the un-migrated
-# new_doc `raw` template; new captures use the `inbox` domain above.
+# RETIRED 2026-08-14: `inbox` was a first-class intake for domain-undetermined
+# mobile/quick captures. It never received a single organic document in the
+# vault's whole history and its writer (atelier_capture) was never called;
+# both are gone. A future mobile door reintroduces its own landing dir then.
+
 intake:
   personal: personal           # under content_root  -> raw/personal
   knowledge: knowledge         # under content_root  -> raw/knowledge
-  inbox: inbox                 # under content_root  -> raw/inbox
   operational: operational     # under content_root  -> raw/operational (RFC 0007: capture/absorb Sources)
   workshop: workshop           # under vault root     -> workshop
-  inbox_subpath: inbox         # legacy leaf under personal intake (new_doc raw)
 
 # --- Atomize policy (the personal invariant, as DATA — hard rule #3) --------
 # Policy decided 2026-07 (reconciles ARCHITECTURE.md's old "NEVER atomized"
@@ -70,7 +65,7 @@ homes:
   #   L1 SOURCE — lives in the content tree (`raw/…`), NOT in graph/. A Source
   #   IS the ingested artifact upgraded to a node (artifact-backed sources sit
   #   under raw/<domain>/; the thin session Source a capture is born with lands
-  #   under raw/inbox/ via inbox_dir()). There is NO `atomic_source` home: the
+  #   under its own raw/<domain>/). There is NO `atomic_source` home: the
   #   graph/atomic/sources tree was the legacy DIGEST layer (RFC 0005 P9) and is
   #   gone. The atomize nudge (§7.2) enumerates L1 Source nodes by scanning the
   #   whole content tree (source_scan_root, = content_root) for kind:source.

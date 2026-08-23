@@ -21,14 +21,16 @@ from . import claims as _claims
 # Default claim set granted to a bearer-authenticated MCP-HTTP caller.
 # Read-only tools never check claims. Write tools check the specific
 # claim they need; the bearer-authenticated session carries all of these
-# in v0.2 (single owner-user).
+# in v0.2 (single owner-user). `mobile-claim` was dropped 2026-08-14 with the
+# inbox retirement: its only checker was atelier_capture, and granting a
+# capability no tool checks is the dormant shape hard rule #6 targets. A
+# mobile door re-adds it alongside the tool that checks it.
 _BEARER_DEFAULT_CLAIMS = frozenset({
     _claims.Claim.WIKI_WRITE,
     _claims.Claim.LEARNINGS_WRITE,
     _claims.Claim.CAPTOR_WRITE,
     _claims.Claim.CURATOR_WRITE,
     _claims.Claim.PROMOTE_APPLY,
-    _claims.Claim.MOBILE_CLAIM,
     _claims.Claim.DOCTOR_REMEDIATE,
 })
 

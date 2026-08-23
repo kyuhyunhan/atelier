@@ -108,7 +108,7 @@ def test_born_nodes_pass_the_v7_schema_validator(atelier_env: dict) -> None:
     """The claim, its thin session Source, and the resolved is_about Entity that
     capture mints must all satisfy the v7 schema (required fields + enums:
     generated_by ∈ {ingest,…}, source/entity in_scheme ∈ {personal,knowledge,
-    inbox,workshop}). This guards the field-spec enums the migration enforces."""
+    operational,workshop}). Guards the field-spec enums the migration enforces."""
     from runtime.lint.validate_v4 import validate_paths
     out = _cap.capture(
         observation="overlay bug", why="needs a stable key", rule="stabilize keys",

@@ -34,7 +34,7 @@ RFC 0003 sections below record the evolution. Canonical definition lives in
 | Schema authority | `<vault>/SCHEMA.md` (inline) | `atelier/schema/data/*.yaml` |
 | Lint rules | Prose in SCHEMA.md | Machine-readable `lint.yaml` |
 | DB | None | SQLite (`~/.atelier/cache/atelier.db`) |
-| Mobile fields | Not present | `source`, `inbox_status` in `base.yaml` (nullable, not validated until Phase H) |
+| Mobile fields | Not present | `source` in `base.yaml` (nullable vocabulary; `inbox_status` was defined here too and retired 2026-08-14 with the inbox lane) |
 
 ### What did NOT change (v3 → v4)
 
@@ -83,7 +83,6 @@ Defined in `schema/data/base.yaml`. All spaces inherit these.
 | `embedded_assets` | array | no | R2 asset keys; populated by hook |
 | `word_count` | integer | no | Populated by hook |
 | `source` | string | no | Capture channel (mobile-ready, nullable) |
-| `inbox_status` | enum | no | `pending`\|`processed`\|`archived` (mobile-ready) |
 
 ---
 

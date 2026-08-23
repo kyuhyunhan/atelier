@@ -445,7 +445,6 @@ runtime/
 │   ├── api.py          shared funnel that CLI + MCP both call into
 │   ├── auth.py         Session + bearer-token validation
 │   ├── claims.py       capability claims + per-role asyncio write locks
-│   ├── capture.py      raw-inbox capture (mobile-reserved)
 │   ├── jobs/           youtube · clip · prepare · pending · new_doc
 │   └── learnings/      capture · review · principles · dream · cluster ·
 │                       bootstrap · recall · absorb_claude · indexes ·
@@ -481,7 +480,6 @@ in v0.2 without restructuring.
 │   │                                 2026-07; supersedes the old "NEVER atomized" prose, which the
 │   │                                 live corpus already contradicted)
 │   ├── knowledge/                    domain: knowledge — atomized into graph/atomic/
-│   ├── inbox/                        domain: inbox — first-class capture intake (was personal/inbox)
 │   └── learning/                     dev-self lessons (relocated here from top-level learnings/, RFC 0003 P6)
 │       └── candidates/, notes/<YYYY-MM>/, principles/, archived/
 ├── graph/                            knowledge graph — engine-written (graph_root; renamed from `wiki/`)
@@ -625,15 +623,19 @@ audit snapshots of context injected into each Claude session, left untouched.
 ## Mobile Reservation
 
 The mobile channel is **out of scope for v0.1** but the architecture preserves
-five named entry points:
+two surviving vocabulary entries. Hard rule #6 (no dormant reservations)
+draws the line at **producers**: a vocabulary entry with no writer costs
+nothing and stays; a landing directory, a writer, or a lifecycle field is
+deleted until something actually needs it (the `inbox` lane, `atelier_capture`,
+and `inbox_status` were retired 2026-08-14 on exactly that test). Note what
+is NOT in this table: `base.yaml.source` reads like a mobile reservation but
+`new-doc --template raw` writes it on every run — a live field with an active
+producer, never a dormant one:
 
 | Reservation | Where | Active in |
 |---|---|---|
-| `base.yaml.source` and `inbox_status` | schema/data/base.yaml | Phase 1 (defined, nullable) |
-| `raw/inbox/` directory | vault | Phase 9 (created on first capture) |
-| `runtime/service/capture.py` | runtime | Phase 7 (function, no HTTP) |
-| `claims.py` `mobile-claim` enum | runtime/service | Phase 7 (placeholder) |
-| `config.channels.mobile` | example.config.yaml | Phase 0 (commented) |
+| `claims.py` `mobile-claim` enum | runtime/service | vocabulary only — no tool checks it |
+| `config.channels.mobile` | example.config.yaml | vocabulary only — commented out |
 
 v0.3 turns these on by adding an HTTPS endpoint and a mobile client. No
 schema or DB migration is required at that time.

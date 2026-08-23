@@ -28,7 +28,7 @@ page_types:
       [schema_version, entry_id, sensitivity, created_at]
     optional_fields:
       [title, summary, collected_at, edited_at, embedded_assets, word_count,
-       source, inbox_status]
+       source]
     notes: "entry_id PENDING allowed pre-commit; hook resolves to UUID v5."
 
   # ── Structural / generated pages (classification-only, no frontmatter contract) ──
@@ -148,13 +148,3 @@ entity_thresholds:
   book:               1
   concept_personal:   3
   concept_domain:     2
-
-inbox:
-  # `{content_root}` expanded by the overlay loader (single root constant).
-  # RFC 0005: inbox is a first-class intake sibling (raw/inbox), not under personal/;
-  # matches resolver.inbox_dir() so the (Phase-9-dormant) inbox-status pass scans
-  # where capture actually lands.
-  path: "{content_root}/inbox/"
-  status_field: inbox_status
-  pending_value: pending
-  note: "Mobile inbox target. Directory created in Phase 9 operational soak."

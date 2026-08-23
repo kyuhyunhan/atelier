@@ -24,18 +24,14 @@ def test_roots():
 def test_intake_dirs():
     assert resolver.intake_dir("personal") == "raw/personal"
     assert resolver.intake_dir("knowledge") == "raw/knowledge"
-    assert resolver.intake_dir("inbox") == "raw/inbox"
     assert resolver.intake_dir("workshop") == "workshop"
-    # `inbox` is a first-class intake sibling of personal/knowledge (RFC 0005
-    # §3), NOT a leaf under personal — captures are not personal-by-channel.
-    assert resolver.inbox_dir() == "raw/inbox"
 
 
 def test_intake_rejects_unknown():
     with pytest.raises(KeyError):
         resolver.intake_dir("nope")
     with pytest.raises(KeyError):
-        resolver.intake_dir("inbox_subpath")
+        resolver.intake_dir("no-such-domain")
 
 
 def test_homes():
@@ -56,7 +52,6 @@ def test_atomic_dirs():
     # graph/atomic/ (RFC 0005 §3/P9.4: "graph/ one flat space, NEVER by kind"),
     # both homes pointing at the same dir, discriminated by the `kind` field.
     assert resolver.source_scan_root() == "raw"        # L1 scan root (content)
-    assert resolver.session_source_dir() == "raw/inbox"  # thin session Source
     assert resolver.atomic_claim_dir() == "graph/atomic"
     assert resolver.atomic_entity_dir() == "graph/atomic"
     # The legacy graph source home is gone (RFC 0005 P9 collapsed the digest layer).

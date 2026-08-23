@@ -30,7 +30,7 @@ def test_life_and_full_lenses() -> None:
     assert not _lenses.matches("life", "claim", "operational")   # life is not dev
     # full is the no-wall lens: admits everything
     for k in ("claim", "source", "entity"):
-        for d in ("personal", "knowledge", "operational", "inbox", "workshop"):
+        for d in ("personal", "knowledge", "operational", "workshop"):
             assert _lenses.matches("full", k, d)
 
 
@@ -49,7 +49,7 @@ def test_dev_lens_all_match_entity_semantics() -> None:
 
 def test_coverage_gate_holds() -> None:
     pairs = [(k, d) for k in ("claim", "source", "entity")
-             for d in ("personal", "knowledge", "inbox", "workshop", "operational")]
+             for d in ("personal", "knowledge", "workshop", "operational")]
     v = _lenses.validate_coverage(pairs)
     assert v["ok"] is True
     assert v["uncovered"] == []

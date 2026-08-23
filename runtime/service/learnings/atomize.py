@@ -53,7 +53,7 @@ def _source_ids(vault: Path) -> set[str]:
     RFC 0005 §3/§7.2: Source is an L1 node living in the content tree (raw/…),
     not a graph digest dir. We scan source_scan_root() (= content_root)
     recursively and keep only kind:source — so artifact-backed sources under
-    raw/<domain>/ AND thin session sources under raw/inbox/ both count,
+    every kind:source file under raw/<domain>/ counts,
     classified by the `kind` FIELD regardless of subdir."""
     out: set[str] = set()
     base = vault / _structure.source_scan_root()

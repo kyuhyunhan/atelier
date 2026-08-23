@@ -143,16 +143,6 @@ def sync(action: str, space: str | None = None,
 
 # ── Write-side ───────────────────────────────────────────────────────────────
 
-def capture_text(text: str, source: str = "manual", title: str | None = None,
-                 domain: str = "inbox/undetermined", sensitivity: str = "private",
-                 token: str | None = None) -> dict[str, Any]:
-    ctx = auth.authenticate(token)
-    from . import capture as _capture
-    path = _capture.capture(text=text, source=source, title=title,
-                            domain=domain, sensitivity=sensitivity, ctx=ctx)
-    return {"path": str(path)}
-
-
 def promote_propose(token: str | None = None) -> dict[str, Any]:
     from ..promote import propose
     return propose.propose_all()

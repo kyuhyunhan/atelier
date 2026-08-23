@@ -277,7 +277,7 @@ def find_entity_by_entry_id(entry_id: str, vault: Path) -> Path | None:
 #
 # RFC 0005 P10 simplifies operational-learning provenance: instead of minting a
 # per-learning thin session-metadata Source (one stub per claim, cluttering the
-# inbox and redundant with the §4.3 claim extension fields), every operational
+# a shared stub and redundant with the §4.3 claim extension fields), every operational
 # claim derives_from ONE shared canonical L1 Source. The session metadata that
 # used to live on that per-learning stub (agent_kind/hook/session_id/working_dir/
 # captured_at) now lives ON the claim as §4.3 extension fields.

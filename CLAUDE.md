@@ -34,8 +34,13 @@ tooling. Content (the actual user IP) lives in separate private repos.
 5. **Single writer per space.** Librarian writes the wiki; builder
    writes the workshop. Other ops require explicit claims and may be
    `PROTECTED` (cost-bearing or invariant-breaking).
-6. **Mobile is reserved, not built.** Schema fields, capture function,
-   claim enums for mobile exist but remain inactive in `v0.1`.
+6. **No dormant reservations.** A path that is declared but never
+   exercised is deleted, not kept warm — the `inbox` intake, its
+   `atelier_capture` writer, and the `inbox_status` field were retired
+   2026-08-14 after receiving zero organic documents in the vault's whole
+   history. A future mobile door brings its own landing lane when it is
+   actually built. (The `mobile-claim` enum survives only as a claim
+   vocabulary entry, with no writer behind it.)
 7. **Never mutate source material — only the vault.** atelier writes
    *only* to its own configured vault and the artifacts it
    produces there. Everything atelier ingests *from* is **read-only and

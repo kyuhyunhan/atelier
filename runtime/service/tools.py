@@ -200,16 +200,9 @@ async def _h_reindex(space: str | None = None, full: bool = False) -> dict[str, 
     return {"results": _api.reindex(space=space, full=full)}
 
 
-async def _h_capture(text: str, source: str = "manual",
-                     title: str | None = None,
-                     domain: str = "inbox/undetermined") -> dict[str, Any]:
-    """Land a short note in the `inbox` intake domain (raw/inbox/).
-
-    `domain` is carried as an explicit field (default `inbox/undetermined`); the
-    capture is NOT decreed personal-by-channel.
-    """
-    return _api.capture_text(text, source=source, title=title, domain=domain)
-
+# `atelier_capture` was RETIRED here — the inbox intake it landed into had
+# zero producers and zero consumers across the vault's whole git history;
+# see the CHANGELOG entry. Two tests pin that it stays gone.
 
 async def _h_promote_propose() -> dict[str, Any]:
     """List accepted query-only claims awaiting promotion; emit a proposal doc."""
@@ -871,12 +864,6 @@ def _register_v01_tools() -> None:
                      "Rebuild SQLite projection from markdown.",
                      _h_reindex,
                      claim=_claims.Claim.WIKI_WRITE,
-                     lock_role=_claims.WriterRole.WIKI))
-    register(ToolDef("atelier_capture",
-                     "Land a short note in the inbox intake domain (raw/inbox/) "
-                     "with an explicit domain field (default inbox/undetermined).",
-                     _h_capture,
-                     claim=_claims.Claim.MOBILE_CLAIM,
                      lock_role=_claims.WriterRole.WIKI))
     register(ToolDef("atelier_promote_apply",
                      "Apply a promotion proposal — flips reviewed claims' "

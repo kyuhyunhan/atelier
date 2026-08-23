@@ -41,7 +41,7 @@ page_types:
       # legacy 'provenance' field -> domain (RFC 0005 §4.1).
       # `operational` (RFC 0007): the raw/operational/ lane for capture/absorb
       # Sources (born-as-Source + deterministic mint).
-      domain:      { type: string, enum: [personal, knowledge, inbox, workshop, operational] }
+      domain:      { type: string, enum: [personal, knowledge, workshop, operational] }
       attributed_to: { type: string }   # PROV-O wasAttributedTo: authoring channel
       content_hash:  { type: string }
       summary:       { type: string }
@@ -91,14 +91,14 @@ page_types:
                Organization, Project, Emotion, Role, Model]
       in_scheme:                                          # skos:inScheme [domain]
         type: array
-        items: { type: string, enum: [personal, knowledge, inbox, workshop, operational] }
+        items: { type: string, enum: [personal, knowledge, workshop, operational] }
       gloss:       { type: string }
       content_hash: { type: string }
       # links: [{to, rel, why}], rel in broader|narrower|related (SKOS).
       links:       { type: array }
 
   # ── L2 claim — nanopublication assertion (RFC 0005 §4.3) ──
-  # assertion + provenance (PROV-O) + recall policy + optional inbox/learning ext.
+  # assertion + provenance (PROV-O) + recall policy + optional learning ext.
   claim:
     kind: claim
     path_pattern: "graph/*.md"
@@ -109,7 +109,7 @@ page_types:
        surfacing, domain, sensitivity]
     optional_fields:
       [links, context, project,
-       # optional inbox / learning-derived extension:
+       # optional learning-derived extension:
        observation_kind, ac_status, agent_kind, hook, session_id,
        working_dir, why_status]
     field_specs:
@@ -131,7 +131,7 @@ page_types:
       context:      { type: string }                     # anti-loss grounding
       # links: [{to, rel, why}], rel in supports|refutes|refines.
       links:        { type: array }
-      # --- optional inbox / learning extension ---
+      # --- optional learning extension ---
       observation_kind: { type: string }
       ac_status:    { type: string }
       agent_kind:   { type: string }

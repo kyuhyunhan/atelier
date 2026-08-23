@@ -13,7 +13,7 @@ that's a bug to report, not a chore to learn.
 
 Put markdown in the vault. That's the whole verb.
 
-- Drop new material into `raw/inbox/` (or directly into `raw/knowledge/`
+- Drop new material directly into its domain lane (`raw/knowledge/`
   / `raw/personal/` when you already know where it belongs).
 - Use Obsidian, your editor, or ask Claude — anything that writes a
   `.md` file into the vault.

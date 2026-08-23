@@ -230,5 +230,5 @@ def test_generated_by_and_domain_enums_are_additive() -> None:
     assert "mint" in claim_gen
     assert "operational" in ent_scheme
     # Old values preserved (additive, not a replacement).
-    assert {"personal", "knowledge", "inbox", "workshop"} <= set(src_domain)
+    assert {"personal", "knowledge", "workshop"} <= set(src_domain)
     assert {"ingest", "atomize", "promote", "dream"} <= set(claim_gen)

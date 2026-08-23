@@ -14,10 +14,10 @@
 #
 # Selectors key on (kind, domain) because `domain` is class-specific:
 #   claim.domain           ∈ {operational, knowledge, personal}   (operational = learnings)
-#   source.domain          ∈ {personal, knowledge, inbox, workshop, operational}
+#   source.domain          ∈ {personal, knowledge, workshop, operational}
 #     (operational = RFC 0007 capture/absorb Source lane; lens selectors for it
 #      are an M2 decision — today Sources are not in the recall candidate set)
-#   entity.in_scheme (LIST) ∈ {personal, knowledge, inbox, ...}    (membership, not equality)
+#   entity.in_scheme (LIST) ∈ {personal, knowledge, ...}    (membership, not equality)
 # "*" matches any value on that axis.
 version: 1
 default_lens: full
@@ -32,9 +32,7 @@ lenses:
       - {kind: claim,  domain: knowledge}
       - {kind: source, domain: operational}   # RFC 0007: the raw form of the primary dev content
       - {kind: source, domain: knowledge}
-      - {kind: source, domain: inbox}
       - {kind: entity, domain: knowledge}
-      - {kind: entity, domain: inbox}
 
   life:
     description: >-

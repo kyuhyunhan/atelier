@@ -4,6 +4,40 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Removed — the `inbox` intake, `atelier_capture`, and `inbox_status`
+
+A dormant reservation, retired on the same evidence bar as the index_regen
+retirement (#87): `raw/inbox/` received **zero** organic documents across the
+vault's entire git history, its only writer (`atelier_capture`) was never
+called, and `inbox_status` — the field that writer stamped — had no reader
+anywhere in the engine. `session_source_dir()`, which still pointed at the
+inbox lane, had zero callers: RFC 0007 superseded it with
+`operational_source_dir()` and the live capture path has been writing to
+`raw/operational/` ever since.
+
+Gone: `runtime/service/capture.py`, the `atelier_capture` MCP tool, the
+`capture_text` API funnel and `atelier capture` CLI subcommand,
+`resolver.inbox_dir/inbox_subpath/session_source_dir`, the `inbox` intake and
+`inbox_subpath` legacy leaf in `structure.yaml`, `inbox` from the source/entity
+domain enums and the lens manifest, the `inbox_status` field and its overlay
+block, and two L6 lint exemptions for a `personal/inbox/` path that never held
+a file. `new_doc`'s `raw` template now lands in `raw/personal/` instead of a
+`raw/personal/inbox/` that was never created. Three tests pin the retirement
+(module absent via `find_spec`, tool unregistered, `inbox` rejected as an
+intake domain and absent from the schema enum), each reverse-tested against a
+deliberate resurrection.
+
+Hard rule #6 changed accordingly: **no dormant reservations** — a declared but
+never-exercised path is deleted, not kept warm. A future mobile door brings its
+own landing lane when it is actually built.
+
+Vault side (outside this repo): the shared legacy operational-capture anchor
+moved from `raw/inbox/` to `raw/operational/` where it belongs by subject, with
+its `domain` corrected to `operational`. The 204 Claims deriving from it are
+unaffected — `find_source_by_entry_id` resolves by entry_id across all of
+`raw/`, never by path.
+
+
 ### Added — static analysis as a third CI gate (ruff + mypy)
 
 Open-sourcing track item 5. 19k lines of runtime Python were verified only by

@@ -445,7 +445,6 @@ runtime/
 │   ├── api.py          shared funnel that CLI + MCP both call into
 │   ├── auth.py         Session + bearer-token validation
 │   ├── claims.py       capability claims + per-role asyncio write locks
-│   ├── capture.py      raw-inbox capture (mobile-reserved)
 │   ├── jobs/           youtube · clip · prepare · pending · new_doc
 │   └── learnings/      capture · review · principles · dream · cluster ·
 │                       bootstrap · recall · absorb_claude · indexes ·
@@ -481,7 +480,6 @@ in v0.2 without restructuring.
 │   │                                 2026-07; supersedes the old "NEVER atomized" prose, which the
 │   │                                 live corpus already contradicted)
 │   ├── knowledge/                    domain: knowledge — atomized into graph/atomic/
-│   ├── inbox/                        domain: inbox — first-class capture intake (was personal/inbox)
 │   └── learning/                     dev-self lessons (relocated here from top-level learnings/, RFC 0003 P6)
 │       └── candidates/, notes/<YYYY-MM>/, principles/, archived/
 ├── graph/                            knowledge graph — engine-written (graph_root; renamed from `wiki/`)
@@ -629,8 +627,7 @@ five named entry points:
 
 | Reservation | Where | Active in |
 |---|---|---|
-| `base.yaml.source` and `inbox_status` | schema/data/base.yaml | Phase 1 (defined, nullable) |
-| `raw/inbox/` directory | vault | Phase 9 (created on first capture) |
+| `base.yaml.source` | schema/data/base.yaml | Phase 1 (defined, nullable) |
 | `runtime/service/capture.py` | runtime | Phase 7 (function, no HTTP) |
 | `claims.py` `mobile-claim` enum | runtime/service | Phase 7 (placeholder) |
 | `config.channels.mobile` | example.config.yaml | Phase 0 (commented) |

@@ -32,7 +32,7 @@ _SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema" / "data"
 def _expand_content_root(obj: Any) -> Any:
     """Recursively expand `{content_root}` placeholders in overlay string values.
 
-    Overlay path data (raw_source.path_patterns, inbox.path) carries the
+    Overlay path data (raw_source.path_patterns) carries the
     `{content_root}` placeholder so the content-root prefix is single-sourced
     from the structure resolver — flipping roots.content_root is the ONLY edit
     needed. Strings without the placeholder pass through unchanged.

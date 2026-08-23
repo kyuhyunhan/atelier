@@ -104,7 +104,7 @@ def _check_engine_unchanged(before: dict, after: dict) -> tuple[bool, str]:
 # the frozen baseline. Impossible pairs (e.g. source/operational) are harmless:
 # `full` covers them and the personal-leak check only inspects personal pairs.
 _LENS_KINDS = ("claim", "source", "entity")
-_LENS_DOMAINS = ("personal", "knowledge", "inbox", "workshop", "operational")
+_LENS_DOMAINS = ("personal", "knowledge", "workshop", "operational")
 
 
 def _check_lens_coverage(before: dict, after: dict) -> tuple[bool, str]:

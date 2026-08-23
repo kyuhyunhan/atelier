@@ -25,7 +25,7 @@ def test_v01_tools_registered() -> None:
     expected = {
         "atelier_search", "atelier_links", "atelier_list_pages",
         "atelier_lint", "atelier_doctor", "atelier_sync",
-        "atelier_reindex", "atelier_capture",
+        "atelier_reindex",
         "atelier_promote_propose", "atelier_promote_apply",
         "atelier_new_product",
     }

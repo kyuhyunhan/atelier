@@ -102,11 +102,12 @@ balcony tomatoes with Gildong — the new soil mix drains much better. Note to
 self: stop watering on a schedule and start checking the soil first.""",
         created="2026-06-21T21:30:00Z")
 
-    src("raw/inbox/2026-07-01-clip-to-triage.md", "Capture: drip irrigation clip",
-        "inbox", "public", "홍길동", """A quick capture that has not been triaged
+    src("raw/knowledge/drip-irrigation-clip.md", "Capture: drip irrigation clip",
+        "knowledge", "public", "홍길동", """A quick capture that has not been triaged
 yet. `atelier nudges` counts **Source nodes** (files with `kind: source`) that
 no Claim `derived_from` — this one and the soil note are the two keeping the
-atomize nudge due in this seed.""")
+atomize nudge due in this seed. (Until 2026-08-14 this lived in a `raw/inbox/`
+intake; that lane was retired after never receiving an organic document.)""")
 
     SESSION = src("raw/operational/2026-07-01-gardening-session.md",
         "Session: balcony gardening retro", "operational", "public", "claude-code",

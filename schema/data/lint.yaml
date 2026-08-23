@@ -115,12 +115,8 @@ rules:
     exemptions:
       - path_pattern: "provenance/personal/diary/**"
         covered_by: query-time-synthesis
-      - path_pattern: "provenance/personal/inbox/**"
-        covered_by: inbox_status
       - path_pattern: "raw/personal/diary/**"
         covered_by: query-time-synthesis
-      - path_pattern: "raw/personal/inbox/**"
-        covered_by: inbox_status
 
   L7:
     id: L7

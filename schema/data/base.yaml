@@ -118,11 +118,6 @@ fields:
     nullable: true
     description: "Capture channel: mobile | web-clipper | manual | vault-new"
 
-  inbox_status:
-    type: string
-    enum: [pending, processed, archived]
-    nullable: true
-    description: "Mobile inbox lifecycle. null = not an inbox item."
 
 upgrades:
   v3_to_v4:

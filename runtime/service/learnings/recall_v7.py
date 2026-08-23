@@ -71,7 +71,6 @@ T0_CAP = 3
 _CODING_PRIOR: dict[str, float] = {
     "operational": 2.0,     # operational learnings are what a coding turn wants
     "knowledge":   1.0,     # reference knowledge: neutral / mid
-    "inbox":       1.0,     # undetermined-domain captures: mid
     "workshop":    1.5,     # project/workshop material: high-ish
     "personal":    0.25,    # personal claims: low in a coding context
 }

@@ -3,7 +3,7 @@
 Templates:
 - `product`  → workshop/products/<name>/README.md (extends the v0.1
   `new-product` command)
-- `raw`      → raw/personal/inbox/<name>.md
+- `raw`      → raw/personal/<name>.md
 - `note`     → workshop/notes/<name>.md
 - `learning` → RETIRED (RFC 0005 §7.1): operational learnings are born as a
   Claim via atelier_learning_capture; this template now redirects there.
@@ -115,10 +115,9 @@ def new_doc(*, template: str, name: str,
         canonical = _structure.content_root()
         legacy = _structure.legacy_content_root()
         personal = _structure.intake_subpath("personal")
-        inbox = _structure.inbox_subpath()
         prov = legacy if (not (vault / canonical / personal).exists()
                           and (vault / legacy / personal).exists()) else canonical
-        target = vault / prov / personal / inbox / f"{name}.md"
+        target = vault / prov / personal / f"{name}.md"
         created = _now_iso()
         fm = {
             "schema_version": 4,

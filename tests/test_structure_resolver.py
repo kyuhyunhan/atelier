@@ -35,13 +35,7 @@ def test_intake_rejects_unknown():
 
 
 def test_homes():
-    assert resolver.home("graph_source") == "graph/sources"
     assert resolver.home("graph_entity") == "graph/entities"
-    assert resolver.home("graph_theme") == "graph/themes"
-    assert resolver.home("learning_candidate") == "raw/learning/candidates"
-    assert resolver.home("learning_note") == "raw/learning/notes"
-    assert resolver.home("learning_principle") == "raw/learning/principles"
-    assert resolver.home("learning_archived") == "raw/learning/archived"
     assert resolver.home("product") == "workshop/products"
 
 

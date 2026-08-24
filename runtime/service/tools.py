@@ -105,14 +105,13 @@ def _validate_lens(lens: str) -> None:
             f"unknown lens {lens!r}; valid: {sorted(_lenses.lens_names())}")
 
 
-async def _h_search(query: str, space: str | None = None,
-                    limit: int = 20, fallback: bool = False,
+async def _h_search(query: str, limit: int = 20, fallback: bool = False,
                     lens: str = "dev") -> dict[str, Any]:
     """Full-text search over indexed pages. Returns ranked hits, scoped by the
     serving `lens` (RFC 0006 ③): 'dev' (default) excludes personal-domain
     pages; 'full' is the wall-less cross-domain view."""
     _validate_lens(lens)
-    return {"hits": _api.search(query, space=space, limit=limit,
+    return {"hits": _api.search(query, limit=limit,
                                 fallback=fallback, lens=lens)}
 
 
@@ -126,10 +125,9 @@ async def _h_links(slug: str, direction: str = "both") -> dict[str, Any]:
     return {"slug": slug, "inbound": inbound, "outbound": outbound}
 
 
-async def _h_list_pages(space: str | None = None,
-                        page_type: str | None = None,
+async def _h_list_pages(page_type: str | None = None,
                         lens: str = "dev") -> dict[str, Any]:
-    """List indexed pages, optionally filtered by space or page_type. The
+    """List indexed pages, optionally filtered by page_type. The
     serving `lens` (RFC 0006 ③) scopes the LISTING itself: a personal page
     listed is a personal page disclosed, so the dev lens drops rows its
     (kind, domain) frontmatter is not admitted for."""
@@ -144,10 +142,7 @@ async def _h_list_pages(space: str | None = None,
     if page_type:
         sql += " AND page_type=?"
         params.append(page_type)
-    if space:
-        sql += " AND space=?"
-        params.append(space)
-    sql += " ORDER BY space, slug"
+    sql += " ORDER BY slug"
     rows: list[dict[str, Any]] = []
     for r in conn.execute(sql, params):
         try:
@@ -161,8 +156,7 @@ async def _h_list_pages(space: str | None = None,
     return {"pages": rows}
 
 
-async def _h_lint(space: str | None = None,
-                  rule_ids: list[str] | None = None,
+async def _h_lint(rule_ids: list[str] | None = None,
                   apply_fixes: bool = False) -> dict[str, Any]:
     """Run lint rules (L1/L3/L5/L6). With apply_fixes=true requires
     wiki-write claim and lock."""
@@ -170,8 +164,8 @@ async def _h_lint(space: str | None = None,
         sess = current_session()
         _claims.require(sess.to_call_context(), _claims.Claim.WIKI_WRITE)
         async with _claims.registry().acquire(_claims.WriterRole.WIKI):
-            return _api.lint(space=space, rule_ids=rule_ids, apply_fixes=True)
-    return _api.lint(space=space, rule_ids=rule_ids, apply_fixes=False)
+            return _api.lint(rule_ids=rule_ids, apply_fixes=True)
+    return _api.lint(rule_ids=rule_ids, apply_fixes=False)
 
 
 async def _h_doctor(remediate: bool = False, max_usd: float = 0.0) -> dict[str, Any]:
@@ -183,21 +177,20 @@ async def _h_doctor(remediate: bool = False, max_usd: float = 0.0) -> dict[str, 
     return _api.doctor(remediate=remediate, max_usd=max_usd)
 
 
-async def _h_sync(action: str, space: str | None = None,
-                  message: str | None = None) -> dict[str, Any]:
+async def _h_sync(action: str, message: str | None = None) -> dict[str, Any]:
     """Git sync for the vault. action: status | pull | push | commit | commit-push.
     `commit`/`commit-push` stage+commit (and push) only if the tree is dirty and
     safe (repo toplevel, not mid-merge/locked); a failed push is surfaced, never
     raised. `message` overrides the commit subject."""
-    return _api.sync(action, space=space, message=message)
+    return _api.sync(action, message=message)
 
 
 # ── Write-side handlers ────────────────────────────────────────────────────
 
 
-async def _h_reindex(space: str | None = None, full: bool = False) -> dict[str, Any]:
+async def _h_reindex(full: bool = False) -> dict[str, Any]:
     """Rebuild the SQLite projection of markdown content."""
-    return {"results": _api.reindex(space=space, full=full)}
+    return {"results": _api.reindex(full=full)}
 
 
 # `atelier_capture` was RETIRED here — the inbox intake it landed into had

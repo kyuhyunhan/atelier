@@ -20,14 +20,14 @@ Where other memory systems auto-extract and rank, atelier gives memory an
 
 - **An acceptance gate** — a captured lesson must carry its *why*, or it is
   rejected. Memories start unproven and earn their status.
-- **Budgeted surfacing tiers** — `query ⊂ proactive ⊂ always`, and the
-  always-tier is hard-capped (12 slots against 4,486 claims today). Nothing
-  floods your context by default.
+- **Budgeted surfacing tiers** — `query ⊂ proactive ⊂ always`. Recall serves
+  at most `T0_CAP` always-tier claims per turn (3 today), so the top tier is
+  budgeted at the point it costs you context, not by capping storage.
 - **Provenance chains** — every claim derives from an immutable source node;
   "where did this memory come from" always has an answer.
-- **Lens walls** — one graph, but a coding session structurally cannot see
-  your diary (`dev` / `life` / `full` lenses + a `private` sensitivity gate
-  that is lint-enforced, not ranking luck).
+- **Domain walls** — one graph, but a coding session structurally cannot see
+  your diary. You classify a document once (its `domain`); which surfaces may
+  read it follows from that, lint-enforced rather than ranking luck.
 
 **Measured, on this repo's own eval harness** (methodology and limits in
 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)):
@@ -128,6 +128,30 @@ The distinction that matters: after ingest + reindex a document is
 **searchable** (like a file in a drive — found when asked). Only after
 atomize does it become **memory**: split into facts that can earn their way
 up the surfacing tiers and be recalled without being asked for by name.
+
+Markdown is the truth, but **every number you see comes from the projection**
+— counts, nudges, search. So a file you just wrote is invisible to them until
+the next autosync tick (~60 s), or until you run `atelier reindex` yourself.
+If a count looks wrong, reproject before investigating.
+
+### The ladder, and where each domain stops
+
+One pipeline, four human gates. `atelier nudges` counts exactly these edges,
+so what tells you where you are and what teaches where you could be are the
+same list:
+
+```
+        ingest              atomize           promote            dream
+document ────▶ Source ──────────▶ Claim ─────────▶ proactive ───────▶ always
+  (or absorb, for                   │              (per-prompt)      (every
+   Claude Code's own memory)        │                                session)
+                                    │
+   operational claims detour here ──┴──▶ accept (needs a why) ──▶ back to promote
+   knowledge claims are born accepted · personal claims stop at Claim
+```
+
+That last block is the whole of `ac_status`: not a parallel axis, a **detour
+inside the operational lane**. 94% of claims never touch it.
 
 ### What runs itself, and what waits for you
 

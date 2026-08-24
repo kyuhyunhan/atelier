@@ -47,16 +47,6 @@ page_types:
       updated: { type: string, format: date }
 
   # ── Daily / weekly build logs ─────────────────────────────────────────────
-  build_log:
-    path_pattern: "logs/**/*.md"
-    writer: learnings-write
-    required_fields: [title, type, date, created, updated]
-    field_specs:
-      type:    { const: log }
-      date:    { type: string, format: date }
-      created: { type: string, format: date }
-      updated: { type: string, format: date }
-
 promotion:
   description: "Builder→wiki pathway. Governed by runtime/promote/."
   eligible_types: [product_readme, note]

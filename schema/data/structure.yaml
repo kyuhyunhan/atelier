@@ -56,9 +56,7 @@ atomize:
 # mirror the current writers: store.learning_root() == content_root/learning,
 # principles/_dir, _archived_dir, candidates, notes.
 homes:
-  graph_source: graph/sources
   graph_entity: graph/entities
-  graph_theme: graph/themes
   # RFC 0005 §3 v7 atomic node LAYERS. `kind` is the discriminator (a FIELD,
   # never the path), so a node classifies by `kind` regardless of where it sits.
   #
@@ -81,10 +79,6 @@ homes:
   # learning_* are content-root-RELATIVE: `{content_root}` is expanded by the
   # resolver (home()) from roots.content_root, so the whole learning tree moves
   # with a single root flip — never re-hardcode the prefix.
-  learning_candidate: "{content_root}/learning/candidates"
-  learning_note: "{content_root}/learning/notes"
-  learning_principle: "{content_root}/learning/principles"
-  learning_archived: "{content_root}/learning/archived"
   product: workshop/products
 
 # --- Prefix aliasing ------------------------------------------------------

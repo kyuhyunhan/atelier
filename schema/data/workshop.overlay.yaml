@@ -46,7 +46,6 @@ page_types:
       created: { type: string, format: date }
       updated: { type: string, format: date }
 
-  # ── Daily / weekly build logs ─────────────────────────────────────────────
 promotion:
   description: "Builder→wiki pathway. Governed by runtime/promote/."
   eligible_types: [product_readme, note]

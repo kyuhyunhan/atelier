@@ -17,13 +17,28 @@ lint enforces it. `page_type` is the identity function of `kind` for 7,359 of
 
 Removed, all with zero live instances and zero consumers:
 - `space` from five MCP tool signatures (search, list_pages, lint, sync,
-  reindex) — the projection has exactly one space and `classify` documents the
-  field as "intentionally unused". The API layer keeps its parameter.
-- Six phantom `homes` entries in `structure.yaml` pointing at directories that
-  do not exist (`graph/sources`, `graph/themes`, `raw/learning/*`), plus the
-  six tautological test assertions whose only content was that the data equals
-  itself.
-- The `build_log` page_type.
+  reindex) — this vault's projection has exactly one space and `classify`
+  documents the field as "intentionally unused". **The CLI and the API layer
+  keep `--space`/`space=`**: the CLI is the admin surface where a legacy
+  two-space config (still accepted by `config.py`) can target one space, while
+  MCP is the agent surface where the parameter was noise. On such a config an
+  agent now reaches all spaces at once; the CLI remains the way to scope.
+- Six `homes` entries in `structure.yaml` that **nothing calls `home()` for**
+  (`graph_source`, `graph_theme`, `learning_*`) — the verified criterion, and
+  a stronger one than "the directory is absent": `raw/learning/*` is still
+  probed elsewhere behind `.exists()` guards, just never through this map,
+  because learning paths compose from `store.learning_root()` plus a literal
+  subdir. Also the six tautological test assertions guarding them, whose only
+  content was that the data equals itself.
+- The `build_log` page_type — the one of the 13 zero-instance page_types with
+  no reference anywhere (`wiki_log`, by contrast, has a live instance and was
+  never a candidate).
+
+`graph_entity` is a **seventh** phantom home and was deliberately kept: its
+sole caller is `entity_backfill.py`, a 133-line module with a test but no
+production consumer. Retiring that module is its own decision with its own
+evidence, so it is filed rather than folded in — but the survivor should not
+look arbitrary next to the six that went.
 
 Corrected in the docs, where the taught model was wrong rather than merely
 wide:

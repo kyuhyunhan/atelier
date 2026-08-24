@@ -51,14 +51,12 @@ atomize:
   private_source_domains: [personal]
 
 # --- Homes ----------------------------------------------------------------
-# page_type -> write dir for that kind of node. graph_* are relative to
-# graph_root; learning_* and products map to their canonical trees. These
-# mirror the current writers: store.learning_root() == content_root/learning,
-# principles/_dir, _archived_dir, candidates, notes.
+# page_type -> write dir for that kind of node, read ONLY through home().
+# Six phantom entries (graph_source, graph_theme, learning_*) were removed
+# 2026-08-24: nothing called home() for them. Learning paths are composed by
+# store.learning_root() + a literal subdir, never from this map.
 homes:
-  graph_source: graph/sources
   graph_entity: graph/entities
-  graph_theme: graph/themes
   # RFC 0005 §3 v7 atomic node LAYERS. `kind` is the discriminator (a FIELD,
   # never the path), so a node classifies by `kind` regardless of where it sits.
   #
@@ -78,13 +76,6 @@ homes:
   #   (RFC 0005 P9.4 flatten).
   atomic_entity: graph/atomic
   atomic_claim: graph/atomic
-  # learning_* are content-root-RELATIVE: `{content_root}` is expanded by the
-  # resolver (home()) from roots.content_root, so the whole learning tree moves
-  # with a single root flip — never re-hardcode the prefix.
-  learning_candidate: "{content_root}/learning/candidates"
-  learning_note: "{content_root}/learning/notes"
-  learning_principle: "{content_root}/learning/principles"
-  learning_archived: "{content_root}/learning/archived"
   product: workshop/products
 
 # --- Prefix aliasing ------------------------------------------------------

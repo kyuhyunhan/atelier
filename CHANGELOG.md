@@ -4,6 +4,68 @@ All notable changes to atelier.
 
 ## [Unreleased]
 
+### Changed — shrink the vocabulary the user is asked to hold
+
+An audit of the conceptual model (prompted by the maintainer reporting it
+"feels unnecessarily complex") measured ~10 classification axes taught as if
+independent, of which only three are things a user chooses: **what kind of
+node, which domain, how far up the ladder.** `sensitivity`, `lens`, and the
+recall `domain_prior` are all functions of `domain` — across 5,525 classified
+vault documents, `domain` and `sensitivity` never disagree once, because L8
+lint enforces it. `page_type` is the identity function of `kind` for 7,359 of
+7,383 projected rows. `space` is a single value across the entire projection.
+
+Removed, all with zero live instances and zero consumers:
+- `space` from five MCP tool signatures (search, list_pages, lint, sync,
+  reindex) — this vault's projection has exactly one space and `classify`
+  documents the field as "intentionally unused". **The CLI and the API layer
+  keep `--space`/`space=`**: the CLI is the admin surface where a legacy
+  two-space config (still accepted by `config.py`) can target one space, while
+  MCP is the agent surface where the parameter was noise. On such a config an
+  agent now reaches all spaces at once; the CLI remains the way to scope.
+- Six `homes` entries in `structure.yaml` that **nothing calls `home()` for**
+  (`graph_source`, `graph_theme`, `learning_*`) — the verified criterion, and
+  a stronger one than "the directory is absent": `raw/learning/*` is still
+  probed elsewhere behind `.exists()` guards, just never through this map,
+  because learning paths compose from `store.learning_root()` plus a literal
+  subdir. Also the six tautological test assertions guarding them, whose only
+  content was that the data equals itself.
+- The `build_log` page_type — the one of the 13 zero-instance page_types with
+  no reference anywhere (`wiki_log`, by contrast, has a live instance and was
+  never a candidate).
+
+`graph_entity` is a **seventh** phantom home and was deliberately kept: its
+sole caller is `entity_backfill.py`, a 133-line module with a test but no
+production consumer. Retiring that module is its own decision with its own
+evidence, so it is filed rather than folded in — but the survivor should not
+look arbitrary next to the six that went.
+
+Corrected in the docs, where the taught model was wrong rather than merely
+wide:
+- **There is no 12-slot cap on the always tier.** `recall_v7.T0_CAP` is 3 and
+  it is a *serving* budget, not storage. The vault holding exactly 12 always-
+  claims was a coincidence this project had been quoting as an invariant.
+- **"Markdown is truth" predicted the wrong thing.** Every count, nudge and
+  search reads the projection first (`atomize.unatomized_count`), so a
+  just-written file is invisible to them until the next autosync tick. Now
+  stated where the slogan is.
+- **The taught ladder and the nudge list enumerated different sets** — README
+  had four states plus a side gate; `nudges.py` counts absorb/atomize/promote/
+  dream, and `absorb` appeared in neither the ladder nor any diagram. One
+  ladder now, with `absorb` on it and `ac_status` shown as what it is: a
+  detour inside the operational lane that 94% of claims never take.
+
+### Not done, and why
+
+The audit also recommended deleting 13 zero-instance page_types as "pure
+deletion, no design work". Measurement contradicted that: 12 of the 13 are
+referenced by the test suite, which exercises them as the contract for
+pre-v7 and pre-flat-facet vault layouts. They are not vestigial vocabulary —
+retiring them means dropping legacy-layout support, which is a design
+decision and not a cleanup. Left standing; `build_log` (the one with no
+references at all) is gone.
+
+
 ### Removed — the `inbox` intake, `atelier_capture`, and `inbox_status`
 
 A dormant reservation, retired on the same evidence bar as the index_regen

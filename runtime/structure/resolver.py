@@ -136,10 +136,11 @@ def intake_subpath(domain: str) -> str:
 def home(page_type: str) -> str:
     """Vault-relative write dir for a node `page_type`.
 
-    A home value may carry a `{content_root}` placeholder; it is expanded from
-    `content_root()` so the learning_* trees (and any future content-rooted
-    home) compose their prefix from the ONE root constant. Flipping
-    roots.content_root moves the whole content tree with a single edit.
+    A home value MAY carry a `{content_root}` placeholder, expanded from
+    `content_root()` so a content-rooted home composes its prefix from the ONE
+    root constant. No home carries it today (the learning_* entries that did
+    were removed 2026-08-24), so the expansion is currently a pass-through —
+    it stays because overlay `path_patterns` still rely on the same helper.
     """
     homes = _data()["homes"]
     if page_type not in homes:

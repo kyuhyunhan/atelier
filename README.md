@@ -20,14 +20,16 @@ Where other memory systems auto-extract and rank, atelier gives memory an
 
 - **An acceptance gate** — a captured lesson must carry its *why*, or it is
   rejected. Memories start unproven and earn their status.
-- **Budgeted surfacing tiers** — `query ⊂ proactive ⊂ always`, and the
-  always-tier is hard-capped (12 slots against 4,486 claims today). Nothing
-  floods your context by default.
+- **Budgeted surfacing tiers** — `query ⊂ proactive ⊂ always`. Recall serves
+  at most three always-tier claims per turn, so the top tier is budgeted where
+  it actually costs you context rather than by capping what you may store.
 - **Provenance chains** — every claim derives from an immutable source node;
   "where did this memory come from" always has an answer.
-- **Lens walls** — one graph, but a coding session structurally cannot see
-  your diary (`dev` / `life` / `full` lenses + a `private` sensitivity gate
-  that is lint-enforced, not ranking luck).
+- **Domain walls** — one graph, but a coding session structurally cannot see
+  your diary. You classify a document once (its `domain`); which surfaces may
+  read it follows from that, lint-enforced rather than ranking luck. (Agents
+  select a wall by name — the `lens` parameter on the read tools: `dev`,
+  `life`, `full`. You never have to.)
 
 **Measured, on this repo's own eval harness** (methodology and limits in
 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)):
@@ -128,6 +130,35 @@ The distinction that matters: after ingest + reindex a document is
 **searchable** (like a file in a drive — found when asked). Only after
 atomize does it become **memory**: split into facts that can earn their way
 up the surfacing tiers and be recalled without being asked for by name.
+
+Markdown is the truth, but **every number you see comes from the projection**
+— counts, nudges, search. So a file you just wrote is invisible to them until
+the next autosync tick (30–60 s), or until you run `atelier reindex` yourself.
+If a count looks wrong, reproject before investigating.
+
+### The ladder — three lanes, not one
+
+The domain you pick decides how far a document can climb. `atelier nudges`
+counts the gated edges (absorb / atomize / promote / dream), so the thing that
+tells you where you are and the thing that teaches where you could go are the
+same list:
+
+```
+every document:   ingest (or absorb) ──▶ Source ──atomize──▶ Claim
+                                                              │
+then, by domain:                                              ▼
+  operational   Claim ──accept──▶ ──promote──▶ proactive ──dream──▶ always
+                      (needs a why)
+  knowledge     Claim ─────────────(no promote edge)──dream──▶ proactive/always
+                      (born accepted)
+  personal      Claim ────────────────── stops here, never pushed
+```
+
+- **operational** (session lessons) is the only lane with a promote edge, and
+  `ac_status: passed` is the gate on it — not a side-trip, a precondition.
+- **knowledge** claims are born accepted and answer when asked; they reach
+  proactive/always only when a dream pass generalizes them.
+- **personal** claims stop at Claim by construction (`private` is never pushed).
 
 ### What runs itself, and what waits for you
 
